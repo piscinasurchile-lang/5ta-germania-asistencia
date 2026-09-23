@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless";
 export const runtime = "nodejs";
 
 const valid = (key) => /^[a-zA-Z0-9:_-]{1,100}$/.test(key);
+const reserved = (key) => key.startsWith("security:");
 
 function sqlClient() {
   if (!process.env.DATABASE_URL) return null;
@@ -12,6 +13,7 @@ function sqlClient() {
 export async function GET(_request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
+  if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
 
   const sql = sqlClient();
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
@@ -28,19 +30,15 @@ export async function GET(_request, { params }) {
 export async function PUT(request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
+  if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
 
   const sql = sqlClient();
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
 
   let body;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "invalid_json" }, { status: 400 });
-  }
-  if (!Object.prototype.hasOwnProperty.call(body, "value")) {
-    return Response.json({ error: "missing_value" }, { status: 400 });
-  }
+  try { body = await request.json(); }
+  catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  if (!Object.prototype.hasOwnProperty.call(body, "value")) return Response.json({ error: "missing_value" }, { status: 400 });
 
   try {
     const value = JSON.stringify(body.value);
