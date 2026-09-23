@@ -10,6 +10,17 @@ function sqlClient() {
   return neon(process.env.DATABASE_URL);
 }
 
+async function ensureSchema(sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS app_state (
+      key text PRIMARY KEY,
+      value jsonb NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state(updated_at DESC)`;
+}
+
 export async function GET(_request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
@@ -19,8 +30,9 @@ export async function GET(_request, { params }) {
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
 
   try {
+    await ensureSchema(sql);
     const rows = await sql`SELECT value FROM app_state WHERE key = ${key} LIMIT 1`;
-    return Response.json({ value: rows?.[0]?.value ?? null });
+    return Response.json({ value: rows?.[0]?.value ?? null }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state GET failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
@@ -41,6 +53,7 @@ export async function PUT(request, { params }) {
   if (!Object.prototype.hasOwnProperty.call(body, "value")) return Response.json({ error: "missing_value" }, { status: 400 });
 
   try {
+    await ensureSchema(sql);
     const value = JSON.stringify(body.value);
     await sql`
       INSERT INTO app_state (key, value, updated_at)
@@ -48,7 +61,7 @@ export async function PUT(request, { params }) {
       ON CONFLICT (key)
       DO UPDATE SET value = EXCLUDED.value, updated_at = now()
     `;
-    return Response.json({ ok: true });
+    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
