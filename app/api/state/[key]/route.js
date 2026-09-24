@@ -39,7 +39,14 @@ export async function GET(_request, { params }) {
   }
 }
 
-function sameOrigin(request) {\n  const origin = request.headers.get("origin");\n  if (!origin) return false;\n  try { return new URL(origin).host === request.headers.get("host"); } catch { return false; }\n}\n\nexport async function PUT(request, { params }) {\n  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
+function sameOrigin(request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try { return new URL(origin).host === request.headers.get("host"); } catch { return false; }
+}
+
+export async function PUT(request, { params }) {
+  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
