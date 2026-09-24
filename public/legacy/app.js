@@ -249,7 +249,10 @@ function actualizarAvisoAlmacenamiento(){
 /* ============ CARGA ============ */
 async function loadAll(){
   let r = await sGet(ROSTER_KEY,null);
-  if(!r){
+  // Una base nueva, una respuesta vacía o un dato inválido nunca debe
+  // dejar la aplicación sin nómina. En esos casos se inicializa desde
+  // la nómina oficial incluida en la aplicación y se persiste en Neon.
+  if(!Array.isArray(r) || r.length===0){
     r = SEED.map((s,i)=>({
       id:uid(), n:i+1, clave:s.clave, cargo:s.cargo,
       nombre:s.nombre, apellidoPaterno:s.ap, apellidoMaterno:s.am, rut:s.rut,
