@@ -34,6 +34,7 @@ async function ensureSchema(sql) {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS guardia_inscripciones_semana_idx ON guardia_inscripciones(semana_inicio, fecha)`;
+  await sql`CREATE TABLE IF NOT EXISTS guardia_semanas (id bigserial PRIMARY KEY, fecha_inicio date NOT NULL, fecha_fin date NOT NULL, apertura timestamptz NOT NULL, cierre timestamptz NOT NULL, estado text NOT NULL DEFAULT 'abierta', creado_por varchar(6) NOT NULL, creado_en timestamptz NOT NULL DEFAULT now(), actualizado_en timestamptz NOT NULL DEFAULT now(), UNIQUE(fecha_inicio,fecha_fin))`;
 }
 
 export async function GET(request) {
@@ -98,11 +99,10 @@ export async function POST(request) {
 
   try {
     await ensureSchema(sql);
-    let semana=[]; try { semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`; } catch (e) { if (e?.code !== "42P01") throw e; }
-    if (semana.length) {
-      const w=semana[0], now=Date.now();
-      if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
-    }
+    const semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`;
+    if (!semana.length) return Response.json({error:"registration_not_open"},{status:409});
+    const w=semana[0], now=Date.now();
+    if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
 
     const lockKey = Number(`${inicio.replaceAll("-", "")}${fecha.replaceAll("-", "")}`.slice(-15));
 
