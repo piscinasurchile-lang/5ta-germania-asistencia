@@ -46,16 +46,18 @@ export async function GET(request) {
   try {
     await schema(sql);
 
-    // OBAC usa exactamente la misma tabla persistente que /api/guardia/inscripcion.
-    // No filtramos por semana_inicio porque la fecha identifica la noche real.
-    const inscritos = await sql`
-      SELECT DISTINCT ON (codigo)
-        codigo::text AS codigo,
-        nombre,
-        creado_en
-      FROM guardia_inscripciones
-      WHERE fecha = ${fecha}::date
-      ORDER BY codigo, creado_en ASC
+    await sql\`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))\`;
+    const inscritos = await sql\`
+      SELECT DISTINCT ON (gi.codigo)
+        COALESCE(gr.codigo_reemplazo,gi.codigo)::text AS codigo,
+        COALESCE(gr.nombre_reemplazo,gi.nombre) AS nombre,
+        gi.codigo::text AS codigo_original,
+        (gr.codigo_reemplazo IS NOT NULL) AS reemplazo,
+        gi.creado_en
+      FROM guardia_inscripciones gi
+      LEFT JOIN guardia_reemplazos gr ON gr.fecha=gi.fecha AND gr.codigo_original=gi.codigo
+      WHERE gi.fecha = ${fecha}::date
+      ORDER BY gi.codigo, gi.creado_en ASC
     `;
 
     const confirmaciones = await sql`
@@ -75,6 +77,8 @@ export async function GET(request) {
         voluntarios: inscritos.map((v) => ({
           codigo: String(v.codigo),
           nombre: v.nombre,
+          codigoOriginal: String(v.codigo_original),
+          reemplazo: Boolean(v.reemplazo),
           confirmacion: porCodigo[String(v.codigo)] || null,
         })),
       },
@@ -114,18 +118,16 @@ export async function POST(request) {
   try {
     await schema(sql);
 
-    // El nombre no se acepta desde el navegador: se toma de la inscripción real.
-    const inscrito = await sql`
-      SELECT codigo::text AS codigo, nombre
-      FROM guardia_inscripciones
-      WHERE fecha = ${fecha}::date
-        AND codigo = ${codigo}
-      ORDER BY creado_en ASC
-      LIMIT 1
+    await sql\`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))\`;
+    const inscrito = await sql\`
+      SELECT COALESCE(gr.codigo_reemplazo,gi.codigo)::text AS codigo,
+             COALESCE(gr.nombre_reemplazo,gi.nombre) AS nombre
+      FROM guardia_inscripciones gi
+      LEFT JOIN guardia_reemplazos gr ON gr.fecha=gi.fecha AND gr.codigo_original=gi.codigo
+      WHERE gi.fecha=${fecha}::date AND COALESCE(gr.codigo_reemplazo,gi.codigo)=${codigo}
+      ORDER BY gi.creado_en ASC LIMIT 1
     `;
-
     if (!inscrito.length) return Response.json({ error: "not_registered" }, { status: 409 });
-
     const nombreReal = inscrito[0].nombre;
 
     await sql`
