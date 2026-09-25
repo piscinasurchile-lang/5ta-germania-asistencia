@@ -4,6 +4,7 @@ import Link from "next/link";
 const items=[
   ["Calendario de Guardia","/guardia/calendario","Solo Oficialidad · Crear semana y abrir inscripción"],
   ["Inscripción de Guardia","/guardia","Voluntarios"],
+  ["Resumen de inscripciones","/guardia/resumen","Solo Oficialidad · Semana completa"],
   ["Lista diaria","/guardia/lista-diaria","Oficialidad"],
   ["OBAC","/guardia/obac","Confirmación"],
   ["Reemplazos","/guardia/solicitudes","Solicitud y aprobación"],
