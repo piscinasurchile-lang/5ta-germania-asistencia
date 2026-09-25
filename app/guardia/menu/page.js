@@ -8,6 +8,7 @@ const items=[
   ["OBAC","/guardia/obac","Confirmación"],
   ["Reemplazos","/guardia/solicitudes","Solicitud y aprobación"],
   ["Conductor","/guardia/conductor","Asignación"],
+  ["Suspensión / cambio de compañía","/guardia/estado-noche","Solo Oficialidad"],
   ["Orden del Día / PDF","/guardia/orden-dia","Validación y emisión"],
   ["Archivo de ODD","/guardia/archivo","Órdenes emitidas"],
   ["Histórico y estadísticas","/guardia/historico","Seguimiento"]
