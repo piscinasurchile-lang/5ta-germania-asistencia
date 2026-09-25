@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 
-const items=[\n  ["Calendario de Guardia","/guardia/calendario","Solo Oficialidad · Crear semana y abrir inscripción"],
+const items=[
+  ["Calendario de Guardia","/guardia/calendario","Solo Oficialidad · Crear semana y abrir inscripción"],
   ["Inscripción de Guardia","/guardia","Voluntarios"],
   ["Lista diaria","/guardia/lista-diaria","Oficialidad"],
   ["OBAC","/guardia/obac","Confirmación"],
