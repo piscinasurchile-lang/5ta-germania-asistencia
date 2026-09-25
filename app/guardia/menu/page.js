@@ -1,1 +1,29 @@
-"use client";import Link from"next/link";const items=[["Inscripción de Guardia","/guardia"],["Lista diaria","/guardia/lista-diaria"],["OBAC","/guardia/obac"],["Reemplazos","/guardia/solicitudes"],["Conductor","/guardia/conductor"],["Orden del Día / PDF","/guardia/orden-dia"],["Archivo de ODD","/guardia/archivo"],["Histórico y estadísticas","/guardia/historico"]];export default function MenuGuardia(){return <main className="page"><section className="panel head"><div className="esc">5ª</div><div><small>CUERPO DE BOMBEROS DE VILLARRICA</small><h1>Quinta Compañía “Germania”</h1><p>Guardia Nocturna · Menú operativo</p></div></section><section className="panel body">{items.map(([t,h])=><Link className="item" href={h} key={h}><strong>{t}</strong><span>›</span></Link>)}</section><style jsx>{`:global(*){box-sizing:border-box}:global(body){margin:0;background:#0d0e11;color:#f2f2f2;font-family:Arial,sans-serif}.page{width:min(100%,520px);margin:auto;padding:14px 12px 40px}.panel{background:#15171b;border:1px solid #292c32;border-radius:10px}.head{display:flex;gap:12px;align-items:center;padding:16px;border-top:3px solid #c72c2c;margin-bottom:12px}.esc{width:48px;height:55px;border:2px solid #d5a62e;border-radius:7px;display:grid;place-items:center;color:#d5a62e;font-weight:800}.head small{color:#d5a62e;font-size:10px;letter-spacing:.8px}.head h1{font-size:18px;margin:3px 0}.head p{margin:0;color:#aaa;font-size:13px}.body{padding:10px}.item{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:0 14px;margin:7px 0;background:#101216;border:1px solid #292c32;border-radius:7px;color:#fff;text-decoration:none}.item strong{font-size:15px}.item span{color:#d5a62e;font-size:25px}.item:hover{border-color:#d5a62e}`}</style></main>}
+"use client";
+import Link from "next/link";
+
+const items=[
+  ["Inscripción de Guardia","/guardia","Voluntarios"],
+  ["Lista diaria","/guardia/lista-diaria","Oficialidad"],
+  ["OBAC","/guardia/obac","Confirmación"],
+  ["Reemplazos","/guardia/solicitudes","Solicitud y aprobación"],
+  ["Conductor","/guardia/conductor","Asignación"],
+  ["Orden del Día / PDF","/guardia/orden-dia","Validación y emisión"],
+  ["Archivo de ODD","/guardia/archivo","Órdenes emitidas"],
+  ["Histórico y estadísticas","/guardia/historico","Seguimiento"]
+];
+
+export default function MenuGuardia(){
+ return <main style={{minHeight:"100vh",background:"#0d0e11",color:"#f2f2f2",fontFamily:"Arial,sans-serif",padding:"18px 12px 42px"}}>
+  <div style={{width:"100%",maxWidth:720,margin:"0 auto"}}>
+   <section style={{display:"flex",gap:14,alignItems:"center",padding:18,background:"#15171b",border:"1px solid #30333a",borderTop:"4px solid #c72c2c",borderRadius:12,marginBottom:14}}>
+    <div style={{width:54,height:60,border:"2px solid #d5a62e",borderRadius:8,display:"grid",placeItems:"center",color:"#d5a62e",fontWeight:900,fontSize:18,flex:"0 0 auto"}}>5ª</div>
+    <div><div style={{color:"#d5a62e",fontWeight:800,fontSize:11,letterSpacing:".7px"}}>CUERPO DE BOMBEROS DE VILLARRICA</div><h1 style={{fontSize:21,margin:"4px 0"}}>Quinta Compañía “Germania”</h1><p style={{margin:0,color:"#b8b8b8",fontSize:14}}>Guardia Nocturna · Menú operativo</p></div>
+   </section>
+   <section style={{padding:12,background:"#15171b",border:"1px solid #30333a",borderRadius:12}}>
+    {items.map(([t,h,s])=><Link href={h} key={h} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,minHeight:64,padding:"10px 16px",margin:"8px 0",background:"#101216",border:"1px solid #30333a",borderRadius:9,color:"#f4f4f4",textDecoration:"none"}}>
+      <span><strong style={{display:"block",fontSize:16}}>{t}</strong><small style={{display:"block",marginTop:3,color:"#a9abb0",fontSize:12}}>{s}</small></span><span style={{color:"#d5a62e",fontSize:27,fontWeight:700}}>›</span>
+    </Link>)}
+   </section>
+  </div>
+ </main>
+}
