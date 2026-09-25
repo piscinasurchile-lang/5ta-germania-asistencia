@@ -1,0 +1,118 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+function hoyChile() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export default function ListaDiariaGuardiaPage() {
+  const [fecha, setFecha] = useState(hoyChile());
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(true);
+
+  async function cargar(f = fecha) {
+    setCargando(true);
+    setError("");
+    try {
+      const r = await fetch(`/api/guardia/lista-diaria?fecha=${encodeURIComponent(f)}`, { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "No fue posible cargar la guardia.");
+      setData(j);
+    } catch (e) {
+      setData(null);
+      setError(e.message || "No fue posible cargar la guardia.");
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  useEffect(() => { cargar(fecha); }, [fecha]);
+
+  return (
+    <main className="page">
+      <section className="panel encabezado">
+        <div className="escudo">5ª</div>
+        <div>
+          <div className="institucion">CUERPO DE BOMBEROS DE VILLARRICA</div>
+          <h1>Quinta Compañía “Germania”</h1>
+          <p>Lista diaria de Guardia</p>
+        </div>
+      </section>
+
+      <section className="panel contenido">
+        <label className="fechaLabel">Fecha de guardia</label>
+        <input className="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+
+        {cargando && <div className="estado">Cargando guardia…</div>}
+        {error && <div className="error">{error}</div>}
+
+        {!cargando && data && (
+          <>
+            <div className="resumen">
+              <div><span>Inscritos</span><strong>{data.total}/4</strong></div>
+              <div><span>Estado</span><strong>{data.completa ? "Completa" : "Incompleta"}</strong></div>
+              <div><span>OBAC pendientes</span><strong>{data.pendientesObac}</strong></div>
+            </div>
+
+            <div className="lista">
+              {data.voluntarios.length === 0 && <div className="vacio">No hay voluntarios inscritos para esta fecha.</div>}
+              {data.voluntarios.map((v) => (
+                <article className="voluntario" key={v.codigo}>
+                  <div className="posicion">{v.posicion}</div>
+                  <div className="datos">
+                    <strong>{v.nombre}</strong>
+                    <span>Código {v.codigo}</span>
+                  </div>
+                  <div className={`obac ${v.obac}`}>
+                    {v.obac === "cumplio" ? "Cumplió" : v.obac === "no_cumplio" ? "No cumplió" : "Pendiente"}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <button className="actualizar" onClick={() => cargar(fecha)}>Actualizar lista</button>
+          </>
+        )}
+      </section>
+
+      <style jsx>{`
+        :global(*){box-sizing:border-box}
+        :global(body){margin:0;background:#0d0e11;color:#f2f2f2;font-family:inherit}
+        .page{width:min(100%,520px);margin:0 auto;padding:14px 12px 40px}
+        .panel{background:#15171b;border:1px solid #292c32;border-radius:10px;overflow:hidden}
+        .encabezado{display:flex;gap:12px;align-items:center;padding:16px;border-top:3px solid #c72c2c;margin-bottom:12px}
+        .escudo{width:48px;height:55px;border:2px solid #d5a62e;border-radius:7px;display:grid;place-items:center;color:#d5a62e;font-weight:800}
+        .institucion{font-size:10px;letter-spacing:.8px;color:#d5a62e}
+        .encabezado h1{font-size:18px;margin:3px 0}
+        .encabezado p{margin:0;color:#aaa;font-size:13px}
+        .contenido{padding:18px 16px}
+        .fechaLabel{display:block;font-size:14px;font-weight:700;margin-bottom:7px}
+        .fecha{width:100%;height:46px;background:#0f1013;border:1px solid #363940;border-radius:6px;color:#fff;padding:0 12px;font-size:16px;color-scheme:dark}
+        .resumen{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:15px 0}
+        .resumen div{background:#101216;border:1px solid #292c32;border-radius:7px;padding:10px 7px;text-align:center}
+        .resumen span{display:block;color:#999;font-size:11px;margin-bottom:5px}
+        .resumen strong{font-size:14px;color:#d5a62e}
+        .lista{display:flex;flex-direction:column;gap:7px}
+        .voluntario{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:9px;background:#101216;border:1px solid #292c32;border-radius:7px;padding:10px}
+        .posicion{width:30px;height:30px;border-radius:50%;background:#b91f24;display:grid;place-items:center;font-weight:800}
+        .datos strong{display:block;font-size:15px}
+        .datos span{display:block;color:#999;font-size:12px;margin-top:2px}
+        .obac{font-size:11px;font-weight:800;border-radius:5px;padding:6px 7px;text-align:center}
+        .pendiente{background:#e3a72f;color:#111}
+        .cumplio{background:#5da962;color:#111}
+        .no_cumplio{background:#b91f24;color:#fff}
+        .actualizar{width:100%;min-height:46px;border:0;border-radius:6px;background:#b91f24;color:#fff;font-weight:700;font-size:15px;margin-top:15px}
+        .estado,.vacio,.error{margin-top:14px;padding:12px;border:1px solid #363940;border-radius:6px;background:#101216;color:#bbb}
+        .error{border-color:#7d2528;color:#f2b4b6}
+        @media(max-width:420px){.page{padding:8px}.contenido{padding:16px 12px}.resumen{grid-template-columns:1fr 1fr}.resumen div:last-child{grid-column:1/-1}.voluntario{grid-template-columns:32px 1fr auto}}
+      `}</style>
+    </main>
+  );
+}
