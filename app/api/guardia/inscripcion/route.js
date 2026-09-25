@@ -98,6 +98,11 @@ export async function POST(request) {
 
   try {
     await ensureSchema(sql);
+    const semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`;
+    if (semana.length) {
+      const w=semana[0], now=Date.now();
+      if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
+    }
 
     const lockKey = Number(`${inicio.replaceAll("-", "")}${fecha.replaceAll("-", "")}`.slice(-15));
 
