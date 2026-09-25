@@ -1,0 +1,54 @@
+"use client";
+import { useEffect, useState } from "react";
+
+function hoyChile(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
+
+export default function ObacGuardia(){
+ const[fecha,setFecha]=useState(hoyChile());
+ const[codigo,setCodigo]=useState("");
+ const[oficial,setOficial]=useState(null);
+ const[voluntarios,setVoluntarios]=useState([]);
+ const[mensaje,setMensaje]=useState("");
+ const[cargando,setCargando]=useState(false);
+
+ async function cargar(){
+  setCargando(true);
+  try{
+   const r=await fetch(`/api/guardia/confirmacion?fecha=${fecha}`,{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok)throw new Error("No fue posible cargar la guardia.");
+   setVoluntarios(j.voluntarios||[]);
+  }catch(e){setMensaje(e.message)}finally{setCargando(false)}
+ }
+
+ useEffect(()=>{cargar()},[fecha]);
+
+ async function validarOficial(){
+  const limpio=codigo.trim();
+  setOficial(null);
+  if(!/^\d{1,6}$/.test(limpio)){setMensaje("Ingrese un código de oficial válido.");return}
+  setCargando(true);
+  try{
+   const r=await fetch(`/api/oficialidad?codigo=${encodeURIComponent(limpio)}`,{cache:"no-store"});
+   const j=await r.json();
+   if(!r.ok)throw new Error("No fue posible validar la Oficialidad.");
+   if(!j.autorizado||!j.oficial){setMensaje("El código no pertenece a la Oficialidad 2026.");return}
+   setOficial(j.oficial);
+   setMensaje("");
+  }catch(e){setMensaje(e.message)}finally{setCargando(false)}
+ }
+
+ async function marcar(v,cumplio){
+  if(!oficial){setMensaje("Primero valide al oficial a cargo.");return}
+  setCargando(true);
+  try{
+   const r=await fetch("/api/guardia/confirmacion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fecha,codigo:v.codigo,nombre:v.nombre,cumplio,confirmadoPor:oficial.codigo})});
+   if(!r.ok)throw new Error("No fue posible guardar la confirmación.");
+   await cargar();
+   setMensaje(`${v.nombre}: ${cumplio?"cumplimiento confirmado":"no cumplió la guardia"}.`);
+  }catch(e){setMensaje(e.message)}finally{setCargando(false)}
+ }
+
+ const confirmados=voluntarios.filter(v=>v.confirmacion?.cumplio===true).length;
+ return <main className="page"><header><div className="escudo">5ª</div><div><small>CUERPO DE BOMBEROS DE VILLARRICA</small><h1>Guardia · OBAC</h1><p>Confirmación nocturna</p></div></header><section><label className="titulo">Código del oficial a cargo</label><div className="codigo"><input className="campo" inputMode="numeric" value={codigo} onChange={e=>{setCodigo(e.target.value.replace(/\D/g,""));setOficial(null)}} placeholder="Código"/><button onClick={validarOficial} disabled={cargando}>Validar</button></div>{oficial&&<div className="oficial"><strong>{oficial.nombre}</strong><span>{oficial.cargo} · Oficialidad 2026</span></div>}<label className="titulo fecha">Fecha de guardia</label><input className="campo" type="date" value={fecha} onChange={e=>setFecha(e.target.value)}/><div className="resumen"><strong>{confirmados}/{voluntarios.length}</strong><span>cumplimientos confirmados</span></div>{cargando&&voluntarios.length===0?<p>Cargando...</p>:voluntarios.length===0?<div className="vacio">No hay voluntarios inscritos para esta noche.</div>:<div className="lista">{voluntarios.map(v=><article key={v.codigo}><div className="persona"><strong>{v.nombre}</strong><span>Código {v.codigo}</span></div><div className="acciones"><button disabled={cargando||!oficial} className={v.confirmacion?.cumplio===true?"si activo":"si"} onClick={()=>marcar(v,true)}>Cumplió ✓</button><button disabled={cargando||!oficial} className={v.confirmacion?.cumplio===false?"no activo":"no"} onClick={()=>marcar(v,false)}>No cumplió</button></div></article>)}</div>}{mensaje&&<div className="mensaje">{mensaje}</div>}</section><style jsx>{`:global(*){box-sizing:border-box}:global(body){margin:0;background:#0d0e11;color:#f2f2f2;font-family:inherit}.page{width:min(100%,520px);margin:auto;padding:12px 12px 40px}header,section{background:#15171b;border:1px solid #292c32;border-radius:10px}header{border-top:3px solid #c72c2c;padding:16px;display:flex;gap:12px;align-items:center;margin-bottom:12px}.escudo{width:48px;height:55px;border:2px solid #d5a62e;border-radius:7px;display:grid;place-items:center;color:#d5a62e;font-weight:800}small{color:#d5a62e;font-size:10px;letter-spacing:.7px}h1{font-size:19px;margin:3px 0}header p{margin:0;color:#aaa;font-size:13px}section{padding:17px}.titulo{display:block;font-weight:700;margin-bottom:7px}.fecha{margin-top:14px}.codigo{display:grid;grid-template-columns:1fr 100px;gap:8px}.campo{width:100%;height:46px;background:#0f1013;border:1px solid #363940;border-radius:6px;color:#fff;padding:0 12px;font-size:17px}.codigo button{border:0;border-radius:6px;background:#b91f24;color:#fff;font-weight:800}.codigo button:disabled,.acciones button:disabled{opacity:.4}.oficial{margin-top:9px;padding:10px;background:#101216;border:1px solid #3b3e44;border-radius:6px;display:flex;flex-direction:column}.oficial strong{color:#d5a62e}.oficial span{font-size:12px;color:#aaa;margin-top:3px}.resumen{display:flex;align-items:center;gap:10px;margin:18px 0;padding:12px;background:#101216;border:1px solid #292c32;border-radius:7px}.resumen strong{font-size:23px;color:#d5a62e}.resumen span{color:#bbb}.lista{display:flex;flex-direction:column;gap:9px}article{background:#101216;border:1px solid #292c32;border-radius:8px;padding:12px}.persona{display:flex;flex-direction:column;gap:3px}.persona span{font-size:12px;color:#999}.acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.acciones button{height:43px;border-radius:6px;border:1px solid #3b3e44;background:#1b1d21;color:#fff;font-weight:800}.si.activo{background:#2d6d3b;border-color:#4c985d}.no.activo{background:#8c2529;border-color:#bd363b}.mensaje,.vacio{margin-top:13px;padding:11px;border:1px solid #363940;border-radius:6px;background:#101216;line-height:1.4}.vacio{color:#aaa;text-align:center}@media(max-width:390px){.acciones,.codigo{grid-template-columns:1fr}section{padding:14px}.codigo button{height:43px}}`}</style></main>
+}
