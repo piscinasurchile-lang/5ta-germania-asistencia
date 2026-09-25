@@ -160,3 +160,18 @@ export async function POST(request) {
     return Response.json({ error: "database_error" }, { status: 500 });
   }
 }
+
+
+export async function DELETE(request) {
+  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
+  const sql = sqlClient();
+  if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
+  let body; try { body = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  const inicio=String(body.inicio||""), fecha=String(body.fecha||""), codigo=String(body.codigo||"");
+  if(!validDate(inicio)||!validDate(fecha)||!validCode(codigo)) return Response.json({error:"invalid_data"},{status:400});
+  try {
+    await ensureSchema(sql);
+    await sql`DELETE FROM guardia_inscripciones WHERE semana_inicio=${inicio}::date AND fecha=${fecha}::date AND codigo=${codigo}`;
+    return Response.json({ok:true},{headers:{"Cache-Control":"no-store"}});
+  } catch(error) { console.error("guardia DELETE failed",error); return Response.json({error:"database_error"},{status:500}); }
+}
