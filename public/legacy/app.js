@@ -323,7 +323,6 @@ function renderListaRows(){
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="cargo-col">${esc(p.cargo)}</td>
       <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">COND</span> `:""}${esc(nombreCompleto(p))}</td>
-      <td class="ingreso-col">${esc(p.fechaIngreso||"")}</td>
       <td><div class="seg" data-id="${p.id}">
         <button class="on-presente ${st==='presente'?'active':''}" data-status="presente">Presente</button>
         <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente">Ausente</button>
@@ -464,9 +463,12 @@ function mostrarEnlaceArchivo(url,nombre,rotulo,texto){
   caja.innerHTML=`
     <div style="font-size:13px;color:#a89584;margin-bottom:10px;">${esc(rotulo||"Documento listo")}</div>
     <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
-      <a href="${url}" download="${esc(nombre)}" target="_blank" rel="noopener"
+      <a href="${url}" target="_blank" rel="noopener"
          style="background:#c9a227;color:#241c08;text-decoration:none;font-weight:700;
-                padding:10px 16px;border-radius:6px;font-size:14px;">Abrir documento</a>
+                padding:10px 16px;border-radius:6px;font-size:14px;">Ver documento</a>
+      <a href="${url}" download="${esc(nombre)}"
+         style="background:#3a2f26;color:#f1ebe0;text-decoration:none;font-weight:700;
+                padding:10px 16px;border-radius:6px;font-size:14px;">Descargar</a>
       <a href="https://wa.me/?text=${wa}" target="_blank" rel="noopener"
          style="background:#2f6f45;color:#eafaf0;text-decoration:none;font-weight:700;
                 padding:10px 16px;border-radius:6px;font-size:14px;">WhatsApp</a>
@@ -477,8 +479,9 @@ function mostrarEnlaceArchivo(url,nombre,rotulo,texto){
               padding:9px 14px;border-radius:6px;font-size:13px;cursor:pointer;">Cerrar</button>
     </div>
     <div style="font-size:11.5px;color:#a89584;margin-top:10px;opacity:.85;line-height:1.5;">
-      Toca <b>Abrir documento</b> para guardarlo. Luego, en WhatsApp o en el correo a
-      ${CORREO_COMPANIA}, adjunta el archivo desde tus descargas.
+      Toca <b>Ver documento</b> primero para revisar que esté correcto. Si está bien, toca
+      <b>Descargar</b> para guardarlo, y luego en WhatsApp o en el correo a ${CORREO_COMPANIA},
+      adjunta el archivo descargado a quien corresponda.
     </div>`;
   caja.querySelector("#cerrarArchivo").onclick=()=>caja.remove();
 }
@@ -490,11 +493,6 @@ async function entregarArchivo(blob,nombre,texto,rotulo){
     catch(e){ if(e && e.name==="AbortError") return true; }
   }
   const url=URL.createObjectURL(blob);
-  if(!esIOS()){
-    const a=document.createElement("a");
-    a.href=url; a.download=nombre;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
   mostrarEnlaceArchivo(url,nombre,rotulo,texto);
   setTimeout(()=>URL.revokeObjectURL(url),300000);
   return false;
@@ -541,7 +539,7 @@ const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraCon
  "svCargoQuinta","svOfContabilidad","svOfSeguridad","svLugarInicio","svNaturaleza","svDetNaturaleza","svOrigen",
  "svDetOrigen","svCausas","svDetCausa","svTipoInmueble","svConstruccion","svNiveles","svObservaciones",
  "svPersonas","svMaterial","svApoyo"];
-let svConcurrencia={};   // id -> "tripulante" | "propios" | "no"
+let svConcurrencia={};   // id -> "si" | "no"
 
 function svClave(){
   const f=document.getElementById("svFecha").value;
@@ -557,8 +555,7 @@ function renderSvBody(){
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="name-col">${ac?`<span class="ac">${esc(ac)}</span> `:""}${esc(nombreCompleto(p))}</td>
       <td><div class="seg" data-id="${p.id}">
-        <button class="on-presente ${st==='tripulante'?'active':''}" data-st="tripulante">En el B-5</button>
-        <button class="on-justificado ${st==='propios'?'active':''}" data-st="propios">Medios propios</button>
+        <button class="on-presente ${st==='si'?'active':''}" data-st="si">Concurre</button>
         <button class="on-ausente ${st==='no'?'active':''}" data-st="no">No concurre</button>
       </div></td>`;
     body.appendChild(tr);
@@ -573,19 +570,17 @@ function renderSvBody(){
   renderSvResumen();
 }
 function svConteo(){
-  let trip=0,prop=0,no=0;
+  let concurrentes=0,no=0;
   sortedRoster(false).forEach(p=>{
     const s=svConcurrencia[p.id]||"no";
-    if(s==="tripulante") trip++; else if(s==="propios") prop++; else no++;
+    if(s==="si") concurrentes++; else no++;
   });
-  return {trip,prop,no,concurrentes:trip+prop};
+  return {no,concurrentes};
 }
 function renderSvResumen(){
   const c=svConteo();
   document.getElementById("svResumen").innerHTML=`
     <div class="summary-item"><div class="big">${c.concurrentes}</div><div class="lbl">Total concurrentes</div></div>
-    <div class="summary-item"><div class="big">${c.trip}</div><div class="lbl">Tripulando el B-5</div></div>
-    <div class="summary-item"><div class="big">${c.prop}</div><div class="lbl">Por medios propios</div></div>
     <div class="summary-item"><div class="big">${c.no}</div><div class="lbl">No concurrió</div></div>`;
 }
 on("svLimpiarBtn","click",()=>{
@@ -632,7 +627,7 @@ on("svGuardarBtn","click",async()=>{
 
   if(!datos.registrarAsistencia){
     msg.classList.remove("err");
-    msg.textContent=`Hoja de servicio guardada. No se registró asistencia (${c.concurrentes} tripulantes anotados solo en la hoja).`;
+    msg.textContent=`Hoja de servicio guardada. No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
     return;
   }
 
@@ -655,7 +650,7 @@ on("svGuardarBtn","click",async()=>{
     modoConcurrencia:{...svConcurrencia}
   });
   msg.classList.remove("err");
-  msg.textContent=`Hoja de servicio guardada. ${c.concurrentes} voluntarios concurrieron (${c.trip} en el B-5, ${c.prop} por medios propios).`;
+  msg.textContent=`Hoja de servicio guardada. ${c.concurrentes} voluntarios concurrieron.`;
 });
 
 function buildServicioPdf(){
@@ -692,12 +687,11 @@ function buildServicioPdf(){
   doc.setFont("helvetica","bold"); doc.setFontSize(12);
   doc.text("CONCURRENCIA DE VOLUNTARIOS",14,20);
   doc.setFont("helvetica","normal"); doc.setFontSize(10);
-  doc.text(`Total concurrentes: ${c.concurrentes}   ·   En el B-5: ${c.trip}   ·   Medios propios: ${c.prop}   ·   No concurrió: ${c.no}`,14,27);
+  doc.text(`Total concurrentes: ${c.concurrentes}   ·   No concurrió: ${c.no}`,14,27);
 
-  const etiqueta={tripulante:"En el B-5",propios:"Medios propios"};
   const rows=sortedRoster(false)
-    .filter(p=>svConcurrencia[p.id]&&svConcurrencia[p.id]!=="no")
-    .map(p=>[p.n||"",acronimoCargo(p)||"—",nombreCompleto(p),etiqueta[svConcurrencia[p.id]]]);
+    .filter(p=>svConcurrencia[p.id]==="si")
+    .map(p=>[p.n||"",acronimoCargo(p)||"—",nombreCompleto(p),"Concurre"]);
   doc.autoTable({head:[["N°","Cargo","Nombre","Concurrencia"]],body:rows,startY:32,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]}});
 
   doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
@@ -718,7 +712,7 @@ on("svPdfBtn","click",async()=>{
 });
 on("svWaBtn","click",async()=>{
   const c=svConteo(), g=id=>document.getElementById(id).value||"";
-  const texto=`HOJA DE SERVICIO B-5 · Quinta Compañía "Germania"\n${g("svTipoAct")} · ${g("svFecha")} ${g("svHoraSalida")}\nLugar: ${[g("svCalle"),g("svNumeracion"),g("svSector")].filter(Boolean).join(" ")}\nNaturaleza: ${g("svNaturaleza")}\n\nConcurrieron ${c.concurrentes} voluntarios: ${c.trip} en el B-5 y ${c.prop} por medios propios.`;
+  const texto=`HOJA DE SERVICIO B-5 · Quinta Compañía "Germania"\n${g("svTipoAct")} · ${g("svFecha")} ${g("svHoraSalida")}\nLugar: ${[g("svCalle"),g("svNumeracion"),g("svSector")].filter(Boolean).join(" ")}\nNaturaleza: ${g("svNaturaleza")}\n\nConcurrieron ${c.concurrentes} voluntarios.`;
   const shared=await sharePdfDoc(buildServicioPdf(),`hoja_servicio_b5_${g("svFecha")||todayISO()}.pdf`,texto);
   if(!shared) window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");
 });
