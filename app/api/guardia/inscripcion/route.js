@@ -68,7 +68,17 @@ export async function GET(request) {
       ? rows.filter((row) => String(row.codigo) === codigo).map((row) => String(row.fecha).slice(0, 10))
       : [];
 
-    return Response.json({ dias, propias }, { headers: { "Cache-Control": "no-store" } });
+    const semanaRows = await sql`
+      SELECT estado, apertura, cierre FROM guardia_semanas
+      WHERE fecha_inicio = ${inicio}::date
+      ORDER BY creado_en DESC LIMIT 1
+    `;
+    const w = semanaRows[0] || null;
+    const now = Date.now();
+    const abierta = !!w && w.estado === "abierta" && now >= new Date(w.apertura).getTime() && now <= new Date(w.cierre).getTime();
+    const semana = w ? { estado: w.estado, apertura: w.apertura, cierre: w.cierre, abierta } : null;
+
+    return Response.json({ dias, propias, semana }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("guardia GET failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
