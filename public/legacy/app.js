@@ -2118,8 +2118,15 @@ let bajasDesbloqueado=false;
 async function autenticarOficialidad(pin){
   try{
     const r=await fetch("/api/auth/officiality",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin})});
-    return r.ok;
-  }catch(e){ return false; }
+    if(r.ok) return {ok:true};
+    if(r.status===503) return {ok:false,motivo:"no_configurado"};
+    return {ok:false,motivo:"clave_incorrecta"};
+  }catch(e){ return {ok:false,motivo:"conexion"}; }
+}
+function mensajeOficialidad(motivo){
+  if(motivo==="no_configurado") return "El sistema de acceso no está configurado (falta clave inicial en el servidor). Avisa al encargado técnico.";
+  if(motivo==="conexion") return "No fue posible conectar. Verifica tu conexión e inténtalo de nuevo.";
+  return "Clave incorrecta.";
 }
 function pintarCandado(){
   const cand=document.getElementById("configCandado"), cont=document.getElementById("configContenido");
@@ -2129,13 +2136,13 @@ function pintarCandado(){
 }
 on("bajaEntrarBtn","click",async()=>{
   const inp=document.getElementById("bajaClave"), msg=document.getElementById("bajaClaveMsg");
-  const ok = await autenticarOficialidad(inp.value.trim());
-  msg.classList.toggle("err",!ok);
-  if(ok){
+  const res = await autenticarOficialidad(inp.value.trim());
+  msg.classList.toggle("err",!res.ok);
+  if(res.ok){
     bajasDesbloqueado=true; inp.value=""; msg.textContent="";
     pintarCandado(); renderBajasSelects(); renderBajasList();
   } else {
-    msg.textContent="Clave incorrecta.";
+    msg.textContent=mensajeOficialidad(res.motivo);
     inp.value="";
   }
 });
