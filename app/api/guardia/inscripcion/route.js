@@ -179,3 +179,54 @@ export async function DELETE(request) {
     return Response.json({ok:true},{headers:{"Cache-Control":"no-store"}});
   } catch(error) { console.error("guardia DELETE failed",error); return Response.json({error:"database_error"},{status:500}); }
 }
+
+
+export async function PUT(request) {
+  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
+  const sql = sqlClient();
+  if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
+  let body; try { body = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  const inicio=String(body.inicio||""), codigo=String(body.codigo||""), nombre=String(body.nombre||"").trim();
+  const fechas=Array.isArray(body.fechas)?[...new Set(body.fechas.map(String))]:[];
+  if(!validDate(inicio)||!validCode(codigo)||!nombre||fechas.some(f=>!validDate(f))||fechas.length>7) return Response.json({error:"invalid_data"},{status:400});
+  try {
+    await ensureSchema(sql);
+    const semana=await sql`SELECT fecha_inicio::text,fecha_fin::text,estado,apertura,cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date ORDER BY creado_en DESC LIMIT 1`;
+    if(!semana.length) return Response.json({error:"registration_not_open"},{status:409});
+    const w=semana[0],now=Date.now(),fin=String(w.fecha_fin).slice(0,10);
+    if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
+    if(fechas.some(f=>f<inicio||f>fin)) return Response.json({error:"invalid_date_for_week"},{status:400});
+    const payload=JSON.stringify(fechas);
+    const lockKey=Number(inicio.replaceAll("-",""));
+    const result=await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(${lockKey})`,
+      sql`WITH elegidas AS (SELECT value::date fecha FROM jsonb_array_elements_text(${payload}::jsonb)),
+        cupos AS (
+          SELECT e.fecha,COUNT(gi.id)::int ocupados
+          FROM elegidas e LEFT JOIN guardia_inscripciones gi ON gi.fecha=e.fecha AND gi.codigo<>${codigo}
+          GROUP BY e.fecha
+        ),
+        disponibles AS (
+          SELECT COUNT(*)::int n FROM generate_series(${inicio}::date,${fin}::date,'1 day'::interval) d
+          WHERE (SELECT COUNT(*) FROM guardia_inscripciones gi WHERE gi.fecha=d::date AND gi.codigo<>${codigo}) < ${MAX_GUARDIANES}
+        ),
+        valido AS (
+          SELECT NOT EXISTS(SELECT 1 FROM cupos WHERE ocupados>=${MAX_GUARDIANES})
+            AND (SELECT COUNT(*) FROM elegidas) >= LEAST(2,(SELECT n FROM disponibles)) ok
+        ),
+        borradas AS (
+          DELETE FROM guardia_inscripciones WHERE semana_inicio=${inicio}::date AND codigo=${codigo} AND (SELECT ok FROM valido) RETURNING id
+        ),
+        insertadas AS (
+          INSERT INTO guardia_inscripciones(semana_inicio,fecha,codigo,nombre)
+          SELECT ${inicio}::date,e.fecha,${codigo},${nombre} FROM elegidas e
+          WHERE (SELECT ok FROM valido)
+          ON CONFLICT(semana_inicio,fecha,codigo) DO NOTHING RETURNING id
+        )
+        SELECT (SELECT ok FROM valido) ok,(SELECT n FROM disponibles) disponibles,(SELECT COUNT(*)::int FROM insertadas) total`
+    ]);
+    const estado=result?.[1]?.[0]||{};
+    if(!estado.ok) return Response.json({error:"selection_invalid_or_full",disponibles:Number(estado.disponibles||0)},{status:409});
+    return Response.json({ok:true,total:Number(estado.total||0)},{headers:{"Cache-Control":"no-store"}});
+  } catch(error) { console.error("guardia PUT failed",error); return Response.json({error:"database_error"},{status:500}); }
+}
