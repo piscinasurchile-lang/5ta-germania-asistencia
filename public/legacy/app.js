@@ -145,6 +145,7 @@ function on(id,evento,fn){
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
       if(s.dataset.sub==="mantencionesb5" && typeof renderMntTodo==="function") renderMntTodo();
+      if(s.dataset.sub==="inventariob5" && typeof renderInvTodo==="function") renderInvTodo();
     });
   });
 })();
@@ -280,6 +281,7 @@ async function loadAll(){
   CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
   SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
   MNT_TIPOS = await sGet(MNT_TIPOS_KEY,null) || DEFAULT_MNT_TIPOS.slice();
+  INV_CATEGORIAS = await sGet(INV_CAT_KEY,null) || DEFAULT_INV_CATEGORIAS.slice();
   ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
   renumerar();
 }
@@ -364,6 +366,121 @@ async function renderCorrelativoHistorial(){
 }
 on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
 on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
+
+/* ============ INVENTARIO B-5 ============ */
+const INV_KEY="inventarioB5:v1", INV_CAT_KEY="invCategorias:v1";
+const DEFAULT_INV_CATEGORIAS=["Herramientas menores","Equipos Autónomos (ERA)","Mangueras y Coplas","Bombas de Espalda","Ventilación","Motosierras","Otros"];
+let INV_CATEGORIAS=[];
+const SEED_INVENTARIO_B5=[
+  {codigo:"OT-013",nombre:"Motosierra",categoria:"Motosierras",cantidad:1,estado:"Operativo",ubicacion:"",obs:"A bencina/mezcla"},
+  {codigo:"",nombre:"Kit de motosierra",categoria:"Motosierras",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Bidón de combustible",categoria:"Motosierras",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Cilindro Scott",categoria:"Equipos Autónomos (ERA)",cantidad:7,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Cilindro MSA",categoria:"Equipos Autónomos (ERA)",cantidad:2,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"ERA Scott (equipo completo)",categoria:"Equipos Autónomos (ERA)",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"ERA MSA (equipo completo)",categoria:"Equipos Autónomos (ERA)",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"VE-002",nombre:"Ventilador Typhoon",categoria:"Ventilación",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Motor a bencina/mezcla"},
+  {codigo:"",nombre:"Bichero",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Hacha",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Hacha Plana",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"FO-004",nombre:"Hacha Picota",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Napoleón",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Halligan",categoria:"Herramientas menores",cantidad:2,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Mazo",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"Pala",categoria:"Herramientas menores",cantidad:2,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"",nombre:"TNT (barretilla/pata de chivo)",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Confirmar nombre exacto"},
+  {codigo:"AG-003",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
+  {codigo:"AG-037",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:""}
+];
+function renderInvCategoriaOptions(seleccionado){
+  const sel=document.getElementById("invCategoria"); if(!sel) return;
+  const actual=seleccionado||sel.value;
+  sel.innerHTML=ordenarTipos(INV_CATEGORIAS).map(c=>`<option${c===actual?" selected":""}>${esc(c)}</option>`).join("");
+}
+on("invCategoriaAgregarBtn","click",async()=>{
+  const inp=document.getElementById("invCategoriaNueva"); const v=inp.value.trim();
+  if(!v||INV_CATEGORIAS.includes(v)){ inp.value=""; return; }
+  INV_CATEGORIAS.push(v); await sSet(INV_CAT_KEY,INV_CATEGORIAS);
+  renderInvCategoriaOptions(v); inp.value="";
+});
+async function getInventario(){
+  let lista=await sGet(INV_KEY,null);
+  if(!lista){
+    lista=SEED_INVENTARIO_B5.map((it,i)=>({id:Date.now()+i,...it}));
+    await sSet(INV_KEY,lista);
+  }
+  return lista;
+}
+function limpiarFormInv(){
+  ["invCodigo","invNombre","invUbicacion","invObs","invEditId"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("invCantidad").value=1;
+  document.getElementById("invEstado").value="Operativo";
+  document.getElementById("invGuardarBtn").textContent="Guardar ítem";
+}
+on("invGuardarBtn","click",async()=>{
+  const msg=document.getElementById("invMsg"); msg.classList.remove("err");
+  const nombre=document.getElementById("invNombre").value.trim();
+  if(!nombre){ msg.textContent="Indica al menos el nombre del ítem."; msg.classList.add("err"); return; }
+  const editId=document.getElementById("invEditId").value;
+  const item={
+    codigo:document.getElementById("invCodigo").value.trim(),
+    nombre, categoria:document.getElementById("invCategoria").value,
+    cantidad:Number(document.getElementById("invCantidad").value)||0,
+    estado:document.getElementById("invEstado").value,
+    ubicacion:document.getElementById("invUbicacion").value.trim(),
+    obs:document.getElementById("invObs").value.trim()
+  };
+  const lista=await getInventario();
+  if(editId){ const i=lista.findIndex(x=>x.id===Number(editId)); if(i>-1) lista[i]={id:Number(editId),...item}; }
+  else lista.push({id:Date.now(),...item});
+  await sSet(INV_KEY,lista);
+  msg.textContent=editId?"Ítem actualizado.":"Ítem agregado al inventario.";
+  limpiarFormInv();
+  await renderInvLista();
+});
+async function renderInvLista(){
+  const box=document.getElementById("invLista"); if(!box) return;
+  const lista=await getInventario();
+  if(!lista.length){ box.innerHTML='<div class="empty">Inventario vacío.</div>'; return; }
+  const colorEstado={"Operativo":"#284f35","En mantención":"#6b5a22","Fuera de servicio":"#7d2528","Falta":"#7d2528"};
+  const porCategoria={};
+  lista.forEach(it=>{ (porCategoria[it.categoria||"Otros"]=porCategoria[it.categoria||"Otros"]||[]).push(it); });
+  box.innerHTML=Object.keys(porCategoria).sort((a,b)=>a.localeCompare(b,"es")).map(cat=>
+    `<h3 style="margin-top:14px;">${esc(cat)}</h3>`+
+    porCategoria[cat].map(it=>`
+      <div class="hist-item">
+        <div>
+          <div class="hist-date">${it.codigo?`<span class="badge">${esc(it.codigo)}</span> `:""}${esc(it.nombre)} <span class="badge" style="background:${colorEstado[it.estado]||"#3a3d44"};">${esc(it.estado)}</span></div>
+          <div class="hist-acto">Cantidad: ${it.cantidad}${it.ubicacion?" · Ubicación: "+esc(it.ubicacion):""}${it.obs?"<br>"+esc(it.obs):""}</div>
+        </div>
+        <div class="hist-right">
+          <button class="btn small secondary" data-inv-edit="${it.id}">Editar</button>
+          <button class="btn small secondary" data-inv-del="${it.id}">Eliminar</button>
+        </div>
+      </div>`).join("")
+  ).join("");
+  box.querySelectorAll("[data-inv-edit]").forEach(b=>b.addEventListener("click",async()=>{
+    const id=Number(b.dataset.invEdit);
+    const it=(await getInventario()).find(x=>x.id===id); if(!it) return;
+    document.getElementById("invCodigo").value=it.codigo||"";
+    document.getElementById("invNombre").value=it.nombre||"";
+    renderInvCategoriaOptions(it.categoria);
+    document.getElementById("invCantidad").value=it.cantidad||1;
+    document.getElementById("invEstado").value=it.estado||"Operativo";
+    document.getElementById("invUbicacion").value=it.ubicacion||"";
+    document.getElementById("invObs").value=it.obs||"";
+    document.getElementById("invEditId").value=it.id;
+    document.getElementById("invGuardarBtn").textContent="Guardar cambios";
+  }));
+  box.querySelectorAll("[data-inv-del]").forEach(b=>b.addEventListener("click",async()=>{
+    if(!confirm("¿Eliminar este ítem del inventario?")) return;
+    const id=Number(b.dataset.invDel);
+    const lista=(await getInventario()).filter(x=>x.id!==id);
+    await sSet(INV_KEY,lista);
+    await renderInvLista();
+  }));
+}
+async function renderInvTodo(){ renderInvCategoriaOptions(); await renderInvLista(); }
 
 /* ============ MANTENCIONES B-5 ============ */
 const MNT_TIPOS_KEY="mntTipos:v1", MNT_KEY="mantencionesB5:v1";

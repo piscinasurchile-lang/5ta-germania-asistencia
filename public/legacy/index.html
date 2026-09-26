@@ -556,6 +556,7 @@
       <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
       <button class="subtab" data-sub="importar">Importar datos</button>
       <button class="subtab" onclick="window.__mostrarPestana('panel')">Informe</button>
+      <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
       <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
       <button class="subtab" data-sub="nomina">Nómina</button>
       <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
@@ -800,6 +801,39 @@
         <button class="btn" id="correlativoAjustarBtn">Guardar ajuste de este número</button>
         <div class="status-msg" id="correlativoMsg"></div>
         <div id="correlativoHistorial" style="margin-top:16px;"></div>
+      </div>
+    </div>
+
+    <!-- INVENTARIO B-5 -->
+    <div class="subpanel" id="sub-inventariob5">
+      <div class="card">
+        <h2>Inventario · Unidad B-5</h2>
+        <p class="sub">Herramientas, equipos autónomos, mangueras y demás material que debe llevar el carro. Cada ítem con su código, para poder revisarlo rápido en el compartimento correspondiente.</p>
+
+        <h3>Agregar / editar ítem</h3>
+        <div class="field-row">
+          <div class="field" style="flex:0 0 110px;"><label for="invCodigo">Código</label><input type="text" id="invCodigo" placeholder="Ej: AG-003"></div>
+          <div class="field" style="flex:1 1 220px;"><label for="invNombre">Nombre</label><input type="text" id="invNombre"></div>
+          <div class="field" style="flex:1 1 180px;"><label for="invCategoria">Categoría</label><select id="invCategoria"></select></div>
+          <div class="field" style="flex:0 0 90px;"><label for="invCantidad">Cantidad</label><input type="number" id="invCantidad" min="0" value="1"></div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="flex:0 0 180px;"><label for="invEstado">Estado</label>
+            <select id="invEstado"><option>Operativo</option><option>En mantención</option><option>Fuera de servicio</option><option>Falta</option></select>
+          </div>
+          <div class="field" style="flex:1 1 180px;"><label for="invUbicacion">Ubicación / compartimento</label><input type="text" id="invUbicacion"></div>
+          <div class="field" style="flex:1 1 220px;"><label for="invObs">Observaciones</label><input type="text" id="invObs"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin:6px 0 10px;">
+          <input type="text" id="invCategoriaNueva" placeholder="Agregar otra categoría…" style="flex:1;">
+          <button type="button" class="btn small secondary" id="invCategoriaAgregarBtn">Agregar categoría</button>
+        </div>
+        <button class="btn" id="invGuardarBtn">Guardar ítem</button>
+        <input type="hidden" id="invEditId">
+        <div class="status-msg" id="invMsg"></div>
+
+        <h3 style="margin-top:22px;">Inventario actual</h3>
+        <div id="invLista"></div>
       </div>
     </div>
 
