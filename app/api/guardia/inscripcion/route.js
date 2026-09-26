@@ -171,6 +171,10 @@ export async function DELETE(request) {
   if(!validDate(inicio)||!validDate(fecha)||!validCode(codigo)) return Response.json({error:"invalid_data"},{status:400});
   try {
     await ensureSchema(sql);
+    const semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`;
+    if (!semana.length) return Response.json({error:"registration_not_open"},{status:409});
+    const w=semana[0], now=Date.now();
+    if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
     await sql`DELETE FROM guardia_inscripciones WHERE semana_inicio=${inicio}::date AND fecha=${fecha}::date AND codigo=${codigo}`;
     return Response.json({ok:true},{headers:{"Cache-Control":"no-store"}});
   } catch(error) { console.error("guardia DELETE failed",error); return Response.json({error:"database_error"},{status:500}); }
