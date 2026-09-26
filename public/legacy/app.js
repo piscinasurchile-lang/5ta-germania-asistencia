@@ -1793,6 +1793,16 @@ function renderOficialidad(asignaciones){
     await saveCargos(); renderCargoOptions(); loadOficialidadYear();
   }));
 }
+/* Rescata automaticamente quien ocupa cada cargo hoy en la nomina, para
+   precargar la Oficialidad de un anio que aun no se ha guardado */
+function oficialidadDesdeNomina(){
+  const asign={};
+  CARGOS.forEach(cargo=>{
+    const m=ROSTER.find(p=>p.activo!==false && p.cargo===cargo);
+    if(m) asign[cargo]=m.id;
+  });
+  return asign;
+}
 async function loadOficialidadYear(){
   const input=document.getElementById("anioOficialidad");
   const msg=document.getElementById("oficialidadMsg");
@@ -1804,8 +1814,8 @@ async function loadOficialidadYear(){
   if(msg){msg.textContent="Cargando "+anio+"…";msg.classList.remove("err");}
   try{
     const data=await sGet("oficialidad:"+anio,null);
-    renderOficialidad(data||{});
-    if(msg) msg.textContent=data?"Oficialidad guardada para "+anio+".":"No hay oficialidad guardada para "+anio+". Puedes asignarla y guardar.";
+    renderOficialidad(data||oficialidadDesdeNomina());
+    if(msg) msg.textContent=data?"Oficialidad guardada para "+anio+".":"No hay oficialidad guardada para "+anio+" — se rescataron automáticamente los cargos vigentes en la nómina. Revisa y guarda para dejarlo registrado.";
   }catch(e){
     console.error("No se pudo cargar oficialidad",e);
     renderOficialidad({});
