@@ -588,6 +588,7 @@ const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraCon
  "svDetOrigen","svCausas","svDetCausa","svTipoInmueble","svConstruccion","svNiveles","svObservaciones",
  "svPersonas","svMaterial","svApoyo"];
 let svConcurrencia={};   // id -> "si" | "no"
+let svBloqueado=false;
 
 function svClave(){
   const f=document.getElementById("svFecha").value;
@@ -603,19 +604,45 @@ function renderSvBody(){
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="name-col">${ac?`<span class="ac">${esc(ac)}</span> `:""}${esc(nombreCompleto(p))}</td>
       <td><div class="seg" data-id="${p.id}">
-        <button class="on-presente ${st==='si'?'active':''}" data-st="si">Concurre</button>
-        <button class="on-ausente ${st==='no'?'active':''}" data-st="no">No concurre</button>
+        <button class="on-presente ${st==='si'?'active':''}" data-st="si" ${svBloqueado?"disabled":""}>Concurre</button>
+        <button class="on-ausente ${st==='no'?'active':''}" data-st="no" ${svBloqueado?"disabled":""}>No concurre</button>
       </div></td>`;
     body.appendChild(tr);
   });
-  body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
+  if(!svBloqueado) body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
     const seg=b.parentElement;
     svConcurrencia[seg.dataset.id]=b.dataset.st;
     seg.querySelectorAll("button").forEach(x=>x.classList.remove("active"));
     b.classList.add("active");
     renderSvResumen();
   }));
+  const gb=document.getElementById("svGuardarBtn"), lb=document.getElementById("svLimpiarBtn");
+  if(gb) gb.disabled=svBloqueado; if(lb) lb.disabled=svBloqueado;
   renderSvResumen();
+  renderCandadoSv();
+}
+function renderCandadoSv(){
+  let box=document.getElementById("candadoSv");
+  if(!box){
+    box=document.createElement("div"); box.id="candadoSv";
+    const ref=document.getElementById("svBody")?.closest("table");
+    if(ref) ref.parentElement.insertBefore(box,ref);
+  }
+  if(!svBloqueado){ box.innerHTML=""; box.style.display="none"; return; }
+  box.style.display="block";
+  box.style.cssText="padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  box.innerHTML=`<b>Esta hoja de servicio ya fue guardada y no se puede modificar.</b>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input id="claveDesbloqueoSv" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
+      <button id="desbloquearSvBtn" class="btn small">Desbloquear para editar</button>
+    </div>
+    <div id="candadoSvMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
+  document.getElementById("desbloquearSvBtn").onclick=async()=>{
+    const inp=document.getElementById("claveDesbloqueoSv"), m=document.getElementById("candadoSvMsg");
+    const res=await autenticarOficialidad(inp.value.trim());
+    if(res.ok){ svBloqueado=false; renderSvBody(); }
+    else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
+  };
 }
 function svConteo(){
   let concurrentes=0,no=0;
@@ -653,6 +680,9 @@ async function cargarServicio(){
     document.getElementById("svRegistrarAsistencia").checked = ex.registrarAsistencia!==false;
     msg.textContent="Ya existe una hoja de servicio guardada para esta fecha y hora de salida.";
     msg.classList.remove("err");
+    svBloqueado=true;
+  } else {
+    svBloqueado=false;
   }
   sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; });
   renderSvBody();
@@ -664,42 +694,60 @@ on("svTipoAct","change",()=>{
   document.getElementById("svRegistrarAsistencia").checked = (t==="Emergencia"||t==="Acto de servicio");
 });
 
-on("svGuardarBtn","click",async()=>{
+on("svGuardarBtn","click",()=>{
+  if(svBloqueado) return;
   const msg=document.getElementById("svMsg");
   const fecha=document.getElementById("svFecha").value;
   if(!fecha){ msg.textContent="Indica la fecha del servicio."; msg.classList.add("err"); return; }
-  const datos=svDatos();
-  datos.registrarAsistencia=document.getElementById("svRegistrarAsistencia").checked;
-  await sSet(svClave(),datos);
-  const c=svConteo();
-
-  if(!datos.registrarAsistencia){
-    msg.classList.remove("err");
-    msg.textContent=`Hoja de servicio guardada. No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
-    return;
-  }
-
-  // Se registra ademas como citacion, para que cuente en el Control de asistencia
-  const tipo=document.getElementById("svTipoAct").value+" B-5";
-  if(!TIPOS.includes(tipo)){ TIPOS.push(tipo); await saveTipos(); renderTipoSelect(); populateTipoFilters(); }
-  const records={};
-  sortedRoster(true).forEach(p=>{
-    const s=svConcurrencia[p.id]||"no";
-    records[p.id] = (s==="no") ? "ausente" : "presente";
-  });
-  const detalle=[document.getElementById("svCalle").value,document.getElementById("svNumeracion").value,
-                 document.getElementById("svSector").value].filter(Boolean).join(" ");
-  const detFinal=detalle||document.getElementById("svNaturaleza").value;
-  const hs=(document.getElementById("svHoraSalida").value||"s-h").replace(":","");
-  const claveSv=claveFor(fecha,tipo)+"__"+hs;
-  await setParte(claveSv,{
-    date:fecha, tipo, detalle:detFinal,
-    registradoPor:document.getElementById("svCargoQuinta").value, records,
-    modoConcurrencia:{...svConcurrencia}
-  });
-  msg.classList.remove("err");
-  msg.textContent=`Hoja de servicio guardada. ${c.concurrentes} voluntarios concurrieron.`;
+  mostrarConfirmarSv();
 });
+function mostrarConfirmarSv(){
+  const msg=document.getElementById("svMsg"), c=svConteo();
+  msg.classList.remove("err");
+  msg.innerHTML=`<div style="padding:12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;">
+      <b>Revisa antes de guardar:</b> ${c.concurrentes} concurrentes · ${c.no} no concurrió.<br/>
+      <small>Una vez guardada, esta hoja no podrá modificarse sin la clave de Oficialidad. ¿Está correcto o quiere revisar de nuevo?</small>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button id="confirmarGuardarSvBtn" class="btn small">Sí, está correcto — Guardar</button>
+        <button id="revisarDeNuevoSvBtn" class="btn small secondary">Revisar de nuevo</button>
+      </div></div>`;
+  document.getElementById("revisarDeNuevoSvBtn").onclick=()=>{ msg.innerHTML=""; };
+  document.getElementById("confirmarGuardarSvBtn").onclick=async()=>{
+    const fecha=document.getElementById("svFecha").value;
+    const datos=svDatos();
+    datos.registrarAsistencia=document.getElementById("svRegistrarAsistencia").checked;
+    await sSet(svClave(),datos);
+
+    if(!datos.registrarAsistencia){
+      svBloqueado=true; renderSvBody();
+      msg.classList.remove("err");
+      msg.textContent=`Hoja de servicio guardada. No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
+      return;
+    }
+
+    // Se registra ademas como citacion, para que cuente en el Control de asistencia
+    const tipo=document.getElementById("svTipoAct").value+" B-5";
+    if(!TIPOS.includes(tipo)){ TIPOS.push(tipo); await saveTipos(); renderTipoSelect(); populateTipoFilters(); }
+    const records={};
+    sortedRoster(true).forEach(p=>{
+      const s=svConcurrencia[p.id]||"no";
+      records[p.id] = (s==="no") ? "ausente" : "presente";
+    });
+    const detalle=[document.getElementById("svCalle").value,document.getElementById("svNumeracion").value,
+                   document.getElementById("svSector").value].filter(Boolean).join(" ");
+    const detFinal=detalle||document.getElementById("svNaturaleza").value;
+    const hs=(document.getElementById("svHoraSalida").value||"s-h").replace(":","");
+    const claveSv=claveFor(fecha,tipo)+"__"+hs;
+    await setParte(claveSv,{
+      date:fecha, tipo, detalle:detFinal,
+      registradoPor:document.getElementById("svCargoQuinta").value, records,
+      modoConcurrencia:{...svConcurrencia}
+    });
+    svBloqueado=true; renderSvBody();
+    msg.classList.remove("err");
+    msg.textContent=`Hoja de servicio guardada. ${c.concurrentes} voluntarios concurrieron.`;
+  };
+}
 
 function buildServicioPdf(){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
