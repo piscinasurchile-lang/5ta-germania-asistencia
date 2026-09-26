@@ -47,10 +47,10 @@ export async function GET(request) {
         gr.autorizado_por::text AS reemplazo_autorizado_por,
         gr.actualizado_en AS reemplazo_actualizado_en
       FROM guardia_inscripciones gi
-      LEFT JOIN guardia_confirmaciones gc
-        ON gc.fecha = gi.fecha AND gc.codigo = COALESCE(gr.codigo_reemplazo,gi.codigo)
       LEFT JOIN guardia_reemplazos gr
         ON gr.fecha = gi.fecha AND gr.codigo_original = gi.codigo
+      LEFT JOIN guardia_confirmaciones gc
+        ON gc.fecha = gi.fecha AND gc.codigo = COALESCE(gr.codigo_reemplazo,gi.codigo)
       WHERE gi.fecha = ${fecha}::date
       ORDER BY gi.codigo, gi.creado_en ASC
     `;
