@@ -10,6 +10,7 @@ const items=[
   ["Reemplazos","/guardia/solicitudes","Solicitud y aprobación"],
   ["Conductor","/guardia/conductor","Asignación"],
   ["Suspensión / cambio de compañía","/guardia/estado-noche","Solo Oficialidad"],
+  ["Cambio / cancelación de período","/guardia/cambios","Solo Oficialidad · Reprogramación y aviso"],
   ["Orden del Día / PDF","/guardia/orden-dia","Validación y emisión"],
   ["Archivo de ODD","/guardia/archivo","Órdenes emitidas"],
   ["Histórico y estadísticas","/guardia/historico","Seguimiento"]
