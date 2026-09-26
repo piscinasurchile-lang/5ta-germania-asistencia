@@ -254,15 +254,25 @@
       <div class="field-row">
         <div class="field"><label for="svFecha">Fecha</label><input type="date" id="svFecha"></div>
         <div class="field"><label for="svTipoAct">Tipo de actividad</label>
-          <select id="svTipoAct">
-            <option>Emergencia</option><option>Acto de servicio</option>
-            <option>Carga de combustible</option><option>Traslado</option>
-            <option>Mantención</option><option>Ejercicio con material</option><option>Otro</option>
-          </select>
+          <select id="svTipoAct"></select>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <input type="text" id="svTipoActNuevo" placeholder="Agregar otro tipo…" style="flex:1;">
+            <button type="button" class="btn small secondary" id="svTipoActAgregarBtn">Agregar</button>
+          </div>
         </div>
         <div class="field"><label for="svHoraSalida">Hora salida</label><input type="time" id="svHoraSalida"></div>
         <div class="field"><label for="svHoraLlegada">Hora llegada</label><input type="time" id="svHoraLlegada"></div>
         <div class="field"><label for="svHoraControl">Hora control</label><input type="time" id="svHoraControl"></div>
+      </div>
+      <div class="field-row" id="svFichaCombustible" style="display:none;">
+        <h3 style="flex-basis:100%;">Ficha de carga de combustible</h3>
+        <div class="field"><label for="svCombConductor">Nombre del conductor</label><input type="text" id="svCombConductor"></div>
+        <div class="field"><label for="svCombKm">Kilometraje actual</label><input type="text" id="svCombKm"></div>
+        <div class="field"><label for="svCombFecha">Fecha</label><input type="date" id="svCombFecha"></div>
+        <div class="field"><label for="svCombServicentro">Servicentro</label><input type="text" id="svCombServicentro"></div>
+        <div class="field"><label for="svCombRut">RUT del servicentro</label><input type="text" id="svCombRut"></div>
+        <div class="field"><label for="svCombLitros">Cantidad de petróleo cargado (L)</label><input type="text" id="svCombLitros"></div>
+        <div class="field"><label for="svCombValor">Valor del petróleo ($)</label><input type="text" id="svCombValor"></div>
       </div>
       <div class="field-row">
         <div class="field"><label for="svKmSalida">Kilometraje salida</label><input type="text" id="svKmSalida"></div>

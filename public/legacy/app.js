@@ -275,6 +275,7 @@ async function loadAll(){
   ROSTER=r;
   TIPOS = await sGet(TIPOS_KEY,null) || DEFAULT_TIPOS.slice();
   CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
+  SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
   ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
   renumerar();
 }
@@ -586,7 +587,30 @@ const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraCon
  "svHorometro","svCalle","svNumeracion","svSector","svUnidadCargo","svConductor","svCuerpoCargo","svPuestoMando",
  "svCargoQuinta","svOfContabilidad","svOfSeguridad","svLugarInicio","svNaturaleza","svDetNaturaleza","svOrigen",
  "svDetOrigen","svCausas","svDetCausa","svTipoInmueble","svConstruccion","svNiveles","svObservaciones",
- "svPersonas","svMaterial","svApoyo"];
+ "svPersonas","svMaterial","svApoyo",
+ "svCombConductor","svCombKm","svCombFecha","svCombServicentro","svCombRut","svCombLitros","svCombValor"];
+const SV_TIPOS_KEY="svTipos:v1";
+const DEFAULT_SV_TIPOS=["Acto de servicio","Carga de combustible","Ejercicio con material","Emergencia","Mantención","Traslado","Otro"];
+let SV_TIPOS=[];
+function ordenarTipos(lista){
+  const sinOtro=lista.filter(t=>t!=="Otro").sort((a,b)=>a.localeCompare(b,"es"));
+  return lista.includes("Otro")?[...sinOtro,"Otro"]:sinOtro;
+}
+function renderSvTipoOptions(seleccionado){
+  const sel=document.getElementById("svTipoAct");
+  const actual=seleccionado||sel.value;
+  sel.innerHTML=ordenarTipos(SV_TIPOS).map(t=>`<option${t===actual?" selected":""}>${esc(t)}</option>`).join("");
+}
+on("svTipoActAgregarBtn","click",async()=>{
+  const inp=document.getElementById("svTipoActNuevo");
+  const v=inp.value.trim();
+  if(!v||SV_TIPOS.includes(v)) { inp.value=""; return; }
+  SV_TIPOS.push(v);
+  await sSet(SV_TIPOS_KEY,SV_TIPOS);
+  renderSvTipoOptions(v);
+  inp.value="";
+  actualizarFichaCombustible();
+});
 let svConcurrencia={};   // id -> "si" | "no"
 let svBloqueado=false;
 
@@ -685,13 +709,25 @@ async function cargarServicio(){
     svBloqueado=false;
   }
   sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; });
+  renderSvTipoOptions();
+  actualizarFichaCombustible();
   renderSvBody();
 }
 on("svFecha","change",cargarServicio);
 on("svHoraSalida","change",cargarServicio);
+function actualizarFichaCombustible(){
+  const t=document.getElementById("svTipoAct").value;
+  const ficha=document.getElementById("svFichaCombustible");
+  const esCombustible=t==="Carga de combustible";
+  ficha.style.display=esCombustible?"flex":"none";
+  if(esCombustible && !document.getElementById("svCombFecha").value){
+    document.getElementById("svCombFecha").value=document.getElementById("svFecha").value;
+  }
+}
 on("svTipoAct","change",()=>{
   const t=document.getElementById("svTipoAct").value;
   document.getElementById("svRegistrarAsistencia").checked = (t==="Emergencia"||t==="Acto de servicio");
+  actualizarFichaCombustible();
 });
 
 on("svGuardarBtn","click",()=>{
@@ -794,6 +830,15 @@ function buildServicioPdf(){
     head:[["Observaciones",""]],
     body:[["Relato del servicio",g("svObservaciones")],["Personas involucradas",g("svPersonas")],
           ["Material menor utilizado",g("svMaterial")],["Unidades de apoyo",g("svApoyo")]]});
+
+  if(document.getElementById("svTipoAct").value==="Carga de combustible"){
+    doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
+      head:[["Ficha de carga de combustible",""]],
+      body:[["Conductor",g("svCombConductor")],["Kilometraje actual",g("svCombKm")],
+            ["Fecha",g("svCombFecha")],["Servicentro",g("svCombServicentro")],
+            ["RUT del servicentro",g("svCombRut")],["Cantidad cargada (L)",g("svCombLitros")],
+            ["Valor del petróleo ($)",g("svCombValor")]]});
+  }
 
   let fy=doc.lastAutoTable.finalY+20;
   if(fy>250){ doc.addPage(); fy=40; }
@@ -1953,7 +1998,7 @@ on("guardarOficialidadBtn","click",async()=>{
   await saveRoster();
   msg.classList.remove("err");
   msg.textContent=`Oficialidad ${anio} guardada y aplicada a la nómina.`;
-  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect();
+  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions();
 });
 
 /* ============ FICHA DE INGRESO ============ */
