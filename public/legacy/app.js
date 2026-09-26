@@ -2695,7 +2695,7 @@ on("premiosCalcularBtn","click",async()=>{
     const pct=total?Math.round(pres/total*100):0;
     const proximo=PREMIO_TIERS.find(t=>t>aniosCumplidos);
     const faltan=proximo?proximo-aniosCumplidos:null;
-    const yaEsFundador=m.fechaIngreso==="2025-11-05";
+    const yaEsFundador=m.fechaIngreso&&m.fechaIngreso<="2025-11-05"; // ya integraba la Compañía a esa fecha (directo o por traslado)
     return{m,aniosCumplidos,pct,proximo,faltan,yaEsFundador,cumpleAsistencia:pct>=minimo};
   }).sort((a,b)=>(a.faltan??999)-(b.faltan??999));
   if(!filas.length){ box.innerHTML='<div class="empty">Nadie tiene fecha de ingreso registrada todavía.</div>'; return; }
