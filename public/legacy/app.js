@@ -143,6 +143,7 @@ function on(id,evento,fn){
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
+      if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
     });
   });
 })();
@@ -284,6 +285,84 @@ async function saveRoster(){ await sSet(ROSTER_KEY,ROSTER); }
 async function saveTipos(){ await sSet(TIPOS_KEY,TIPOS); }
 async function saveCargos(){ await sSet(CARGOS_KEY,CARGOS); }
 
+/* Correlativo unico por tipo de PDF y por año. Reinicia solo cada 1 de enero,
+   porque la clave incluye el año. */
+function anioDe(fechaIso){ return String(fechaIso||"").slice(0,4) || String(new Date().getFullYear()); }
+async function siguienteCorrelativo(tipo,anio){
+  const clave="correlativo:"+tipo+":"+anio;
+  const actual=(await sGet(clave,{actual:0})).actual||0;
+  const nuevo=actual+1;
+  await sSet(clave,{actual:nuevo});
+  return nuevo;
+}
+async function correlativoActual(tipo,anio){
+  return (await sGet("correlativo:"+tipo+":"+anio,{actual:0})).actual||0;
+}
+async function ajustarCorrelativo(tipo,anio,numero,fotoBase64,oficial){
+  await sSet("correlativo:"+tipo+":"+anio,{actual:numero});
+  const historial=await sGet("correlativoAjustes:"+tipo+":"+anio,[]);
+  historial.push({numero,foto:fotoBase64||null,oficial:oficial||"",fecha:new Date().toISOString()});
+  await sSet("correlativoAjustes:"+tipo+":"+anio,historial);
+}
+
+const ETIQUETA_CORRELATIVO={parte:"Parte de Asistencia",servicio:"Hoja de Servicio B-5"};
+async function renderCorrelativoResumen(){
+  const box=document.getElementById("correlativoResumen"); if(!box) return;
+  const anio=String(new Date().getFullYear());
+  const inpAnio=document.getElementById("correlativoAnioAjuste"); if(inpAnio && !inpAnio.value) inpAnio.value=anio;
+  const partes=await correlativoActual("parte",anio);
+  const servicios=await correlativoActual("servicio",anio);
+  box.innerHTML=`
+    <div class="summary-item"><div class="big">${String(partes).padStart(3,"0")}</div><div class="lbl">Parte de Asistencia · ${anio}</div></div>
+    <div class="summary-item"><div class="big">${String(servicios).padStart(3,"0")}</div><div class="lbl">Hoja de Servicio B-5 · ${anio}</div></div>`;
+}
+function leerFotoBase64(file){
+  return new Promise((resolve,reject)=>{
+    if(!file){ resolve(null); return; }
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+on("correlativoAjustarBtn","click",async()=>{
+  const msg=document.getElementById("correlativoMsg"); msg.classList.remove("err");
+  const tipo=document.getElementById("correlativoTipoAjuste").value;
+  const anio=document.getElementById("correlativoAnioAjuste").value.trim();
+  const numero=Number(document.getElementById("correlativoNumeroAjuste").value);
+  const oficial=document.getElementById("correlativoOficial").value.trim();
+  const fotoInput=document.getElementById("correlativoFoto");
+  if(!/^\d{4}$/.test(anio)){ msg.textContent="Indica un año válido."; msg.classList.add("err"); return; }
+  if(!Number.isFinite(numero)||numero<0){ msg.textContent="Indica el último número usado (0 si aún no llevas ninguno)."; msg.classList.add("err"); return; }
+  if(!fotoInput.files[0]){ msg.textContent="Debes adjuntar la foto de respaldo del cuaderno físico."; msg.classList.add("err"); return; }
+  if(!oficial){ msg.textContent="Indica el código del oficial que autoriza este ajuste."; msg.classList.add("err"); return; }
+  const foto=await leerFotoBase64(fotoInput.files[0]);
+  await ajustarCorrelativo(tipo,anio,numero,foto,oficial);
+  msg.textContent=`Listo. ${ETIQUETA_CORRELATIVO[tipo]} de ${anio} continuará desde el N° ${numero+1}.`;
+  document.getElementById("correlativoNumeroAjuste").value="";
+  fotoInput.value="";
+  await renderCorrelativoResumen();
+  await renderCorrelativoHistorial();
+});
+async function renderCorrelativoHistorial(){
+  const box=document.getElementById("correlativoHistorial"); if(!box) return;
+  const tipo=document.getElementById("correlativoTipoAjuste").value;
+  const anio=document.getElementById("correlativoAnioAjuste").value.trim()||String(new Date().getFullYear());
+  const ajustes=await sGet("correlativoAjustes:"+tipo+":"+anio,[]);
+  if(!ajustes.length){ box.innerHTML=""; return; }
+  box.innerHTML="<h3>Historial de ajustes — "+esc(ETIQUETA_CORRELATIVO[tipo])+" "+esc(anio)+"</h3>"+
+    ajustes.slice().reverse().map(a=>`
+      <div class="hist-item">
+        <div>
+          <div class="hist-date">Ajustado a N° ${a.numero}</div>
+          <div class="hist-acto">Oficial ${esc(a.oficial||"—")} · ${new Date(a.fecha).toLocaleString("es-CL")}</div>
+        </div>
+        ${a.foto?`<img src="${a.foto}" alt="Respaldo" style="max-width:70px;max-height:70px;border-radius:6px;border:1px solid #3a2f26;">`:""}
+      </div>`).join("");
+}
+on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
+on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
+
 async function getIndex(){ return await sGet(INDEX_KEY,[]); }
 async function getParte(c){ return await sGet("parte:"+c,null); }
 async function setParte(c,d){
@@ -318,6 +397,7 @@ function renderRegistradoPorOptions(){
     sortedRoster(false).map(p=>`<option value="${esc(nombreCompleto(p))}"></option>`).join("");
 }
 let parteBloqueado=false;
+let parteEsNuevo=true, parteNumeroActual=null, parteAnioActual=null;
 function renderListaRows(){
   const body=document.getElementById("listaBody"); body.innerHTML="";
   sortedRoster(false).forEach(p=>{
@@ -389,14 +469,14 @@ async function loadListaForSelection(){
     currentRecord={...ex.records};
     document.getElementById("detalle").value=ex.detalle||"";
     document.getElementById("registradoPor").value=ex.registradoPor||"";
-    msg.textContent="Ya existe un parte guardado para esta fecha y tipo.";
-    parteBloqueado=true;
+    msg.textContent="Ya existe un parte guardado para esta fecha y tipo."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
+    parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null;
   } else {
     sortedRoster(false).forEach(p=>currentRecord[p.id]="ausente");
     document.getElementById("detalle").value="";
     document.getElementById("registradoPor").value="";
     msg.textContent="";
-    parteBloqueado=false;
+    parteBloqueado=false; parteEsNuevo=true; parteNumeroActual=null; parteAnioActual=null;
   }
   msg.classList.remove("err");
   renderListaRows();
@@ -443,11 +523,13 @@ function mostrarConfirmarParte(date,tipo){
   document.getElementById("revisarDeNuevoBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarBtn").onclick=async()=>{
     const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord};
+    if(parteEsNuevo){ data.anio=anioDe(date); data.numero=await siguienteCorrelativo("parte",data.anio); }
+    else { data.numero=parteNumeroActual; data.anio=parteAnioActual; }
     currentPartClave=claveFor(date,tipo);
     const ok=await setParte(currentPartClave,data);
     if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
-    parteBloqueado=true;
-    msg.textContent="Parte guardado. Ya no se puede modificar sin la clave de Oficialidad.";
+    parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
+    msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}. Ya no se puede modificar sin la clave de Oficialidad.`;
     renderResumen(countStatuses(currentRecord));
     renderListaRows();
   };
@@ -464,9 +546,9 @@ function pdfHeader(doc,titulo){
   doc.text("Fundada como Brigada el 21 de junio de 2023 · Compañía desde el 5 de noviembre de 2025",35,28.5);
   doc.setFontSize(10);
 }
-function buildParteDoc(date,tipo,detalle,records,registradoPor){
+function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
-  pdfHeader(doc,"PARTE DE ASISTENCIA");
+  pdfHeader(doc,"PARTE DE ASISTENCIA"+(numero?` N° ${String(numero).padStart(3,"0")}/${anio}`:""));
   doc.text(`Fecha: ${fmtDateLong(date)}`,14,36);
   doc.text(`Tipo de citación: ${tipo}`,14,42);
   let y=48;
@@ -573,13 +655,13 @@ async function sharePdfDoc(doc,filename,shareText){
 }
 on("pdfBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
-  await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim()),`parte_${d}_${slug(t)}.pdf`);
+  await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`);
 });
 on("waBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
   const rp=document.getElementById("registradoPor").value.trim(), c=countStatuses(currentRecord);
   const text=`Parte de asistencia - Quinta Compañía "Germania"\n${t} - ${fmtDateLong(d)}${rp?"\nPasó lista: "+rp:""}\nPresentes: ${c.presente} · Justificados: ${c.justificado} · Ausentes: ${c.ausente}`;
-  const shared=await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,rp),`parte_${d}_${slug(t)}.pdf`,text);
+  const shared=await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,rp,parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`,text);
   if(!shared) window.open("https://wa.me/?text="+encodeURIComponent(text+"\n(PDF adjunto por separado)"),"_blank");
 });
 
@@ -614,6 +696,7 @@ on("svTipoActAgregarBtn","click",async()=>{
 });
 let svConcurrencia={};   // id -> "si" | "no"
 let svBloqueado=false;
+let svEsNuevo=true, svNumeroActual=null, svAnioActual=null;
 
 function svClave(){
   const f=document.getElementById("svFecha").value;
@@ -703,11 +786,11 @@ async function cargarServicio(){
     SV_CAMPOS.forEach(id=>{ if(id!=="svFecha"&&ex[id]!==undefined) document.getElementById(id).value=ex[id]; });
     svConcurrencia={...(ex.concurrencia||{})};
     document.getElementById("svRegistrarAsistencia").checked = ex.registrarAsistencia!==false;
-    msg.textContent="Ya existe una hoja de servicio guardada para esta fecha y hora de salida.";
+    msg.textContent="Ya existe una hoja de servicio guardada para esta fecha y hora de salida."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
     msg.classList.remove("err");
-    svBloqueado=true;
+    svBloqueado=true; svEsNuevo=false; svNumeroActual=ex.numero||null; svAnioActual=ex.anio||null;
   } else {
-    svBloqueado=false;
+    svBloqueado=false; svEsNuevo=true; svNumeroActual=null; svAnioActual=null;
   }
   sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; });
   renderSvTipoOptions();
@@ -751,14 +834,18 @@ function mostrarConfirmarSv(){
   document.getElementById("revisarDeNuevoSvBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarSvBtn").onclick=async()=>{
     const fecha=document.getElementById("svFecha").value;
+    if(svEsNuevo){ svAnioActual=anioDe(fecha); svNumeroActual=await siguienteCorrelativo("servicio",svAnioActual); }
     const datos=svDatos();
     datos.registrarAsistencia=document.getElementById("svRegistrarAsistencia").checked;
+    datos.numero=svNumeroActual; datos.anio=svAnioActual;
     await sSet(svClave(),datos);
+    svEsNuevo=false;
+    const numTxt=`N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}. `;
 
     if(!datos.registrarAsistencia){
       svBloqueado=true; renderSvBody();
       msg.classList.remove("err");
-      msg.textContent=`Hoja de servicio guardada. No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
+      msg.textContent=`Hoja de servicio guardada. ${numTxt}No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
       return;
     }
 
@@ -778,18 +865,18 @@ function mostrarConfirmarSv(){
     await setParte(claveSv,{
       date:fecha, tipo, detalle:detFinal,
       registradoPor:document.getElementById("svCargoQuinta").value, records,
-      modoConcurrencia:{...svConcurrencia}
+      modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual
     });
     svBloqueado=true; renderSvBody();
     msg.classList.remove("err");
-    msg.textContent=`Hoja de servicio guardada. ${c.concurrentes} voluntarios concurrieron.`;
+    msg.textContent=`Hoja de servicio guardada. ${numTxt}${c.concurrentes} voluntarios concurrieron.`;
   };
 }
 
 function buildServicioPdf(){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
   const g=id=>document.getElementById(id).value||"—";
-  pdfHeader(doc,"HOJA DE SERVICIO · UNIDAD B-5");
+  pdfHeader(doc,"HOJA DE SERVICIO · UNIDAD B-5"+(svNumeroActual?` N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}`:""));
   let y=36;
   doc.setFontSize(10);
   doc.text(`Fecha: ${g("svFecha")}    Tipo: ${g("svTipoAct")}`,14,y); y+=2;
@@ -1419,14 +1506,24 @@ async function poblarDescripciones(){
   if(lista.includes(prev)) sel.value=prev;
 }
 
+async function poblarAniosHistorial(idx){
+  const sel=document.getElementById("histAnioFiltro"); if(!sel) return;
+  const prev=sel.value;
+  const anios=[...new Set(idx.map(i=>String(i.date||"").slice(0,4)).filter(Boolean))].sort((a,b)=>b-a);
+  sel.innerHTML='<option value="">Todos</option>'+anios.map(a=>`<option value="${a}">${a}</option>`).join("");
+  if(anios.includes(prev)) sel.value=prev;
+}
 async function renderHistorial(){
   const list=document.getElementById("historialList");
   const f=document.getElementById("histTipoFiltro").value;
+  const anio=document.getElementById("histAnioFiltro") ? document.getElementById("histAnioFiltro").value : "";
   const fd=document.getElementById("histDescFiltro") ? document.getElementById("histDescFiltro").value : "";
   const txt=(document.getElementById("histBuscar") ? document.getElementById("histBuscar").value : "").trim().toLowerCase();
   await poblarDescripciones();
   let idx=(await getIndex()).slice().sort((a,b)=>a.date<b.date?1:-1);
+  await poblarAniosHistorial(idx);
   if(f) idx=idx.filter(i=>i.tipo===f);
+  if(anio) idx=idx.filter(i=>String(i.date||"").slice(0,4)===anio);
 
   const filtrados=[];
   for(const it of idx){
@@ -1446,7 +1543,7 @@ async function renderHistorial(){
     const c=countStatuses(p.records);
     const div=document.createElement("div"); div.className="hist-item";
     div.innerHTML=`<div>
-        <div class="hist-date">${fmtDateLong(p.date)} <span class="badge">${esc(p.tipo)}</span></div>
+        <div class="hist-date">${fmtDateLong(p.date)} <span class="badge">${esc(p.tipo)}</span>${p.numero?` <span class="badge">N° ${String(p.numero).padStart(3,"0")}/${p.anio}</span>`:""}</div>
         <div class="hist-acto">${esc(p.detalle||"Sin detalle")}${p.registradoPor?" · Pasó lista: "+esc(p.registradoPor):""}</div>
       </div>
       <div class="hist-right">
@@ -1466,14 +1563,15 @@ async function renderHistorial(){
   }));
   list.querySelectorAll("[data-pdf]").forEach(b=>b.addEventListener("click",async()=>{
     const p=await getParte(b.dataset.pdf); if(!p) return;
-    await sharePdfDoc(buildParteDoc(p.date,p.tipo,p.detalle||"",p.records,p.registradoPor||""),`parte_${p.date}_${slug(p.tipo)}.pdf`);
+    await sharePdfDoc(buildParteDoc(p.date,p.tipo,p.detalle||"",p.records,p.registradoPor||"",p.numero,p.anio),`parte_${p.date}_${slug(p.tipo)}.pdf`);
   }));
 }
 on("histTipoFiltro","change",renderHistorial);
+on("histAnioFiltro","change",renderHistorial);
 on("histDescFiltro","change",renderHistorial);
 on("histBuscar","input",renderHistorial);
 on("histLimpiar","click",()=>{
-  ["histTipoFiltro","histDescFiltro","histBuscar"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+  ["histTipoFiltro","histAnioFiltro","histDescFiltro","histBuscar"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
   renderHistorial();
 });
 
