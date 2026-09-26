@@ -141,6 +141,7 @@ function on(id,evento,fn){
       s.classList.add("active");
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
+      if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
     });
   });
 })();
@@ -1832,7 +1833,6 @@ async function loadOficialidadYear(){
     if(msg){msg.textContent="No fue posible cargar la oficialidad de "+anio+".";msg.classList.add("err");}
   }
 }
-on("cargarOficialidadBtn","click",loadOficialidadYear);
 on("anioOficialidad","change",loadOficialidadYear);
 on("agregarCargoBtn","click",async()=>{
   const inp=document.getElementById("nuevoCargoInput"), v=inp.value.trim();
