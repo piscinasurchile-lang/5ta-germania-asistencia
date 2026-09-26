@@ -369,7 +369,7 @@ on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
 
 /* ============ INVENTARIO B-5 ============ */
 const INV_KEY="inventarioB5:v1", INV_CAT_KEY="invCategorias:v1";
-const DEFAULT_INV_CATEGORIAS=["Herramientas menores","Equipos Autónomos (ERA)","Mangueras y Coplas","Bombas de Espalda","Ventilación","Motosierras","Otros"];
+const DEFAULT_INV_CATEGORIAS=["Herramientas menores","Equipos Autónomos (ERA)","Equipo de Protección Personal (EPP)","Mangueras y Coplas","Bombas de Espalda","Ventilación","Motosierras","Otros"];
 let INV_CATEGORIAS=[];
 const SEED_INVENTARIO_B5=[
   {codigo:"OT-013",nombre:"Motosierra",categoria:"Motosierras",cantidad:1,estado:"Operativo",ubicacion:"",obs:"A bencina/mezcla"},
@@ -389,8 +389,11 @@ const SEED_INVENTARIO_B5=[
   {codigo:"",nombre:"Mazo",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
   {codigo:"",nombre:"Pala",categoria:"Herramientas menores",cantidad:2,estado:"Operativo",ubicacion:"",obs:""},
   {codigo:"",nombre:"TNT (barretilla/pata de chivo)",categoria:"Herramientas menores",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Confirmar nombre exacto"},
-  {codigo:"AG-003",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:""},
-  {codigo:"AG-037",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:""}
+  {codigo:"AG-003",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Marca/modelo pendiente de confirmar"},
+  {codigo:"AG-037",nombre:"Pitón",categoria:"Mangueras y Coplas",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Marca/modelo pendiente de confirmar"},
+  {codigo:"",nombre:"Casco estructural",categoria:"Equipo de Protección Personal (EPP)",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Completar marca, año de fabricación y vida útil"},
+  {codigo:"",nombre:"Chaqueta (turnout coat)",categoria:"Equipo de Protección Personal (EPP)",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Completar marca, año de fabricación y vida útil"},
+  {codigo:"",nombre:"Jardinera (pantalón/bib)",categoria:"Equipo de Protección Personal (EPP)",cantidad:1,estado:"Operativo",ubicacion:"",obs:"Completar marca, año de fabricación y vida útil"}
 ];
 function renderInvCategoriaOptions(seleccionado){
   const sel=document.getElementById("invCategoria"); if(!sel) return;
@@ -412,7 +415,7 @@ async function getInventario(){
   return lista;
 }
 function limpiarFormInv(){
-  ["invCodigo","invNombre","invUbicacion","invObs","invEditId"].forEach(id=>document.getElementById(id).value="");
+  ["invCodigo","invNombre","invUbicacion","invObs","invMarca","invAnioFab","invFechaCompra","invVidaUtil","invEditId"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("invCantidad").value=1;
   document.getElementById("invEstado").value="Operativo";
   document.getElementById("invGuardarBtn").textContent="Guardar ítem";
@@ -428,7 +431,11 @@ on("invGuardarBtn","click",async()=>{
     cantidad:Number(document.getElementById("invCantidad").value)||0,
     estado:document.getElementById("invEstado").value,
     ubicacion:document.getElementById("invUbicacion").value.trim(),
-    obs:document.getElementById("invObs").value.trim()
+    obs:document.getElementById("invObs").value.trim(),
+    marca:document.getElementById("invMarca").value.trim(),
+    anioFab:document.getElementById("invAnioFab").value.trim(),
+    fechaCompra:document.getElementById("invFechaCompra").value,
+    vidaUtil:document.getElementById("invVidaUtil").value.trim()
   };
   const lista=await getInventario();
   if(editId){ const i=lista.findIndex(x=>x.id===Number(editId)); if(i>-1) lista[i]={id:Number(editId),...item}; }
@@ -438,6 +445,13 @@ on("invGuardarBtn","click",async()=>{
   limpiarFormInv();
   await renderInvLista();
 });
+function calcVencimientoInv(it){
+  const vida=Number(it.vidaUtil); if(!vida) return null;
+  const base=Number(it.anioFab)||(it.fechaCompra?Number(it.fechaCompra.slice(0,4)):null);
+  if(!base) return null;
+  const venceAnio=base+vida, hoyAnio=new Date().getFullYear();
+  return {venceAnio,vencido:hoyAnio>=venceAnio};
+}
 async function renderInvLista(){
   const box=document.getElementById("invLista"); if(!box) return;
   const lista=await getInventario();
@@ -447,17 +461,21 @@ async function renderInvLista(){
   lista.forEach(it=>{ (porCategoria[it.categoria||"Otros"]=porCategoria[it.categoria||"Otros"]||[]).push(it); });
   box.innerHTML=Object.keys(porCategoria).sort((a,b)=>a.localeCompare(b,"es")).map(cat=>
     `<h3 style="margin-top:14px;">${esc(cat)}</h3>`+
-    porCategoria[cat].map(it=>`
+    porCategoria[cat].map(it=>{
+      const v=calcVencimientoInv(it);
+      const vencBadge=v?` <span class="badge" style="background:${v.vencido?"#7d2528":"#284f35"};">${v.vencido?"Vencido ("+v.venceAnio+")":"Vence "+v.venceAnio}</span>`:"";
+      return `
       <div class="hist-item">
         <div>
-          <div class="hist-date">${it.codigo?`<span class="badge">${esc(it.codigo)}</span> `:""}${esc(it.nombre)} <span class="badge" style="background:${colorEstado[it.estado]||"#3a3d44"};">${esc(it.estado)}</span></div>
-          <div class="hist-acto">Cantidad: ${it.cantidad}${it.ubicacion?" · Ubicación: "+esc(it.ubicacion):""}${it.obs?"<br>"+esc(it.obs):""}</div>
+          <div class="hist-date">${it.codigo?`<span class="badge">${esc(it.codigo)}</span> `:""}${esc(it.nombre)} <span class="badge" style="background:${colorEstado[it.estado]||"#3a3d44"};">${esc(it.estado)}</span>${vencBadge}</div>
+          <div class="hist-acto">Cantidad: ${it.cantidad}${it.ubicacion?" · Ubicación: "+esc(it.ubicacion):""}${it.marca?" · Marca: "+esc(it.marca):""}${it.anioFab?" · Fabricado: "+esc(it.anioFab):""}${it.fechaCompra?" · Compra: "+esc(it.fechaCompra):""}${it.obs?"<br>"+esc(it.obs):""}</div>
         </div>
         <div class="hist-right">
           <button class="btn small secondary" data-inv-edit="${it.id}">Editar</button>
           <button class="btn small secondary" data-inv-del="${it.id}">Eliminar</button>
         </div>
-      </div>`).join("")
+      </div>`;
+    }).join("")
   ).join("");
   box.querySelectorAll("[data-inv-edit]").forEach(b=>b.addEventListener("click",async()=>{
     const id=Number(b.dataset.invEdit);
@@ -469,6 +487,10 @@ async function renderInvLista(){
     document.getElementById("invEstado").value=it.estado||"Operativo";
     document.getElementById("invUbicacion").value=it.ubicacion||"";
     document.getElementById("invObs").value=it.obs||"";
+    document.getElementById("invMarca").value=it.marca||"";
+    document.getElementById("invAnioFab").value=it.anioFab||"";
+    document.getElementById("invFechaCompra").value=it.fechaCompra||"";
+    document.getElementById("invVidaUtil").value=it.vidaUtil||"";
     document.getElementById("invEditId").value=it.id;
     document.getElementById("invGuardarBtn").textContent="Guardar cambios";
   }));
