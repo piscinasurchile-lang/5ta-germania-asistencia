@@ -2429,7 +2429,15 @@ on("guardarOficialidadBtn","click",async()=>{
       m.cargo = (m.categoria==="Aspirante") ? "Aspirante" : "Voluntario";
     }
   });
-  Object.entries(asign).forEach(([cargo,id])=>{ const m=ROSTER.find(x=>x.id===id); if(m) m.cargo=cargo; });
+  Object.entries(asign).forEach(([cargo,id])=>{
+    const m=ROSTER.find(x=>x.id===id); if(!m) return;
+    m.cargo=cargo;
+    if(!m.anotaciones) m.anotaciones=[];
+    const detalle=`Ejerció como ${cargo} durante ${anio}.`;
+    if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
+      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",detalle});
+    }
+  });
   await saveRoster();
   msg.classList.remove("err");
   msg.textContent=`Oficialidad ${anio} guardada y aplicada a la nómina.`;
@@ -2615,8 +2623,63 @@ async function renderHvResumen(){
     </div>`;
 }
 
+async function calcularAsistenciaPorAnio(m){
+  const idx=await getIndex();
+  const porAnio={};
+  for(const it of idx){
+    const p=await getParte(it.clave); if(!p||!p.records) continue;
+    const s=p.records[m.id]; if(!s) continue;
+    const anio=(it.date||"").slice(0,4); if(!anio) continue;
+    if(!porAnio[anio]) porAnio[anio]={pres:0,just:0,aus:0};
+    if(s==="presente") porAnio[anio].pres++; else if(s==="justificado") porAnio[anio].just++; else porAnio[anio].aus++;
+  }
+  return porAnio;
+}
+
+async function renderHvAsistenciaAnual(){
+  const m=hvActual(), box=document.getElementById("hvAsistenciaAnual");
+  if(!m){ box.innerHTML=""; return; }
+  const porAnio=await calcularAsistenciaPorAnio(m);
+  const anios=Object.keys(porAnio).sort((a,b)=>b-a);
+  if(!anios.length){ box.innerHTML='<div class="empty">Sin citaciones registradas.</div>'; return; }
+  box.innerHTML='<table><thead><tr><th>Año</th><th>Presente</th><th>Justificado</th><th>Ausente</th><th>Asistencia</th></tr></thead><tbody>'+
+    anios.map(a=>{const v=porAnio[a];const total=v.pres+v.just+v.aus;const pct=total?Math.round(v.pres/total*100):0;
+      return `<tr><td>${esc(a)}</td><td>${v.pres}</td><td>${v.just}</td><td>${v.aus}</td><td>${pct}%</td></tr>`;
+    }).join('')+'</tbody></table>';
+}
+
+const PREMIO_TIERS=[5,10,15,20,25,30,35,40];
+on("premioAsistenciaGuardarBtn","click",async()=>{
+  const v=Math.max(0,Math.min(100,Number(document.getElementById("premioAsistenciaMinima").value)||0));
+  await sSet("premioAsistenciaMinima",v);
+  renderHvPremios();
+});
+async function renderHvPremios(){
+  const m=hvActual(), box=document.getElementById("hvPremios");
+  const minimo=await sGet("premioAsistenciaMinima",75);
+  document.getElementById("premioAsistenciaMinima").value=minimo;
+  if(!m){ box.innerHTML=""; return; }
+  if(!m.fechaIngreso){ box.innerHTML='<div class="empty">Sin fecha de ingreso registrada — no se puede calcular antigüedad.</div>'; return; }
+  const ingreso=new Date(m.fechaIngreso+"T12:00:00"), hoy=new Date();
+  const aniosCumplidos=Math.floor((hoy-ingreso)/(365.25*86400000));
+  const idx=await getIndex(); let pres=0,total=0;
+  for(const it of idx){ const p=await getParte(it.clave); if(!p||!p.records) continue; const s=p.records[m.id]; if(!s) continue; total++; if(s==="presente") pres++; }
+  const pct=total?Math.round(pres/total*100):0;
+  const cumpleAsistencia=pct>=minimo;
+  box.innerHTML=`<div class="summary-row"><div class="summary-item"><div class="big">${aniosCumplidos}</div><div class="lbl">Años de servicio</div></div>
+    <div class="summary-item"><div class="big">${pct}%</div><div class="lbl">Asistencia histórica</div></div></div>`+
+    '<table><thead><tr><th>Premio</th><th>Estado</th></tr></thead><tbody>'+
+    PREMIO_TIERS.map(t=>{
+      const alcanzado=aniosCumplidos>=t;
+      const estado=!alcanzado ? `Pendiente (faltan ${t-aniosCumplidos} años)`
+        : cumpleAsistencia ? "Años cumplidos — cumple asistencia ✅"
+        : `Años cumplidos, pero asistencia bajo el mínimo (${pct}% &lt; ${minimo}%) ⚠️`;
+      return `<tr><td>${t} años</td><td>${estado}</td></tr>`;
+    }).join('')+'</tbody></table>';
+}
+
 function renderHoja(){
-  renderHvInstitucional(); renderHvDatos(); renderHvAnotaciones(); renderHvResumen();
+  renderHvInstitucional(); renderHvDatos(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
 on("hvMiembro","change",renderHoja);
 

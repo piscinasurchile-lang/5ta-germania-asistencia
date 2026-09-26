@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { randomUUID } from "crypto";
 import { NOMINA_2026 } from "../../../../lib/quinta-data";
 import { buscarOficial2026 } from "../../../../lib/oficialidad-2026";
 export const runtime="nodejs";export const dynamic="force-dynamic";
@@ -43,7 +44,15 @@ export async function POST(r){
     const roster=rows[0]?.value||[];
     const i=roster.findIndex(p=>String(p.clave)===codigo);
     if(i<0)return Response.json({error:"not_in_roster"},{status:409});
-    roster[i]={...roster[i],conductor:activar};
+    const anio=String(new Date().getFullYear());
+    const anotaciones=[...(roster[i].anotaciones||[])];
+    if(activar){
+      const detalle=`Aprobado como conductor de unidad en ${anio}.`;
+      if(!anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)) anotaciones.push({id:randomUUID(),tipo:"Cargo",fecha:anio+"-01-01",detalle});
+    }else{
+      anotaciones.push({id:randomUUID(),tipo:"Cargo",fecha:anio+"-01-01",detalle:`Se revocó su condición de conductor de unidad (${anio}).`});
+    }
+    roster[i]={...roster[i],conductor:activar,anotaciones};
     await sql`UPDATE app_state SET value=${JSON.stringify(roster)}::jsonb WHERE key='roster:v8'`;
     return Response.json({ok:true,codigo,nombre:nombreCompleto(roster[i]),conductor:activar});
   }catch(e){console.error(e);return Response.json({error:"database_error"},{status:500})}
