@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { buscarOficial2026 } from "../../../../../lib/oficialidad-2026";
+import { buscarOficial2026 } from "../../../../lib/oficialidad-2026";
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const db=()=>process.env.DATABASE_URL?neon(process.env.DATABASE_URL):null;
 const vd=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||"");
