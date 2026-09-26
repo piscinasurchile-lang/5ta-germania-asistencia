@@ -1793,12 +1793,22 @@ function renderOficialidad(asignaciones){
     await saveCargos(); renderCargoOptions(); loadOficialidadYear();
   }));
 }
-/* Rescata automaticamente quien ocupa cada cargo hoy en la nomina, para
-   precargar la Oficialidad de un anio que aun no se ha guardado */
+/* Claves de la Orden del Dia 010/2026 (25 de enero de 2026), fuente oficial
+   de quien ocupa cada cargo. No se usa el campo "cargo" de la nomina porque
+   ese campo puede no estar actualizado (ej: todos quedaron en "Voluntario"
+   tras un ingreso masivo) — la clave personal es el dato estable. */
+const CLAVE_CARGO_2026={
+  "75":"Director","45":"Capitán","9":"Tesorero General",
+  "501":"Teniente 1","502":"Teniente 2","503":"Teniente 3",
+  "504":"Ayudante","505":"Jefe de Máquinas","506":"Secretario","507":"Tesorero"
+};
+/* Rescata automaticamente quien ocupa cada cargo hoy, para precargar la
+   Oficialidad de un anio que aun no se ha guardado */
 function oficialidadDesdeNomina(){
   const asign={};
   CARGOS.forEach(cargo=>{
-    const m=ROSTER.find(p=>p.activo!==false && p.cargo===cargo);
+    const clave=Object.keys(CLAVE_CARGO_2026).find(k=>CLAVE_CARGO_2026[k]===cargo);
+    const m=clave?ROSTER.find(p=>p.activo!==false && p.clave===clave):null;
     if(m) asign[cargo]=m.id;
   });
   return asign;
