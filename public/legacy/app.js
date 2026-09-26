@@ -2678,6 +2678,38 @@ async function renderHvPremios(){
     }).join('')+'</tbody></table>';
 }
 
+on("premiosCalcularBtn","click",async()=>{
+  const box=document.getElementById("premiosAlertaBox");
+  box.innerHTML="Calculando…";
+  const minimo=await sGet("premioAsistenciaMinima",75);
+  const idx=await getIndex();
+  // Cargar todos los partes una sola vez, no por persona
+  const partes=[];
+  for(const it of idx){ const p=await getParte(it.clave); if(p&&p.records) partes.push(p.records); }
+  const hoy=new Date();
+  const filas=sortedRoster(false).filter(m=>m.fechaIngreso).map(m=>{
+    const ingreso=new Date(m.fechaIngreso+"T12:00:00");
+    const aniosCumplidos=Math.floor((hoy-ingreso)/(365.25*86400000));
+    let pres=0,total=0;
+    partes.forEach(r=>{ const s=r[m.id]; if(!s) return; total++; if(s==="presente") pres++; });
+    const pct=total?Math.round(pres/total*100):0;
+    const proximo=PREMIO_TIERS.find(t=>t>aniosCumplidos);
+    const faltan=proximo?proximo-aniosCumplidos:null;
+    const yaEsFundador=m.fechaIngreso==="2025-11-05";
+    return{m,aniosCumplidos,pct,proximo,faltan,yaEsFundador,cumpleAsistencia:pct>=minimo};
+  }).sort((a,b)=>(a.faltan??999)-(b.faltan??999));
+  if(!filas.length){ box.innerHTML='<div class="empty">Nadie tiene fecha de ingreso registrada todavía.</div>'; return; }
+  box.innerHTML='<table><thead><tr><th>Integrante</th><th>Años</th><th>Próximo premio</th><th>Asistencia</th><th>Estado</th></tr></thead><tbody>'+
+    filas.map(f=>{
+      const alerta = f.faltan!==null && f.faltan<=1;
+      const estado = f.faltan===null ? "Superó el tramo máximo"
+        : !alerta ? `Faltan ${f.faltan} años`
+        : f.cumpleAsistencia ? `<b style="color:#c9a227;">¡Cumple este año! ✅</b>`
+        : `Cumple años, pero asistencia insuficiente (${f.pct}% &lt; ${minimo}%) ⚠️`;
+      return `<tr style="${alerta?'background:#241c08;':''}"><td>${esc(nombreCompleto(f.m))}${f.yaEsFundador?' <span class="badge">Fundador</span>':''}</td><td>${f.aniosCumplidos}</td><td>${f.proximo?f.proximo+" años":"—"}</td><td>${f.pct}%</td><td>${estado}</td></tr>`;
+    }).join('')+'</tbody></table>';
+});
+
 function renderHoja(){
   renderHvInstitucional(); renderHvDatos(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
