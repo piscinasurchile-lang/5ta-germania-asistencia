@@ -15,6 +15,8 @@ export default function Conductor(){
 
   async function cargar(){
     setCargando(true);
+    const ra=await fetch("/api/guardia/conductores-autorizados",{cache:"no-store"});
+    const autorizados=new Set((ra.ok?(await ra.json()).conductores:[]).map(c=>c.codigo));
     const filas=await Promise.all(fechas.map(async f=>{
       const [rg,rc]=await Promise.all([
         fetch(`/api/guardia/lista-diaria?fecha=${f}`,{cache:"no-store"}),
@@ -22,7 +24,7 @@ export default function Conductor(){
       ]);
       const g=rg.ok?await rg.json():null;
       const c=rc.ok?await rc.json():null;
-      const opciones=(g?.voluntarios||[]).map(v=>({codigo:v.efectivo?.codigo||v.codigo,nombre:v.efectivo?.nombre||v.nombre}));
+      const opciones=(g?.voluntarios||[]).map(v=>({codigo:v.efectivo?.codigo||v.codigo,nombre:v.efectivo?.nombre||v.nombre})).filter(o=>autorizados.has(o.codigo));
       return{fecha:f,codigo:c?.conductor?.codigo||"",opciones};
     }));
     setDias(filas);
@@ -41,7 +43,7 @@ export default function Conductor(){
     setMsg("");
     const r=await fetch("/api/guardia/conductor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fecha,codigo:fila.codigo,autorizadoPor:autor})});
     const j=await r.json();
-    setMsg(r.ok?`Conductor del ${fecha} guardado: ${j.conductor.nombre}.`:j.error==="official_not_authorized"?"Código de oficial no autorizado.":j.error==="driver_not_on_guard"?"El conductor debe integrar la guardia efectiva de esa noche.":"No fue posible asignar el conductor.");
+    setMsg(r.ok?`Conductor del ${fecha} guardado: ${j.conductor.nombre}.`:j.error==="official_not_authorized"?"Código de oficial no autorizado.":j.error==="driver_not_authorized"?"Esa persona no está en la lista de conductores autorizados.":j.error==="driver_not_on_guard"?"El conductor debe integrar la guardia efectiva de esa noche.":"No fue posible asignar el conductor.");
     if(r.ok) cargar();
   }
 
@@ -68,7 +70,7 @@ export default function Conductor(){
                 <option value="">— sin asignar —</option>
                 {d.opciones.map(o=><option key={o.codigo} value={o.codigo}>{o.nombre} · {o.codigo}</option>)}
               </select>
-              {!d.opciones.length&&<small style={{color:"#aaa"}}>Sin efectivos definidos para esta fecha aún.</small>}
+              {!d.opciones.length&&<small style={{color:"#aaa"}}>Nadie de los efectivos de esta fecha está en la lista de conductores autorizados.</small>}
             </td>
             <td style={{padding:8}}><button onClick={()=>guardarFila(d.fecha)} style={{padding:"9px 14px",border:0,borderRadius:7,background:"#b3241c",color:"#fff",fontWeight:800,whiteSpace:"nowrap"}}>Guardar</button></td>
           </tr>)}</tbody>
