@@ -423,10 +423,12 @@ function buildParteDoc(date,tipo,detalle,records,registradoPor){
   let y=48;
   if(detalle){ doc.text(`Detalle: ${detalle}`,14,y); y+=6; }
   if(registradoPor){ doc.text(`Pasó lista: ${registradoPor}`,14,y); y+=6; }
-  const rows=sortedRoster(false).map(p=>{
-    const s=records[p.id]||"ausente";
-    return [p.n||"",p.clave||"—",p.cargo,nombreCompleto(p),s.charAt(0).toUpperCase()+s.slice(1)];
-  });
+  const rows=sortedRoster(false)
+    .filter(p=>(records[p.id]||"ausente")!=="ausente")
+    .map(p=>{
+      const s=records[p.id];
+      return [p.n||"",p.clave||"—",p.cargo,nombreCompleto(p),s.charAt(0).toUpperCase()+s.slice(1)];
+    });
   doc.autoTable({head:[["N°","Clave","Cargo","Nombre","Asistencia"]],body:rows,startY:y,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]}});
   const c=countStatuses(records), fy=doc.lastAutoTable.finalY+10;
   doc.setFont("helvetica","bold");
@@ -692,8 +694,10 @@ function buildServicioPdf(){
   doc.setFont("helvetica","normal"); doc.setFontSize(10);
   doc.text(`Total concurrentes: ${c.concurrentes}   ·   En el B-5: ${c.trip}   ·   Medios propios: ${c.prop}   ·   No concurrió: ${c.no}`,14,27);
 
-  const etiqueta={tripulante:"En el B-5",propios:"Medios propios",no:"No concurrió"};
-  const rows=sortedRoster(false).map(p=>[p.n||"",acronimoCargo(p)||"—",nombreCompleto(p),etiqueta[svConcurrencia[p.id]||"no"]]);
+  const etiqueta={tripulante:"En el B-5",propios:"Medios propios"};
+  const rows=sortedRoster(false)
+    .filter(p=>svConcurrencia[p.id]&&svConcurrencia[p.id]!=="no")
+    .map(p=>[p.n||"",acronimoCargo(p)||"—",nombreCompleto(p),etiqueta[svConcurrencia[p.id]]]);
   doc.autoTable({head:[["N°","Cargo","Nombre","Concurrencia"]],body:rows,startY:32,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]}});
 
   doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
