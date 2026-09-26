@@ -32,6 +32,7 @@ export async function GET(request) {
 
   try {
     await replacementSchema(sql);
+    await sql`CREATE TABLE IF NOT EXISTS guardia_obac(id bigserial PRIMARY KEY,fecha date NOT NULL UNIQUE,codigo varchar(6) NOT NULL,nombre text NOT NULL,cargo text NOT NULL,asignado_por varchar(6) NOT NULL,actualizado_en timestamptz NOT NULL DEFAULT now())`;
     await sql`CREATE TABLE IF NOT EXISTS guardia_conductores(id bigserial PRIMARY KEY,fecha date NOT NULL UNIQUE,codigo varchar(6) NOT NULL,nombre text NOT NULL,autorizado_por varchar(6) NOT NULL,actualizado_en timestamptz NOT NULL DEFAULT now())`;
     const filas = await sql`
       SELECT DISTINCT ON (gi.codigo)
@@ -55,6 +56,7 @@ export async function GET(request) {
       ORDER BY gi.codigo, gi.creado_en ASC
     `;
 
+    const obacAsignado = await sql`SELECT codigo::text,nombre,cargo,asignado_por::text,actualizado_en FROM guardia_obac WHERE fecha=${fecha}::date LIMIT 1`;
     const conductores = await sql`SELECT codigo::text,nombre,autorizado_por::text,actualizado_en FROM guardia_conductores WHERE fecha=${fecha}::date LIMIT 1`;
     const voluntarios = filas.map((v, index) => ({
       posicion: index + 1,
@@ -89,6 +91,7 @@ export async function GET(request) {
       conReemplazos: voluntarios.filter((v) => v.reemplazo).length,
       pendientesObac: voluntarios.filter((v) => v.obac === "pendiente").length,
       conductor: conductores[0] || null,
+      obacAsignado: obacAsignado[0] || null,
       voluntarios,
     }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
