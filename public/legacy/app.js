@@ -146,6 +146,7 @@ function on(id,evento,fn){
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
       if(s.dataset.sub==="mantencionesb5" && typeof renderMntTodo==="function") renderMntTodo();
       if(s.dataset.sub==="inventariob5" && typeof renderInvTodo==="function") renderInvTodo();
+      if(s.dataset.sub==="eppPersonal" && typeof renderEppTodo==="function") renderEppTodo();
     });
   });
 })();
@@ -366,6 +367,94 @@ async function renderCorrelativoHistorial(){
 }
 on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
 on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
+
+/* ============ EPP PERSONAL POR VOLUNTARIO ============ */
+const EPP_KEY="eppPersonal:v1";
+function renderEppVoluntarioOptions(){
+  const opciones=sortedRoster(false).map(p=>`<option value="${p.id}">${esc(nombreCompleto(p))}</option>`).join("");
+  const sel=document.getElementById("eppVoluntario"); if(sel){ const cur=sel.value; sel.innerHTML=opciones; if(cur) sel.value=cur; }
+  const fsel=document.getElementById("eppFiltroVoluntario"); if(fsel){ const cur=fsel.value; fsel.innerHTML='<option value="">Todos</option>'+opciones; if(cur) fsel.value=cur; }
+}
+async function getEppPersonal(){ return await sGet(EPP_KEY,[]); }
+function limpiarFormEpp(){
+  ["eppMarca","eppAnioFab","eppFechaEntrega","eppVidaUtil","eppObs","eppEditId"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("eppEstado").value="Operativo";
+  document.getElementById("eppGuardarBtn").textContent="Guardar entrega";
+}
+on("eppGuardarBtn","click",async()=>{
+  const msg=document.getElementById("eppMsg"); msg.classList.remove("err");
+  const voluntarioId=document.getElementById("eppVoluntario").value;
+  if(!voluntarioId){ msg.textContent="Selecciona el voluntario."; msg.classList.add("err"); return; }
+  const editId=document.getElementById("eppEditId").value;
+  const item={
+    voluntarioId, tipo:document.getElementById("eppTipo").value,
+    marca:document.getElementById("eppMarca").value.trim(),
+    anioFab:document.getElementById("eppAnioFab").value.trim(),
+    fechaEntrega:document.getElementById("eppFechaEntrega").value,
+    vidaUtil:document.getElementById("eppVidaUtil").value.trim(),
+    estado:document.getElementById("eppEstado").value,
+    obs:document.getElementById("eppObs").value.trim()
+  };
+  const lista=await getEppPersonal();
+  if(editId){ const i=lista.findIndex(x=>x.id===Number(editId)); if(i>-1) lista[i]={id:Number(editId),...item}; }
+  else lista.push({id:Date.now(),...item});
+  await sSet(EPP_KEY,lista);
+  msg.textContent=editId?"Registro actualizado.":"Entrega registrada.";
+  limpiarFormEpp();
+  await renderEppLista();
+});
+on("eppFiltroVoluntario","change",renderEppLista);
+async function renderEppLista(){
+  const box=document.getElementById("eppLista"); if(!box) return;
+  const filtro=document.getElementById("eppFiltroVoluntario").value;
+  let lista=await getEppPersonal();
+  if(filtro) lista=lista.filter(x=>String(x.voluntarioId)===filtro);
+  if(!lista.length){ box.innerHTML='<div class="empty">Sin entregas registradas.</div>'; return; }
+  const colorEstado={"Operativo":"#284f35","Dañado":"#7d2528","Por reemplazar":"#6b5a22","Falta":"#7d2528"};
+  const porVoluntario={};
+  lista.forEach(it=>{ (porVoluntario[it.voluntarioId]=porVoluntario[it.voluntarioId]||[]).push(it); });
+  const nombreDe=id=>{ const p=ROSTER.find(x=>String(x.id)===String(id)); return p?nombreCompleto(p):"Voluntario eliminado"; };
+  box.innerHTML=Object.keys(porVoluntario).sort((a,b)=>nombreDe(a).localeCompare(nombreDe(b),"es")).map(vid=>
+    `<h3 style="margin-top:14px;">${esc(nombreDe(vid))}</h3>`+
+    porVoluntario[vid].map(it=>{
+      const v=calcVencimientoInv(it);
+      const vencBadge=v?` <span class="badge" style="background:${v.vencido?"#7d2528":"#284f35"};">${v.vencido?"Vencido ("+v.venceAnio+")":"Vence "+v.venceAnio}</span>`:"";
+      return `
+      <div class="hist-item">
+        <div>
+          <div class="hist-date">${esc(it.tipo)} <span class="badge" style="background:${colorEstado[it.estado]||"#3a3d44"};">${esc(it.estado)}</span>${vencBadge}</div>
+          <div class="hist-acto">${it.marca?"Marca: "+esc(it.marca):"Marca no registrada"}${it.anioFab?" · Fabricado: "+esc(it.anioFab):""}${it.fechaEntrega?" · Entrega: "+esc(it.fechaEntrega):""}${it.obs?"<br>"+esc(it.obs):""}</div>
+        </div>
+        <div class="hist-right">
+          <button class="btn small secondary" data-epp-edit="${it.id}">Editar</button>
+          <button class="btn small secondary" data-epp-del="${it.id}">Eliminar</button>
+        </div>
+      </div>`;
+    }).join("")
+  ).join("");
+  box.querySelectorAll("[data-epp-edit]").forEach(b=>b.addEventListener("click",async()=>{
+    const id=Number(b.dataset.eppEdit);
+    const it=(await getEppPersonal()).find(x=>x.id===id); if(!it) return;
+    document.getElementById("eppVoluntario").value=it.voluntarioId;
+    document.getElementById("eppTipo").value=it.tipo;
+    document.getElementById("eppMarca").value=it.marca||"";
+    document.getElementById("eppAnioFab").value=it.anioFab||"";
+    document.getElementById("eppFechaEntrega").value=it.fechaEntrega||"";
+    document.getElementById("eppVidaUtil").value=it.vidaUtil||"";
+    document.getElementById("eppEstado").value=it.estado||"Operativo";
+    document.getElementById("eppObs").value=it.obs||"";
+    document.getElementById("eppEditId").value=it.id;
+    document.getElementById("eppGuardarBtn").textContent="Guardar cambios";
+  }));
+  box.querySelectorAll("[data-epp-del]").forEach(b=>b.addEventListener("click",async()=>{
+    if(!confirm("¿Eliminar este registro de EPP?")) return;
+    const id=Number(b.dataset.eppDel);
+    const lista=(await getEppPersonal()).filter(x=>x.id!==id);
+    await sSet(EPP_KEY,lista);
+    await renderEppLista();
+  }));
+}
+async function renderEppTodo(){ renderEppVoluntarioOptions(); await renderEppLista(); }
 
 /* ============ INVENTARIO B-5 ============ */
 const INV_KEY="inventarioB5:v1", INV_CAT_KEY="invCategorias:v1";
