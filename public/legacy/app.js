@@ -1796,11 +1796,23 @@ function renderOficialidad(asignaciones){
   }));
 }
 async function loadOficialidadYear(){
-  const anio=document.getElementById("anioOficialidad").value;
-  const data=await sGet("oficialidad:"+anio,null);
-  renderOficialidad(data);
-  document.getElementById("oficialidadMsg").textContent = data ? "Oficialidad guardada para "+anio+"." : "";
-  document.getElementById("oficialidadMsg").classList.remove("err");
+  const input=document.getElementById("anioOficialidad");
+  const msg=document.getElementById("oficialidadMsg");
+  const anio=String(input?.value||"").trim();
+  if(!/^\\d{4}$/.test(anio)||Number(anio)<2023||Number(anio)>2100){
+    if(msg){msg.textContent="Indica un año válido entre 2023 y 2100.";msg.classList.add("err");}
+    return;
+  }
+  if(msg){msg.textContent="Cargando "+anio+"…";msg.classList.remove("err");}
+  try{
+    const data=await sGet("oficialidad:"+anio,null);
+    renderOficialidad(data||{});
+    if(msg) msg.textContent=data?"Oficialidad guardada para "+anio+".":"No hay oficialidad guardada para "+anio+". Puedes asignarla y guardar.";
+  }catch(e){
+    console.error("No se pudo cargar oficialidad",e);
+    renderOficialidad({});
+    if(msg){msg.textContent="No fue posible cargar la oficialidad de "+anio+".";msg.classList.add("err");}
+  }
 }
 on("cargarOficialidadBtn","click",loadOficialidadYear);
 on("anioOficialidad","change",loadOficialidadYear);

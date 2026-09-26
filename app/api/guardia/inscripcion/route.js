@@ -34,6 +34,7 @@ async function ensureSchema(sql) {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS guardia_inscripciones_semana_idx ON guardia_inscripciones(semana_inicio, fecha)`;
+  await sql`CREATE TABLE IF NOT EXISTS guardia_semanas (id bigserial PRIMARY KEY, fecha_inicio date NOT NULL, fecha_fin date NOT NULL, apertura timestamptz NOT NULL, cierre timestamptz NOT NULL, estado text NOT NULL DEFAULT 'abierta', creado_por varchar(6) NOT NULL, creado_en timestamptz NOT NULL DEFAULT now(), actualizado_en timestamptz NOT NULL DEFAULT now(), UNIQUE(fecha_inicio,fecha_fin))`;
 }
 
 export async function GET(request) {
@@ -98,6 +99,10 @@ export async function POST(request) {
 
   try {
     await ensureSchema(sql);
+    const semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`;
+    if (!semana.length) return Response.json({error:"registration_not_open"},{status:409});
+    const w=semana[0], now=Date.now();
+    if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
 
     const lockKey = Number(`${inicio.replaceAll("-", "")}${fecha.replaceAll("-", "")}`.slice(-15));
 
@@ -154,4 +159,23 @@ export async function POST(request) {
     console.error("guardia POST failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
   }
+}
+
+
+export async function DELETE(request) {
+  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
+  const sql = sqlClient();
+  if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
+  let body; try { body = await request.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  const inicio=String(body.inicio||""), fecha=String(body.fecha||""), codigo=String(body.codigo||"");
+  if(!validDate(inicio)||!validDate(fecha)||!validCode(codigo)) return Response.json({error:"invalid_data"},{status:400});
+  try {
+    await ensureSchema(sql);
+    const semana = await sql`SELECT estado, apertura, cierre FROM guardia_semanas WHERE fecha_inicio=${inicio}::date AND fecha_fin>=${fecha}::date AND fecha_inicio<=${fecha}::date ORDER BY creado_en DESC LIMIT 1`;
+    if (!semana.length) return Response.json({error:"registration_not_open"},{status:409});
+    const w=semana[0], now=Date.now();
+    if(w.estado!=="abierta"||now<new Date(w.apertura).getTime()||now>new Date(w.cierre).getTime()) return Response.json({error:"registration_closed"},{status:409});
+    await sql`DELETE FROM guardia_inscripciones WHERE semana_inicio=${inicio}::date AND fecha=${fecha}::date AND codigo=${codigo}`;
+    return Response.json({ok:true},{headers:{"Cache-Control":"no-store"}});
+  } catch(error) { console.error("guardia DELETE failed",error); return Response.json({error:"database_error"},{status:500}); }
 }
