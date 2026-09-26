@@ -199,9 +199,6 @@
   <div class="tabs">
     <button class="tab active" data-tab="lista">Pasar lista</button>
     <button class="tab" data-tab="servicio">Salida B-5</button>
-    <button class="tab" type="button" onclick="window.top.location.href=&quot;/guardia/menu&quot;">Guardia</button>
-    <button class="tab" data-tab="historial">Historial</button>
-    <button class="tab" data-tab="panel">Informe</button>
     <button class="tab" data-tab="config">Oficiales</button>
   </div>
 
@@ -549,14 +546,17 @@
     </div>
 
     <div class="subtabs">
-      <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
-      <button class="subtab" data-sub="ingreso">Ficha de ingreso</button>
-      <button class="subtab" data-sub="nomina">Nómina</button>
-      <button class="subtab" data-sub="hoja">Ficha y hoja de vida</button>
       <button class="subtab" data-sub="bajas">Bajas y eliminación</button>
       <button class="subtab" data-sub="cursos">Cursos</button>
-      <button class="subtab" data-sub="tipos">Tipos de citación</button>
+      <button class="subtab" data-sub="ingreso">Ficha de ingreso</button>
+      <button class="subtab" data-sub="hoja">Ficha y hoja de vida</button>
+      <button class="subtab" type="button" onclick="window.top.location.href=&quot;/guardia/menu&quot;">Guardia</button>
+      <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
       <button class="subtab" data-sub="importar">Importar datos</button>
+      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informe</button>
+      <button class="subtab" data-sub="nomina">Nómina</button>
+      <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
+      <button class="subtab" data-sub="tipos">Tipos de citación</button>
     </div>
 
     <!-- OFICIALIDAD -->

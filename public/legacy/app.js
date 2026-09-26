@@ -136,6 +136,7 @@ function on(id,evento,fn){
   });
   document.querySelectorAll(".subtab").forEach(s=>{
     s.addEventListener("click",function(){
+      if(!s.dataset.sub) return; /* enlaces a otras pestañas principales: Guardia, Historial, Informe */
       document.querySelectorAll(".subtab").forEach(x=>x.classList.remove("active"));
       document.querySelectorAll(".subpanel").forEach(x=>x.classList.remove("active"));
       s.classList.add("active");
