@@ -144,6 +144,7 @@ function on(id,evento,fn){
       if(sp) sp.classList.add("active");
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
+      if(s.dataset.sub==="mantencionesb5" && typeof renderMntTodo==="function") renderMntTodo();
     });
   });
 })();
@@ -278,6 +279,7 @@ async function loadAll(){
   TIPOS = await sGet(TIPOS_KEY,null) || DEFAULT_TIPOS.slice();
   CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
   SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
+  MNT_TIPOS = await sGet(MNT_TIPOS_KEY,null) || DEFAULT_MNT_TIPOS.slice();
   ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
   renumerar();
 }
@@ -362,6 +364,106 @@ async function renderCorrelativoHistorial(){
 }
 on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
 on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
+
+/* ============ MANTENCIONES B-5 ============ */
+const MNT_TIPOS_KEY="mntTipos:v1", MNT_KEY="mantencionesB5:v1";
+const DEFAULT_MNT_TIPOS=["Cambio de aceite y filtro","Filtro de combustible","Filtro de aire","Revisión de frenos",
+  "Revisión de neumáticos","Prueba de batería","Purga de refrigerante","Revisión de correas y mangueras","Mantención de bomba/PTO","Otro"];
+const MNT_INTERVALO_MESES={"Cambio de aceite y filtro":6,"Filtro de combustible":12,"Filtro de aire":12,
+  "Revisión de frenos":6,"Revisión de neumáticos":12,"Prueba de batería":6,"Purga de refrigerante":24,
+  "Revisión de correas y mangueras":6,"Mantención de bomba/PTO":12};
+let MNT_TIPOS=[];
+function renderMntTipoOptions(seleccionado){
+  const sel=document.getElementById("mntTipo"); if(!sel) return;
+  const actual=seleccionado||sel.value;
+  sel.innerHTML=ordenarTipos(MNT_TIPOS).map(t=>`<option${t===actual?" selected":""}>${esc(t)}</option>`).join("");
+}
+on("mntTipoAgregarBtn","click",async()=>{
+  const inp=document.getElementById("mntTipoNuevo"); const v=inp.value.trim();
+  if(!v||MNT_TIPOS.includes(v)){ inp.value=""; return; }
+  MNT_TIPOS.push(v); await sSet(MNT_TIPOS_KEY,MNT_TIPOS);
+  renderMntTipoOptions(v); inp.value="";
+});
+async function getMantenciones(){ return await sGet(MNT_KEY,[]); }
+on("mntGuardarBtn","click",async()=>{
+  const msg=document.getElementById("mntMsg"); msg.classList.remove("err");
+  const fecha=document.getElementById("mntFecha").value, tipo=document.getElementById("mntTipo").value;
+  if(!fecha||!tipo){ msg.textContent="Indica al menos la fecha y el tipo de mantención."; msg.classList.add("err"); return; }
+  const registro={id:Date.now(),fecha,tipo,
+    km:document.getElementById("mntKm").value.trim(),
+    tiempo:document.getElementById("mntTiempo").value.trim(),
+    valor:document.getElementById("mntValor").value.trim(),
+    repuestos:document.getElementById("mntRepuestos").value.trim(),
+    taller:document.getElementById("mntTaller").value.trim(),
+    obs:document.getElementById("mntObs").value.trim()};
+  const lista=await getMantenciones(); lista.push(registro); await sSet(MNT_KEY,lista);
+  msg.textContent="Mantención guardada.";
+  ["mntKm","mntTiempo","mntValor","mntRepuestos","mntTaller","mntObs"].forEach(id=>document.getElementById(id).value="");
+  await renderMntTodo();
+});
+function mesFmt(iso){ const d=new Date(iso+"T12:00:00"); return d.toLocaleDateString("es-CL",{month:"long",year:"numeric"}); }
+async function renderMntProximas(){
+  const box=document.getElementById("mntProximas"); if(!box) return;
+  const lista=await getMantenciones();
+  const hoy=new Date();
+  const filas=Object.keys(MNT_INTERVALO_MESES).map(tipo=>{
+    const previas=lista.filter(m=>m.tipo===tipo).sort((a,b)=>a.fecha<b.fecha?1:-1);
+    if(!previas.length) return {tipo,estado:"Sin registro previo",color:"#3a3d44"};
+    const ultima=previas[0];
+    const prox=new Date(ultima.fecha+"T12:00:00"); prox.setMonth(prox.getMonth()+MNT_INTERVALO_MESES[tipo]);
+    const diasRestantes=Math.round((prox-hoy)/86400000);
+    let estado,color;
+    if(diasRestantes<0){ estado=`Vencida desde el ${prox.toLocaleDateString("es-CL")}`; color="#7d2528"; }
+    else if(diasRestantes<=30){ estado=`Próxima: ${prox.toLocaleDateString("es-CL")}`; color="#6b5a22"; }
+    else { estado=`Al día (próxima: ${prox.toLocaleDateString("es-CL")})`; color="#284f35"; }
+    return {tipo,estado,color};
+  });
+  box.innerHTML="<h3>Próximas mantenciones sugeridas</h3>"+filas.map(f=>
+    `<div style="padding:8px 10px;margin:4px 0;background:${f.color};border-radius:6px;font-size:13px;"><b>${esc(f.tipo)}:</b> ${esc(f.estado)}</div>`
+  ).join("");
+}
+async function renderMntHistorial(){
+  const box=document.getElementById("mntHistorial"); if(!box) return;
+  const lista=(await getMantenciones()).slice().sort((a,b)=>a.fecha<b.fecha?1:-1);
+  if(!lista.length){ box.innerHTML='<div class="empty">Aún no hay mantenciones registradas.</div>'; return; }
+  box.innerHTML=lista.map(m=>`
+    <div class="hist-item">
+      <div>
+        <div class="hist-date">${fmtDateLong(m.fecha)} <span class="badge">${esc(m.tipo)}</span></div>
+        <div class="hist-acto">${m.repuestos?"Repuestos: "+esc(m.repuestos)+" · ":""}${m.taller?"Taller: "+esc(m.taller)+" · ":""}${m.km?"Km: "+esc(m.km)+" · ":""}${m.tiempo?"Tiempo: "+esc(m.tiempo):""}${m.valor?" · Valor: $"+esc(m.valor):""}${m.obs?"<br>"+esc(m.obs):""}</div>
+      </div>
+      <div class="hist-right"><button class="btn small secondary" data-mnt-del="${m.id}">Eliminar</button></div>
+    </div>`).join("");
+  box.querySelectorAll("[data-mnt-del]").forEach(b=>b.addEventListener("click",async()=>{
+    if(!confirm("¿Eliminar este registro de mantención?")) return;
+    const id=Number(b.dataset.mntDel);
+    const lista=(await getMantenciones()).filter(m=>m.id!==id);
+    await sSet(MNT_KEY,lista);
+    await renderMntTodo();
+  }));
+}
+async function renderMntGastoMensual(){
+  const box=document.getElementById("mntGastoMensual"); if(!box) return;
+  const porMes={};
+  function sumar(mesKey,campo,valor){ if(!porMes[mesKey]) porMes[mesKey]={combustible:0,mantencion:0}; porMes[mesKey][campo]+=valor; }
+  const idxSv=await sGet(SV_INDEX_KEY,[]);
+  for(const it of idxSv){
+    const d=await sGet(it.clave,null); if(!d||d.svTipoAct!=="Carga de combustible") continue;
+    const fecha=d.svCombFecha||d.svFecha; if(!fecha) continue;
+    sumar(fecha.slice(0,7),"combustible",Number(d.svCombValor)||0);
+  }
+  for(const m of await getMantenciones()){
+    if(!m.fecha) continue;
+    sumar(m.fecha.slice(0,7),"mantencion",Number(m.valor)||0);
+  }
+  const meses=Object.keys(porMes).sort((a,b)=>b<a?-1:1);
+  if(!meses.length){ box.innerHTML='<div class="empty">Aún no hay cargas de combustible ni mantenciones con valor registrado.</div>'; return; }
+  box.innerHTML=`<table><thead><tr><th>Mes</th><th>Combustible</th><th>Mantención</th><th>Total</th></tr></thead><tbody>`+
+    meses.map(mk=>{const v=porMes[mk];const total=v.combustible+v.mantencion;
+      return `<tr><td>${mesFmt(mk+"-01")}</td><td>$${v.combustible.toLocaleString("es-CL")}</td><td>$${v.mantencion.toLocaleString("es-CL")}</td><td><b>$${total.toLocaleString("es-CL")}</b></td></tr>`;
+    }).join("")+`</tbody></table>`;
+}
+async function renderMntTodo(){ await renderMntProximas(); await renderMntHistorial(); await renderMntGastoMensual(); }
 
 async function getIndex(){ return await sGet(INDEX_KEY,[]); }
 async function getParte(c){ return await sGet("parte:"+c,null); }
@@ -672,6 +774,12 @@ const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraCon
  "svDetOrigen","svCausas","svDetCausa","svTipoInmueble","svConstruccion","svNiveles","svObservaciones",
  "svPersonas","svMaterial","svApoyo",
  "svCombConductor","svCombKm","svCombFecha","svCombServicentro","svCombRut","svCombLitros","svCombValor"];
+const SV_INDEX_KEY="servicio:index:v1";
+async function setServicio(clave,datos){
+  const ok=await sSet(clave,datos);
+  if(ok){ const idx=await sGet(SV_INDEX_KEY,[]); if(!idx.find(i=>i.clave===clave)){ idx.push({clave,fecha:datos.svFecha,tipo:datos.svTipoAct}); await sSet(SV_INDEX_KEY,idx); } }
+  return ok;
+}
 const SV_TIPOS_KEY="svTipos:v1";
 const DEFAULT_SV_TIPOS=["Acto de servicio","Carga de combustible","Ejercicio con material","Emergencia","Mantención","Traslado","Otro"];
 let SV_TIPOS=[];
@@ -838,7 +946,7 @@ function mostrarConfirmarSv(){
     const datos=svDatos();
     datos.registrarAsistencia=document.getElementById("svRegistrarAsistencia").checked;
     datos.numero=svNumeroActual; datos.anio=svAnioActual;
-    await sSet(svClave(),datos);
+    await setServicio(svClave(),datos);
     svEsNuevo=false;
     const numTxt=`N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}. `;
 
@@ -2097,7 +2205,7 @@ on("guardarOficialidadBtn","click",async()=>{
   await saveRoster();
   msg.classList.remove("err");
   msg.textContent=`Oficialidad ${anio} guardada y aplicada a la nómina.`;
-  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions();
+  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions(); renderMntTipoOptions();
 });
 
 /* ============ FICHA DE INGRESO ============ */

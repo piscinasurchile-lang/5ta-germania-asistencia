@@ -556,6 +556,7 @@
       <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
       <button class="subtab" data-sub="importar">Importar datos</button>
       <button class="subtab" onclick="window.__mostrarPestana('panel')">Informe</button>
+      <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
       <button class="subtab" data-sub="nomina">Nómina</button>
       <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
       <button class="subtab" data-sub="tipos">Tipos de citación</button>
@@ -799,6 +800,41 @@
         <button class="btn" id="correlativoAjustarBtn">Guardar ajuste de este número</button>
         <div class="status-msg" id="correlativoMsg"></div>
         <div id="correlativoHistorial" style="margin-top:16px;"></div>
+      </div>
+    </div>
+
+    <!-- MANTENCIONES B-5 -->
+    <div class="subpanel" id="sub-mantencionesb5">
+      <div class="card">
+        <h2>Mantenciones · Unidad B-5</h2>
+        <p class="sub">El kilometraje del carro no siempre es exacto, así que el control principal es por fecha/tiempo transcurrido. El km es solo referencial si lo tienes.</p>
+        <div id="mntProximas" style="margin-bottom:16px;"></div>
+
+        <h3>Registrar mantención</h3>
+        <div class="field-row">
+          <div class="field" style="flex:0 0 150px;"><label for="mntFecha">Fecha</label><input type="date" id="mntFecha"></div>
+          <div class="field" style="flex:1 1 200px;"><label for="mntTipo">Tipo de mantención</label><select id="mntTipo"></select></div>
+          <div class="field" style="flex:0 0 120px;"><label for="mntKm">Km (opcional)</label><input type="text" id="mntKm"></div>
+          <div class="field" style="flex:0 0 140px;"><label for="mntTiempo">Tiempo de mantención</label><input type="text" id="mntTiempo" placeholder="Ej: 2 horas"></div>
+          <div class="field" style="flex:0 0 130px;"><label for="mntValor">Valor ($)</label><input type="text" id="mntValor"></div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="flex:1 1 260px;"><label for="mntRepuestos">Repuestos utilizados</label><input type="text" id="mntRepuestos"></div>
+          <div class="field" style="flex:1 1 200px;"><label for="mntTaller">Realizada por / taller</label><input type="text" id="mntTaller"></div>
+        </div>
+        <div class="field"><label for="mntObs">Observaciones</label><textarea id="mntObs" rows="2"></textarea></div>
+        <div style="display:flex;gap:6px;margin:6px 0 10px;">
+          <input type="text" id="mntTipoNuevo" placeholder="Agregar otro tipo de mantención…" style="flex:1;">
+          <button type="button" class="btn small secondary" id="mntTipoAgregarBtn">Agregar tipo</button>
+        </div>
+        <button class="btn" id="mntGuardarBtn">Guardar mantención</button>
+        <div class="status-msg" id="mntMsg"></div>
+
+        <h3 style="margin-top:22px;">Gasto mensual (combustible + mantención)</h3>
+        <div id="mntGastoMensual"></div>
+
+        <h3 style="margin-top:22px;">Historial de mantenciones</h3>
+        <div id="mntHistorial"></div>
       </div>
     </div>
 
