@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistencia · 5ta Compañía</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="./jspdf.min.js"></script>
+<script src="./jspdf-autotable.min.js"></script>
+<style>
+  :root{
+    --bg:#161210; --panel:#211b16; --panel-2:#2a221b; --line:#3a2f26;
+    --text:#f1ebe0; --muted:#a89584;
+    --fire:#b3241c; --fire-dim:#7a1a15;
+    --gold:#c9a227;
+    --ok:#4a7c59; --ok-dim:#2f4f38;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px;}
+
+  .masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid var(--fire);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap;}
+  .crest{width:54px;height:60px;flex:0 0 auto;object-fit:contain;display:block;}
+  .brand{display:flex;gap:12px;align-items:center;}
+  .brand h1{font-family:'Oswald',sans-serif;font-weight:600;font-size:22px;margin:0;line-height:1.15;}
+  .brand p{margin:2px 0 0;color:var(--muted);font-size:13.5px;}
+  .masthead .today{color:var(--muted);font-size:13px;text-align:right;}
+
+  .tabs{display:flex;margin-bottom:22px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab{font-family:'Oswald',sans-serif;font-weight:500;font-size:14.5px;background:none;border:none;color:var(--muted);padding:10px 4px;margin-right:22px;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--text);border-bottom-color:var(--fire);}
+
+  .subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .subtab{font-family:'Source Sans 3',sans-serif;font-size:13.5px;font-weight:600;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:20px;padding:7px 15px;cursor:pointer;}
+  .subtab:hover{color:var(--text);}
+  .subtab.active{background:var(--fire-dim);border-color:var(--fire);color:#fff0ed;}
+
+  .panel{display:none;} .panel.active{display:block;}
+  .subpanel{display:none;} .subpanel.active{display:block;}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 18px 20px;margin-bottom:18px;}
+  .card h2{font-family:'Oswald',sans-serif;font-size:16px;font-weight:600;margin:0 0 4px;}
+  .card h3{font-family:'Oswald',sans-serif;font-size:14px;font-weight:500;margin:18px 0 8px;color:var(--gold);}
+  .card .sub{color:var(--muted);font-size:13px;margin:0 0 16px;}
+
+  .field-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+  .field{display:flex;flex-direction:column;gap:5px;flex:1 1 190px;}
+  .field label{font-size:12.5px;color:var(--muted);}
+  .field input,.field select{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:8px 10px;font-size:14.5px;font-family:inherit;width:100%;}
+  .field input:focus,.field select:focus{outline:2px solid var(--gold);outline-offset:1px;}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead th{text-align:left;color:var(--muted);font-weight:500;font-size:12.5px;padding:6px 8px;border-bottom:1px solid var(--line);}
+  tbody td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  .n-col{color:var(--muted);width:28px;}
+  .cargo-col{color:var(--muted);font-size:13px;white-space:nowrap;}
+  .name-col{font-weight:500;}
+  .ingreso-col{color:var(--muted);font-size:12.5px;white-space:nowrap;}
+
+  .seg{display:flex;gap:4px;}
+  .seg button{font-size:12.5px;font-weight:600;padding:6px 10px;border-radius:5px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer;white-space:nowrap;font-family:inherit;}
+  .seg button.on-presente.active{background:var(--ok-dim);color:#cfe8d6;border-color:var(--ok);}
+  .seg button.on-ausente.active{background:var(--fire-dim);color:#f4d9d6;border-color:var(--fire);}
+  .seg button.on-justificado.active{background:#4a3c14;color:#f1e2ad;border-color:var(--gold);}
+
+  .btn{font-family:'Oswald',sans-serif;font-weight:500;font-size:14.5px;background:var(--fire);color:#fff0ed;border:none;border-radius:6px;padding:10px 18px;cursor:pointer;}
+  .btn:hover{background:#94201a;}
+  .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
+  .btn.secondary:hover{background:var(--line);}
+  .btn.gold{background:var(--gold);color:#241c08;}
+  .btn.gold:hover{background:#b28f22;}
+  .btn.small{padding:6px 12px;font-size:13px;}
+
+  .status-msg{margin-top:12px;font-size:13.5px;color:var(--ok);min-height:18px;}
+  .status-msg.err{color:var(--fire);}
+
+  .hist-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .hist-item:last-child{border-bottom:none;}
+  .hist-date{font-family:'Oswald',sans-serif;font-size:15px;}
+  .hist-acto{color:var(--muted);font-size:13px;margin-top:2px;}
+  .hist-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .hist-count{font-size:13px;color:var(--muted);}
+  .empty{color:var(--muted);font-size:14px;padding:14px 0;}
+
+  .badge{display:inline-block;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:12px;}
+  .badge.ok{background:var(--ok-dim);border-color:var(--ok);color:#cfe8d6;}
+  .badge.pend{background:var(--fire-dim);border-color:var(--fire);color:#f4d9d6;}
+  .clv{display:inline-block;background:var(--panel-2);border:1px solid var(--gold);color:var(--gold);border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700;vertical-align:middle;margin-right:3px;}
+  .cnd{display:inline-block;background:var(--ok-dim);border:1px solid var(--ok);color:#cfe8d6;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700;vertical-align:middle;margin-right:3px;}
+  .ac{display:inline-block;background:var(--gold);color:#241c08;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700;letter-spacing:.03em;vertical-align:middle;margin-right:2px;}
+
+  .range-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .range-buttons .btn.secondary.active{background:var(--fire-dim);border-color:var(--fire);color:#fff0ed;}
+
+  .summary-row{display:flex;gap:22px;flex-wrap:wrap;margin:4px 0 18px;}
+  .summary-item .big{font-family:'Oswald',sans-serif;font-size:26px;line-height:1;}
+  .summary-item .lbl{font-size:12px;color:var(--muted);margin-top:3px;}
+
+  .pct-bar{background:var(--bg);border-radius:4px;height:6px;width:70px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px;}
+  .pct-bar>div{height:100%;background:var(--ok);}
+
+  .foot-note{color:var(--muted);font-size:12.5px;margin-top:6px;}
+
+  .tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .tag{display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:5px 6px 5px 12px;font-size:13px;}
+  .tag button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 4px;}
+  .tag button:hover{color:var(--fire);}
+
+  .cfg-table input,.cfg-table select{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:5px 7px;font-size:13px;width:100%;font-family:inherit;}
+  .cfg-table td{padding:6px;}
+  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;}
+  .del-btn:hover{color:var(--fire);}
+
+  .curso-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .curso-row:last-child{border-bottom:none;}
+  .curso-row .cname{flex:1 1 220px;font-size:13.5px;}
+  .curso-row input[type=date]{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:4px 7px;font-size:12.5px;font-family:inherit;width:145px;}
+  .curso-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--ok);cursor:pointer;}
+  .nivel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:20px 0 4px;flex-wrap:wrap;}
+  .nivel-head h3{margin:0;}
+
+  .divider{border-top:1px solid var(--line);margin:20px 0;}
+
+  .kpis{display:flex;gap:12px;flex-wrap:wrap;}
+  .kpi{flex:1 1 130px;background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:12px 14px;}
+  .kpi .v{font-family:'Oswald',sans-serif;font-size:26px;line-height:1;}
+  .kpi .l{font-size:11.5px;color:var(--muted);margin-top:5px;}
+  .kpi.alto .v{color:#8fd0a4;} .kpi.bajo .v{color:#f0918a;} .kpi.medio .v{color:var(--gold);}
+  .barra{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .barra:last-child{border-bottom:none;}
+  .barra .et{flex:0 0 40%;font-size:13px;}
+  .barra .tr{flex:1;background:var(--bg);border-radius:4px;height:15px;overflow:hidden;}
+  .barra .tr>div{height:100%;background:var(--fire);}
+  .barra .vl{flex:0 0 78px;text-align:right;font-size:12.5px;color:var(--muted);}
+  .dona{display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
+  .dona .circ{width:130px;height:130px;border-radius:50%;flex:0 0 auto;position:relative;}
+  .dona .circ i{position:absolute;inset:26px;background:var(--panel);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;}
+  .dona .circ i b{font-family:'Oswald',sans-serif;font-size:24px;}
+  .dona .circ i span{font-size:10px;color:var(--muted);text-align:center;}
+  .leyenda{flex:1 1 190px;}
+  .leyenda div{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;}
+  .leyenda em{width:11px;height:11px;border-radius:3px;flex:0 0 auto;}
+  .aviso{background:#3a1f1c;border:1px solid var(--fire);border-radius:6px;padding:11px 13px;font-size:13px;margin-top:12px;}
+  .aviso.ok{background:#233a29;border-color:var(--ok);}
+
+  .membrete{display:flex;align-items:center;justify-content:center;gap:11px;margin-top:30px;padding-top:16px;
+    border-top:1px solid var(--line);text-align:left;}
+  .membrete img{width:26px;height:29px;object-fit:contain;opacity:.85;}
+  .membrete b{display:block;font-size:12px;font-weight:600;color:var(--muted);}
+  .membrete span{display:block;font-size:11px;color:var(--muted);opacity:.7;}
+
+  /* Tablet: se aprovecha el ancho */
+  @media (min-width:760px){
+    .wrap{max-width:1060px;padding:30px 26px 50px;}
+    .brand h1{font-size:25px;}
+    .tab{font-size:15.5px;margin-right:26px;}
+    .card{padding:20px 22px 22px;}
+    .kpis{grid-template-columns:repeat(5,1fr);}
+    .seg button{font-size:13px;padding:7px 13px;}
+    table{font-size:14.5px;}
+  }
+  @media (min-width:1000px){
+    .wrap{max-width:1180px;}
+    #panel-panel .doscol{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  }
+
+  @media (max-width:600px){
+    .masthead{flex-direction:column;align-items:flex-start;}
+    .masthead .today{text-align:left;}
+    .seg button{padding:6px 8px;font-size:11.5px;}
+    .cargo-col,.ingreso-col{display:none;}
+    table{font-size:13px;}
+  }
+</style>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#b91c1c">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="brand">
+      <img id="crestImg" class="crest" alt="Escudo 5ta Compañía">
+      <div>
+        <h1>Quinta Compañía "Germania"</h1>
+        <p>Cuerpo de Bomberos de Villarrica · Control de asistencia y registro</p>
+        <p style="font-size:12px;margin-top:3px;">Fundada como Brigada el 21 de junio de 2023 · Compañía desde el 5 de noviembre de 2025</p>
+      </div>
+    </div>
+    <div class="today" id="todayLabel"></div>
+  </div>
+
+  <div id="storageWarn" style="display:none;background:#4a1f1c;border:1px solid #b3241c;color:#f4d9d6;border-radius:6px;padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="lista">Pasar lista</button>
+    <button class="tab" data-tab="servicio">Salida B-5</button>
+    <button class="tab" type="button" onclick="window.top.location.href=&quot;/guardia/menu&quot;">Guardia</button>
+    <button class="tab" data-tab="historial">Historial</button>
+    <button class="tab" data-tab="panel">Informe</button>
+    <button class="tab" data-tab="config">Configuración</button>
+  </div>
+
+  <!-- PASAR LISTA -->
+  <div class="panel active" id="panel-lista">
+    <div class="card">
+      <div class="field-row">
+        <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
+        <div class="field"><label for="tipoSelect">Tipo de citación</label><select id="tipoSelect"></select></div>
+        <div class="field" style="flex:2 1 220px;"><label for="detalle">Detalle (opcional)</label><input type="text" id="detalle" placeholder="Ej: dirección de la emergencia, tema tratado"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 260px;">
+          <label for="registradoPor">Pasó lista (Ayudante, oficial u otro asignado)</label>
+          <input type="text" id="registradoPor" list="registradoPorOptions" placeholder="Nombre de quien pasa la lista">
+          <datalist id="registradoPorOptions"></datalist>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th class="n-col">N°</th><th class="cargo-col">Cargo</th><th class="name-col">Nombre</th>
+          <th class="ingreso-col">Ingreso</th><th>Asistencia</th>
+        </tr></thead>
+        <tbody id="listaBody"></tbody>
+      </table>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn" id="guardarBtn">Guardar parte</button>
+        <button class="btn secondary" id="marcarTodosBtn">Marcar todos presentes</button>
+      </div>
+      <div class="status-msg" id="statusMsg"></div>
+
+      <div id="resumenBox" style="display:none;margin-top:18px;">
+        <div class="divider"></div>
+        <h2>Resumen del parte</h2>
+        <div class="summary-row" id="resumenRow"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn gold" id="pdfBtn">Generar PDF</button>
+          <button class="btn secondary" id="waBtn">Compartir por WhatsApp</button>
+        </div>
+        <div class="foot-note">En celular se abre el panel para compartir el PDF directo a WhatsApp. Si el navegador no lo permite, el PDF se descarga y lo adjuntas manualmente.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOJA DE SERVICIO B-5 -->
+  <div class="panel" id="panel-servicio">
+    <div class="card">
+      <h2>Hoja de servicio · Unidad B-5</h2>
+      <p class="sub">Se llena solo cuando el carro sale del cuartel: emergencia, acto de servicio, traslado o carga de combustible. Las instrucciones, cursos y capacitaciones se registran en "Pasar lista".</p>
+      <div class="field-row">
+        <div class="field"><label for="svFecha">Fecha</label><input type="date" id="svFecha"></div>
+        <div class="field"><label for="svTipoAct">Tipo de actividad</label>
+          <select id="svTipoAct">
+            <option>Emergencia</option><option>Acto de servicio</option>
+            <option>Carga de combustible</option><option>Traslado</option>
+            <option>Mantención</option><option>Ejercicio con material</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="field"><label for="svHoraSalida">Hora salida</label><input type="time" id="svHoraSalida"></div>
+        <div class="field"><label for="svHoraLlegada">Hora llegada</label><input type="time" id="svHoraLlegada"></div>
+        <div class="field"><label for="svHoraControl">Hora control</label><input type="time" id="svHoraControl"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="svKmSalida">Kilometraje salida</label><input type="text" id="svKmSalida"></div>
+        <div class="field"><label for="svKmLlegada">Kilometraje llegada</label><input type="text" id="svKmLlegada"></div>
+        <div class="field"><label for="svHorometro">Horómetro</label><input type="text" id="svHorometro"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Lugar del servicio</h2>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field" style="flex:2 1 240px;"><label for="svCalle">Calle</label><input type="text" id="svCalle"></div>
+        <div class="field" style="flex:0 0 140px;"><label for="svNumeracion">Numeración</label><input type="text" id="svNumeracion"></div>
+        <div class="field"><label for="svSector">Sector</label><input type="text" id="svSector"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mando</h2>
+      <div class="field-row">
+        <div class="field"><label for="svUnidadCargo">Unidad a cargo</label><input type="text" id="svUnidadCargo" list="registradoPorOptions"></div>
+        <div class="field"><label for="svConductor">Conductor</label><input type="text" id="svConductor" list="registradoPorOptions"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="svCuerpoCargo">Cuerpo de Bomberos a cargo</label><input type="text" id="svCuerpoCargo"></div>
+        <div class="field"><label for="svPuestoMando">Puesto de mando</label><input type="text" id="svPuestoMando"></div>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field"><label for="svCargoQuinta">A cargo Quinta</label><input type="text" id="svCargoQuinta" list="registradoPorOptions"></div>
+        <div class="field"><label for="svOfContabilidad">Oficial de contabilidad</label><input type="text" id="svOfContabilidad" list="registradoPorOptions"></div>
+        <div class="field"><label for="svOfSeguridad">Oficial de seguridad</label><input type="text" id="svOfSeguridad" list="registradoPorOptions"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Datos de la emergencia</h2>
+      <div class="field-row">
+        <div class="field"><label for="svLugarInicio">Lugar de inicio</label><input type="text" id="svLugarInicio"></div>
+        <div class="field"><label for="svNaturaleza">Naturaleza</label><input type="text" id="svNaturaleza"></div>
+        <div class="field" style="flex:2 1 220px;"><label for="svDetNaturaleza">Detalles de naturaleza</label><input type="text" id="svDetNaturaleza"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="svOrigen">Origen</label><input type="text" id="svOrigen"></div>
+        <div class="field" style="flex:2 1 220px;"><label for="svDetOrigen">Detalles origen</label><input type="text" id="svDetOrigen"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="svCausas">Causas</label><input type="text" id="svCausas"></div>
+        <div class="field" style="flex:2 1 220px;"><label for="svDetCausa">Detalles causa</label><input type="text" id="svDetCausa"></div>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field"><label for="svTipoInmueble">Tipo de inmueble</label>
+          <select id="svTipoInmueble"><option value="">—</option><option>Casa</option><option>Edificio</option><option>Bodega</option><option>Comercio</option><option>Otro</option></select>
+        </div>
+        <div class="field"><label for="svConstruccion">Tipo de construcción</label>
+          <select id="svConstruccion"><option value="">—</option><option>Hormigón armado</option><option>Albañilería</option><option>Madera</option><option>Acero</option><option>Otro</option></select>
+        </div>
+        <div class="field" style="flex:0 0 120px;"><label for="svNiveles">N° niveles</label><input type="number" id="svNiveles"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Concurrencia de voluntarios</h2>
+      <p class="sub">Marca cómo concurrió cada uno. El total de concurrentes suma los que tripularon el B-5 y los que llegaron por medios propios.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        <button class="btn secondary small" id="svLimpiarBtn">Marcar todos como no concurre</button>
+      </div>
+      <table>
+        <thead><tr><th class="n-col">N°</th><th class="name-col">Nombre</th><th>Concurrencia</th></tr></thead>
+        <tbody id="svBody"></tbody>
+      </table>
+      <div class="summary-row" id="svResumen" style="margin-top:18px;"></div>
+      <div style="margin-top:6px;display:flex;align-items:flex-start;gap:9px;">
+        <input type="checkbox" id="svRegistrarAsistencia" checked style="width:17px;height:17px;accent-color:var(--ok);margin-top:2px;">
+        <label for="svRegistrarAsistencia" style="font-size:13px;color:var(--muted);cursor:pointer;">
+          Sumar esta salida al Control de asistencia. Déjalo marcado en emergencias y actos de servicio. Desmárcalo en cargas de combustible, traslados o mantenciones, donde no corresponde contar asistencia.
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Observaciones</h2>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 100%;"><label for="svObservaciones">Relato del servicio</label><input type="text" id="svObservaciones" placeholder="Descripción de lo actuado"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 100%;"><label for="svPersonas">Personas involucradas (nombre, RUT, edad, estado)</label><input type="text" id="svPersonas" placeholder="Una por línea o separadas por punto y coma"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 100%;"><label for="svMaterial">Material menor utilizado</label><input type="text" id="svMaterial" placeholder="Ej: Motosierra a combustión, 20 min, operativa"></div>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field" style="flex:1 1 100%;"><label for="svApoyo">Unidades de apoyo</label><input type="text" id="svApoyo" placeholder="Unidad, institución, a cargo, trabajo realizado"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn" id="svGuardarBtn">Guardar hoja de servicio</button>
+        <button class="btn gold" id="svPdfBtn">Generar PDF</button>
+        <button class="btn secondary" id="svWaBtn">Compartir por WhatsApp</button>
+      </div>
+      <div class="status-msg" id="svMsg"></div>
+    </div>
+  </div>
+
+  <!-- GUARDIA NOCTURNA -->
+  <div class="panel" id="panel-guardia">
+    <div class="card">
+      <h2>Ficha de guardia nocturna</h2>
+      <p class="sub">Se registra cada turno de guardia: quiénes la cubren, el oficial a cargo y las novedades del turno.</p>
+      <div class="field-row">
+        <div class="field"><label for="gnFechaIng">Fecha de ingreso</label><input type="date" id="gnFechaIng"></div>
+        <div class="field"><label for="gnHoraIng">Hora de ingreso</label><input type="time" id="gnHoraIng" value="21:00"></div>
+        <div class="field"><label for="gnFechaSal">Fecha de salida</label><input type="date" id="gnFechaSal"></div>
+        <div class="field"><label for="gnHoraSal">Hora de salida</label><input type="time" id="gnHoraSal" value="08:00"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 260px;">
+          <label for="gnOficial">Oficial a cargo de la guardia</label>
+          <select id="gnOficial"></select>
+        </div>
+      </div>
+      <h3>Guardianes de turno</h3>
+      <p class="sub">Agrega a los voluntarios designados. Si alguno no puede asistir, se registra el motivo, si justificó por correo y quién lo reemplaza. Todo es modificable después.</p>
+      <div class="field-row">
+        <div class="field" style="flex:1 1 240px;">
+          <label for="gnAgregar">Agregar guardián designado</label>
+          <select id="gnAgregar"></select>
+        </div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;">
+          <label>&nbsp;</label><button class="btn small secondary" id="gnAgregarBtn">Agregar</button>
+        </div>
+      </div>
+      <div id="gnGuardianes"></div>
+      <div class="field-row" style="margin-top:14px;">
+        <div class="field" style="flex:1 1 100%;">
+          <label for="gnNovedades">Novedades de la guardia</label>
+          <input type="text" id="gnNovedades" placeholder="Sin novedad, o el detalle de lo ocurrido durante el turno">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn" id="gnGuardarBtn">Guardar guardia</button>
+        <button class="btn gold" id="gnPdfBtn">PDF de esta guardia</button>
+      </div>
+      <div class="status-msg" id="gnMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Informes de guardia</h2>
+      <div class="field-row">
+        <div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div>
+        <div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn gold" id="gnPdfSemanal">Informe del período</button>
+        <button class="btn gold" id="gnPdfEstad">Informe estadístico</button>
+        <button class="btn" id="gnInfo">Infografía de guardias</button>
+      </div>
+      <div class="summary-row" id="gnResumen" style="margin-top:16px;"></div>
+      <div id="gnLista"></div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="panel" id="panel-historial">
+    <div class="card">
+      <div class="field-row">
+        <div class="field" style="flex:1 1 180px;"><label for="histTipoFiltro">Tipo de actividad</label><select id="histTipoFiltro"></select></div>
+        <div class="field" style="flex:1 1 220px;"><label for="histDescFiltro">Descripción</label><select id="histDescFiltro"></select></div>
+        <div class="field" style="flex:1 1 200px;"><label for="histBuscar">Buscar en la descripción</label><input type="text" id="histBuscar" placeholder="Ej: olor, academia, simulacro"></div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="histLimpiar">Limpiar</button></div>
+      </div>
+      <div class="foot-note" id="histResumen" style="margin-bottom:10px;"></div>
+      <div id="historialList"></div>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div class="panel" id="panel-panel">
+    <div class="card">
+      <div class="field-row">
+        <div class="field" style="flex:0 0 130px;"><label for="pnAnio">Año</label><select id="pnAnio"></select></div>
+        <div class="field" style="flex:0 0 190px;"><label for="pnMes">Período</label><select id="pnMes"></select></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn gold" id="pnPdf">Informe en PDF</button>
+        <button class="btn secondary" id="pnInfo">Infografía</button>
+        <button class="btn secondary" id="pnCsv">Exportar a Excel</button>
+      </div>
+      <div class="foot-note" id="pnCorte"></div>
+      <div id="pnImport" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+        <p class="sub" id="pnImportTxt" style="margin-bottom:10px;"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn" id="pnCargarHist">Cargar histórico 2026</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1. Resumen general</h2>
+      <div class="kpis" id="pnKpis"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Asistencia por tipo de actividad</h2>
+      <div id="pnTipos"></div>
+    </div>
+
+    <div class="card">
+      <h2>3. Distribución individual</h2>
+      <p class="sub">Voluntarios activos agrupados según su porcentaje de asistencia.</p>
+      <div id="pnTramos"></div>
+    </div>
+
+    <div class="card">
+      <h2>4. Evolución mensual</h2>
+      <div id="pnMeses"></div>
+    </div>
+
+    <div class="card">
+      <h2>5. Asistencia de cada voluntario</h2>
+      <table>
+        <thead><tr><th class="n-col">N°</th><th class="name-col">Voluntario</th>
+        <th>Pres.</th><th>Just.</th><th>Aus.</th><th>%</th></tr></thead>
+        <tbody id="pnDetalle"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>6. Ranking de asistencia</h2>
+      <div id="pnRanking"></div>
+    </div>
+
+    <div class="card">
+      <h2>7. Convocatoria de actividades</h2>
+      <div id="pnConvocatoria"></div>
+    </div>
+
+    <div class="card">
+      <h2>8. Hallazgos</h2>
+      <div id="pnHallazgos"></div>
+    </div>
+  </div>
+
+  <!-- CONFIGURACIÓN -->
+  <div class="panel" id="panel-config">
+
+    <div class="card" id="configCandado">
+      <h2>Sección restringida</h2>
+      <p class="sub">La configuración de la Compañía — nómina, oficialidad, fichas, bajas, cursos y respaldos — solo puede ser modificada por la oficialidad: Director, Capitán o Secretario.</p>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field" style="flex:1 1 200px;">
+          <label for="bajaClave">Clave de oficialidad</label>
+          <input type="password" id="bajaClave" autocomplete="off" inputmode="numeric">
+        </div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;">
+          <label>&nbsp;</label><button class="btn" id="bajaEntrarBtn">Ingresar</button>
+        </div>
+      </div>
+      <div class="status-msg" id="bajaClaveMsg"></div>
+    </div>
+
+    <div id="configContenido" style="display:none;">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="badge ok">Acceso autorizado</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn small secondary" id="bajaCambiarClaveBtn">Cambiar clave</button>
+          <button class="btn small secondary" id="bajaSalirBtn">Bloquear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="subtabs">
+      <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
+      <button class="subtab" data-sub="ingreso">Ficha de ingreso</button>
+      <button class="subtab" data-sub="nomina">Nómina</button>
+      <button class="subtab" data-sub="hoja">Ficha y hoja de vida</button>
+      <button class="subtab" data-sub="bajas">Bajas y eliminación</button>
+      <button class="subtab" data-sub="cursos">Cursos</button>
+      <button class="subtab" data-sub="tipos">Tipos de citación</button>
+      <button class="subtab" data-sub="importar">Importar datos</button>
+    </div>
+
+    <!-- OFICIALIDAD -->
+    <div class="subpanel active" id="sub-oficialidad">
+      <div class="card">
+        <h2>Oficialidad</h2>
+        <p class="sub">Los cargos se eligen cada año. Asigna aquí quién ocupa cada cargo y el año queda registrado; al guardar, la nómina se actualiza.</p>
+        <div class="field-row">
+          <div class="field" style="flex:0 0 140px;"><label for="anioOficialidad">Año</label><input type="number" id="anioOficialidad" min="2023" max="2100"></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="cargarOficialidadBtn">Cargar año</button></div>
+        </div>
+        <table>
+          <thead><tr><th style="width:44%">Cargo</th><th>Integrante</th><th></th></tr></thead>
+          <tbody id="oficialidadBody"></tbody>
+        </table>
+        <div class="field-row" style="margin-top:14px;margin-bottom:0;">
+          <div class="field" style="flex:1 1 220px;"><input type="text" id="nuevoCargoInput" placeholder="Agregar cargo, ej: Teniente 3"></div>
+          <div class="field" style="flex:0 0 auto;"><button class="btn secondary" id="agregarCargoBtn">Agregar cargo</button></div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn" id="guardarOficialidadBtn">Guardar oficialidad del año</button></div>
+        <div class="status-msg" id="oficialidadMsg"></div>
+      </div>
+    </div>
+
+    <!-- FICHA DE INGRESO -->
+    <div class="subpanel" id="sub-ingreso">
+      <div class="card">
+        <h2>Ficha de ingreso</h2>
+        <p class="sub">Registra a un nuevo integrante. El N° de lista se asigna solo, según la fecha de ingreso. Si un voluntario se retira, la lista se corre y los siguientes suben un lugar.</p>
+        <div class="field-row">
+          <div class="field"><label for="fiNombre">Nombre</label><input type="text" id="fiNombre"></div>
+          <div class="field"><label for="fiApPat">Apellido paterno</label><input type="text" id="fiApPat"></div>
+          <div class="field"><label for="fiApMat">Apellido materno</label><input type="text" id="fiApMat"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="fiRut">RUT</label><input type="text" id="fiRut" placeholder="11.111.111-1"></div>
+          <div class="field"><label for="fiNac">Fecha de nacimiento</label><input type="date" id="fiNac"></div>
+          <div class="field"><label for="fiIngreso">Fecha de ingreso</label><input type="date" id="fiIngreso"></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="fiCategoria">Calidad</label>
+            <select id="fiCategoria">
+              <option value="Postulante">Postulante</option>
+              <option value="Aspirante">Aspirante</option>
+              <option value="Operativo" selected>Voluntario operativo</option>
+              <option value="No operativo">Voluntario no operativo</option>
+              <option value="Honorario">Honorario</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fiForma">Forma de ingreso</label>
+            <select id="fiForma">
+              <option value="Ingreso directo" selected>Ingreso directo</option>
+              <option value="Canje">Canje</option>
+              <option value="Traslado">Traslado</option>
+              <option value="Participante">Participante</option>
+            </select>
+          </div>
+          <div class="field"><label for="fiOrigen">Compañía / Cuerpo de origen (canje o traslado)</label><input type="text" id="fiOrigen" placeholder="Ej: 3ª Compañía, Temuco"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="fiEspecialidad">Especialidad de origen</label><input type="text" id="fiEspecialidad" placeholder="Ej: Rescate vehicular, Hazmat"></div>
+          <div class="field"><label for="fiCargo">Cargo</label><input type="text" id="fiCargo" list="cargoOptions" placeholder="Voluntario"></div>
+          <div class="field"><label for="fiTelefono">Teléfono</label><input type="text" id="fiTelefono" placeholder="+56 9 ..."></div>
+        </div>
+        <datalist id="cargoOptions"></datalist>
+        <button class="btn" id="registrarIngresoBtn">Registrar ingreso</button>
+        <div class="status-msg" id="fiMsg"></div>
+      </div>
+    </div>
+
+    <!-- NÓMINA -->
+    <div class="subpanel" id="sub-nomina">
+      <div class="card">
+        <h2>Orden de la lista</h2>
+        <p class="sub">Define cómo se ordenan los integrantes al pasar lista y en los informes.</p>
+        <div class="field-row" style="margin-bottom:0;">
+          <div class="field" style="flex:1 1 320px;">
+            <select id="ordenModo">
+              <option value="oficialidad">Oficialidad primero (Director, Secretario, Tesorero, Capitán, Tenientes, Ayudante, Conductores), luego por antigüedad</option>
+              <option value="antiguedad">Solo por antigüedad (fecha de ingreso)</option>
+            </select>
+          </div>
+        </div>
+        <div class="foot-note">Los oficiales se identifican con su sigla: DIR, SEC, TES, CAP, TTE 1/2/3, AYU y COND. Quien deja un cargo vuelve a su lugar según fecha de ingreso, entre los voluntarios.</div>
+      </div>
+
+      <div class="card">
+        <h2>Nómina</h2>
+        <p class="sub">Edita datos, cargo, calidad y fecha de ingreso. Los inactivos no aparecen al pasar lista pero se conservan en el historial.</p>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table class="cfg-table" style="min-width:1300px;">
+          <thead><tr>
+            <th class="n-col">N°</th><th>Clave</th><th>Nombre</th><th>Ap. paterno</th><th>Ap. materno</th>
+            <th>RUT</th><th>Teléfono</th><th>Cargo</th><th>Calidad</th><th>Ingreso</th>
+            <th>Procedencia</th><th>Especialidad</th><th>Cond.</th><th>Radio</th><th>Act.</th><th></th>
+          </tr></thead>
+          <tbody id="cfgRosterBody"></tbody>
+        </table>
+        </div>
+        <div class="foot-note">El N° se calcula solo, por antigüedad. Si alguien se retira, la lista se corre y los que siguen suben un lugar. Desliza la tabla hacia el lado para ver todas las columnas.</div>
+      </div>
+    </div>
+
+    <!-- HOJA DE VIDA -->
+    <div class="subpanel" id="sub-hoja">
+      <div class="card">
+        <div class="field-row" style="margin-bottom:0;">
+          <div class="field" style="flex:1 1 260px;"><label for="hvMiembro">Integrante</label><select id="hvMiembro"></select></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small gold" id="hvPdfBtn">PDF hoja de vida</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Antecedentes institucionales</h2>
+        <div id="hvInstitucional"></div>
+      </div>
+
+      <div class="card">
+        <h2>Datos personales</h2>
+        <p class="sub">Se guardan al momento de escribirlos.</p>
+        <div class="field-row">
+          <div class="field"><label for="hvNac">Fecha de nacimiento</label><input type="date" id="hvNac" data-hv="fechaNacimiento"></div>
+          <div class="field"><label for="hvEstadoCivil">Estado civil</label><input type="text" id="hvEstadoCivil" data-hv="estadoCivil"></div>
+          <div class="field"><label for="hvProfesion">Profesión u oficio</label><input type="text" id="hvProfesion" data-hv="profesion"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="hvTelefono">Teléfono</label><input type="text" id="hvTelefono" data-hv="telefono"></div>
+          <div class="field"><label for="hvEmail">Correo electrónico</label><input type="text" id="hvEmail" data-hv="email"></div>
+          <div class="field" style="flex:2 1 260px;"><label for="hvDireccion">Dirección</label><input type="text" id="hvDireccion" data-hv="direccion"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="hvSangre">Grupo sanguíneo</label><input type="text" id="hvSangre" data-hv="grupoSanguineo" placeholder="Ej: O+"></div>
+          <div class="field" style="flex:2 1 240px;"><label for="hvAlergias">Alergias o condiciones médicas</label><input type="text" id="hvAlergias" data-hv="alergias"></div>
+        </div>
+        <div class="field-row" style="margin-bottom:0;">
+          <div class="field"><label for="hvEmerNombre">Contacto de emergencia</label><input type="text" id="hvEmerNombre" data-hv="emergenciaNombre"></div>
+          <div class="field"><label for="hvEmerTel">Teléfono de emergencia</label><input type="text" id="hvEmerTel" data-hv="emergenciaTelefono"></div>
+          <div class="field"><label for="hvEmerRel">Parentesco</label><input type="text" id="hvEmerRel" data-hv="emergenciaRelacion"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Hoja de vida</h2>
+        <p class="sub">Registro de méritos, deméritos, sanciones, licencias, premios y cargos desempeñados.</p>
+        <div class="field-row">
+          <div class="field" style="flex:0 0 170px;">
+            <label for="hvTipo">Tipo</label>
+            <select id="hvTipo">
+              <option value="Mérito">Mérito</option>
+              <option value="Premio">Premio o distinción</option>
+              <option value="Cargo">Cargo desempeñado</option>
+              <option value="Curso">Curso o capacitación</option>
+              <option value="Licencia">Licencia o permiso</option>
+              <option value="Demérito">Demérito</option>
+              <option value="Sanción">Sanción</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="field" style="flex:0 0 160px;"><label for="hvFecha">Fecha</label><input type="date" id="hvFecha"></div>
+          <div class="field" style="flex:2 1 240px;"><label for="hvDetalle">Detalle</label><input type="text" id="hvDetalle" placeholder="Ej: Felicitación por acto de servicio del 12-08"></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small" id="hvAgregarBtn">Agregar</button></div>
+        </div>
+        <div id="hvAnotaciones"></div>
+      </div>
+
+      <div class="card">
+        <h2>Resumen de servicio</h2>
+        <div id="hvResumen"></div>
+      </div>
+    </div>
+
+    <!-- BAJAS -->
+    <div class="subpanel" id="sub-bajas">
+
+      <div class="card">
+        <h2>Dar de baja a un integrante</h2>
+        <p class="sub">Al dar de baja, la persona deja de aparecer al pasar lista pero se conserva todo su historial de asistencia y cursos. Es la opción recomendada.</p>
+        <div class="field-row">
+          <div class="field" style="flex:1 1 260px;"><label for="bajaMiembro">Integrante</label><select id="bajaMiembro"></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="bajaMotivo">Motivo</label>
+            <select id="bajaMotivo">
+              <option value="Renuncia">Renuncia</option>
+              <option value="Traslado">Traslado a otra Compañía</option>
+              <option value="Canje">Canje</option>
+              <option value="Separación">Separación de la institución</option>
+              <option value="Fallecimiento">Fallecimiento</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="field"><label for="bajaFecha">Fecha de baja</label><input type="date" id="bajaFecha"></div>
+          <div class="field"><label for="bajaObs">Observación</label><input type="text" id="bajaObs" placeholder="Opcional"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn" id="darBajaBtn">Dar de baja</button>
+          <button class="btn secondary" id="reactivarBtn">Reactivar integrante</button>
+        </div>
+        <div class="status-msg" id="bajaMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Integrantes dados de baja</h2>
+        <div id="bajasList"></div>
+      </div>
+
+      <div class="card">
+        <h2>Eliminar definitivamente</h2>
+        <p class="sub">Borra a la persona de la nómina por completo. Úsalo solo para corregir un registro mal creado; los partes ya guardados no se modifican. Esta acción no se puede deshacer.</p>
+        <div class="field-row">
+          <div class="field" style="flex:1 1 260px;"><label for="borrarMiembro">Integrante</label><select id="borrarMiembro"></select></div>
+        </div>
+        <button class="btn" id="borrarMiembroBtn" style="background:#7a1a15;">Eliminar definitivamente</button>
+        <div class="status-msg" id="borrarMsg"></div>
+      </div>
+    </div>
+
+    <!-- CURSOS -->
+    <div class="subpanel" id="sub-cursos">
+      <div class="card">
+        <h2>Cursos ANB · Malla 2025-2028</h2>
+        <p class="sub">Marca los cursos realizados por cada integrante. Lo no marcado queda como pendiente.</p>
+        <div class="field-row">
+          <div class="field" style="flex:1 1 280px;"><label for="cursoMiembro">Integrante</label><select id="cursoMiembro"></select></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small gold" id="cursosPdfBtn">PDF de cursos</button></div>
+        </div>
+        <div class="summary-row" id="cursosResumen"></div>
+        <div id="cursosLista"></div>
+        <div class="divider"></div>
+        <h3>Resumen de la compañía</h3>
+        <div id="cursosCompania"></div>
+      </div>
+    </div>
+
+    <!-- TIPOS -->
+    <div class="subpanel" id="sub-tipos">
+      <div class="card">
+        <h2>Tipos de citación</h2>
+        <p class="sub">Agrega los tipos de convocatoria que usa la compañía.</p>
+        <div class="tags" id="tiposTags"></div>
+        <div class="field-row" style="margin-bottom:0;">
+          <div class="field" style="flex:1 1 220px;"><input type="text" id="nuevoTipoInput" placeholder="Nuevo tipo, ej: Junta general"></div>
+          <div class="field" style="flex:0 0 auto;"><button class="btn secondary" id="agregarTipoBtn">Agregar tipo</button></div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- IMPORTAR -->
+    <div class="subpanel" id="sub-importar">
+      <div class="card">
+        <h2>Cargar histórico 2026</h2>
+        <p class="sub">Incorpora las 67 actividades registradas entre enero y junio de 2026 provenientes de la planilla de asistencias de la Compañía. A partir de ahí, las nuevas citaciones y salidas se van sumando normalmente.</p>
+        <div id="impEstado"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+          <button class="btn" id="impCargarBtn">Cargar histórico 2026</button>
+          <button class="btn secondary" id="impBorrarBtn">Borrar lo importado</button>
+        </div>
+        <div class="status-msg" id="impMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Importar desde archivo CSV</h2>
+        <p class="sub">Para cargar actividades desde una planilla propia. El archivo debe tener una fila por actividad con estas columnas, separadas por punto y coma:</p>
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px;font-family:monospace;font-size:12px;overflow-x:auto;white-space:nowrap;">
+          fecha;tipo;actividad;asistentes
+        </div>
+        <p class="sub" style="margin-top:10px;">La fecha en formato AAAA-MM-DD y en asistentes los números de lista o claves de quienes asistieron, separados por coma. Ejemplo:</p>
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px;font-family:monospace;font-size:12px;overflow-x:auto;white-space:nowrap;">
+          2026-07-14;Emergencia;Fuego en vivienda;45,501,505,517
+        </div>
+        <div class="field-row" style="margin-top:14px;margin-bottom:0;">
+          <div class="field" style="flex:1 1 260px;">
+            <label for="impArchivo">Archivo CSV</label>
+            <input type="file" id="impArchivo" accept=".csv,text/csv">
+          </div>
+        </div>
+        <div class="status-msg" id="impCsvMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Respaldo completo</h2>
+        <p class="sub">Descarga o restaura toda la información de la aplicación: nómina, partes, hojas de servicio, cursos y hojas de vida.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn gold" id="impExportarBtn">Descargar respaldo</button>
+          <label class="btn secondary" style="cursor:pointer;display:inline-flex;align-items:center;">
+            Restaurar respaldo<input type="file" id="impRestaurar" accept=".json" style="display:none;">
+          </label>
+        </div>
+        <div class="status-msg" id="impBkMsg"></div>
+      </div>
+    </div>
+
+    </div>
+  </div>
+
+  <div class="membrete">
+    <img src="" id="membreteLogo" alt="">
+    <div>
+      <b>Desarrollado por la 5ta Compañía "Germania"</b>
+      <span>Cuerpo de Bomberos de Villarrica · Chile</span>
+    </div>
+  </div>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
