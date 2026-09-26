@@ -46,8 +46,8 @@ export async function GET(request) {
   try {
     await schema(sql);
 
-    await sql\`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))\`;
-    const inscritos = await sql\`
+    await sql`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))`;
+    const inscritos = await sql`
       SELECT DISTINCT ON (gi.codigo)
         COALESCE(gr.codigo_reemplazo,gi.codigo)::text AS codigo,
         COALESCE(gr.nombre_reemplazo,gi.nombre) AS nombre,
@@ -118,8 +118,8 @@ export async function POST(request) {
   try {
     await schema(sql);
 
-    await sql\`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))\`;
-    const inscrito = await sql\`
+    await sql`CREATE TABLE IF NOT EXISTS guardia_reemplazos(id bigserial PRIMARY KEY,fecha date NOT NULL,codigo_original varchar(6) NOT NULL,nombre_original text NOT NULL,codigo_reemplazo varchar(6) NOT NULL,nombre_reemplazo text NOT NULL,motivo text NOT NULL DEFAULT '',autorizado_por varchar(6) NOT NULL,creado_en timestamptz NOT NULL DEFAULT now(),actualizado_en timestamptz NOT NULL DEFAULT now(),UNIQUE(fecha,codigo_original))`;
+    const inscrito = await sql`
       SELECT COALESCE(gr.codigo_reemplazo,gi.codigo)::text AS codigo,
              COALESCE(gr.nombre_reemplazo,gi.nombre) AS nombre
       FROM guardia_inscripciones gi
