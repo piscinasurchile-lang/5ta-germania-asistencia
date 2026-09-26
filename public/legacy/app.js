@@ -1799,7 +1799,7 @@ async function loadOficialidadYear(){
   const input=document.getElementById("anioOficialidad");
   const msg=document.getElementById("oficialidadMsg");
   const anio=String(input?.value||"").trim();
-  if(!/^\\d{4}$/.test(anio)||Number(anio)<2023||Number(anio)>2100){
+  if(!/^\d{4}$/.test(anio)||Number(anio)<2023||Number(anio)>2100){
     if(msg){msg.textContent="Indica un año válido entre 2023 y 2100.";msg.classList.add("err");}
     return;
   }
