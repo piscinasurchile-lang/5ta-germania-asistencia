@@ -315,6 +315,7 @@ function renderRegistradoPorOptions(){
   document.getElementById("registradoPorOptions").innerHTML =
     sortedRoster(false).map(p=>`<option value="${esc(nombreCompleto(p))}"></option>`).join("");
 }
+let parteBloqueado=false;
 function renderListaRows(){
   const body=document.getElementById("listaBody"); body.innerHTML="";
   sortedRoster(false).forEach(p=>{
@@ -325,16 +326,42 @@ function renderListaRows(){
       <td class="cargo-col">${esc(p.cargo)}</td>
       <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">COND</span> `:""}${esc(nombreCompleto(p))}</td>
       <td><div class="seg" data-id="${p.id}">
-        <button class="on-presente ${st==='presente'?'active':''}" data-status="presente">Presente</button>
-        <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente">Ausente</button>
-        <button class="on-justificado ${st==='justificado'?'active':''}" data-status="justificado">Justificado</button>
+        <button class="on-presente ${st==='presente'?'active':''}" data-status="presente" ${parteBloqueado?"disabled":""}>Presente</button>
+        <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente" ${parteBloqueado?"disabled":""}>Ausente</button>
+        <button class="on-justificado ${st==='justificado'?'active':''}" data-status="justificado" ${parteBloqueado?"disabled":""}>Justificado</button>
       </div></td>`;
     body.appendChild(tr);
   });
-  body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
+  if(!parteBloqueado) body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
     const seg=b.parentElement; currentRecord[seg.dataset.id]=b.dataset.status;
     seg.querySelectorAll("button").forEach(x=>x.classList.remove("active")); b.classList.add("active");
   }));
+  const gb=document.getElementById("guardarBtn"), mt=document.getElementById("marcarTodosBtn");
+  if(gb) gb.disabled=parteBloqueado; if(mt) mt.disabled=parteBloqueado;
+  renderCandadoParte();
+}
+function renderCandadoParte(){
+  let box=document.getElementById("candadoParte");
+  if(!box){
+    box=document.createElement("div"); box.id="candadoParte";
+    const ref=document.getElementById("listaBody")?.closest("table");
+    if(ref) ref.parentElement.insertBefore(box,ref);
+  }
+  if(!parteBloqueado){ box.innerHTML=""; box.style.display="none"; return; }
+  box.style.display="block";
+  box.style.cssText="padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  box.innerHTML=`<b>Este parte ya fue guardado y no se puede modificar.</b>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input id="claveDesbloqueoParte" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
+      <button id="desbloquearParteBtn" class="btn small">Desbloquear para editar</button>
+    </div>
+    <div id="candadoParteMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
+  document.getElementById("desbloquearParteBtn").onclick=async()=>{
+    const inp=document.getElementById("claveDesbloqueoParte"), m=document.getElementById("candadoParteMsg");
+    const res=await autenticarOficialidad(inp.value.trim());
+    if(res.ok){ parteBloqueado=false; renderListaRows(); }
+    else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
+  };
 }
 function claveFor(d,t){ return d+"__"+slug(t); }
 /* Varias actividades del mismo dia y tipo no deben pisarse: se busca una clave libre */
@@ -360,12 +387,14 @@ async function loadListaForSelection(){
     currentRecord={...ex.records};
     document.getElementById("detalle").value=ex.detalle||"";
     document.getElementById("registradoPor").value=ex.registradoPor||"";
-    msg.textContent="Ya existe un parte para esta fecha y tipo. Puedes editarlo y volver a guardar.";
+    msg.textContent="Ya existe un parte guardado para esta fecha y tipo.";
+    parteBloqueado=true;
   } else {
     sortedRoster(false).forEach(p=>currentRecord[p.id]="ausente");
     document.getElementById("detalle").value="";
     document.getElementById("registradoPor").value="";
     msg.textContent="";
+    parteBloqueado=false;
   }
   msg.classList.remove("err");
   renderListaRows();
@@ -391,18 +420,36 @@ function renderResumen(c){
   document.getElementById("resumenBox").style.display="block";
 }
 
-on("guardarBtn","click",async()=>{
+on("guardarBtn","click",()=>{
+  if(parteBloqueado) return;
   const date=document.getElementById("fecha").value, tipo=document.getElementById("tipoSelect").value;
   const msg=document.getElementById("statusMsg");
   if(!date||!tipo){ msg.textContent="Selecciona fecha y tipo de citación."; msg.classList.add("err"); return; }
-  const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord};
-  currentPartClave=claveFor(date,tipo);
-  const ok=await setParte(currentPartClave,data);
-  msg.classList.remove("err");
-  msg.textContent = ok?"Parte guardado.":"No se pudo guardar.";
-  if(!ok){ msg.classList.add("err"); return; }
-  renderResumen(countStatuses(currentRecord));
+  mostrarConfirmarParte(date,tipo);
 });
+function mostrarConfirmarParte(date,tipo){
+  const c=countStatuses(currentRecord);
+  const msg=document.getElementById("statusMsg");
+  msg.classList.remove("err");
+  msg.innerHTML=`<div style="padding:12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;">
+      <b>Revisa antes de guardar:</b> ${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes.<br/>
+      <small>Una vez guardado, este parte no podrá modificarse sin la clave de Oficialidad. ¿Está correcto o quiere revisar de nuevo?</small>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button id="confirmarGuardarBtn" class="btn small">Sí, está correcto — Guardar</button>
+        <button id="revisarDeNuevoBtn" class="btn small secondary">Revisar de nuevo</button>
+      </div></div>`;
+  document.getElementById("revisarDeNuevoBtn").onclick=()=>{ msg.innerHTML=""; };
+  document.getElementById("confirmarGuardarBtn").onclick=async()=>{
+    const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord};
+    currentPartClave=claveFor(date,tipo);
+    const ok=await setParte(currentPartClave,data);
+    if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
+    parteBloqueado=true;
+    msg.textContent="Parte guardado. Ya no se puede modificar sin la clave de Oficialidad.";
+    renderResumen(countStatuses(currentRecord));
+    renderListaRows();
+  };
+}
 
 /* ============ PDF ============ */
 function pdfHeader(doc,titulo){
