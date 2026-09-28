@@ -10,10 +10,10 @@
 <script src="./jspdf-autotable.min.js"></script>
 <style>
   :root{
-    --bg:#161210; --panel:#211b16; --panel-2:#2a221b; --line:#3a2f26;
-    --text:#f1ebe0; --muted:#a89584;
-    --fire:#b3241c; --fire-dim:#7a1a15;
-    --gold:#c9a227;
+    --bg:#07090b; --panel:#10151a; --panel-2:#171d22; --line:#303840;
+    --text:#ffffff; --muted:#aeb5bb;
+    --fire:#e30613; --fire-dim:#8f0710;
+    --gold:#ffcc00;
     --ok:#4a7c59; --ok-dim:#2f4f38;
   }
   *{box-sizing:border-box;}
@@ -38,6 +38,30 @@
   .minute-table-wrap{overflow-x:auto;}
   .test-mode{font-size:11.5px;color:var(--gold);margin-top:4px;}
 
+
+
+  /* GERMANIA · identidad visual aprobada */
+  .masthead{background:linear-gradient(135deg,#080a0c 0%,#15191d 65%,#4b0808 100%);border:1px solid #242b31;border-bottom:3px solid var(--gold);border-radius:12px;padding:14px 16px;margin-bottom:18px;align-items:center;}
+  .crest{width:72px;height:80px;}
+  .brand h1{font-size:27px;letter-spacing:.025em;text-transform:uppercase;}
+  .brand p{color:#d8d8d8;}
+  .volunteer-hero{display:flex;align-items:center;gap:13px;margin:0 0 14px;padding:12px 4px 4px;}
+  .volunteer-avatar{width:66px;height:66px;border-radius:50%;border:3px solid var(--gold);object-fit:cover;background:#1b2025;}
+  .volunteer-avatar.placeholder{padding:13px;}
+  .volunteer-who{flex:1;min-width:0;}
+  .volunteer-who strong{display:block;font-family:'Oswald',sans-serif;font-size:20px;}
+  .volunteer-who span{font-size:13px;color:var(--muted);}
+  .photo-action{background:none;border:0;color:var(--gold);font:600 12px 'Source Sans 3',sans-serif;padding:5px 0;cursor:pointer;}
+  .status-choice{min-height:92px;font-size:15px;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;}
+  .status-choice .dot{width:14px;height:14px;margin:0;}
+  .status-choice[data-estado="cuartel"]{border-color:#1ebc62;}
+  .status-choice[data-estado="disponible"]{border-color:#2589ff;}
+  .status-choice[data-estado="fuera"]{border-color:#ffad17;}
+  .status-choice[data-estado="no"]{border-color:#ff2634;}
+  .status-choice.active{box-shadow:inset 0 0 0 2px var(--gold),0 0 18px rgba(255,204,0,.13);}
+  .quick-actions .btn{border:1px solid #343c43;border-left:3px solid var(--gold);background:linear-gradient(135deg,#151b20,#0c1013);text-align:left;}
+  .quick-actions .btn:first-child,.quick-actions .btn:nth-child(2){border-left-color:var(--fire);}
+  .minute-table-wrap{border:1px solid var(--line);border-radius:8px;}
 
   .masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid var(--fire);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap;}
   .crest{width:54px;height:60px;flex:0 0 auto;object-fit:contain;display:block;}
@@ -187,13 +211,37 @@
   }
 
   @media (max-width:600px){
-    .wrap{padding:18px 14px 44px;}
-    .masthead{flex-direction:row;align-items:center;margin-bottom:12px;}
-    .masthead .brand p{display:none;}
+    .wrap{padding:0 0 70px;}
+    .masthead{position:relative;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin:0;border-radius:0;padding:14px 54px 16px;background:linear-gradient(180deg,#080a0c 0%,#120d0d 58%,#57070b 100%);border-left:0;border-right:0;border-top:0;}
+    .masthead .brand{display:flex;flex-direction:column;gap:5px;}
+    .masthead .brand p{display:block;font-size:10.5px;margin:0;}
+    .masthead .brand p:last-child{display:none;}
     .masthead .today{display:none;}
-    .crest{width:45px;height:50px;}
-    .brand h1{font-size:20px;}
-    .menu-toggle{display:block;margin-left:auto;}
+    .crest{width:82px;height:92px;}
+    .brand h1{font-size:22px;}
+    .menu-toggle{display:block;position:absolute;left:14px;top:24px;margin:0;background:transparent;border:0;color:white;font-size:30px;}
+    #panel-germania{background:#f5f6f7;color:#101214;padding:14px;min-height:calc(100dvh - 145px);}
+    #panel-germania .card{background:white;border-color:#dfe3e6;color:#101214;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+    #panel-germania .card .sub,#panel-germania .foot-note,#panel-germania .volunteer-who span{color:#5f6870;}
+    #panel-germania .field label{color:#5f6870;}
+    #panel-germania .field select{background:#f3f5f6;color:#111;border-color:#d5dade;}
+    #panel-germania .volunteer-hero{background:#0d1216;color:white;border-radius:10px;padding:10px 12px;}
+    #panel-germania .volunteer-who span{color:#c4cbd0;}
+    #panel-germania .status-choice{color:white;border:0;}
+    #panel-germania .status-choice[data-estado="cuartel"]{background:#13a956;}
+    #panel-germania .status-choice[data-estado="disponible"]{background:#1679df;}
+    #panel-germania .status-choice[data-estado="fuera"]{background:#f39a13;}
+    #panel-germania .status-choice[data-estado="no"]{background:#ef1f2c;}
+    #panel-germania .status-choice.active{box-shadow:inset 0 0 0 3px #111,0 3px 10px rgba(0,0,0,.16);}
+    #panel-germania .quick-actions .btn{color:white;}
+    #panel-germania .summary-item .lbl,#panel-germania thead th{color:#5f6870;}
+    #panel-germania tbody td{border-color:#e3e6e8;}
+    #panel-germania .minute-table-wrap{border-color:#dfe3e6;}
+    .mobile-menu{position:fixed;z-index:1000;left:0;top:0;bottom:0;width:min(86vw,340px);margin:0;border-radius:0;padding:20px 12px;background:#090d10;border-right:1px solid #343b40;box-shadow:12px 0 32px rgba(0,0,0,.55);overflow:auto;}
+    .mobile-menu.open{display:block;}
+    .mobile-menu:before{content:"GERMANIA";display:block;color:var(--gold);font:700 23px 'Oswald',sans-serif;padding:12px 10px 18px;border-bottom:1px solid #303840;margin-bottom:8px;}
+    .mobile-menu button{display:block;width:100%;margin:5px 0;padding:14px 12px;border-radius:7px;background:transparent;border:0;border-bottom:1px solid #20272c;color:white;font-size:15px;}
+    .mobile-menu button:first-child{background:var(--fire);}
     .tabs{display:none;}
     .home-grid{grid-template-columns:1fr;}
     .quick-actions{grid-template-columns:1fr 1fr;}
@@ -247,8 +295,17 @@
   <div class="panel active" id="panel-germania">
     <div class="home-grid">
       <div class="card">
-        <h2>Mi estado hoy</h2>
-        <p class="sub">Informa tu disponibilidad para la operación. El estado vence automáticamente al cambiar el día.</p>
+        <div class="volunteer-hero">
+          <img id="miFoto" class="volunteer-avatar" alt="Foto del voluntario">
+          <div class="volunteer-who">
+            <strong id="miNombre">Voluntario</strong>
+            <span id="miCargo">Selecciona tu nombre</span>
+            <button type="button" class="photo-action" id="cambiarFotoBtn">Cambiar foto</button>
+            <input type="file" id="miFotoInput" accept="image/*" style="display:none">
+          </div>
+        </div>
+        <h2>¿Cuál es tu estado ahora?</h2>
+        <p class="sub">Informa tu disponibilidad para la Compañía. El estado vence automáticamente al cambiar el día.</p>
         <div class="field">
           <label for="miVoluntario">Voluntario que está usando este dispositivo</label>
           <select id="miVoluntario"></select>
