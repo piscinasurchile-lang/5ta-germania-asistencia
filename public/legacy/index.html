@@ -20,6 +20,24 @@
   html,body{margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;}
   .wrap{max-width:980px;margin:0 auto;padding:28px 20px 60px;}
+  .topnav{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .menu-toggle{display:none;width:44px;height:44px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:8px;font-size:25px;line-height:1;cursor:pointer;}
+  .mobile-menu{display:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;margin:-8px 0 18px;box-shadow:0 12px 28px rgba(0,0,0,.28);}
+  .mobile-menu.open{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .mobile-menu button{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:11px;text-align:left;font:600 13px 'Source Sans 3',sans-serif;cursor:pointer;}
+  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .status-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+  .status-choice{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:12px 10px;font:600 13px 'Source Sans 3',sans-serif;cursor:pointer;}
+  .status-choice.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--muted);}
+  .dot.cuartel,.dot.disponible{background:var(--ok);}
+  .dot.fuera{background:var(--gold);}
+  .dot.no{background:var(--fire);}
+  .quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .quick-actions button{min-height:66px;}
+  .minute-table-wrap{overflow-x:auto;}
+  .test-mode{font-size:11.5px;color:var(--gold);margin-top:4px;}
+
 
   .masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid var(--fire);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap;}
   .crest{width:54px;height:60px;flex:0 0 auto;object-fit:contain;display:block;}
@@ -169,7 +187,18 @@
   }
 
   @media (max-width:600px){
-    .masthead{flex-direction:column;align-items:flex-start;}
+    .wrap{padding:18px 14px 44px;}
+    .masthead{flex-direction:row;align-items:center;margin-bottom:12px;}
+    .masthead .brand p{display:none;}
+    .masthead .today{display:none;}
+    .crest{width:45px;height:50px;}
+    .brand h1{font-size:20px;}
+    .menu-toggle{display:block;margin-left:auto;}
+    .tabs{display:none;}
+    .home-grid{grid-template-columns:1fr;}
+    .quick-actions{grid-template-columns:1fr 1fr;}
+    .status-actions{grid-template-columns:1fr 1fr;}
+
     .masthead .today{text-align:left;}
     .seg button{padding:6px 8px;font-size:11.5px;}
     .cargo-col,.ingreso-col{display:none;}
@@ -192,18 +221,83 @@
       </div>
     </div>
     <div class="today" id="todayLabel"></div>
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menú" aria-expanded="false">☰</button>
+  </div>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <button type="button" data-go="germania">Inicio GERMANIA</button>
+    <button type="button" data-go="lista">Asistencia</button>
+    <button type="button" data-go="servicio">Emergencia · B-5</button>
+    <button type="button" data-go="guardia">Guardias</button>
+    <button type="button" data-go="historial">Historial</button>
+    <button type="button" data-go="panel">Informes</button>
+    <button type="button" data-go="config">Oficiales / Administración</button>
   </div>
 
   <div id="storageWarn" style="display:none;background:#4a1f1c;border:1px solid #b3241c;color:#f4d9d6;border-radius:6px;padding:11px 14px;font-size:13px;margin-bottom:16px;"></div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="lista">Pasar lista</button>
+    <button class="tab active" data-tab="germania">GERMANIA</button>
+    <button class="tab" data-tab="lista">Pasar lista</button>
     <button class="tab" data-tab="servicio">Salida B-5</button>
     <button class="tab" data-tab="config">Oficiales</button>
   </div>
 
+  <!-- INICIO GERMANIA -->
+  <div class="panel active" id="panel-germania">
+    <div class="home-grid">
+      <div class="card">
+        <h2>Mi estado hoy</h2>
+        <p class="sub">Informa tu disponibilidad para la operación. El estado vence automáticamente al cambiar el día.</p>
+        <div class="field">
+          <label for="miVoluntario">Voluntario que está usando este dispositivo</label>
+          <select id="miVoluntario"></select>
+        </div>
+        <div class="status-actions">
+          <button class="status-choice" data-estado="cuartel"><span class="dot cuartel"></span>En cuartel</button>
+          <button class="status-choice" data-estado="disponible"><span class="dot disponible"></span>Disponible</button>
+          <button class="status-choice" data-estado="fuera"><span class="dot fuera"></span>Fuera de Villarrica</button>
+          <button class="status-choice" data-estado="no"><span class="dot no"></span>No disponible</button>
+        </div>
+        <div class="status-msg" id="miEstadoMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Accesos rápidos</h2>
+        <p class="sub">Operación diaria de la Quinta Compañía.</p>
+        <div class="quick-actions">
+          <button class="btn" type="button" data-go="lista">Asistencia</button>
+          <button class="btn" type="button" data-go="servicio">Emergencia · B-5</button>
+          <button class="btn secondary" type="button" data-go="guardia">Guardias</button>
+          <button class="btn secondary" type="button" data-go="historial">Historial</button>
+          <button class="btn secondary" type="button" data-go="panel">Informes</button>
+          <button class="btn secondary" type="button" data-go="config">Oficiales</button>
+        </div>
+        <div class="test-mode">Modo de prueba: funciones abiertas para evaluación.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+          <h2>Minuta de disponibilidad</h2>
+          <p class="sub">Vista para Capitán / Oficialidad: quién está en el cuartel y quién declaró disponibilidad hoy.</p>
+        </div>
+        <button class="btn small secondary" id="actualizarMinuta" type="button">Actualizar</button>
+      </div>
+      <div class="summary-row" id="dispResumen"></div>
+      <div class="minute-table-wrap">
+        <table>
+          <thead><tr><th>Voluntario</th><th>Estado</th><th>Desde</th><th>Guardia hoy</th><th>Conductor / OBAC</th></tr></thead>
+          <tbody id="dispBody"></tbody>
+        </table>
+      </div>
+      <div class="foot-note">La minuta muestra declaraciones del día actual. No utiliza ubicación GPS permanente.</div>
+    </div>
+  </div>
+
   <!-- PASAR LISTA -->
-  <div class="panel active" id="panel-lista">
+  <div class="panel" id="panel-lista">
     <div class="card">
       <div class="field-row">
         <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
