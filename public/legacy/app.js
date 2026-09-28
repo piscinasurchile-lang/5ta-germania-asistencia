@@ -3456,10 +3456,9 @@ async function refrescarIdentidadVoluntario(){
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
-  const guardado=lsAvailable()?localStorage.getItem(DISP_PREF_KEY):"";
-  sel.innerHTML='<option value="">— seleccionar —</option>'+sortedRoster(false)
-    .map(p=>`<option value="${p.id}">${p.clave?"("+esc(p.clave)+") ":""}${esc(nombreCompleto(p))}</option>`).join("");
-  if(guardado && ROSTER.some(p=>String(p.id)===String(guardado))) sel.value=guardado;
+  sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+sortedRoster(false)
+    .map(p=>`<option value="${p.id}">${p.clave?esc(p.clave)+" · ":""}${esc(nombreCompleto(p))}</option>`).join("");
+  sel.value="";
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
