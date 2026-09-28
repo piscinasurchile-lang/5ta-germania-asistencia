@@ -1,3 +1,9 @@
 {
- "name":"5ta Germania · Asistencia","short_name":"5ta Asistencia","start_url":"/","display":"standalone","background_color":"#ffffff","theme_color":"#b91c1c","lang":"es-CL"
+  "name": "GERMANIA · Quinta Compañía",
+  "short_name": "GERMANIA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090b",
+  "theme_color": "#07090b",
+  "lang": "es-CL"
 }
