@@ -345,7 +345,7 @@
       <div class="summary-row" id="dispResumen"></div>
       <div class="minute-table-wrap">
         <table>
-          <thead><tr><th>Voluntario</th><th>Estado</th><th>Desde</th><th>Guardia hoy</th><th>Conductor / OBAC</th></tr></thead>
+          <thead><tr><th>Voluntario</th><th>Estado</th><th>Desde</th><th>🛡 Guardia</th><th>◉ Conductor</th><th>✓ OBAC</th></tr></thead>
           <tbody id="dispBody"></tbody>
         </table>
       </div>
@@ -877,6 +877,27 @@
       </div>
 
       <div class="card">
+        <h2>Identificación y fotografía oficial</h2>
+        <p class="sub">Esta es la fotografía maestra de la Hoja de Vida. GERMANIA la reutiliza en perfil, minuta, guardias y demás vistas.</p>
+        <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+          <img id="hvFoto" alt="Fotografía del voluntario" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid #ffcc00;background:#111;">
+          <div><button class="btn small gold" id="hvFotoBtn" type="button">Cargar / cambiar fotografía</button><input id="hvFotoInput" type="file" accept="image/*" hidden>
+          <div class="foot-note">La foto queda asociada al expediente único del voluntario.</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Trayectoria bomberil</h2>
+        <p class="sub">Antecedentes anteriores a Germania y períodos posteriores. La historia se conserva aunque el voluntario cambie de ciudad, Cuerpo o Compañía.</p>
+        <div class="field-row">
+          <div class="field"><label for="hvIngresoBomberil">Ingreso original al servicio bomberil</label><input type="date" id="hvIngresoBomberil" data-hv="fechaIngresoBomberil"></div>
+          <div class="field"><label for="hvCuerpoOrigen">Cuerpo / institución de origen</label><input type="text" id="hvCuerpoOrigen" data-hv="cuerpoOrigen"></div>
+          <div class="field"><label for="hvCompaniaOrigen">Compañía de origen</label><input type="text" id="hvCompaniaOrigen" data-hv="companiaOrigen"></div>
+        </div>
+        <div class="field"><label for="hvTrayectoriaPrevia">Antecedentes bomberiles anteriores</label><textarea id="hvTrayectoriaPrevia" data-hv="trayectoriaPrevia" rows="3" placeholder="Registrar antecedentes conocidos o respaldados."></textarea></div>
+      </div>
+
+      <div class="card">
         <h2>Antecedentes institucionales</h2>
         <div id="hvInstitucional"></div>
       </div>
@@ -906,27 +927,36 @@
       </div>
 
       <div class="card">
-        <h2>Hoja de vida</h2>
-        <p class="sub">Registro de méritos, deméritos, sanciones, licencias, premios y cargos desempeñados.</p>
+        <h2>Historia bomberil permanente</h2>
+        <p class="sub">Cada hecho se agrega a la línea de tiempo. Los registros históricos no se eliminan: una corrección queda trazada como un nuevo antecedente.</p>
         <div class="field-row">
-          <div class="field" style="flex:0 0 170px;">
-            <label for="hvTipo">Tipo</label>
-            <select id="hvTipo">
-              <option value="Mérito">Mérito</option>
-              <option value="Premio">Premio o distinción</option>
-              <option value="Cargo">Cargo desempeñado</option>
-              <option value="Curso">Curso o capacitación</option>
-              <option value="Licencia">Licencia o permiso</option>
-              <option value="Demérito">Demérito</option>
-              <option value="Sanción">Sanción</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </div>
-          <div class="field" style="flex:0 0 160px;"><label for="hvFecha">Fecha</label><input type="date" id="hvFecha"></div>
-          <div class="field" style="flex:2 1 240px;"><label for="hvDetalle">Detalle</label><input type="text" id="hvDetalle" placeholder="Ej: Felicitación por acto de servicio del 12-08"></div>
-          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small" id="hvAgregarBtn">Agregar</button></div>
+          <div class="field" style="flex:0 0 190px;"><label for="hvTipo">Tipo de antecedente</label><select id="hvTipo">
+            <option>Ingreso / incorporación</option><option>Traslado</option><option>Reincorporación</option><option>Cargo</option>
+            <option>Premio / reconocimiento</option><option>Curso / capacitación</option><option>Guardia</option><option>Emergencia / servicio</option>
+            <option>Licencia</option><option>Suspensión</option><option>Renuncia</option><option>Retiro / baja</option><option>Mérito</option><option>Otro</option>
+          </select></div>
+          <div class="field"><label for="hvFecha">Desde / fecha</label><input type="date" id="hvFecha"></div>
+          <div class="field"><label for="hvFechaHasta">Hasta</label><input type="date" id="hvFechaHasta"></div>
+          <div class="field"><label for="hvInstitucionEvento">Cuerpo / Compañía / institución</label><input type="text" id="hvInstitucionEvento"></div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="flex:2 1 260px;"><label for="hvDetalle">Detalle / motivo</label><input type="text" id="hvDetalle" placeholder="Cargo, premio, suspensión y motivo, traslado u otro antecedente"></div>
+          <div class="field" style="flex:1 1 200px;"><label for="hvDocumento">Documento / respaldo</label><input type="text" id="hvDocumento" placeholder="ODD, resolución, certificado, etc."></div>
+          <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small" id="hvAgregarBtn">Agregar antecedente</button></div>
         </div>
         <div id="hvAnotaciones"></div>
+      </div>
+
+      <div class="card">
+        <h2>Traslado / entrega de antecedentes</h2>
+        <p class="sub">Prepara una copia del expediente para una eventual incorporación en otra ciudad o institución. El original permanece íntegro en GERMANIA.</p>
+        <div class="field-row">
+          <div class="field"><label for="hvDestino">Institución destinataria</label><input type="text" id="hvDestino"></div>
+          <div class="field"><label for="hvAutorizaTransferencia">Autoriza</label><input type="text" id="hvAutorizaTransferencia"></div>
+          <div class="field"><label for="hvObsTransferencia">Observación</label><input type="text" id="hvObsTransferencia"></div>
+        </div>
+        <button class="btn gold" id="hvTransferenciaPdfBtn" type="button">Generar copia de antecedentes</button>
+        <div class="foot-note">Generar la copia no elimina ni modifica la Hoja de Vida original.</div>
       </div>
 
       <div class="card">
@@ -988,7 +1018,7 @@
 
       <div class="card">
         <h2>Eliminar definitivamente</h2>
-        <p class="sub">Borra a la persona de la nómina por completo. Úsalo solo para corregir un registro mal creado; los partes ya guardados no se modifican. Esta acción no se puede deshacer.</p>
+        <p class="sub">Reservado exclusivamente para registros creados por error. Un voluntario real que se retira, renuncia o se traslada nunca debe eliminarse: su Hoja de Vida permanece como expediente histórico.</p>
         <div class="field-row">
           <div class="field" style="flex:1 1 260px;"><label for="borrarMiembro">Integrante</label><select id="borrarMiembro"></select></div>
         </div>
