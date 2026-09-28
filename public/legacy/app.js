@@ -2498,22 +2498,27 @@ function renderOficialidad(asignaciones){
     await saveCargos(); renderCargoOptions(); loadOficialidadYear();
   }));
 }
-/* Claves de la Orden del Dia 010/2026 (25 de enero de 2026), fuente oficial
-   de quien ocupa cada cargo. No se usa el campo "cargo" de la nomina porque
-   ese campo puede no estar actualizado (ej: todos quedaron en "Voluntario"
-   tras un ingreso masivo) — la clave personal es el dato estable. */
-const CLAVE_CARGO_2026={
-  "75":"Director","45":"Capitán","9":"Tesorero General",
-  "501":"Teniente 1","502":"Teniente 2","503":"Teniente 3",
-  "504":"Ayudante","505":"Jefe de Máquinas","506":"Secretario","507":"Tesorero"
+/* Códigos funcionales de Oficialidad.
+   REGLA GERMANIA: el código de Oficial pertenece al CARGO, no a la persona.
+   El voluntario conserva siempre su código personal (m.clave). Mientras ejerce
+   un cargo, los documentos/operaciones que correspondan usan el código
+   funcional del cargo. Al dejarlo, vuelve a operar con su código personal y
+   el código funcional queda disponible para el nuevo titular. */
+const CODIGO_OFICIAL_POR_CARGO={
+  "Director":"75","Capitán":"45","Tesorero General":"9",
+  "Teniente 1":"501","Teniente 2":"502","Teniente 3":"503",
+  "Ayudante":"504","Jefe de Máquinas":"505","Secretario":"506","Tesorero":"507"
 };
-/* Rescata automaticamente quien ocupa cada cargo hoy, para precargar la
-   Oficialidad de un anio que aun no se ha guardado */
+function codigoOperativo(m,cargo){
+  return (cargo&&CODIGO_OFICIAL_POR_CARGO[cargo]) || (m&&m.clave) || "";
+}
+/* Para años sin registro guardado se precarga desde el cargo vigente de la
+   nómina. Nunca se deduce el titular comparando su código personal con un
+   código funcional de Oficialidad. */
 function oficialidadDesdeNomina(){
   const asign={};
   CARGOS.forEach(cargo=>{
-    const clave=Object.keys(CLAVE_CARGO_2026).find(k=>CLAVE_CARGO_2026[k]===cargo);
-    const m=clave?ROSTER.find(p=>p.activo!==false && p.clave===clave):null;
+    const m=ROSTER.find(p=>p.activo!==false && p.cargo===cargo);
     if(m) asign[cargo]=m.id;
   });
   return asign;
@@ -2562,9 +2567,10 @@ on("guardarOficialidadBtn","click",async()=>{
     const m=ROSTER.find(x=>x.id===id); if(!m) return;
     m.cargo=cargo;
     if(!m.anotaciones) m.anotaciones=[];
-    const detalle=`Ejerció como ${cargo} durante ${anio}.`;
+    const codigoFuncional=codigoOperativo(m,cargo);
+    const detalle=`Ejerció como ${cargo} durante ${anio}. Código funcional del cargo: ${codigoFuncional}. Código personal conservado: ${m.clave||"sin registrar"}.`;
     if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
-      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",detalle});
+      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",institucion:"5ª Compañía Germania",detalle});
     }
   });
   await saveRoster();
@@ -3051,6 +3057,8 @@ on("darBajaBtn","click",async()=>{
   m.motivoBaja=document.getElementById("bajaMotivo").value;
   m.fechaBaja=document.getElementById("bajaFecha").value||todayISO();
   m.obsBaja=document.getElementById("bajaObs").value.trim();
+  if(!m.anotaciones) m.anotaciones=[];
+  m.anotaciones.push({id:uid(),tipo:m.motivoBaja||"Retiro/baja",fecha:m.fechaBaja,institucion:"5ª Compañía Germania",detalle:m.obsBaja||m.motivoBaja||"Baja registrada",registradoEn:new Date().toISOString()});
   await renumerarYGuardar();
   msg.classList.remove("err");
   msg.textContent=`${nombreCompleto(m)} fue dado de baja (${m.motivoBaja}).`;
@@ -3062,7 +3070,12 @@ on("reactivarBtn","click",async()=>{
   const m=id?ROSTER.find(x=>x.id===id):null;
   const msg=document.getElementById("bajaMsg");
   if(!m){ msg.textContent="Primero selecciona un integrante de la lista."; msg.classList.add("err"); return; }
-  m.activo=true; delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
+  const bajaAnterior={motivo:m.motivoBaja||"",fecha:m.fechaBaja||"",obs:m.obsBaja||""};
+  m.activo=true;
+  if(!m.anotaciones) m.anotaciones=[];
+  m.anotaciones.push({id:uid(),tipo:"Reincorporación",fecha:todayISO(),institucion:"5ª Compañía Germania",detalle:bajaAnterior.motivo?`Reincorporación posterior a ${bajaAnterior.motivo}`:"Reincorporación",registradoEn:new Date().toISOString()});
+  // El estado vigente se limpia, pero el antecedente histórico permanece en anotaciones.
+  delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
   await renumerarYGuardar();
   msg.classList.remove("err");
   msg.textContent=`${nombreCompleto(m)} fue reactivado y vuelve a aparecer al pasar lista.`;
