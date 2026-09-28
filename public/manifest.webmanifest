@@ -2,8 +2,17 @@
   "name": "GERMANIA · Quinta Compañía",
   "short_name": "GERMANIA",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#07090b",
   "theme_color": "#07090b",
-  "lang": "es-CL"
+  "lang": "es-CL",
+  "icons": [
+    {
+      "src": "/legacy/germania-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
