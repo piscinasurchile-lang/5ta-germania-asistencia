@@ -554,6 +554,7 @@
     </div>
 
     <div class="subtabs">
+      <button class="subtab active" data-sub="alertas">Alertas</button>
       <button class="subtab" data-sub="bajas">Bajas y eliminación</button>
       <button class="subtab" data-sub="correlativos">Correlativos</button>
       <button class="subtab" data-sub="cursos">Cursos</button>
@@ -567,12 +568,12 @@
       <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
       <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
       <button class="subtab" data-sub="nomina">Nómina</button>
-      <button class="subtab active" data-sub="oficialidad">Oficialidad por año</button>
+      <button class="subtab" data-sub="oficialidad">Oficialidad por año</button>
       <button class="subtab" data-sub="tipos">Tipos de citación</button>
     </div>
 
     <!-- OFICIALIDAD -->
-    <div class="subpanel active" id="sub-oficialidad">
+    <div class="subpanel" id="sub-oficialidad">
       <div class="card">
         <h2>Oficialidad</h2>
         <p class="sub">Los cargos se eligen cada año. Asigna aquí quién ocupa cada cargo y el año queda registrado; al guardar, la nómina se actualiza.</p>
@@ -835,6 +836,17 @@
         </div>
         <button class="btn" id="borrarMiembroBtn" style="background:#7a1a15;">Eliminar definitivamente</button>
         <div class="status-msg" id="borrarMsg"></div>
+      </div>
+    </div>
+
+    <!-- ALERTAS -->
+    <div class="subpanel active" id="sub-alertas">
+      <div class="card">
+        <h2>Panel de alertas</h2>
+        <p class="sub">Todo lo que requiere atención, en un solo lugar: EPP y material con vida útil vencida o por vencer, mantenciones del B-5 y premios de antigüedad que se cumplen.</p>
+        <button class="btn small secondary" id="alertasActualizarBtn">Actualizar</button>
+        <div id="alertasResumen" style="display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;"></div>
+        <div id="alertasLista"></div>
       </div>
     </div>
 

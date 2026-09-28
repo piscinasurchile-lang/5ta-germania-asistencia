@@ -143,6 +143,7 @@ function on(id,evento,fn){
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
+      if(s.dataset.sub==="alertas" && typeof renderAlertas==="function") renderAlertas();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
       if(s.dataset.sub==="mantencionesb5" && typeof renderMntTodo==="function") renderMntTodo();
       if(s.dataset.sub==="inventariob5" && typeof renderInvTodo==="function") renderInvTodo();
@@ -367,6 +368,65 @@ async function renderCorrelativoHistorial(){
 }
 on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
 on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
+
+/* ============ PANEL DE ALERTAS ============ */
+async function calcularAlertas(){
+  const A=[]; // {nivel:"urgente"|"proxima", area, texto}
+  const hoyAnio=new Date().getFullYear(), hoy=new Date();
+  const nombreDe=id=>{ const p=ROSTER.find(x=>String(x.id)===String(id)); return p?nombreCompleto(p):"Voluntario eliminado"; };
+  // 1) EPP personal
+  for(const it of await getEppPersonal()){
+    const v=calcVencimientoInv(it), quien=`${nombreDe(it.voluntarioId)} · ${it.tipo}`;
+    if(v&&v.vencido) A.push({nivel:"urgente",area:"EPP",texto:`${quien}: vida útil vencida (${v.venceAnio})`});
+    else if(v&&v.venceAnio-hoyAnio<=1) A.push({nivel:"proxima",area:"EPP",texto:`${quien}: vence en ${v.venceAnio}`});
+    if(it.estado==="Dañado"||it.estado==="Falta") A.push({nivel:"urgente",area:"EPP",texto:`${quien}: ${it.estado.toLowerCase()}`});
+    else if(it.estado==="Por reemplazar") A.push({nivel:"proxima",area:"EPP",texto:`${quien}: por reemplazar`});
+  }
+  // 2) Inventario B-5
+  for(const it of await getInventario()){
+    const v=calcVencimientoInv(it), q=`${it.codigo?it.codigo+" · ":""}${it.nombre}`;
+    if(v&&v.vencido) A.push({nivel:"urgente",area:"Inventario B-5",texto:`${q}: vida útil vencida (${v.venceAnio})`});
+    else if(v&&v.venceAnio-hoyAnio<=1) A.push({nivel:"proxima",area:"Inventario B-5",texto:`${q}: vence en ${v.venceAnio}`});
+    if(it.estado==="Falta"||it.estado==="Fuera de servicio") A.push({nivel:"urgente",area:"Inventario B-5",texto:`${q}: ${it.estado.toLowerCase()}`});
+    else if(it.estado==="En mantención") A.push({nivel:"proxima",area:"Inventario B-5",texto:`${q}: en mantención`});
+  }
+  // 3) Mantenciones B-5
+  const mnts=await getMantenciones();
+  Object.keys(MNT_INTERVALO_MESES).forEach(tipo=>{
+    const previas=mnts.filter(m=>m.tipo===tipo).sort((a,b)=>a.fecha<b.fecha?1:-1);
+    if(!previas.length){ A.push({nivel:"proxima",area:"Mantenciones B-5",texto:`${tipo}: sin ningún registro`}); return; }
+    const prox=new Date(previas[0].fecha+"T12:00:00"); prox.setMonth(prox.getMonth()+MNT_INTERVALO_MESES[tipo]);
+    const dias=Math.round((prox-hoy)/86400000);
+    if(dias<0) A.push({nivel:"urgente",area:"Mantenciones B-5",texto:`${tipo}: vencida desde el ${prox.toLocaleDateString("es-CL")}`});
+    else if(dias<=30) A.push({nivel:"proxima",area:"Mantenciones B-5",texto:`${tipo}: corresponde el ${prox.toLocaleDateString("es-CL")}`});
+  });
+  // 4) Premios de antiguedad (carga los partes una sola vez)
+  const minimo=await sGet("premioAsistenciaMinima",75);
+  const partes=[]; for(const it of await getIndex()){ const p=await getParte(it.clave); if(p&&p.records) partes.push(p.records); }
+  sortedRoster(false).filter(m=>m.fechaIngreso).forEach(m=>{
+    const anios=Math.floor((hoy-new Date(m.fechaIngreso+"T12:00:00"))/(365.25*86400000));
+    const prox=PREMIO_TIERS.find(t=>t>anios); if(!prox||prox-anios>1) return;
+    let pres=0,tot=0; partes.forEach(r=>{ const s=r[m.id]; if(!s) return; tot++; if(s==="presente") pres++; });
+    const pct=tot?Math.round(pres/tot*100):0;
+    A.push({nivel:pct>=minimo?"proxima":"urgente",area:"Premios",texto:`${nombreCompleto(m)}: premio de ${prox} años (${prox-anios<=0?"este año":"el próximo año"}) · asistencia ${pct}%${pct>=minimo?"":" — bajo el mínimo de "+minimo+"%"}`});
+  });
+  return A;
+}
+async function renderAlertas(){
+  const res=document.getElementById("alertasResumen"), lista=document.getElementById("alertasLista");
+  if(!res||!lista) return;
+  lista.innerHTML="Calculando…";
+  const A=await calcularAlertas();
+  const urg=A.filter(a=>a.nivel==="urgente").length, prox=A.length-urg;
+  res.innerHTML=`<div class="summary-item"><div class="big" style="color:#f2a7a0;">${urg}</div><div class="lbl">Urgentes</div></div>
+    <div class="summary-item"><div class="big" style="color:#e3c15a;">${prox}</div><div class="lbl">Próximas</div></div>`;
+  if(!A.length){ lista.innerHTML='<div class="empty">Sin alertas pendientes. Todo al día ✅</div>'; return; }
+  const areas=[...new Set(A.map(a=>a.area))];
+  lista.innerHTML=areas.map(ar=>`<h3 style="margin-top:14px;">${esc(ar)}</h3>`+
+    A.filter(a=>a.area===ar).sort((a,b)=>a.nivel===b.nivel?0:a.nivel==="urgente"?-1:1).map(a=>
+      `<div style="padding:8px 10px;margin:4px 0;border-left:4px solid ${a.nivel==="urgente"?"#b3241c":"#c9a227"};background:${a.nivel==="urgente"?"#2a1210":"#241c08"};border-radius:4px;font-size:13px;">${esc(a.texto)}</div>`).join("")).join("");
+}
+on("alertasActualizarBtn","click",renderAlertas);
 
 /* ============ EPP PERSONAL POR VOLUNTARIO ============ */
 const EPP_KEY="eppPersonal:v1";
@@ -2838,7 +2898,7 @@ on("bajaEntrarBtn","click",async()=>{
   msg.classList.toggle("err",!res.ok);
   if(res.ok){
     bajasDesbloqueado=true; inp.value=""; msg.textContent="";
-    pintarCandado(); renderBajasSelects(); renderBajasList();
+    pintarCandado(); renderBajasSelects(); renderBajasList(); renderAlertas();
   } else {
     msg.textContent=mensajeOficialidad(res.motivo);
     inp.value="";
