@@ -369,6 +369,66 @@ async function renderCorrelativoHistorial(){
 on("correlativoTipoAjuste","change",renderCorrelativoHistorial);
 on("correlativoAnioAjuste","change",renderCorrelativoHistorial);
 
+/* ============ SECCIONES PLEGABLES EN CELULAR (Salida B-5) ============ */
+(function initSeccionesPlegables(){
+  const movil=window.matchMedia&&window.matchMedia("(max-width:700px)").matches;
+  if(!movil) return;
+  const titulos=["Lugar del servicio","Mando","Datos de la emergencia"];
+  document.querySelectorAll("#panel-servicio .card").forEach(card=>{
+    const h=card.querySelector("h2"); if(!h||!titulos.includes(h.textContent.trim())) return;
+    const hijos=[...card.children].filter(x=>x!==h);
+    const flecha=document.createElement("span"); flecha.style.cssText="float:right;color:#c9a227;";
+    h.appendChild(flecha); h.style.cursor="pointer";
+    const set=abierto=>{ hijos.forEach(x=>x.style.display=abierto?"":"none"); flecha.textContent=abierto?"▾":"▸ tocar para abrir"; };
+    set(false);
+    h.addEventListener("click",()=>set(hijos[0].style.display==="none"));
+  });
+})();
+
+/* ============ BUSCADOR TRANSVERSAL DE PERSONAS ============ */
+function etiquetaBusqueda(p){ return `${nombreCompleto(p)} (${p.clave||"s/c"})`; }
+function renderBuscadorOpciones(){
+  const dl=document.getElementById("buscadorList"); if(!dl) return;
+  dl.innerHTML=sortedRoster(true).map(p=>`<option value="${esc(etiquetaBusqueda(p))}"></option>`).join("");
+}
+function irASubtab(sub){ const b=document.querySelector(`.subtab[data-sub="${sub}"]`); if(b) b.click(); }
+async function renderFichaRapida(){
+  const inp=document.getElementById("buscadorInput"), box=document.getElementById("fichaRapida");
+  if(!inp||!box) return;
+  const q=inp.value.trim();
+  if(!q){ box.innerHTML=""; return; }
+  const m=ROSTER.find(p=>etiquetaBusqueda(p)===q) || ROSTER.find(p=>nombreCompleto(p).toLowerCase()===q.toLowerCase());
+  if(!m){ box.innerHTML='<div class="empty">Elige una persona de la lista de sugerencias.</div>'; return; }
+  const hoyAnio=new Date().getFullYear();
+  const anios=m.fechaIngreso?Math.floor((new Date()-new Date(m.fechaIngreso+"T12:00:00"))/(365.25*86400000)):null;
+  const epp=(await getEppPersonal()).filter(x=>String(x.voluntarioId)===String(m.id));
+  const porAnio=await calcularAsistenciaPorAnio(m);
+  let pres=0,tot=0; Object.values(porAnio).forEach(v=>{ pres+=v.pres; tot+=v.pres+v.just+v.aus; });
+  const pct=tot?Math.round(pres/tot*100):null;
+  const eppHtml=epp.length?epp.map(x=>{ const v=calcVencimientoInv(x);
+      return `<div style="font-size:13px;margin:2px 0;">${esc(x.tipo)}${x.marca?" · "+esc(x.marca):""} — ${esc(x.estado)}${v?(v.vencido?` <b style="color:#f2a7a0;">(vencido ${v.venceAnio})</b>`:` (vence ${v.venceAnio})`):""}</div>`; }).join("")
+    : '<div style="font-size:13px;color:#a89584;">Sin EPP registrado.</div>';
+  const notas=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha<b.fecha?1:-1)).slice(0,3)
+    .map(a=>`<div style="font-size:13px;margin:2px 0;">${esc(a.fecha||"")} · ${esc(a.detalle||"")}</div>`).join("") || '<div style="font-size:13px;color:#a89584;">Sin anotaciones.</div>';
+  box.innerHTML=`
+    <div class="summary-row">
+      <div class="summary-item"><div class="big">${anios===null?"—":anios}</div><div class="lbl">Años de servicio</div></div>
+      <div class="summary-item"><div class="big">${pct===null?"—":pct+"%"}</div><div class="lbl">Asistencia total</div></div>
+      <div class="summary-item"><div class="big">${m.conductor?"Sí":"No"}</div><div class="lbl">Conductor</div></div>
+    </div>
+    <div style="margin:8px 0;"><b>${esc(nombreCompleto(m))}</b> · Cargo: ${esc(m.cargo||"—")} · ${esc(m.categoria||"")} ${m.activo===false?"· <b>De baja</b>":""}</div>
+    <h3>Equipo (EPP)</h3>${eppHtml}
+    <h3>Últimas anotaciones</h3>${notas}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+      <button class="btn small" id="fichaAbrirHoja">Abrir hoja de vida</button>
+      <button class="btn small secondary" id="fichaAbrirEpp">Ver / editar su EPP</button>
+    </div>`;
+  document.getElementById("fichaAbrirHoja").onclick=()=>{ irASubtab("hoja"); document.getElementById("hvMiembro").value=m.id; renderHoja(); };
+  document.getElementById("fichaAbrirEpp").onclick=()=>{ irASubtab("eppPersonal"); const f=document.getElementById("eppFiltroVoluntario"); if(f){ f.value=m.id; } const v=document.getElementById("eppVoluntario"); if(v){ v.value=m.id; } renderEppLista(); };
+}
+on("buscadorInput","input",renderFichaRapida);
+on("buscadorInput","change",renderFichaRapida);
+
 /* ============ PANEL DE ALERTAS ============ */
 async function calcularAlertas(){
   const A=[]; // {nivel:"urgente"|"proxima", area, texto}
@@ -2511,7 +2571,7 @@ on("guardarOficialidadBtn","click",async()=>{
   await saveRoster();
   msg.classList.remove("err");
   msg.textContent=`Oficialidad ${anio} guardada y aplicada a la nómina.`;
-  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions(); renderMntTipoOptions();
+  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions(); renderMntTipoOptions(); renderBuscadorOpciones();
 });
 
 /* ============ FICHA DE INGRESO ============ */
@@ -2979,7 +3039,7 @@ function refrescarTodo(){
   renderListaRows(); renderRegistradoPorOptions(); renderCfgRoster();
   renderCursoMiembroSelect(); renderCursos(); renderCursosCompania();
   renderBajasSelects(); renderBajasList();
-  renderHvSelect(); renderHoja();
+  renderHvSelect(); renderHoja(); renderBuscadorOpciones();
 }
 
 /* ============ CURSOS ============ */
