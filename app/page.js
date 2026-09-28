@@ -4,7 +4,7 @@ export default function Page() {
   return (
     <main style={{ margin: 0, width: "100%", minHeight: "100dvh", overflow: "hidden" }}>
       <iframe
-        title="Asistencia · 5ta Compañía"
+        title="GERMANIA · Quinta Compañía"
         src="/legacy/index.html"
         style={{ border: 0, width: "100%", height: "100dvh", display: "block" }}
       />
