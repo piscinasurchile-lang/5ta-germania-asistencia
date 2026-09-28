@@ -259,6 +259,19 @@
 </style>
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#b91c1c">
+<style id="revision-oficiales-ui">
+  #miVoluntario{background:#11171c;color:#fff;border:1px solid #f2c230;border-radius:12px;padding:13px 42px 13px 14px;font-weight:700;min-height:48px;box-shadow:0 0 0 1px rgba(242,194,48,.08)}
+  #miVoluntario:focus{outline:none;box-shadow:0 0 0 3px rgba(242,194,48,.18)}
+  #miVoluntario option{background:#11171c;color:#fff}
+  #panel-config #configCandado{display:none!important}
+  #panel-config #configContenido{display:block!important}
+  #panel-config .subtabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 16px}
+  #panel-config .subtab{min-height:52px;border-radius:12px;border:1px solid #343b40;background:#11171c;color:#fff;font-weight:750;padding:10px}
+  #panel-config .subtab.active{border-color:#f2c230;background:#211c0b;color:#ffd84d;box-shadow:0 0 0 1px rgba(242,194,48,.12)}
+  #panel-config .card{border-radius:14px}
+  #panel-config #buscadorPersona{border-color:#4a4f53}
+  @media(max-width:760px){#panel-config .subtabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -715,24 +728,25 @@
       <div id="fichaRapida" style="margin-top:12px;"></div>
     </div>
 
+    <div class="card"><h2>Oficiales</h2><p class="sub">Herramientas de Oficialidad organizadas para revisión. En esta etapa de prueba permanecen abiertas.</p></div>
     <div class="subtabs">
       <button class="subtab active" data-sub="odd">ODD</button>
-      <button class="subtab" data-sub="alertas">Alertas</button>
-      <button class="subtab" data-sub="bajas">Bajas y eliminación</button>
-      <button class="subtab" data-sub="correlativos">Correlativos</button>
+      <button class="subtab" type="button" onclick="window.top.location.href=&quot;/guardia/menu&quot;">Guardia</button>
+      <button class="subtab" data-sub="oficialidad">Oficialidad</button>
+      <button class="subtab" data-sub="nomina">Nómina</button>
+      <button class="subtab" data-sub="hoja">Hoja de vida</button>
+      <button class="subtab" data-sub="ingreso">Ingreso</button>
       <button class="subtab" data-sub="cursos">Cursos</button>
       <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
-      <button class="subtab" data-sub="ingreso">Ficha de ingreso</button>
-      <button class="subtab" data-sub="hoja">Ficha y hoja de vida</button>
-      <button class="subtab" type="button" onclick="window.top.location.href=&quot;/guardia/menu&quot;">Guardia</button>
+      <button class="subtab" data-sub="alertas">Alertas</button>
       <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
-      <button class="subtab" data-sub="importar">Importar datos</button>
-      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informe</button>
+      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
       <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
       <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
-      <button class="subtab" data-sub="nomina">Nómina</button>
-      <button class="subtab" data-sub="oficialidad">Oficialidad por año</button>
+      <button class="subtab" data-sub="correlativos">Correlativos</button>
       <button class="subtab" data-sub="tipos">Tipos de citación</button>
+      <button class="subtab" data-sub="importar">Importar / respaldo</button>
+      <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
     </div>
 
     <!-- ODD MAESTRAS -->
