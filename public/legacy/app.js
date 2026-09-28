@@ -3086,11 +3086,22 @@ on("borrarMiembroBtn","click",async()=>{
   const m=id?ROSTER.find(x=>x.id===id):null;
   const msg=document.getElementById("borrarMsg");
   if(!m){ msg.textContent="Primero selecciona un integrante de la lista."; msg.classList.add("err"); return; }
-  if(!confirm(`¿Eliminar definitivamente a ${nombreCompleto(m)} de la nómina?\n\nEsta acción no se puede deshacer. Si solo se retiró de la Compañía, usa "Dar de baja" en lugar de eliminar.`)) return;
+  const capitan=document.getElementById("borrarValCapitan")?.checked;
+  const secretario=document.getElementById("borrarValSecretario")?.checked;
+  const ayudante=document.getElementById("borrarValAyudante")?.checked;
+  if(!(capitan&&secretario&&ayudante)){
+    msg.textContent="La eliminación definitiva requiere validación conjunta de Capitán, Secretario y Ayudante.";
+    msg.classList.add("err"); return;
+  }
+  if(!confirm(`¿Eliminar definitivamente a ${nombreCompleto(m)}?\n\nConfirmas que es un registro creado por error y que Capitán, Secretario y Ayudante validaron esta eliminación. Una baja, renuncia o traslado NO debe eliminarse.`)) return;
+  const auditoria=await sGet("auditoria:eliminaciones:v1",[]);
+  auditoria.push({fecha:new Date().toISOString(),voluntarioId:m.id,nombre:nombreCompleto(m),motivo:"Registro creado por error",validaciones:["Capitán","Secretario","Ayudante"]});
+  await sSet("auditoria:eliminaciones:v1",auditoria);
   ROSTER=ROSTER.filter(x=>x.id!==id);
   await renumerarYGuardar();
+  ["borrarValCapitan","borrarValSecretario","borrarValAyudante"].forEach(x=>{const el=document.getElementById(x);if(el)el.checked=false;});
   msg.classList.remove("err");
-  msg.textContent=`${nombreCompleto(m)} fue eliminado de la nómina.`;
+  msg.textContent=`${nombreCompleto(m)} fue eliminado tras la triple validación. La autorización quedó registrada en auditoría.`;
   refrescarTodo();
 });
 
