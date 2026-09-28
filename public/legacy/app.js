@@ -3291,12 +3291,27 @@ const DISP_PREF_KEY="germania:mi-voluntario";
 const DISP_LABELS={cuartel:"En cuartel",disponible:"Disponible",fuera:"Fuera de Villarrica",no:"No disponible"};
 
 function dispKey(){ return "disponibilidad:"+todayISO(); }
+function fotoKey(id){ return "germania:foto:"+id; }
+function fotoPlaceholder(){
+  return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171d22"/><circle cx="50" cy="38" r="19" fill="#ffcc00"/><path d="M18 92c4-24 18-36 32-36s28 12 32 36" fill="#ffcc00"/></svg>');
+}
+function refrescarIdentidadVoluntario(){
+  const sel=document.getElementById("miVoluntario"), img=document.getElementById("miFoto");
+  const nom=document.getElementById("miNombre"), cargo=document.getElementById("miCargo");
+  if(!sel||!img||!nom||!cargo) return;
+  const p=ROSTER.find(x=>String(x.id)===String(sel.value));
+  if(!p){ nom.textContent="Voluntario"; cargo.textContent="Selecciona tu nombre"; img.src=fotoPlaceholder(); return; }
+  nom.textContent=nombreCompleto(p);
+  cargo.textContent=(p.cargo&&p.cargo!=="Voluntario"?p.cargo+" · ":"")+"Voluntario activo";
+  img.src=(lsAvailable()&&localStorage.getItem(fotoKey(p.id)))||p.foto||fotoPlaceholder();
+}
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
   const guardado=lsAvailable()?localStorage.getItem(DISP_PREF_KEY):"";
   sel.innerHTML='<option value="">— seleccionar —</option>'+sortedRoster(false)
     .map(p=>`<option value="${p.id}">${p.clave?"("+esc(p.clave)+") ":""}${esc(nombreCompleto(p))}</option>`).join("");
   if(guardado && ROSTER.some(p=>String(p.id)===String(guardado))) sel.value=guardado;
+  refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
 async function marcarMiEstado(estado){
@@ -3345,7 +3360,21 @@ async function renderDisponibilidad(){
 }
 on("miVoluntario","change",async e=>{
   if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,e.target.value||"");
+  refrescarIdentidadVoluntario();
   await renderDisponibilidad();
+});
+on("cambiarFotoBtn","click",()=>{
+  const sel=document.getElementById("miVoluntario");
+  if(!sel||!sel.value){ const msg=document.getElementById("miEstadoMsg"); if(msg){msg.textContent="Selecciona tu nombre antes de agregar la foto.";msg.classList.add("err");} return; }
+  document.getElementById("miFotoInput")?.click();
+});
+on("miFotoInput","change",e=>{
+  const file=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!file||!sel?.value) return;
+  if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ if(lsAvailable()) localStorage.setItem(fotoKey(sel.value),String(rd.result)); refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto en este dispositivo."); } };
+  rd.readAsDataURL(file);
+  e.target.value="";
 });
 document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado)));
 on("actualizarMinuta","click",renderDisponibilidad);
