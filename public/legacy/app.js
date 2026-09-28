@@ -2664,7 +2664,8 @@ function renderHvInstitucional(){
     ["Conductor de unidad", m.conductor?"Sí":"No"],
     ["Cargo actual", m.cargo||"—"],
     ["Calidad", m.categoria||"—"],
-    ["Fecha de ingreso", m.fechaIngreso||"—"],
+    ["Ingreso original bomberil", m.fechaIngresoBomberil||m.fechaIngreso||"—"],
+    ["Ingreso a Germania", m.fechaIngreso||"—"],
     ["Forma de ingreso", m.formaIngreso||"—"],
     ["Procedencia", m.origen||"—"],
     ["Especialidad", m.especialidad||"—"],
@@ -2690,24 +2691,40 @@ document.querySelectorAll("[data-hv]").forEach(inp=>{
   });
 });
 
+async function renderHvFoto(){
+  const m=hvActual(), img=document.getElementById("hvFoto");
+  if(!img) return;
+  if(!m){ img.src=fotoPlaceholder(); return; }
+  if(!m.foto){
+    const anterior=await sGet(fotoKey(m.id),null);
+    if(anterior){ m.foto=anterior; await saveRoster(); }
+  }
+  img.src=m.foto||fotoPlaceholder();
+}
+on("hvFotoBtn","click",()=>{ if(hvActual()) document.getElementById("hvFotoInput")?.click(); });
+on("hvFotoInput","change",e=>{
+  const file=e.target.files&&e.target.files[0], m=hvActual(); if(!file||!m) return;
+  if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
+  const rd=new FileReader();
+  rd.onload=async()=>{ m.foto=String(rd.result); await saveRoster(); await renderHvFoto(); await refrescarIdentidadVoluntario(); await renderDisponibilidad(); };
+  rd.readAsDataURL(file); e.target.value="";
+});
+
 function renderHvAnotaciones(){
   const m=hvActual(), box=document.getElementById("hvAnotaciones");
   if(!m){ box.innerHTML=""; return; }
   const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"")<(b.fecha||"")?1:-1);
-  if(!an.length){ box.innerHTML='<div class="empty">Sin anotaciones registradas.</div>'; return; }
-  box.innerHTML=an.map((a,i)=>`
+  if(!an.length){ box.innerHTML='<div class="empty">Sin antecedentes históricos registrados.</div>'; return; }
+  box.innerHTML=an.map(a=>`
     <div class="hist-item">
       <div>
-        <div class="hist-date"><span class="badge">${esc(a.tipo)}</span> ${esc(a.fecha||"sin fecha")}</div>
+        <div class="hist-date"><span class="badge">${esc(a.tipo||"Antecedente")}</span> ${esc(a.fecha||"sin fecha")}${a.fechaHasta?" → "+esc(a.fechaHasta):""}</div>
         <div class="hist-acto">${esc(a.detalle||"")}</div>
+        ${a.institucion?'<div class="foot-note">Institución: '+esc(a.institucion)+'</div>':""}
+        ${a.documento?'<div class="foot-note">Respaldo: '+esc(a.documento)+'</div>':""}
+        <div class="foot-note">Registrado: ${a.registradoEn?new Date(a.registradoEn).toLocaleString("es-CL"):"registro histórico"}</div>
       </div>
-      <div class="hist-right"><button class="del-btn" data-del-an="${esc(a.id)}" title="Eliminar">🗑</button></div>
     </div>`).join("");
-  box.querySelectorAll("[data-del-an]").forEach(b=>b.addEventListener("click",async()=>{
-    if(!confirm("¿Eliminar esta anotación de la hoja de vida?")) return;
-    m.anotaciones=(m.anotaciones||[]).filter(x=>x.id!==b.dataset.delAn);
-    await saveRoster(); renderHvAnotaciones();
-  }));
 }
 
 on("hvAgregarBtn","click",async()=>{
@@ -2716,13 +2733,15 @@ on("hvAgregarBtn","click",async()=>{
   if(!detalle) return;
   if(!m.anotaciones) m.anotaciones=[];
   m.anotaciones.push({
-    id:uid(),
-    tipo:document.getElementById("hvTipo").value,
+    id:uid(), tipo:document.getElementById("hvTipo").value,
     fecha:document.getElementById("hvFecha").value||todayISO(),
-    detalle
+    fechaHasta:document.getElementById("hvFechaHasta").value||"",
+    institucion:document.getElementById("hvInstitucionEvento").value.trim(),
+    documento:document.getElementById("hvDocumento").value.trim(),
+    detalle, registradoEn:new Date().toISOString()
   });
   await saveRoster();
-  document.getElementById("hvDetalle").value="";
+  ["hvDetalle","hvFechaHasta","hvInstitucionEvento","hvDocumento"].forEach(id=>document.getElementById(id).value="");
   renderHvAnotaciones();
 });
 
@@ -2840,9 +2859,30 @@ on("premiosCalcularBtn","click",async()=>{
 });
 
 function renderHoja(){
-  renderHvInstitucional(); renderHvDatos(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
+  renderHvInstitucional(); renderHvDatos(); renderHvFoto(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
 on("hvMiembro","change",renderHoja);
+
+on("hvTransferenciaPdfBtn","click",async()=>{
+  const m=hvActual(); if(!m) return;
+  const destino=document.getElementById("hvDestino").value.trim();
+  const autoriza=document.getElementById("hvAutorizaTransferencia").value.trim();
+  if(!destino||!autoriza){ alert("Indica la institución destinataria y quién autoriza la generación."); return; }
+  const {jsPDF}=window.jspdf, doc=new jsPDF();
+  pdfHeader(doc,"COPIA DE ANTECEDENTES BOMBERILES");
+  let y=38; doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text(nombreCompleto(m),14,y);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); y+=6;
+  doc.text("RUT: "+(m.rut||"—")+" · Clave: "+(m.clave||"—"),14,y); y+=5;
+  doc.text("Destino: "+destino,14,y); y+=5; doc.text("Autorizado por: "+autoriza,14,y); y+=7;
+  const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+  doc.autoTable({startY:y,styles:{fontSize:7.5},headStyles:{fillColor:[179,36,28]},
+    head:[["Desde","Hasta","Tipo","Institución","Antecedente","Respaldo"]],
+    body:an.map(a=>[a.fecha||"—",a.fechaHasta||"—",a.tipo||"—",a.institucion||"—",a.detalle||"—",a.documento||"—"])});
+  const obs=document.getElementById("hvObsTransferencia").value.trim();
+  if(obs){ const yy=doc.lastAutoTable.finalY+7; doc.setFontSize(8); doc.text("Observación: "+obs,14,yy,{maxWidth:180}); }
+  const log=m.transferencias||[]; log.push({fecha:new Date().toISOString(),destino,autoriza,observacion:obs}); m.transferencias=log; await saveRoster();
+  doc.save("Antecedentes_"+slug(nombreCompleto(m))+".pdf");
+});
 
 on("hvPdfBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
@@ -3304,8 +3344,11 @@ async function refrescarIdentidadVoluntario(){
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Selecciona tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
   cargo.textContent=(p.cargo&&p.cargo!=="Voluntario"?p.cargo+" · ":"")+"Voluntario activo";
-  const central=await sGet(fotoKey(p.id),null);
-  img.src=central||p.foto||fotoPlaceholder();
+  if(!p.foto){
+    const anterior=await sGet(fotoKey(p.id),null);
+    if(anterior){ p.foto=anterior; await saveRoster(); }
+  }
+  img.src=p.foto||fotoPlaceholder();
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
@@ -3344,10 +3387,11 @@ async function renderDisponibilidad(){
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
     if((e==="cuartel"||e==="disponible")&&String(p.id)===obac) cuenta.obac++;
     const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
-    const roles=[p.conductor?"Conductor":"",String(p.id)===obac?"OBAC":""].filter(Boolean).join(" · ")||"—";
-    return `<tr><td class="name-col">${esc(nombreCompleto(p))}</td>
+    const foto=p.foto||fotoPlaceholder();
+    return `<tr><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
       <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
-      <td>${desde}</td><td>${guardianes.has(String(p.id))?"Sí":"—"}</td><td>${roles}</td></tr>`;
+      <td>${desde}</td><td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td>
+      <td style="text-align:center;">${p.conductor?"◉":"—"}</td><td style="text-align:center;">${String(p.id)===obac?"✓":"—"}</td></tr>`;
   }).join("");
   resumen.innerHTML=`
     <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
@@ -3374,7 +3418,7 @@ on("miFotoInput","change",e=>{
   const file=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!file||!sel?.value) return;
   if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
   const rd=new FileReader();
-  rd.onload=async()=>{ try{ await sSet(fotoKey(sel.value),String(rd.result)); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
+  rd.onload=async()=>{ try{ const p=ROSTER.find(x=>String(x.id)===String(sel.value)); if(!p) return; p.foto=String(rd.result); await saveRoster(); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
   rd.readAsDataURL(file);
   e.target.value="";
 });
