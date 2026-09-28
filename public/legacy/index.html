@@ -272,6 +272,17 @@
   #panel-config #buscadorPersona{border-color:#4a4f53}
   @media(max-width:760px){#panel-config .subtabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
+
+<style id="minuta-mobile-fix">
+@media (max-width: 700px){
+  #tablaDisponibilidad, #tablaDisponibilidad table, .tabla-disponibilidad, .tabla-disponibilidad table { width:100% !important; min-width:0 !important; table-layout:fixed !important; }
+  #tablaDisponibilidad th, #tablaDisponibilidad td, .tabla-disponibilidad th, .tabla-disponibilidad td { padding:8px 5px !important; font-size:13px !important; line-height:1.25 !important; overflow-wrap:anywhere; }
+  #tablaDisponibilidad th:first-child, #tablaDisponibilidad td:first-child, .tabla-disponibilidad th:first-child, .tabla-disponibilidad td:first-child { width:38% !important; }
+  #tablaDisponibilidad th:nth-child(2), #tablaDisponibilidad td:nth-child(2), .tabla-disponibilidad th:nth-child(2), .tabla-disponibilidad td:nth-child(2) { width:25% !important; }
+  #tablaDisponibilidad th:nth-child(3), #tablaDisponibilidad td:nth-child(3), .tabla-disponibilidad th:nth-child(3), .tabla-disponibilidad td:nth-child(3) { width:18% !important; }
+  #tablaDisponibilidad th:nth-child(n+4), #tablaDisponibilidad td:nth-child(n+4), .tabla-disponibilidad th:nth-child(n+4), .tabla-disponibilidad td:nth-child(n+4) { width:19% !important; }
+}
+</style>
 </head>
 <body>
 <div class="wrap">
