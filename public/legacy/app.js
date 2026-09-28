@@ -920,7 +920,7 @@ async function loadListaForSelection(){
     document.getElementById("detalle").value=ex.detalle||"";
     document.getElementById("registradoPor").value=ex.registradoPor||"";
     msg.textContent="Ya existe un parte guardado para esta fecha y tipo."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
-    parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null;
+    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null;
   } else {
     sortedRoster(false).forEach(p=>currentRecord[p.id]="ausente");
     document.getElementById("detalle").value="";
@@ -978,8 +978,8 @@ function mostrarConfirmarParte(date,tipo){
     currentPartClave=claveFor(date,tipo);
     const ok=await setParte(currentPartClave,data);
     if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
-    parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
-    msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}. Ya no se puede modificar sin la clave de Oficialidad.`;
+    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
+    msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}.`+(MODO_PRUEBA_ABIERTO?" Modo de prueba: edición abierta.":" Ya no se puede modificar sin la clave de Oficialidad.");
     renderResumen(countStatuses(currentRecord));
     renderListaRows();
   };
@@ -1243,7 +1243,7 @@ async function cargarServicio(){
     document.getElementById("svRegistrarAsistencia").checked = ex.registrarAsistencia!==false;
     msg.textContent="Ya existe una hoja de servicio guardada para esta fecha y hora de salida."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
     msg.classList.remove("err");
-    svBloqueado=true; svEsNuevo=false; svNumeroActual=ex.numero||null; svAnioActual=ex.anio||null;
+    svBloqueado=!MODO_PRUEBA_ABIERTO; svEsNuevo=false; svNumeroActual=ex.numero||null; svAnioActual=ex.anio||null;
   } else {
     svBloqueado=false; svEsNuevo=true; svNumeroActual=null; svAnioActual=null;
   }
@@ -1298,7 +1298,7 @@ function mostrarConfirmarSv(){
     const numTxt=`N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}. `;
 
     if(!datos.registrarAsistencia){
-      svBloqueado=true; renderSvBody();
+      svBloqueado=!MODO_PRUEBA_ABIERTO; renderSvBody();
       msg.classList.remove("err");
       msg.textContent=`Hoja de servicio guardada. ${numTxt}No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
       return;
@@ -1322,7 +1322,7 @@ function mostrarConfirmarSv(){
       registradoPor:document.getElementById("svCargoQuinta").value, records,
       modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual
     });
-    svBloqueado=true; renderSvBody();
+    svBloqueado=!MODO_PRUEBA_ABIERTO; renderSvBody();
     msg.classList.remove("err");
     msg.textContent=`Hoja de servicio guardada. ${numTxt}${c.concurrentes} voluntarios concurrieron.`;
   };
@@ -2933,6 +2933,7 @@ function renderBajasSelects(){
 let bajasDesbloqueado=false;
 
 async function autenticarOficialidad(pin){
+  if(MODO_PRUEBA_ABIERTO) return {ok:true};
   try{
     const r=await fetch("/api/auth/officiality",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin})});
     if(r.ok) return {ok:true};
@@ -3295,7 +3296,7 @@ function fotoKey(id){ return "germania:foto:"+id; }
 function fotoPlaceholder(){
   return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171d22"/><circle cx="50" cy="38" r="19" fill="#ffcc00"/><path d="M18 92c4-24 18-36 32-36s28 12 32 36" fill="#ffcc00"/></svg>');
 }
-function refrescarIdentidadVoluntario(){
+async function refrescarIdentidadVoluntario(){
   const sel=document.getElementById("miVoluntario"), img=document.getElementById("miFoto");
   const nom=document.getElementById("miNombre"), cargo=document.getElementById("miCargo");
   if(!sel||!img||!nom||!cargo) return;
@@ -3303,7 +3304,8 @@ function refrescarIdentidadVoluntario(){
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Selecciona tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
   cargo.textContent=(p.cargo&&p.cargo!=="Voluntario"?p.cargo+" · ":"")+"Voluntario activo";
-  img.src=(lsAvailable()&&localStorage.getItem(fotoKey(p.id)))||p.foto||fotoPlaceholder();
+  const central=await sGet(fotoKey(p.id),null);
+  img.src=central||p.foto||fotoPlaceholder();
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
@@ -3372,7 +3374,7 @@ on("miFotoInput","change",e=>{
   const file=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!file||!sel?.value) return;
   if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
   const rd=new FileReader();
-  rd.onload=()=>{ try{ if(lsAvailable()) localStorage.setItem(fotoKey(sel.value),String(rd.result)); refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto en este dispositivo."); } };
+  rd.onload=async()=>{ try{ await sSet(fotoKey(sel.value),String(rd.result)); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
   rd.readAsDataURL(file);
   e.target.value="";
 });
