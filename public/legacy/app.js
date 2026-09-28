@@ -3634,3 +3634,11 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   if(window.__mostrarPestana) window.__mostrarPestana("germania");
   setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad(); },15000);
 })();
+
+/* Correo institucional GERMANIA: punto de activación visible en Oficialidad.
+   La autorización OAuth de Gmail se implementa del lado servidor; nunca se solicita ni almacena la contraseña en el navegador. */
+on("activarCorreoCompaniaBtn","click",()=>{
+  const e=document.getElementById("correoCompaniaEstado");
+  if(e) e.textContent="Correo oficial: germaniacbv@gmail.com · conexión institucional pendiente de autorización Google.";
+  alert("GERMANIA usará germaniacbv@gmail.com como correo oficial. La conexión se realizará mediante autorización segura de Google; la contraseña no se guarda en GERMANIA.");
+});
