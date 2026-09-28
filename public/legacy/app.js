@@ -142,6 +142,7 @@ function on(id,evento,fn){
       s.classList.add("active");
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
+      if(s.dataset.sub==="odd" && typeof initOdd==="function") initOdd();
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
       if(s.dataset.sub==="alertas" && typeof renderAlertas==="function") renderAlertas();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
@@ -151,6 +152,85 @@ function on(id,evento,fn){
     });
   });
 })();
+
+
+/* ============ ODD MAESTRAS ============ */
+const ODD_KEY="odd:maestras:v1";
+async function getOddMaestras(){ const v=await sGet(ODD_KEY,[]); return Array.isArray(v)?v:[]; }
+function oddNumFmt(n){ return String(Number(n)||0).padStart(3,"0"); }
+async function sugerirOddNumero(){
+  const y=Number(document.getElementById("oddAnio")?.value)||new Date().getFullYear();
+  const arr=await getOddMaestras();
+  const nums=arr.filter(x=>Number(x.anio)===y&&x.estado==="emitida").map(x=>Number(x.numero)||0);
+  const el=document.getElementById("oddNumero"); if(el&&!el.value) el.value=(nums.length?Math.max(...nums):0)+1;
+}
+async function renderOddArchivo(){
+  const box=document.getElementById("oddArchivo"); if(!box) return;
+  const arr=(await getOddMaestras()).slice().sort((a,b)=>(b.anio-a.anio)||(b.numero-a.numero));
+  if(!arr.length){box.innerHTML='<div class="empty">Aún no hay ODD creadas desde GERMANIA.</div>';return;}
+  box.innerHTML='<table><thead><tr><th>ODD</th><th>Fecha</th><th>Tipo</th><th>Asunto</th><th>Estado</th></tr></thead><tbody>'+
+    arr.map(x=>'<tr><td>'+oddNumFmt(x.numero)+'/'+esc(x.anio)+'</td><td>'+esc(x.fecha||"")+'</td><td>'+esc(x.tipo||"")+'</td><td>'+esc(x.titulo||"")+'</td><td>'+esc(x.estado||"borrador")+'</td></tr>').join("")+'</tbody></table>';
+}
+async function initOdd(){
+  const y=document.getElementById("oddAnio"),f=document.getElementById("oddFecha");
+  if(y&&!y.value)y.value=new Date().getFullYear(); if(f&&!f.value)f.value=todayISO();
+  await sugerirOddNumero(); await renderOddArchivo();
+}
+async function guardarOdd(emitir){
+  const anio=Number(document.getElementById("oddAnio")?.value), numero=Number(document.getElementById("oddNumero")?.value);
+  const fecha=document.getElementById("oddFecha")?.value||todayISO(), tipo=document.getElementById("oddTipo")?.value||"General / disposición";
+  const titulo=document.getElementById("oddTitulo")?.value.trim()||"", cuerpo=document.getElementById("oddCuerpo")?.value.trim()||"";
+  const destinatarios=document.getElementById("oddDestinatarios")?.value.trim()||"", msg=document.getElementById("oddMsg");
+  if(!anio||!numero||!titulo||!cuerpo){if(msg){msg.textContent="Completa año, número, asunto y contenido.";msg.classList.add("err");}return;}
+  const arr=await getOddMaestras(), dup=arr.find(x=>Number(x.anio)===anio&&Number(x.numero)===numero&&x.estado==="emitida");
+  if(emitir&&dup){if(msg){msg.textContent="Ya existe la ODD "+oddNumFmt(numero)+"/"+anio+". No se puede duplicar el correlativo.";msg.classList.add("err");}return;}
+  const rec={id:uid(),anio,numero,fecha,tipo,titulo,cuerpo,destinatarios,estado:emitir?"emitida":"borrador",creadoEn:new Date().toISOString(),respaldoUnico:true};
+  arr.push(rec); await sSet(ODD_KEY,arr);
+  if(msg){msg.classList.remove("err");msg.textContent=emitir?"ODD "+oddNumFmt(numero)+"/"+anio+" emitida y archivada.":"Borrador guardado.";}
+  await renderOddArchivo(); if(emitir){const n=document.getElementById("oddNumero");if(n){n.value="";await sugerirOddNumero();}}
+}
+on("oddGuardarBorrador","click",()=>guardarOdd(false));
+on("oddEmitir","click",()=>guardarOdd(true));
+on("oddImprimir","click",()=>window.print());
+on("oddCompartir","click",async()=>{
+  const numero=document.getElementById("oddNumero")?.value, anio=document.getElementById("oddAnio")?.value, titulo=document.getElementById("oddTitulo")?.value||"";
+  const txt="Orden del Día "+oddNumFmt(numero)+"/"+anio+" · "+titulo;
+  if(navigator.share){try{await navigator.share({title:"ODD "+oddNumFmt(numero)+"/"+anio,text:txt});}catch(e){}}else{try{await navigator.clipboard.writeText(txt);const m=document.getElementById("oddMsg");if(m)m.textContent="Referencia copiada para compartir.";}catch(e){}}
+});
+on("oddAnio","change",async()=>{const n=document.getElementById("oddNumero");if(n)n.value="";await sugerirOddNumero();});
+
+/* Nómina oficial base según ODD 010/2026. Sirve para completar/normalizar
+   identificación de la Hoja de Vida sin reemplazar antecedentes históricos. */
+const NOMINA_ODD_010_2026=[
+["75","Karam","Puali","López","15.243.920-2","Director","56 9 9638 8991"],
+["45","Fernando","Jerez","Pantoja","15.590310-4","Capitan","56 9 4213 8558"],
+["9","Fernando","Ortega","Gutiérrez","10.234.287-9","Tesorero Gral.","56 9 9706 6611"],
+["501","Tomas","Lara","Jeffs","14.118.272-2","Teniente 1ero","56 9 9840 6864"],
+["502","Matías","Corvalán","Garrido","20.256.703-7","Teniente 2do","56 9 8890 9899"],
+["503","Andrés","Herrera","Santander","16.711.219-6","Teniente 3ero","56 9 9771 2130"],
+["504","Francisco","Vega","Lara","15.911.631-K","Ayudante","56 9 9860 9638"],
+["505","Diego","Lozano","González","13.829.491-9","Jefe de Mq.","56 9 5611 0725"],
+["506","Susumu","Sugiura","Aguilar","14.413.688-8","Secretario","56 9 9237 9959"],
+["507","Mathias","Von Leyser","Jux","8.905.167-3","Tesorero","56 9 9230 4753"],
+["508","Pablo","Arellano","Graell","16.369.672-K","Voluntario","56 9 9229 1516"],
+["509","Maria Paz","Solo De Zaldivar","Lavanchy","18.024.584-7","Voluntario","56 9 8923 0949"],
+["510","Ludwig","Von Plessing","Cea","17.045.065-5","Voluntario","56 9 8899 4179"],
+["511","Vaslav","Rubeska","Becerra","19.305.936-8","Voluntario","56 9 8369 6928"],
+["512","Magdalena","Cortés","García","17.983.201-1","Voluntario","56 9 9340 0000"],
+["513","José","Alvarez","Álvarez","25.659.614-8","Voluntario","56 9 9570 0000"],
+["514","Juan Pablo","Orlandini","Retamal","8.338.250-3","Voluntario","56 9 9419 2551"],
+["515","Luis","Bustos","Rivera","12.929.761-1","Voluntario","56 9 9937 7438"],
+["516","Cristóbal","Rascheya","Travini","21.907.445-K","Voluntario","56 9 8723 7392"],
+["517","Christian","Vergara","Sandoval","10.566.726-4","Voluntario","56 9 9693 1320"],
+["518","César","Ilarre","Castro","16.682.842-2","Voluntario","56 9 9982 5055"],
+["519","León","Campino","Del Villar","22.167.254-2","Voluntario","56 9 6394 8973"],
+["520","Natalia","Yañez","Navarrete","19.608.304-9","Voluntario","56 9 4117 1255"],
+["521","Rodolfo","Maldonado","Avendaño","19.272.472-4","Voluntario","56 9 7763 8309"],
+["522","Manuel","Moller","Henriquez","10.188.589-5","Voluntario","56 9 9646 8660"],
+["523","Joaquin","Bustos","Guzmán","20.644.799-0","Voluntario","56 9 4562 1346"],
+["524","María Paz","Ortega","González","21.020.125-4","Voluntario","56 9 5906 2829"],
+["525","Gustavo","Jerez","Pantoja","13.105.415-7","Voluntario","56 9 7685 8145"]
+].map(x=>({clave:x[0],nombre:x[1],ap:x[2],am:x[3],rut:x[4],cargo:x[5],telefono:x[6],fuente:"ODD 010/2026",fechaFuente:"2026-01-25"}));
 
 const HISTORICO_2026 = {"gente":[{"nom":"José","ap":"Álvarez","am":"Álvarez"},{"nom":"Pablo","ap":"Arellano","am":"Graell"},{"nom":"Joaquín","ap":"Bustos","am":"Guzmán"},{"nom":"Luis","ap":"Bustos","am":"Rivera"},{"nom":"León","ap":"Campino","am":"Del Villar"},{"nom":"Magdalena","ap":"Cortés","am":"García"},{"nom":"Matías","ap":"Corvalán","am":"Garrido"},{"nom":"Andrés","ap":"Herrera","am":"Santander"},{"nom":"César","ap":"Ilarre","am":"Castro"},{"nom":"Fernando","ap":"Jerez","am":"Pantoja"},{"nom":"Gustavo","ap":"Jerez","am":"Pantoja"},{"nom":"Tomás","ap":"Lara","am":"Jeffs"},{"nom":"Diego","ap":"Lozano","am":"González"},{"nom":"Rodolfo","ap":"Maldonado","am":"Avendaño"},{"nom":"Manuel","ap":"Moller","am":"Henríquez"},{"nom":"Juan Pablo","ap":"Orlandini","am":"Retamal"},{"nom":"María Paz","ap":"Ortega","am":"González"},{"nom":"Fernando","ap":"Ortega","am":"Gutiérrez"},{"nom":"Karam","ap":"Puali","am":"López"},{"nom":"Cristóbal","ap":"Rascheya","am":"Travini"},{"nom":"Vaslav","ap":"Rubeska","am":"Becerra"},{"nom":"María Paz","ap":"Solo de Zaldívar","am":"Lavanchy"},{"nom":"Susumu","ap":"Sugiura","am":"Aguilar"},{"nom":"Francisco","ap":"Vega","am":"Lara"},{"nom":"Christian","ap":"Vergara","am":"Sandoval"},{"nom":"Mathías","ap":"Von Leyser","am":"Jux"},{"nom":"Ludwig","ap":"Von Plessing","am":"Cea"},{"nom":"Natalia","ap":"Yáñez","am":"Navarrete"}],"acts":[{"t":"Compañía","f":"2026-01-03","n":"Academia Piscina","m":"AFFFFFAFFAFFFFFFFFFAFFAAFFAF"},{"t":"Emergencia","f":"2026-01-07","n":"Fuego En Vivienda","m":"FFFFAFFFFAFFFFFFFFAFFFFFFFFF"},{"t":"Comandancia","f":"2026-01-07","n":"Traspaso De Mando","m":"FAFFFFAAFAFFFFAFFAAFFFFAFFFA"},{"t":"Emergencia","f":"2026-01-11","n":"Inflamacion De Estufa","m":"FAFFFFFAFAFFFAAFFFAAFAFAFFAA"},{"t":"Emergencia","f":"2026-01-14","n":"Quema De Pastizales","m":"FAFFFFFFFAFFAAAFFFAAFFAAFAFA"},{"t":"Emergencia","f":"2026-01-14","n":"Quema De Pastizales","m":"FFFFFFFFFAFFFAFFFFAFFFFAFFFA"},{"t":"Compañía","f":"2026-01-14","n":"Academia Rcp","m":"FFFFFFAFAAFFFAAFFFFAFFAAFAFA"},{"t":"Compañía","f":"2026-01-15","n":"Reunion De Compañía","m":"AAAAAFAAFAAAAAAFAAAAFAAAFAAA"},{"t":"Emergencia","f":"2026-01-16","n":"Quema De Pastizales","m":"FAFFFFFFFFFFAFFFFFAAFFFFFFFF"},{"t":"Emergencia","f":"2026-01-18","n":"Quema De Pastizales","m":"FFFAFFAFFAFFFFAFFFFFFFAFFAFA"},{"t":"Emergencia","f":"2026-01-19","n":"Quema De Pastizales","m":"FAFFFFFFFAFFAFFFFFAFFFFFFFFF"},{"t":"Compañía","f":"2026-01-22","n":"Limpieza Contenedor","m":"FFFFFFFAFFFFFFAFFFFFFFFFFFFF"},{"t":"Emergencia","f":"2026-01-23","n":"Quema Plantacion De Pinos","m":"FFFFFFFFFFFFAAAFFFFFFFFFFFFA"},{"t":"Emergencia","f":"2026-01-24","n":"Guardia Club Aereo","m":"AFFFFFAAFAAFFFFFFFFAFFAAFFFA"},{"t":"Emergencia","f":"2026-01-24","n":"Quema Plantacion De Pinos","m":"AFFFFFAAFAFFFFFFFFFAFFAAFFFA"},{"t":"Compañía","f":"2026-01-28","n":"Academia Online","m":"AAAAAFAAFAAAAAAAAAAAFAAAFAAA"},{"t":"Compañía","f":"2026-02-02","n":"Reunion Extraordinaria","m":"AAAAFFAAAAAFFAAFFFAFFFAAFAAA"},{"t":"Emergencia","f":"2026-02-04","n":"Fuego En Vehiculo","m":"AFFFFFAAFFFFAAAFFFFAFFAFFFFA"},{"t":"Compañía","f":"2026-02-04","n":"Academia Equipos Era","m":"FFAFFFFAFAFFFAAFFAFAFFAAFAFA"},{"t":"Emergencia","f":"2026-02-06","n":"Quema De Pastizales","m":"FFFFFFFFFAFFFFFFFAAFFFFAFFFF"},{"t":"Comandancia","f":"2026-02-07","n":"Citacion De Comandancia","m":"FFFAFFFFFAAFFAFFAAAFFFAAFFFA"},{"t":"Emergencia","f":"2026-02-09","n":"Olor Indeterminado En Ambiente","m":"FFFFFFFFFAFFFFFFFFAFFFAAFFFF"},{"t":"Emergencia","f":"2026-02-09","n":"Alarma De Incendio","m":"FAAAFFFAFAFAFAFFFFAAFFAAFAFA"},{"t":"Emergencia","f":"2026-02-11","n":"Humo En Casa Habitacion","m":"FFFAFFFAFAFFAFFFFFFFFFAAFAFF"},{"t":"Compañía","f":"2026-02-11","n":"Academia Intro May Day","m":"FFFFFFFAFAAFFAFFFFFFFFAAFAAA"},{"t":"Compañía","f":"2026-02-18","n":"Ejercicio May Day & Rit","m":"FFFAAFAAFAAFFAFFFFAAFFAAFAAA"},{"t":"Emergencia","f":"2026-02-23","n":"Arbol Que Cae Sobre Tendido Electrico","m":"FFFFFFFFFAFFFAFFFFFFFFAAFFFA"},{"t":"Compañía","f":"2026-02-25","n":"Ejercicio Equipos Era","m":"FFFFFFAAFAAFAAAFFFAFFFAAFAAA"},{"t":"Comandancia","f":"2026-03-04","n":"Citacion De Comandancia","m":"FAAAFFAFFAAFAAAFFFAFFFFAFAFA"},{"t":"Compañía","f":"2026-03-11","n":"Entrenamiento Estandar Anb","m":"FFFFFFAAFFFAFFFFFFFFFFFFFAFF"},{"t":"Compañía","f":"2026-03-18","n":"Ejercicio Busqueda Primaria","m":"FFAFFFAAFAAAAFAFFFFAFFAAFFFF"},{"t":"Emergencia","f":"2026-03-19","n":"Incendio En 3 Viviendas","m":"FFAAFFFAFAFAFAFFFFFAFFAAFFAA"},{"t":"Compañía","f":"2026-03-25","n":"Ejercicio Tecnicas Rit","m":"FAAAFFAAFAAAAAFFAAFAFFAAFAAA"},{"t":"Compañía","f":"2026-04-01","n":"Ejercicio Despliegue De Armadas","m":"FFAAFFFAFAAAFFAFAAFFFFFAFFFF"},{"t":"Emergencia","f":"2026-04-01","n":"Fuga De Gas Desde Cilindro","m":"FFAFFFAAFAFAFFFFFFFAFFFAFFAF"},{"t":"Emergencia","f":"2026-04-03","n":"Incendio En Vivienda","m":"FFAAAFFAFAFAFFFFFFAAFFFFFFAF"},{"t":"Emergencia","f":"2026-04-03","n":"Incendio En Vivienda","m":"FFFAAFFFFAFAFFFFFFFFFFFFFAFF"},{"t":"Emergencia","f":"2026-04-08","n":"Quema De Pastizales","m":"FFFFFFFFFFAAAFFFFFFFFFFFFAFA"},{"t":"Compañía","f":"2026-04-15","n":"Entrenamiento Estandar Anb","m":"FFAAFFFAFAAAFAFFAAFAFFFAFAFA"},{"t":"Emergencia","f":"2026-04-26","n":"Fuego En Vivienda","m":"FFAFFFFFFAAFFAFFAAFFFFFFFFFA"},{"t":"Compañía","f":"2026-04-28","n":"Academia Svb | Anatomia","m":"FAFFFFAFAAAAFAAFAFFAFFFFFAFA"},{"t":"Emergencia","f":"2026-04-29","n":"Principio De Incendio Origen Electrico","m":"AFFFFFFFFFFFAFFFFFAAFFAFFAAF"},{"t":"Emergencia","f":"2026-05-02","n":"Fuego En Vivienda","m":"FAAAFFFFFAAAAFAFAAFFFFAAFFAA"},{"t":"Compañía","f":"2026-05-03","n":"Guardia Diurna Y Capacitacion","m":"FFFFFFAFAAAFFFFFFFFAFFFAFFFF"},{"t":"Emergencia","f":"2026-05-03","n":"Fuego En Vivienda","m":"FAAAAFFFFAFFAFFFFAAFFFFFFFAA"},{"t":"Emergencia","f":"2026-05-05","n":"Fuego En Supermercado","m":"FFFFAFFFFAFAAAFFFFAAFFAFFAFA"},{"t":"Compañía","f":"2026-05-06","n":"Academia Svb | Trauma Y Cinematica","m":"FFAAAFAFFAAAAAAFFFFAFFAAFAFF"},{"t":"Emergencia","f":"2026-05-13","n":"Humo En Entretecho","m":"FFFFFFFFFFFAAAFFFFFFFFAFFFFF"},{"t":"Compañía","f":"2026-05-13","n":"Reunion Ordinaria","m":"FFAAFFAAAAAAAFAFFAAAFAAAFAAF"},{"t":"Emergencia","f":"2026-05-16","n":"Fuego En Vivienda","m":"FFFFFFFFFAFAFFFFFFFFFFFAFAFF"},{"t":"Emergencia","f":"2026-05-20","n":"Fuego En Vivienda","m":"FFAAFFFFFAFAAAFFFFFAFFAFFFAA"},{"t":"Compañía","f":"2026-05-20","n":"Entrenamiento Estandar Anb","m":"FFAAFFAFFAFAFAFFFFAAFFAAFFAA"},{"t":"Emergencia","f":"2026-05-20","n":"Quema De Pastizales","m":"FFAAFFAFFAFAFAFFFFAAFFAAFFAA"},{"t":"Emergencia","f":"2026-05-22","n":"Fuego En Entretecho","m":"FFFFFFFFFFFFFAFFFFAFFFFAFFFF"},{"t":"Emergencia","f":"2026-05-24","n":"Fuego En Vivienda","m":"FFFFFFAFFAFAFAFFFFAFFFFFFFFF"},{"t":"Emergencia","f":"2026-05-26","n":"Quema De Pastizales","m":"FFFFFFFFFFFFAAFFFFFFFFFAFFFA"},{"t":"Emergencia","f":"2026-05-26","n":"Quema De Pastizales","m":"FFFFFFFFFAFAAFFFFFAFFFFFFFFF"},{"t":"Emergencia","f":"2026-05-27","n":"Incendio De Buses","m":"FFAFFFFAFAFAAAAFFFFAFFFAFFFF"},{"t":"Emergencia","f":"2026-05-28","n":"Humo En Entretecho","m":"FFAFFFFAFFFAAAFFFFFAFFFFFFFF"},{"t":"Emergencia","f":"2026-05-29","n":"Inflamacion Estufa A Pellet","m":"FFFAFFFFAAFFFAFFFFFAFFFAFFFF"},{"t":"Emergencia","f":"2026-05-30","n":"Fuego En Vivienda","m":"FFAFFFFAFAFAFFFFFAAAFFFFAFFF"},{"t":"Emergencia","f":"2026-06-03","n":"Fuego En Vivienda","m":"FFAFFFFAFAFAFFFFFAFAFFAFAFFF"},{"t":"Compañía","f":"2026-06-06","n":"Fuego En Vivienda Con Atrapados","m":"FAFAFFFAFAAAFFAFAFFAFAAAFFAF"},{"t":"Compañía","f":"2026-06-10","n":"Academia Svb | Xabc","m":"FFAAFFFFFAAAFAFFAAAFFFFAFFAA"},{"t":"Comandancia","f":"2026-06-13","n":"Simulacro General Cbv","m":"FAFFFFFFFAFAFFFFFFFFFFFFFFFA"},{"t":"Compañía","f":"2026-06-17","n":"Academia Svb | Evaluacion Secundaria","m":"FAAAFFFFAFFAFFAFFFFAFFAAFAFF"},{"t":"Emergencia","f":"2026-06-18","n":"Olor Indeterminado En Jardin Infantil","m":"FFFFFFFFFFFAFFFFFAFFFFFFFAAF"}]};
 
@@ -2498,22 +2578,27 @@ function renderOficialidad(asignaciones){
     await saveCargos(); renderCargoOptions(); loadOficialidadYear();
   }));
 }
-/* Claves de la Orden del Dia 010/2026 (25 de enero de 2026), fuente oficial
-   de quien ocupa cada cargo. No se usa el campo "cargo" de la nomina porque
-   ese campo puede no estar actualizado (ej: todos quedaron en "Voluntario"
-   tras un ingreso masivo) — la clave personal es el dato estable. */
-const CLAVE_CARGO_2026={
-  "75":"Director","45":"Capitán","9":"Tesorero General",
-  "501":"Teniente 1","502":"Teniente 2","503":"Teniente 3",
-  "504":"Ayudante","505":"Jefe de Máquinas","506":"Secretario","507":"Tesorero"
+/* Códigos funcionales de Oficialidad.
+   REGLA GERMANIA: el código de Oficial pertenece al CARGO, no a la persona.
+   El voluntario conserva siempre su código personal (m.clave). Mientras ejerce
+   un cargo, los documentos/operaciones que correspondan usan el código
+   funcional del cargo. Al dejarlo, vuelve a operar con su código personal y
+   el código funcional queda disponible para el nuevo titular. */
+const CODIGO_OFICIAL_POR_CARGO={
+  "Director":"75","Capitán":"45","Tesorero General":"9",
+  "Teniente 1":"501","Teniente 2":"502","Teniente 3":"503",
+  "Ayudante":"504","Jefe de Máquinas":"505","Secretario":"506","Tesorero":"507"
 };
-/* Rescata automaticamente quien ocupa cada cargo hoy, para precargar la
-   Oficialidad de un anio que aun no se ha guardado */
+function codigoOperativo(m,cargo){
+  return (cargo&&CODIGO_OFICIAL_POR_CARGO[cargo]) || (m&&m.clave) || "";
+}
+/* Para años sin registro guardado se precarga desde el cargo vigente de la
+   nómina. Nunca se deduce el titular comparando su código personal con un
+   código funcional de Oficialidad. */
 function oficialidadDesdeNomina(){
   const asign={};
   CARGOS.forEach(cargo=>{
-    const clave=Object.keys(CLAVE_CARGO_2026).find(k=>CLAVE_CARGO_2026[k]===cargo);
-    const m=clave?ROSTER.find(p=>p.activo!==false && p.clave===clave):null;
+    const m=ROSTER.find(p=>p.activo!==false && p.cargo===cargo);
     if(m) asign[cargo]=m.id;
   });
   return asign;
@@ -2562,9 +2647,10 @@ on("guardarOficialidadBtn","click",async()=>{
     const m=ROSTER.find(x=>x.id===id); if(!m) return;
     m.cargo=cargo;
     if(!m.anotaciones) m.anotaciones=[];
-    const detalle=`Ejerció como ${cargo} durante ${anio}.`;
+    const codigoFuncional=codigoOperativo(m,cargo);
+    const detalle=`Ejerció como ${cargo} durante ${anio}. Código funcional del cargo: ${codigoFuncional}. Código personal conservado: ${m.clave||"sin registrar"}.`;
     if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
-      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",detalle});
+      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",institucion:"5ª Compañía Germania",detalle});
     }
   });
   await saveRoster();
@@ -2664,7 +2750,8 @@ function renderHvInstitucional(){
     ["Conductor de unidad", m.conductor?"Sí":"No"],
     ["Cargo actual", m.cargo||"—"],
     ["Calidad", m.categoria||"—"],
-    ["Fecha de ingreso", m.fechaIngreso||"—"],
+    ["Ingreso original bomberil", m.fechaIngresoBomberil||m.fechaIngreso||"—"],
+    ["Ingreso a Germania", m.fechaIngreso||"—"],
     ["Forma de ingreso", m.formaIngreso||"—"],
     ["Procedencia", m.origen||"—"],
     ["Especialidad", m.especialidad||"—"],
@@ -2690,24 +2777,40 @@ document.querySelectorAll("[data-hv]").forEach(inp=>{
   });
 });
 
+async function renderHvFoto(){
+  const m=hvActual(), img=document.getElementById("hvFoto");
+  if(!img) return;
+  if(!m){ img.src=fotoPlaceholder(); return; }
+  if(!m.foto){
+    const anterior=await sGet(fotoKey(m.id),null);
+    if(anterior){ m.foto=anterior; await saveRoster(); }
+  }
+  img.src=m.foto||fotoPlaceholder();
+}
+on("hvFotoBtn","click",()=>{ if(hvActual()) document.getElementById("hvFotoInput")?.click(); });
+on("hvFotoInput","change",e=>{
+  const file=e.target.files&&e.target.files[0], m=hvActual(); if(!file||!m) return;
+  if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
+  const rd=new FileReader();
+  rd.onload=async()=>{ m.foto=String(rd.result); await saveRoster(); await renderHvFoto(); await refrescarIdentidadVoluntario(); await renderDisponibilidad(); };
+  rd.readAsDataURL(file); e.target.value="";
+});
+
 function renderHvAnotaciones(){
   const m=hvActual(), box=document.getElementById("hvAnotaciones");
   if(!m){ box.innerHTML=""; return; }
   const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"")<(b.fecha||"")?1:-1);
-  if(!an.length){ box.innerHTML='<div class="empty">Sin anotaciones registradas.</div>'; return; }
-  box.innerHTML=an.map((a,i)=>`
+  if(!an.length){ box.innerHTML='<div class="empty">Sin antecedentes históricos registrados.</div>'; return; }
+  box.innerHTML=an.map(a=>`
     <div class="hist-item">
       <div>
-        <div class="hist-date"><span class="badge">${esc(a.tipo)}</span> ${esc(a.fecha||"sin fecha")}</div>
+        <div class="hist-date"><span class="badge">${esc(a.tipo||"Antecedente")}</span> ${esc(a.fecha||"sin fecha")}${a.fechaHasta?" → "+esc(a.fechaHasta):""}</div>
         <div class="hist-acto">${esc(a.detalle||"")}</div>
+        ${a.institucion?'<div class="foot-note">Institución: '+esc(a.institucion)+'</div>':""}
+        ${a.documento?'<div class="foot-note">Respaldo: '+esc(a.documento)+'</div>':""}
+        <div class="foot-note">Registrado: ${a.registradoEn?new Date(a.registradoEn).toLocaleString("es-CL"):"registro histórico"}</div>
       </div>
-      <div class="hist-right"><button class="del-btn" data-del-an="${esc(a.id)}" title="Eliminar">🗑</button></div>
     </div>`).join("");
-  box.querySelectorAll("[data-del-an]").forEach(b=>b.addEventListener("click",async()=>{
-    if(!confirm("¿Eliminar esta anotación de la hoja de vida?")) return;
-    m.anotaciones=(m.anotaciones||[]).filter(x=>x.id!==b.dataset.delAn);
-    await saveRoster(); renderHvAnotaciones();
-  }));
 }
 
 on("hvAgregarBtn","click",async()=>{
@@ -2716,13 +2819,15 @@ on("hvAgregarBtn","click",async()=>{
   if(!detalle) return;
   if(!m.anotaciones) m.anotaciones=[];
   m.anotaciones.push({
-    id:uid(),
-    tipo:document.getElementById("hvTipo").value,
+    id:uid(), tipo:document.getElementById("hvTipo").value,
     fecha:document.getElementById("hvFecha").value||todayISO(),
-    detalle
+    fechaHasta:document.getElementById("hvFechaHasta").value||"",
+    institucion:document.getElementById("hvInstitucionEvento").value.trim(),
+    documento:document.getElementById("hvDocumento").value.trim(),
+    detalle, registradoEn:new Date().toISOString()
   });
   await saveRoster();
-  document.getElementById("hvDetalle").value="";
+  ["hvDetalle","hvFechaHasta","hvInstitucionEvento","hvDocumento"].forEach(id=>document.getElementById(id).value="");
   renderHvAnotaciones();
 });
 
@@ -2840,9 +2945,30 @@ on("premiosCalcularBtn","click",async()=>{
 });
 
 function renderHoja(){
-  renderHvInstitucional(); renderHvDatos(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
+  renderHvInstitucional(); renderHvDatos(); renderHvFoto(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
 on("hvMiembro","change",renderHoja);
+
+on("hvTransferenciaPdfBtn","click",async()=>{
+  const m=hvActual(); if(!m) return;
+  const destino=document.getElementById("hvDestino").value.trim();
+  const autoriza=document.getElementById("hvAutorizaTransferencia").value.trim();
+  if(!destino||!autoriza){ alert("Indica la institución destinataria y quién autoriza la generación."); return; }
+  const {jsPDF}=window.jspdf, doc=new jsPDF();
+  pdfHeader(doc,"COPIA DE ANTECEDENTES BOMBERILES");
+  let y=38; doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text(nombreCompleto(m),14,y);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); y+=6;
+  doc.text("RUT: "+(m.rut||"—")+" · Clave: "+(m.clave||"—"),14,y); y+=5;
+  doc.text("Destino: "+destino,14,y); y+=5; doc.text("Autorizado por: "+autoriza,14,y); y+=7;
+  const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+  doc.autoTable({startY:y,styles:{fontSize:7.5},headStyles:{fillColor:[179,36,28]},
+    head:[["Desde","Hasta","Tipo","Institución","Antecedente","Respaldo"]],
+    body:an.map(a=>[a.fecha||"—",a.fechaHasta||"—",a.tipo||"—",a.institucion||"—",a.detalle||"—",a.documento||"—"])});
+  const obs=document.getElementById("hvObsTransferencia").value.trim();
+  if(obs){ const yy=doc.lastAutoTable.finalY+7; doc.setFontSize(8); doc.text("Observación: "+obs,14,yy,{maxWidth:180}); }
+  const log=m.transferencias||[]; log.push({fecha:new Date().toISOString(),destino,autoriza,observacion:obs}); m.transferencias=log; await saveRoster();
+  doc.save("Antecedentes_"+slug(nombreCompleto(m))+".pdf");
+});
 
 on("hvPdfBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
@@ -3011,6 +3137,8 @@ on("darBajaBtn","click",async()=>{
   m.motivoBaja=document.getElementById("bajaMotivo").value;
   m.fechaBaja=document.getElementById("bajaFecha").value||todayISO();
   m.obsBaja=document.getElementById("bajaObs").value.trim();
+  if(!m.anotaciones) m.anotaciones=[];
+  m.anotaciones.push({id:uid(),tipo:m.motivoBaja||"Retiro/baja",fecha:m.fechaBaja,institucion:"5ª Compañía Germania",detalle:m.obsBaja||m.motivoBaja||"Baja registrada",registradoEn:new Date().toISOString()});
   await renumerarYGuardar();
   msg.classList.remove("err");
   msg.textContent=`${nombreCompleto(m)} fue dado de baja (${m.motivoBaja}).`;
@@ -3022,7 +3150,12 @@ on("reactivarBtn","click",async()=>{
   const m=id?ROSTER.find(x=>x.id===id):null;
   const msg=document.getElementById("bajaMsg");
   if(!m){ msg.textContent="Primero selecciona un integrante de la lista."; msg.classList.add("err"); return; }
-  m.activo=true; delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
+  const bajaAnterior={motivo:m.motivoBaja||"",fecha:m.fechaBaja||"",obs:m.obsBaja||""};
+  m.activo=true;
+  if(!m.anotaciones) m.anotaciones=[];
+  m.anotaciones.push({id:uid(),tipo:"Reincorporación",fecha:todayISO(),institucion:"5ª Compañía Germania",detalle:bajaAnterior.motivo?`Reincorporación posterior a ${bajaAnterior.motivo}`:"Reincorporación",registradoEn:new Date().toISOString()});
+  // El estado vigente se limpia, pero el antecedente histórico permanece en anotaciones.
+  delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
   await renumerarYGuardar();
   msg.classList.remove("err");
   msg.textContent=`${nombreCompleto(m)} fue reactivado y vuelve a aparecer al pasar lista.`;
@@ -3033,11 +3166,22 @@ on("borrarMiembroBtn","click",async()=>{
   const m=id?ROSTER.find(x=>x.id===id):null;
   const msg=document.getElementById("borrarMsg");
   if(!m){ msg.textContent="Primero selecciona un integrante de la lista."; msg.classList.add("err"); return; }
-  if(!confirm(`¿Eliminar definitivamente a ${nombreCompleto(m)} de la nómina?\n\nEsta acción no se puede deshacer. Si solo se retiró de la Compañía, usa "Dar de baja" en lugar de eliminar.`)) return;
+  const capitan=document.getElementById("borrarValCapitan")?.checked;
+  const secretario=document.getElementById("borrarValSecretario")?.checked;
+  const ayudante=document.getElementById("borrarValAyudante")?.checked;
+  if(!(capitan&&secretario&&ayudante)){
+    msg.textContent="La eliminación definitiva requiere validación conjunta de Capitán, Secretario y Ayudante.";
+    msg.classList.add("err"); return;
+  }
+  if(!confirm(`¿Eliminar definitivamente a ${nombreCompleto(m)}?\n\nConfirmas que es un registro creado por error y que Capitán, Secretario y Ayudante validaron esta eliminación. Una baja, renuncia o traslado NO debe eliminarse.`)) return;
+  const auditoria=await sGet("auditoria:eliminaciones:v1",[]);
+  auditoria.push({fecha:new Date().toISOString(),voluntarioId:m.id,nombre:nombreCompleto(m),motivo:"Registro creado por error",validaciones:["Capitán","Secretario","Ayudante"]});
+  await sSet("auditoria:eliminaciones:v1",auditoria);
   ROSTER=ROSTER.filter(x=>x.id!==id);
   await renumerarYGuardar();
+  ["borrarValCapitan","borrarValSecretario","borrarValAyudante"].forEach(x=>{const el=document.getElementById(x);if(el)el.checked=false;});
   msg.classList.remove("err");
-  msg.textContent=`${nombreCompleto(m)} fue eliminado de la nómina.`;
+  msg.textContent=`${nombreCompleto(m)} fue eliminado tras la triple validación. La autorización quedó registrada en auditoría.`;
   refrescarTodo();
 });
 
@@ -3304,8 +3448,11 @@ async function refrescarIdentidadVoluntario(){
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Selecciona tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
   cargo.textContent=(p.cargo&&p.cargo!=="Voluntario"?p.cargo+" · ":"")+"Voluntario activo";
-  const central=await sGet(fotoKey(p.id),null);
-  img.src=central||p.foto||fotoPlaceholder();
+  if(!p.foto){
+    const anterior=await sGet(fotoKey(p.id),null);
+    if(anterior){ p.foto=anterior; await saveRoster(); }
+  }
+  img.src=p.foto||fotoPlaceholder();
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
@@ -3344,10 +3491,11 @@ async function renderDisponibilidad(){
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
     if((e==="cuartel"||e==="disponible")&&String(p.id)===obac) cuenta.obac++;
     const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
-    const roles=[p.conductor?"Conductor":"",String(p.id)===obac?"OBAC":""].filter(Boolean).join(" · ")||"—";
-    return `<tr><td class="name-col">${esc(nombreCompleto(p))}</td>
+    const foto=p.foto||fotoPlaceholder();
+    return `<tr><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
       <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
-      <td>${desde}</td><td>${guardianes.has(String(p.id))?"Sí":"—"}</td><td>${roles}</td></tr>`;
+      <td>${desde}</td><td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td>
+      <td style="text-align:center;">${p.conductor?"◉":"—"}</td><td style="text-align:center;">${String(p.id)===obac?"✓":"—"}</td></tr>`;
   }).join("");
   resumen.innerHTML=`
     <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
@@ -3374,7 +3522,7 @@ on("miFotoInput","change",e=>{
   const file=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!file||!sel?.value) return;
   if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
   const rd=new FileReader();
-  rd.onload=async()=>{ try{ await sSet(fotoKey(sel.value),String(rd.result)); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
+  rd.onload=async()=>{ try{ const p=ROSTER.find(x=>String(x.id)===String(sel.value)); if(!p) return; p.foto=String(rd.result); await saveRoster(); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
   rd.readAsDataURL(file);
   e.target.value="";
 });
