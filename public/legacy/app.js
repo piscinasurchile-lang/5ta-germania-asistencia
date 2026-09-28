@@ -306,18 +306,64 @@ async function sGet(k,f){
   }
   return f;
 }
-async function sSet(k,v){
-  const s=JSON.stringify(v);
-  MEM[k]=s;
+const TEST_MODE_KEY="germania:test-mode:v1";
+const TEST_BASELINE_KEY="germania:test-baseline:v1";
+const TEST_AUDIT_KEY="germania:test-audit:v1";
+let TEST_INTERNAL_WRITE=false;
+async function rawSet(k,v){
+  const s=JSON.stringify(v); MEM[k]=s;
   if(lsAvailable()){ try{ window.localStorage.setItem(k,s); }catch(e){} }
   try{
     const r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})});
     if(r.ok){ STORAGE_MODE="servidor"; actualizarAvisoAlmacenamiento(); return true; }
   }catch(e){}
-  STORAGE_MODE=lsAvailable()?"navegador":"memoria";
-  actualizarAvisoAlmacenamiento();
-  return true;
+  STORAGE_MODE=lsAvailable()?"navegador":"memoria"; actualizarAvisoAlmacenamiento(); return true;
 }
+async function testModeActivo(){ return (await sGet(TEST_MODE_KEY,{activo:true})).activo!==false; }
+async function registrarUso(tipo,detalle){
+  if(TEST_INTERNAL_WRITE) return;
+  TEST_INTERNAL_WRITE=true;
+  try{
+    const a=await sGet(TEST_AUDIT_KEY,[]);
+    const sel=document.getElementById("miVoluntario");
+    const p=sel&&sel.value&&typeof ROSTER!=="undefined"?ROSTER.find(x=>String(x.id)===String(sel.value)):null;
+    a.push({fecha:new Date().toISOString(),tipo,detalle:String(detalle||"").slice(0,160),voluntario:p?nombreCompleto(p):"Sin identificar",id:p?.id||null});
+    if(a.length>5000) a.splice(0,a.length-5000);
+    await rawSet(TEST_AUDIT_KEY,a);
+  }finally{ TEST_INTERNAL_WRITE=false; }
+}
+async function sSet(k,v){
+  if(!TEST_INTERNAL_WRITE && await testModeActivo() && ![TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY].includes(k)){
+    TEST_INTERNAL_WRITE=true;
+    try{
+      const base=await sGet(TEST_BASELINE_KEY,{});
+      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); await rawSet(TEST_BASELINE_KEY,base); }
+      if(typeof ROSTER_KEY!=="undefined" && k===ROSTER_KEY && Array.isArray(base[k]) && Array.isArray(v)){
+        const ids=new Set(v.map(x=>String(x.id)));
+        const faltan=base[k].filter(x=>!ids.has(String(x.id)));
+        if(faltan.length){ alert("MODO PRUEBA: no se permite eliminar voluntarios de la nómina base."); return false; }
+      }
+    }finally{ TEST_INTERNAL_WRITE=false; }
+  }
+  return rawSet(k,v);
+}
+async function limpiarDatosPrueba(){
+  if(!confirm("¿Restaurar todos los datos modificados desde que comenzó el MODO PRUEBA? La nómina base y Hojas de Vida se conservarán.")) return;
+  const base=await sGet(TEST_BASELINE_KEY,{});
+  TEST_INTERNAL_WRITE=true;
+  try{ for(const [k,v] of Object.entries(base)) await rawSet(k,v); await rawSet(TEST_BASELINE_KEY,{}); }
+  finally{ TEST_INTERNAL_WRITE=false; }
+  await registrarUso("administracion","Limpieza de datos de prueba");
+  alert("Datos de prueba restaurados. Los datos base protegidos permanecen.");
+  location.reload();
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button,a,[role=button]");
+  if(!b || b.id==="testCleanBtn") return;
+  const txt=(b.innerText||b.getAttribute("aria-label")||b.id||"control").trim().replace(/\s+/g," ");
+  registrarUso("click",txt);
+});
+
 function actualizarAvisoAlmacenamiento(){
   const el=document.getElementById("storageWarn");
   if(!el) return;
