@@ -1004,16 +1004,15 @@ function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio){
   let y=48;
   if(detalle){ doc.text(`Detalle: ${detalle}`,14,y); y+=6; }
   if(registradoPor){ doc.text(`Pasó lista: ${registradoPor}`,14,y); y+=6; }
+  // El PDF oficial incluye exclusivamente a quienes estuvieron PRESENTES.
+  // Justificados y ausentes se conservan internamente para estadísticas, pero no se imprimen.
   const rows=sortedRoster(false)
-    .filter(p=>(records[p.id]||"ausente")!=="ausente")
-    .map(p=>{
-      const s=records[p.id];
-      return [p.n||"",p.clave||"—",p.cargo,nombreCompleto(p),s.charAt(0).toUpperCase()+s.slice(1)];
-    });
+    .filter(p=>(records[p.id]||"ausente")==="presente")
+    .map(p=>[p.n||"",p.clave||"—",p.cargo,nombreCompleto(p),"Presente"]);
   doc.autoTable({head:[["N°","Clave","Cargo","Nombre","Asistencia"]],body:rows,startY:y,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]}});
   const c=countStatuses(records), fy=doc.lastAutoTable.finalY+10;
   doc.setFont("helvetica","bold");
-  doc.text(`Presentes: ${c.presente}   Justificados: ${c.justificado}   Ausentes: ${c.ausente}`,14,fy);
+  doc.text(`Total presentes: ${c.presente}`,14,fy);
   doc.setFont("helvetica","normal"); doc.setFontSize(9);
   doc.text(`Generado el ${new Date().toLocaleString("es-CL")}`,14,fy+10);
   return doc;
