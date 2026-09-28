@@ -1223,6 +1223,22 @@ function sellarPdf(doc){
   return doc;
 }
 
+function descargarBlob(blob,nombre){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=nombre;
+  a.style.display="none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+async function downloadPdfDoc(doc,filename){
+  sellarPdf(doc);
+  descargarBlob(doc.output("blob"),filename);
+  return true;
+}
 async function sharePdfDoc(doc,filename,shareText){
   sellarPdf(doc);
   const blob=doc.output("blob");
@@ -1230,7 +1246,7 @@ async function sharePdfDoc(doc,filename,shareText){
 }
 on("pdfBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
-  await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`);
+  await downloadPdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`);
 });
 on("waBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
@@ -3508,15 +3524,32 @@ function cargarMiVoluntario(){
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
-async function marcarMiEstado(estado){
+async function marcarMiEstado(estado,boton){
   const sel=document.getElementById("miVoluntario"), msg=document.getElementById("miEstadoMsg");
-  if(!sel||!sel.value){ if(msg){msg.textContent="Selecciona tu nombre antes de marcar el estado.";msg.classList.add("err");} return; }
-  if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,sel.value);
-  const d=await getDisponibilidadHoy();
-  d[sel.value]={estado,desde:new Date().toISOString()};
-  await sSet(dispKey(),d);
-  if(msg){msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
-  await renderDisponibilidad();
+  if(!sel||!sel.value){
+    if(msg){msg.textContent="Selecciona tu nombre antes de marcar el estado.";msg.classList.add("err");}
+    if(navigator.vibrate) navigator.vibrate([80,45,80]);
+    return;
+  }
+  const botones=[...document.querySelectorAll(".status-choice")];
+  botones.forEach(b=>{b.classList.remove("operating");b.disabled=true;});
+  if(boton) boton.classList.add("operating");
+  if(navigator.vibrate) navigator.vibrate(55);
+  try{
+    if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,sel.value);
+    const d=await getDisponibilidadHoy();
+    d[sel.value]={estado,desde:new Date().toISOString()};
+    await sSet(dispKey(),d);
+    if(msg){msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
+    await renderDisponibilidad();
+    if(navigator.vibrate) navigator.vibrate([45,35,90]);
+  }catch(e){
+    console.error("No se pudo actualizar disponibilidad",e);
+    if(msg){msg.textContent="No fue posible guardar el estado. Intenta nuevamente.";msg.classList.add("err");}
+    if(navigator.vibrate) navigator.vibrate([120,60,120]);
+  }finally{
+    botones.forEach(b=>{b.disabled=false;b.classList.remove("operating");});
+  }
 }
 async function guardiaDeHoy(){
   const idx=await idxGuardias();
@@ -3571,7 +3604,7 @@ on("miFotoInput","change",e=>{
   rd.readAsDataURL(file);
   e.target.value="";
 });
-document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado)));
+document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado,b)));
 on("actualizarMinuta","click",renderDisponibilidad);
 on("menuToggle","click",()=>{
   const m=document.getElementById("mobileMenu"), b=document.getElementById("menuToggle");
