@@ -2945,9 +2945,15 @@ function mensajeOficialidad(motivo){
   if(motivo==="conexion") return "No fue posible conectar. Verifica tu conexión e inténtalo de nuevo.";
   return "Clave incorrecta.";
 }
+const MODO_PRUEBA_ABIERTO=true;
 function pintarCandado(){
   const cand=document.getElementById("configCandado"), cont=document.getElementById("configContenido");
   if(!cand||!cont) return;
+  if(MODO_PRUEBA_ABIERTO){
+    cand.style.display="none";
+    cont.style.display="block";
+    return;
+  }
   cand.style.display = bajasDesbloqueado ? "none" : "block";
   cont.style.display = bajasDesbloqueado ? "block" : "none";
 }
@@ -3280,8 +3286,83 @@ on("impRestaurar","change",async(e)=>{
   e.target.value="";
 });
 
+/* ============ GERMANIA · DISPONIBILIDAD DIARIA ============ */
+const DISP_PREF_KEY="germania:mi-voluntario";
+const DISP_LABELS={cuartel:"En cuartel",disponible:"Disponible",fuera:"Fuera de Villarrica",no:"No disponible"};
+
+function dispKey(){ return "disponibilidad:"+todayISO(); }
+function cargarMiVoluntario(){
+  const sel=document.getElementById("miVoluntario"); if(!sel) return;
+  const guardado=lsAvailable()?localStorage.getItem(DISP_PREF_KEY):"";
+  sel.innerHTML='<option value="">— seleccionar —</option>'+sortedRoster(false)
+    .map(p=>`<option value="${p.id}">${p.clave?"("+esc(p.clave)+") ":""}${esc(nombreCompleto(p))}</option>`).join("");
+  if(guardado && ROSTER.some(p=>String(p.id)===String(guardado))) sel.value=guardado;
+}
+async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
+async function marcarMiEstado(estado){
+  const sel=document.getElementById("miVoluntario"), msg=document.getElementById("miEstadoMsg");
+  if(!sel||!sel.value){ if(msg){msg.textContent="Selecciona tu nombre antes de marcar el estado.";msg.classList.add("err");} return; }
+  if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,sel.value);
+  const d=await getDisponibilidadHoy();
+  d[sel.value]={estado,desde:new Date().toISOString()};
+  await sSet(dispKey(),d);
+  if(msg){msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
+  await renderDisponibilidad();
+}
+async function guardiaDeHoy(){
+  const idx=await idxGuardias();
+  const it=idx.slice().reverse().find(x=>x.fecha===todayISO());
+  return it?await getGuardia(it.clave):null;
+}
+async function renderDisponibilidad(){
+  const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
+  if(!body||!resumen) return;
+  const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
+  const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
+  const obac=guardia?.oficial?String(guardia.oficial):"";
+  const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0,obac:0};
+  body.innerHTML=sortedRoster(false).map(p=>{
+    const r=d[p.id]||{}, e=r.estado||"";
+    if(e) cuenta[e]=(cuenta[e]||0)+1;
+    if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
+    if((e==="cuartel"||e==="disponible")&&String(p.id)===obac) cuenta.obac++;
+    const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
+    const roles=[p.conductor?"Conductor":"",String(p.id)===obac?"OBAC":""].filter(Boolean).join(" · ")||"—";
+    return `<tr><td class="name-col">${esc(nombreCompleto(p))}</td>
+      <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
+      <td>${desde}</td><td>${guardianes.has(String(p.id))?"Sí":"—"}</td><td>${roles}</td></tr>`;
+  }).join("");
+  resumen.innerHTML=`
+    <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
+    <div class="summary-item"><div class="big">${cuenta.disponible}</div><div class="lbl">Disponibles</div></div>
+    <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
+    <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de Villarrica</div></div>
+    <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>
+    <div class="summary-item"><div class="big">${cuenta.obac}</div><div class="lbl">OBAC disponible</div></div>`;
+  const sel=document.getElementById("miVoluntario");
+  const actual=sel&&sel.value?d[sel.value]:null;
+  document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
+}
+on("miVoluntario","change",async e=>{
+  if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,e.target.value||"");
+  await renderDisponibilidad();
+});
+document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado)));
+on("actualizarMinuta","click",renderDisponibilidad);
+on("menuToggle","click",()=>{
+  const m=document.getElementById("mobileMenu"), b=document.getElementById("menuToggle");
+  const abierto=m.classList.toggle("open"); b.setAttribute("aria-expanded",abierto?"true":"false");
+});
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{
+  const destino=b.dataset.go;
+  if(window.__mostrarPestana) window.__mostrarPestana(destino);
+  const m=document.getElementById("mobileMenu"); if(m) m.classList.remove("open");
+  const t=document.getElementById("menuToggle"); if(t) t.setAttribute("aria-expanded","false");
+}));
+
 /* ============ TABS ============ */
 function switchTabExtra(name){
+  if(name==="germania") renderDisponibilidad();
   if(name==="historial") renderHistorial();
   if(name==="servicio"){
     const f=document.getElementById("svFecha");
@@ -3323,4 +3404,9 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   document.getElementById("anioOficialidad").value=new Date().getFullYear();
   document.getElementById("fecha").value=todayISO();
   await loadListaForSelection();
+  cargarMiVoluntario();
+  await renderDisponibilidad();
+  pintarCandado();
+  if(window.__mostrarPestana) window.__mostrarPestana("germania");
+  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad(); },15000);
 })();
