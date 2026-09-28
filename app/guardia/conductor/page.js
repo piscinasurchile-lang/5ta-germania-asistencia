@@ -1,4 +1,5 @@
 "use client";
+import{useOficial}from"../../../lib/oficialSesion.js";
 import{LOGO_B64}from"../../../lib/logo.js";
 import{useEffect,useState}from"react";
 function hoy(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
@@ -6,7 +7,7 @@ function iso(d){return new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-
 
 export default function Conductor(){
   const[inicio,setInicio]=useState(hoy());
-  const[autor,setAutor]=useState("");
+  const[autor,setAutor]=useOficial();
   const[dias,setDias]=useState([]); // [{fecha,codigo,opciones:[{codigo,nombre}]}]
   const[msg,setMsg]=useState("");
   const[cargando,setCargando]=useState(false);

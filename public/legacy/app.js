@@ -2347,9 +2347,19 @@ on("pnCsv","click",async()=>{
 });
 
 /* ============ OFICIALIDAD ============ */
+function cargosValidos(){ return CARGOS.concat(["Voluntario","Aspirante","Postulante"]); }
+/* Opciones de un <select> de cargo. Si el valor actual no esta en la lista
+   (dato antiguo mal escrito) se conserva visible y marcado, para no perderlo. */
+function cargoSelectOptions(actual){
+  const lista=cargosValidos();
+  const extra=(actual && !lista.includes(actual)) ? `<option value="${esc(actual)}" selected>⚠ ${esc(actual)} (no estándar)</option>` : "";
+  return extra + lista.map(c=>`<option value="${esc(c)}" ${c===actual?"selected":""}>${esc(c)}</option>`).join("");
+}
 function renderCargoOptions(){
-  document.getElementById("cargoOptions").innerHTML =
-    CARGOS.concat(["Voluntario","Aspirante","Postulante"]).map(c=>`<option value="${esc(c)}"></option>`).join("");
+  const dl=document.getElementById("cargoOptions");
+  if(dl) dl.innerHTML=cargosValidos().map(c=>`<option value="${esc(c)}"></option>`).join("");
+  const fi=document.getElementById("fiCargo");
+  if(fi && fi.tagName==="SELECT"){ const cur=fi.value||"Voluntario"; fi.innerHTML=cargoSelectOptions(cur); }
 }
 function renderOficialidad(asignaciones){
   const body=document.getElementById("oficialidadBody"); body.innerHTML="";
@@ -2463,7 +2473,7 @@ on("registrarIngresoBtn","click",async()=>{
   const nuevo=ROSTER.find(m=>m.apellidoPaterno===g("fiApPat")&&m.nombre===g("fiNombre"));
   msg.classList.remove("err");
   msg.textContent=`${g("fiNombre")} ${g("fiApPat")} fue registrado con el N° ${nuevo?nuevo.n:""}.`;
-  ["fiNombre","fiApPat","fiApMat","fiRut","fiNac","fiIngreso","fiOrigen","fiEspecialidad","fiCargo","fiTelefono"].forEach(i=>document.getElementById(i).value="");
+  ["fiNombre","fiApPat","fiApMat","fiRut","fiNac","fiIngreso","fiOrigen","fiEspecialidad","fiCargo","fiTelefono"].forEach(i=>document.getElementById(i).value=""); document.getElementById("fiCargo").value="Voluntario";
   refrescarTodo();
 });
 
@@ -2480,7 +2490,7 @@ function renderCfgRoster(){
       <td><input type="text" data-f="apellidoMaterno" value="${esc(p.apellidoMaterno)}"></td>
       <td><input type="text" data-f="rut" value="${esc(p.rut)}"></td>
       <td><input type="text" data-f="telefono" value="${esc(p.telefono||"")}"></td>
-      <td><input type="text" data-f="cargo" value="${esc(p.cargo)}" list="cargoOptions"></td>
+      <td><select data-f="cargo">${cargoSelectOptions(p.cargo)}</select></td>
       <td><select data-f="categoria">${CATEGORIAS.map(c=>`<option value="${c}" ${p.categoria===c?"selected":""}>${c}</option>`).join("")}</select></td>
       <td><input type="date" data-f="fechaIngreso" value="${esc(p.fechaIngreso||FOUNDING_DATE)}"></td>
       <td><input type="text" data-f="origen" value="${esc(p.origen||"")}" placeholder="Compañía de origen"></td>

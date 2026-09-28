@@ -1,8 +1,9 @@
 "use client";
+import{useOficial}from"../../../lib/oficialSesion.js";
 import {useEffect,useState} from "react";
 const iso=d=>d.toISOString().slice(0,10);
 export default function CalendarioGuardia(){
- const now=new Date(), [desde,setDesde]=useState(iso(new Date(now.getFullYear(),now.getMonth(),1))),[hasta,setHasta]=useState(iso(new Date(now.getFullYear(),now.getMonth()+2,0))),[semanas,setSemanas]=useState([]),[estadosNoche,setEstadosNoche]=useState([]),[oficial,setOficial]=useState(""),[inicio,setInicio]=useState(""),[fin,setFin]=useState(""),[apertura,setApertura]=useState(""),[cierre,setCierre]=useState(""),[msg,setMsg]=useState(""),[enlace,setEnlace]=useState("");
+ const now=new Date(), [desde,setDesde]=useState(iso(new Date(now.getFullYear(),now.getMonth(),1))),[hasta,setHasta]=useState(iso(new Date(now.getFullYear(),now.getMonth()+2,0))),[semanas,setSemanas]=useState([]),[estadosNoche,setEstadosNoche]=useState([]),[oficial,setOficial]=useOficial(),[inicio,setInicio]=useState(""),[fin,setFin]=useState(""),[apertura,setApertura]=useState(""),[cierre,setCierre]=useState(""),[msg,setMsg]=useState(""),[enlace,setEnlace]=useState("");
  async function cargar(d=desde,h=hasta){const r=await fetch(`/api/guardia/semanas?desde=${d}&hasta=${h}`,{cache:"no-store"});const j=await r.json();setSemanas(j.semanas||[]);setEstadosNoche(j.estadosNoche||[])}
  useEffect(()=>{cargar()},[]);
  async function irAMes(nuevo){const nuevoDesde=iso(nuevo),nuevoHasta=iso(new Date(nuevo.getFullYear(),nuevo.getMonth()+2,0));setDesde(nuevoDesde);setHasta(nuevoHasta);await cargar(nuevoDesde,nuevoHasta)}

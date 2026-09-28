@@ -1,4 +1,5 @@
 "use client";
+import{useOficial}from"../../../lib/oficialSesion.js";
 import{LOGO_B64}from"../../../lib/logo.js";
 import{useEffect,useState}from"react";
 
@@ -6,7 +7,7 @@ export default function ConductoresAutorizados(){
   const[lista,setLista]=useState([]);
   const[pendientes,setPendientes]=useState([]);
   const[codigo,setCodigo]=useState("");
-  const[autor,setAutor]=useState("");
+  const[autor,setAutor]=useOficial();
   const[msg,setMsg]=useState("");
   const[cargando,setCargando]=useState(true);
 

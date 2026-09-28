@@ -1,4 +1,5 @@
 "use client";
+import{useOficial}from"../../../lib/oficialSesion.js";
 import{LOGO_B64}from"../../../lib/logo.js";
 import{listarOficiales2026}from"../../../lib/oficialidad-2026";
 import{useEffect,useState}from"react";
@@ -8,7 +9,7 @@ const OFICIALES=listarOficiales2026();
 
 export default function Obac(){
   const[inicio,setInicio]=useState(hoy());
-  const[autor,setAutor]=useState("");
+  const[autor,setAutor]=useOficial();
   const[dias,setDias]=useState([]);
   const[msg,setMsg]=useState("");
   const[cargando,setCargando]=useState(false);
