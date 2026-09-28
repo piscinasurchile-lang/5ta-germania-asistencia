@@ -9,10 +9,16 @@
   "lang": "es-CL",
   "icons": [
     {
-      "src": "/legacy/germania-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/legacy/germania-icon.png",
+      "sizes": "150x167",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/legacy/germania-icon.png",
+      "sizes": "150x167",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
