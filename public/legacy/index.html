@@ -1022,6 +1022,12 @@
         <div class="field-row">
           <div class="field" style="flex:1 1 260px;"><label for="borrarMiembro">Integrante</label><select id="borrarMiembro"></select></div>
         </div>
+        <p class="sub"><strong>Triple validación obligatoria:</strong> Capitán, Secretario y Ayudante deben autorizar la eliminación definitiva. Esta validación no corresponde a una baja, renuncia, traslado o reincorporación.</p>
+        <div class="field-row">
+          <div class="field"><label><input type="checkbox" id="borrarValCapitan"> Validado por Capitán</label></div>
+          <div class="field"><label><input type="checkbox" id="borrarValSecretario"> Validado por Secretario</label></div>
+          <div class="field"><label><input type="checkbox" id="borrarValAyudante"> Validado por Ayudante</label></div>
+        </div>
         <button class="btn" id="borrarMiembroBtn" style="background:#7a1a15;">Eliminar definitivamente</button>
         <div class="status-msg" id="borrarMsg"></div>
       </div>
