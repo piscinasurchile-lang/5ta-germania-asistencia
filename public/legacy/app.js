@@ -1618,6 +1618,16 @@ on("gnConfirmarPeriodo","click",async()=>{
 });
 on("gnEditarPeriodo","click",async()=>{if(!gnEditando)return;const p=await sGet(gnPlanKey(gnEditando),null);if(!p)return;gnPlanDraft={...p,confirmado:false};if(p.tipo==="extraordinaria"){gnModo="extraordinaria";gnExtraDias=new Set(p.dias||[]);}document.getElementById("gnPlanMsg").textContent="Período en edición. Confirma para guardar los cambios.";renderGnPlanner();});
 on("gnAnularPeriodo","click",async()=>{if(!gnEditando)return;const p=await sGet(gnPlanKey(gnEditando),null);if(!p)return;p.estado="suspendida";p.anuladoEn=new Date().toISOString();await gnSavePlan(p);document.getElementById("gnPlanMsg").textContent="Período marcado Suspendida.";gnEditando=null;document.getElementById("gnEditarPeriodo").style.display="none";document.getElementById("gnAnularPeriodo").style.display="none";renderGnPlanner();});
+on("gnCerrarInscripcion","click",async()=>{if(!gnEditando)return;const p=await sGet(gnPlanKey(gnEditando),null);if(!p)return;p.estado="asignacion";p.cierreInscripcionEn=new Date().toISOString();await gnSavePlan(p);document.getElementById("gnPlanMsg").textContent="Inscripción cerrada. Período en Asignación por Oficialidad.";renderGnPlanner();});
+on("gnSuspenderPeriodo","click",async()=>{if(!gnEditando)return;const p=await sGet(gnPlanKey(gnEditando),null);if(!p)return;p.estado="suspendida";p.suspendidoEn=new Date().toISOString();await gnSavePlan(p);document.getElementById("gnPlanMsg").textContent="Guardia Suspendida por Comandancia.";renderGnPlanner();});
+async function renderGnAsignadas(){
+ const box=document.getElementById("gnMisAsignadas"); if(!box)return; const who=document.getElementById("miVoluntario")?.value;
+ if(!who){box.innerHTML='<div class="empty">Selecciona tu nombre para ver tus guardias asignadas.</div>';return;}
+ const idx=await idxGuardias(), rows=[];
+ for(const it of idx){const g=await getGuardia(it.clave);if(!g)continue;const roles=[];if(String(g.oficial||"")===String(who))roles.push("OBAC");if(String(g.conductor||"")===String(who))roles.push("Conductor/Maquinista");if((g.guardianes||[]).some(x=>String(typeof x==="string"?x:x.id)===String(who)))roles.push("Guardián");if(roles.length)rows.push({g,roles});}
+ rows.sort((a,b)=>String(a.g.fechaIng).localeCompare(String(b.g.fechaIng)));
+ box.innerHTML=rows.length?rows.map(r=>`<div class="card" style="padding:12px;margin:8px 0"><b>${gnFmt(r.g.fechaIng)}</b> · ${esc(r.g.horaIng||"23:00")}–${esc(r.g.horaSal||"07:00")}<br><small>${esc(r.roles.join(" · "))}</small></div>`).join(""):'<div class="empty">No tienes guardias asignadas registradas.</div>';
+}
 async function renderGnVoluntario(){
  const box=document.getElementById("gnVolSemana"); if(!box)return;
  const planes=await gnPlanes(); const hoy=todayISO(); const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
@@ -1626,6 +1636,7 @@ async function renderGnVoluntario(){
  box.dataset.inicio=p.inicio;
  box.innerHTML=gnWeek(p.inicio).map((d,i)=>`<button type="button" class="gn-vol-day available ${gnVolSel.has(d)?"selected":""}" data-gn-vol="${d}"><b>${gnFmt(d)}</b><br><small>23:00–07:00</small>${i===4&&p.domingoDiurno?`<br><small>+ Diurna · ${p.lugarDomingo==="cuartel"?"Cuartel":"Domicilio"}</small>`:""}</button>`).join("");
  box.querySelectorAll("[data-gn-vol]").forEach(b=>b.onclick=()=>{const d=b.dataset.gnVol;gnVolSel.has(d)?gnVolSel.delete(d):gnVolSel.add(d);b.classList.toggle("selected",gnVolSel.has(d));});
+ await renderGnAsignadas();
 }
 on("gnVolLimpiar","click",()=>{gnVolSel.clear();document.querySelectorAll("[data-gn-vol]").forEach(x=>x.classList.remove("selected"));});
 on("gnVolConfirmar","click",async()=>{
