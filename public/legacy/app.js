@@ -1663,9 +1663,9 @@ let gnTurno=[];   // {id, estado, motivo, correo, obs, reemplazo}
 
 function normalizaTurno(lista){
   return (lista||[]).map(x=> typeof x==="string"
-    ? {id:x, estado:"cuartel", motivo:"", correo:false, obs:"", reemplazo:""}
+    ? {id:x, estado:"cuartel", motivo:"", correo:false, obs:"", reemplazo:"", reemplazoRegistradoEn:""}
     : {id:x.id, estado:x.estado||"cuartel", motivo:x.motivo||"", correo:!!x.correo,
-       obs:x.obs||"", reemplazo:x.reemplazo||""});
+       obs:x.obs||"", reemplazo:x.reemplazo||"", reemplazoRegistradoEn:x.reemplazoRegistradoEn||""});
 }
 function opcionesVoluntarios(excluir,vacio){
   const ex=new Set(excluir||[]);
@@ -1714,6 +1714,7 @@ function renderGnGuardianes(lista){
         <div class="field" style="flex:1 1 200px;">
           <label>Reemplazado por</label>
           <select data-campo="reemplazo" data-i="${i}">${opcionesVoluntarios(gnTurno.map(x=>x.id),"— sin reemplazo —")}</select>
+          ${g.reemplazoRegistradoEn?`<small style="color:var(--muted);">Cambio registrado: ${new Date(g.reemplazoRegistradoEn).toLocaleString("es-CL")}</small>`:""}
         </div>
       </div>
       <div class="field-row" style="margin-bottom:0;">
@@ -1733,9 +1734,13 @@ function renderGnGuardianes(lista){
   box.querySelectorAll("[data-campo]").forEach(el=>{
     el.addEventListener("change",()=>{
       const i=+el.dataset.i, c=el.dataset.campo;
+      const anterior=gnTurno[i][c];
       gnTurno[i][c] = (c==="correo") ? el.checked : el.value;
-      if(c==="estado") renderGnGuardianes();
-      else contarGuardianes();
+      if(c==="reemplazo" && anterior!==el.value) gnTurno[i].reemplazoRegistradoEn=el.value?new Date().toISOString():"";
+      if(c==="estado"){
+        if(el.value!=="no"){ gnTurno[i].reemplazo=""; gnTurno[i].reemplazoRegistradoEn=""; }
+        renderGnGuardianes();
+      } else contarGuardianes();
     });
     if(el.dataset.campo==="obs") el.addEventListener("input",()=>{ gnTurno[+el.dataset.i].obs=el.value; });
   });
@@ -1752,7 +1757,7 @@ function renderGnGuardianes(lista){
 on("gnAgregarBtn","click",()=>{
   const sel=document.getElementById("gnAgregar");
   if(!sel.value) return;
-  gnTurno.push({id:sel.value,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:""});
+  gnTurno.push({id:sel.value,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""});
   renderGnGuardianes();
 });
 
@@ -1837,12 +1842,13 @@ function gnDocumento(reg){
   const t=normalizaTurno(reg.guardianes);
   const est={cuartel:"En el cuartel",casa:"Desde su casa",no:"No asiste"};
   doc.autoTable({startY:60,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Justif. correo"]],
+    head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Cambio registrado","Justif. correo"]],
     body:t.map(g=>{
       const m=ROSTER.find(x=>x.id===g.id);
       return [m?m.n||"":"", m?m.clave||"—":"—", m?nombreCompleto(m):"—",
               est[g.estado]||"", g.estado==="no"?(g.motivo||"—"):"—",
               g.reemplazo?nombrePorId(g.reemplazo):"—",
+              g.reemplazoRegistradoEn?new Date(g.reemplazoRegistradoEn).toLocaleString("es-CL"):"—",
               g.estado==="no"?(g.correo?"Sí":"No"):"—"];
     })});
   const cubren=cubrenGuardia(reg.guardianes);
