@@ -993,7 +993,7 @@ function renderListaRows(){
     const tr=document.createElement("tr");
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="cargo-col">${esc(p.cargo)}</td>
-      <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">COND</span> `:""}${esc(nombreCompleto(p))}</td>
+      <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">COND</span> `:""}<span class="persona-foto-wrap"><img class="persona-foto" src="${fotoVoluntario(p)}" alt=""><span>${esc(nombreCompleto(p))}</span></span></td>
       <td><div class="seg" data-id="${p.id}">
         <button class="on-presente ${st==='presente'?'active':''}" data-status="presente" ${parteBloqueado?"disabled":""}>Presente</button>
         <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente" ${parteBloqueado?"disabled":""}>Ausente</button>
@@ -1318,7 +1318,7 @@ function renderSvBody(){
     const ac=acronimoCargo(p);
     const tr=document.createElement("tr");
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
-      <td class="name-col">${ac?`<span class="ac">${esc(ac)}</span> `:""}${esc(nombreCompleto(p))}</td>
+      <td class="name-col">${ac?`<span class="ac">${esc(ac)}</span> `:""}<span class="persona-foto-wrap"><img class="persona-foto" src="${fotoVoluntario(p)}" alt=""><span>${esc(nombreCompleto(p))}</span></span></td>
       <td><div class="seg" data-id="${p.id}">
         <button class="on-presente ${st==='si'?'active':''}" data-st="si" ${svBloqueado?"disabled":""}>Concurre</button>
         <button class="on-ausente ${st==='no'?'active':''}" data-st="no" ${svBloqueado?"disabled":""}>No concurre</button>
