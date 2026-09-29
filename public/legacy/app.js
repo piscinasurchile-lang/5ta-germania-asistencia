@@ -2358,8 +2358,12 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
   const idx=await idxGuardias(), por={}; activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0});
   let turnos=0;
   for(const it of idx){
-    if(it.fecha<desde||it.fecha>hasta) continue;
-    const g=await getGuardia(it.clave); if(!g) continue; turnos++;
+    const fecha=it.fecha||"";
+    if(fecha && (fecha<desde||fecha>hasta)) continue;
+    const g=await getGuardia(it.clave); if(!g) continue;
+    const fechaGuardia=g.fechaIng||fecha;
+    if(!fechaGuardia || fechaGuardia<desde || fechaGuardia>hasta) continue;
+    turnos++;
     normalizaTurno(g.guardianes).forEach(x=>{
       if(por[x.id]){ por[x.id].asignadas++; if(x.estado!=="no"){por[x.id].propias++;por[x.id].total++;} else if(x.reemplazo) por[x.id].cedidas++; }
       if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;por[x.reemplazo].total++;}
