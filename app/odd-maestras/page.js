@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import "./odd.css";
+import {LOGO_B64} from "../../lib/logo";
 const TYPES=[["citacion","Citación / Academia / Ejercicio"],["guardia","Guardia Nocturna"],["nomina","Nómina y Claves"],["disposicion","Disposición General"]];
 const today=new Date().toISOString().slice(0,10);
 export default function Page(){
@@ -57,10 +58,12 @@ export default function Page(){
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
    const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
+   const institutionalHead=()=>{d.setFillColor(0,0,0);d.rect(20,10,68,3,"F");d.rect(122,10,68,3,"F");d.setFillColor(190,0,0);d.rect(20,13,68,3,"F");d.rect(122,13,68,3,"F");d.setFillColor(255,205,0);d.rect(20,16,68,3,"F");d.rect(122,16,68,3,"F");try{d.addImage(LOGO_B64,"PNG",94,7,22,24)}catch{}};
+   institutionalHead(); y=35;
    d.setFont("helvetica","bold"); d.setFontSize(12); d.text('Quinta Compañía de Bomberos "Germania" de Villarrica',105,y,{align:"center"}); y+=6;
    d.setFont("helvetica","normal"); d.setFontSize(9); d.text("Fundada el 5 de noviembre de 2025",105,y,{align:"center"}); y+=5;
    d.text("Cuartel General · Valentín Letelier #630 · Villarrica · germaniacbv@gmail.com",105,y,{align:"center"}); y+=9;
-   d.setDrawColor(0); d.setLineWidth(1.2); d.line(20,y,77,y); d.setDrawColor(190,0,0); d.line(77,y,134,y); d.setDrawColor(220,175,0); d.line(134,y,190,y); y+=9;
+   y+=4;
    d.setTextColor(0); d.setFontSize(9); d.text("Villarrica · "+(f.issueDate||""),190,y,{align:"right"}); y+=10;
    d.setFont("helvetica","normal");d.setFontSize(9);const auth=d.splitTextToSize("En uso de las atribuciones conferidas por el Reglamento General del Cuerpo de Bomberos de Villarrica, "+authority+", vengo a dictar lo siguiente:",165);d.text(auth,22,y);y+=auth.length*5+5;d.setFont("helvetica","bold"); d.setFontSize(14); d.text("Orden del Día "+odd,105,y,{align:"center"}); y+=8; d.setFontSize(11); d.text(f.title,105,y,{align:"center",maxWidth:165}); y+=12;
    d.setFont("helvetica","normal"); d.setFontSize(10);
@@ -73,7 +76,7 @@ export default function Page(){
    y+=7; const close=d.splitTextToSize("Tómese razón, distribúyase por medio del correo electrónico institucional, léase y archívese.",165); d.text(close,22,y); y+=22;
    d.setFont("helvetica","bold");if(signers.ayudante){d.text("Francisco Vega Lara",62,y,{align:"center"});d.setFontSize(8);d.text("AYUDANTE",62,y+5,{align:"center"})}if(signers.capitan){d.setFontSize(10);d.text("Fernando Jerez Pantoja",148,y,{align:"center"});d.setFontSize(8);d.text("CAPITÁN",148,y+5,{align:"center"})}if(annexes.length){y+=18;d.setFont("helvetica","bold");d.text("ANEXOS",22,y);d.setFont("helvetica","normal");annexes.forEach((a,i)=>{y+=5;d.text((i+1)+". "+a.name,22,y)})}
    if(type==="guardia"&&guardWeek.length){
-     d.addPage(); let ay=34;
+     d.addPage(); institutionalHead(); let ay=35;
      d.setFont("helvetica","bold");d.setFontSize(11);d.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",105,ay,{align:"center"});ay+=5;
      d.setFont("helvetica","normal");d.setFontSize(9);d.text('Quinta Compañía de Bomberos "Germania" de Villarrica',105,ay,{align:"center"});ay+=5;d.text("Fundada el 5 de noviembre de 2025",105,ay,{align:"center"});ay+=10;
      d.setFont("helvetica","bold");d.setFontSize(10);d.text("Anexo 1",105,ay,{align:"center"});ay+=6;
@@ -81,7 +84,7 @@ export default function Page(){
      for(const g of guardWeek){
        const entries=[["OBAC",g.obac],["Conductor",g.driver],...g.people.map(p=>["Voluntario",p.name])];
        const h=Math.max(19,entries.length*4.4+5);
-       if(ay+h>272){d.addPage();ay=28;d.setFont("helvetica","bold");d.text("Anexo 1 (continuación)",105,ay,{align:"center"});ay+=7}
+       if(ay+h>272){d.addPage();institutionalHead();ay=35;d.setFont("helvetica","bold");d.text("Anexo 1 (continuación)",105,ay,{align:"center"});ay+=7}
        d.setDrawColor(20);d.setLineWidth(.35);d.rect(left,ay,right-left,h);d.line(mid,ay,mid,ay+h);
        d.setFont("helvetica","bold");d.setFontSize(8);d.text(g.date,left+(mid-left)/2,ay+h/2,{align:"center"});
        let ey=ay+5;for(const [role,name] of entries){d.setFont("helvetica","normal");d.setFontSize(7);d.text(role,mid+2,ey);d.text(name,mid+20,ey,{maxWidth:right-mid-22});ey+=4.4}
