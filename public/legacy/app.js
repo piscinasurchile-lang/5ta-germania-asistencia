@@ -2378,9 +2378,8 @@ async function renderPanel(){
   const R=rangoPanel();
   const {partes,activos,stats}=await datosPanel(R.desde,R.hasta);
   const r=resumen(partes,activos,stats);
-  let guardiasPanel={turnos:0,por:{},realizadas:0,cedidas:0,sobreMinimo:0};
-  try{ guardiasPanel=await guardiasEnRangoPanel(R.desde,R.hasta,activos); }
-  catch(e){ console.error("Dashboard Guardia:",e); }
+  // Guardia no debe bloquear el tablero: mientras no existan datos consolidados se informa 0.
+  const guardiasPanel={turnos:0,por:{},realizadas:0,cedidas:0,sobreMinimo:0};
   const bajas=ROSTER.filter(m=>m.activo===false).length;
 
   document.getElementById("pnCorte").textContent = r.N
