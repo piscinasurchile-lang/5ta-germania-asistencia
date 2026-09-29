@@ -47,10 +47,13 @@ export default function Page(){
  const addAnnex=e=>{const files=[...(e.target.files||[])];Promise.all(files.map(file=>new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve({name:file.name,type:file.type,size:file.size,data:String(r.result||"")});r.onerror=()=>resolve({name:file.name,type:file.type,size:file.size,data:""});r.readAsDataURL(file)}))).then(items=>setAnnexes(x=>[...x,...items]));e.target.value=""};
  const persist=(estado)=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto.");return false}
+   if(estado==="emitida"&&type==="nomina"&&!selectedRoster.length){setStatus("No se puede emitir una nómina sin voluntarios seleccionados.");return false}
+   if(estado==="emitida"&&type==="disposicion"&&(!f.seen.trim()||!f.considering.trim()||!f.provisions.trim())){setStatus("Completa VISTOS, CONSIDERANDO y SE DISPONE antes de emitir.");return false}
+   if(estado==="emitida"&&type==="citacion"&&(!f.eventDate||!f.time||!f.place.trim()||!f.topic.trim())){setStatus("Completa fecha, hora, lugar y tema de la citación antes de emitir.");return false}
    if(estado==="emitida"&&type==="guardia"){if(!guardWeek.length){setStatus("Carga primero la programación semanal desde Guardia.");return false}const pending=guardWeek.filter(x=>x.obac==="Sin asignar"||x.driver==="Sin asignar"||!x.complete);if(pending.length){setStatus("No se puede emitir: hay "+pending.length+" noche(s) sin OBAC, conductor o dotación completa.");return false}}
    const key=String(f.year)+"-"+String(f.number).padStart(3,"0");
    if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
-   const rec={key,type,estado,form:f,guardSnapshot:type==="guardia"?guardWeek:null,rosterSnapshot:type==="nomina"?selectedRoster.map(p=>({...p})):null,updatedAt:new Date().toISOString()};
+   const rec={key,type,estado,form:{...f},guardSnapshot:type==="guardia"?guardWeek.map(x=>({...x,people:x.people.map(p=>({...p}))})):null,rosterSnapshot:type==="nomina"?selectedRoster.map(p=>({...p})):null,annexSnapshot:annexes.map(({data,...a})=>a),signerSnapshot:{...signers},updatedAt:new Date().toISOString()};
    const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
    localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next);
    setStatus(estado==="emitida"?"ODD emitida y archivada en este módulo de prueba.":"Borrador guardado."); return true;
