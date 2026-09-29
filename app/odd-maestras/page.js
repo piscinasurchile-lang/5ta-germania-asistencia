@@ -17,12 +17,13 @@ export default function Page(){
  const[loading,setLoading]=useState(false);
  const[pdfUrl,setPdfUrl]=useState("");
  const[signers,setSigners]=useState({capitan:true,ayudante:true});
+ const[officials,setOfficials]=useState({capitan:null,ayudante:null});
  const[annexes,setAnnexes]=useState([]);
  const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
  useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);setArchive(JSON.parse(localStorage.getItem("germania:odd-maestras:v1")||"[]"))}catch{}
    fetch("/api/state/roster:v8",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{
      const list=Array.isArray(x.value)?x.value.filter(p=>p.activo!==false):[];
-     setRoster(list);setSelected(list.map(p=>String(p.clave)));
+     setRoster(list);setSelected(list.map(p=>String(p.clave)));setOfficials({capitan:list.find(p=>String(p.cargo||"").toLowerCase().includes("capit"))||null,ayudante:list.find(p=>String(p.cargo||"").toLowerCase().includes("ayud"))||null});
    }).catch(()=>setStatus("La nómina central no está disponible en este entorno de prueba."));
  },[]);
  const fullName=p=>[p.nombre,p.apellidoPaterno||p.ap,p.apellidoMaterno||p.am].filter(Boolean).join(" ");
@@ -78,7 +79,7 @@ export default function Page(){
    if(type==="disposicion") lines.push("VISTOS:",f.seen||"—","","CONSIDERANDO:",f.considering||"—","","SE DISPONE:",f.provisions||"—");
    for(const block of lines){const wrapped=d.splitTextToSize(block,165); if(y+wrapped.length*5>270){d.addPage();y=20} d.text(wrapped,22,y); y+=Math.max(5,wrapped.length*5)}
    y+=7; const close=d.splitTextToSize("Tómese razón, distribúyase por medio del correo electrónico institucional, léase y archívese.",165); d.text(close,22,y); y+=22;
-   d.setFont("helvetica","bold");if(signers.ayudante){d.text("Francisco Vega Lara",62,y,{align:"center"});d.setFontSize(8);d.text("AYUDANTE",62,y+5,{align:"center"})}if(signers.capitan){d.setFontSize(10);d.text("Fernando Jerez Pantoja",148,y,{align:"center"});d.setFontSize(8);d.text("CAPITÁN",148,y+5,{align:"center"})}if(annexes.length){y+=18;d.setFont("helvetica","bold");d.text("ANEXOS",22,y);d.setFont("helvetica","normal");annexes.forEach((a,i)=>{y+=5;d.text((i+1)+". "+a.name,22,y)})}
+   d.setFont("helvetica","bold");if(signers.ayudante){d.text(fullName(officials.ayudante)||"AYUDANTE",62,y,{align:"center"});d.setFontSize(8);d.text("AYUDANTE",62,y+5,{align:"center"})}if(signers.capitan){d.setFontSize(10);d.text(fullName(officials.capitan)||"CAPITÁN",148,y,{align:"center"});d.setFontSize(8);d.text("CAPITÁN",148,y+5,{align:"center"})}if(annexes.length){y+=18;d.setFont("helvetica","bold");d.text("ANEXOS",22,y);d.setFont("helvetica","normal");annexes.forEach((a,i)=>{y+=5;d.text((i+1)+". "+a.name,22,y)})}
    if(type==="nomina"&&selectedRoster.length){
      const cols=[["Clave",18],["Nombre",25],["A. Paterno",30],["A. Materno",28],["Rut",28],["Cargo",29],["Teléfono",32]],x0=10;
      let ty=type==="nomina"?Math.max(y+5,72):72;
