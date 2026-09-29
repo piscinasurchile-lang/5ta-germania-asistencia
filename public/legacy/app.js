@@ -1663,9 +1663,9 @@ let gnTurno=[];   // {id, estado, motivo, correo, obs, reemplazo}
 
 function normalizaTurno(lista){
   return (lista||[]).map(x=> typeof x==="string"
-    ? {id:x, estado:"cuartel", motivo:"", correo:false, obs:"", reemplazo:""}
+    ? {id:x, estado:"cuartel", motivo:"", correo:false, obs:"", reemplazo:"", reemplazoRegistradoEn:""}
     : {id:x.id, estado:x.estado||"cuartel", motivo:x.motivo||"", correo:!!x.correo,
-       obs:x.obs||"", reemplazo:x.reemplazo||""});
+       obs:x.obs||"", reemplazo:x.reemplazo||"", reemplazoRegistradoEn:x.reemplazoRegistradoEn||""});
 }
 function opcionesVoluntarios(excluir,vacio){
   const ex=new Set(excluir||[]);
@@ -1714,6 +1714,7 @@ function renderGnGuardianes(lista){
         <div class="field" style="flex:1 1 200px;">
           <label>Reemplazado por</label>
           <select data-campo="reemplazo" data-i="${i}">${opcionesVoluntarios(gnTurno.map(x=>x.id),"— sin reemplazo —")}</select>
+          ${g.reemplazoRegistradoEn?`<small style="color:var(--muted);">Cambio registrado: ${new Date(g.reemplazoRegistradoEn).toLocaleString("es-CL")}</small>`:""}
         </div>
       </div>
       <div class="field-row" style="margin-bottom:0;">
@@ -1733,9 +1734,13 @@ function renderGnGuardianes(lista){
   box.querySelectorAll("[data-campo]").forEach(el=>{
     el.addEventListener("change",()=>{
       const i=+el.dataset.i, c=el.dataset.campo;
+      const anterior=gnTurno[i][c];
       gnTurno[i][c] = (c==="correo") ? el.checked : el.value;
-      if(c==="estado") renderGnGuardianes();
-      else contarGuardianes();
+      if(c==="reemplazo" && anterior!==el.value) gnTurno[i].reemplazoRegistradoEn=el.value?new Date().toISOString():"";
+      if(c==="estado"){
+        if(el.value!=="no"){ gnTurno[i].reemplazo=""; gnTurno[i].reemplazoRegistradoEn=""; }
+        renderGnGuardianes();
+      } else contarGuardianes();
     });
     if(el.dataset.campo==="obs") el.addEventListener("input",()=>{ gnTurno[+el.dataset.i].obs=el.value; });
   });
@@ -1752,7 +1757,7 @@ function renderGnGuardianes(lista){
 on("gnAgregarBtn","click",()=>{
   const sel=document.getElementById("gnAgregar");
   if(!sel.value) return;
-  gnTurno.push({id:sel.value,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:""});
+  gnTurno.push({id:sel.value,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""});
   renderGnGuardianes();
 });
 
@@ -1837,12 +1842,13 @@ function gnDocumento(reg){
   const t=normalizaTurno(reg.guardianes);
   const est={cuartel:"En el cuartel",casa:"Desde su casa",no:"No asiste"};
   doc.autoTable({startY:60,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Justif. correo"]],
+    head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Cambio registrado","Justif. correo"]],
     body:t.map(g=>{
       const m=ROSTER.find(x=>x.id===g.id);
       return [m?m.n||"":"", m?m.clave||"—":"—", m?nombreCompleto(m):"—",
               est[g.estado]||"", g.estado==="no"?(g.motivo||"—"):"—",
               g.reemplazo?nombrePorId(g.reemplazo):"—",
+              g.reemplazoRegistradoEn?new Date(g.reemplazoRegistradoEn).toLocaleString("es-CL"):"—",
               g.estado==="no"?(g.correo?"Sí":"No"):"—"];
     })});
   const cubren=cubrenGuardia(reg.guardianes);
@@ -2348,11 +2354,27 @@ function resumen(partes, activos, stats){
   return {N,totPres,posibles,global:pct(totPres,posibles),tipos,meses,porPersona,mediana,conv};
 }
 
+async function guardiasEnRangoPanel(desde,hasta,activos){
+  const idx=await idxGuardias(), por={}; activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0});
+  let turnos=0;
+  for(const it of idx){
+    if(it.fecha<desde||it.fecha>hasta) continue;
+    const g=await getGuardia(it.clave); if(!g) continue; turnos++;
+    normalizaTurno(g.guardianes).forEach(x=>{
+      if(por[x.id]){ por[x.id].asignadas++; if(x.estado!=="no"){por[x.id].propias++;por[x.id].total++;} else if(x.reemplazo) por[x.id].cedidas++; }
+      if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;por[x.reemplazo].total++;}
+    });
+  }
+  const v=Object.values(por);
+  return {turnos,por,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),sobreMinimo:v.filter(x=>x.total>2).length};
+}
+
 async function renderPanel(){
   await poblarSelectoresPanel();
   const R=rangoPanel();
   const {partes,activos,stats}=await datosPanel(R.desde,R.hasta);
   const r=resumen(partes,activos,stats);
+  const guardiasPanel=await guardiasEnRangoPanel(R.desde,R.hasta,activos);
   const bajas=ROSTER.filter(m=>m.activo===false).length;
 
   document.getElementById("pnCorte").textContent = r.N
@@ -2381,7 +2403,7 @@ async function renderPanel(){
     <div class="kpi"><div class="v">${ROSTER.length}</div><div class="l">Dotación listada</div></div>
     <div class="kpi alto"><div class="v">${activos.length}</div><div class="l">Voluntarios activos</div></div>
     <div class="kpi bajo"><div class="v">${bajas}</div><div class="l">Bajas</div></div>
-    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>`;
+    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>\n    <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias registradas</div></div>\n    <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Promedio por actividad</div></div>\n    <div class="kpi"><div class="v">${guardiasPanel.turnos}</div><div class="l">Turnos Guardia registrados</div></div>\n    <div class="kpi alto"><div class="v">${guardiasPanel.realizadas}</div><div class="l">Guardias realizadas</div></div>\n    <div class="kpi medio"><div class="v">${guardiasPanel.sobreMinimo}</div><div class="l">Voluntarios con más de 2 guardias</div></div>\n    <div class="kpi bajo"><div class="v">${guardiasPanel.cedidas}</div><div class="l">Guardias cedidas</div></div>`;
 
   const listaT=Object.entries(r.tipos).map(([t,d])=>({t,n:d.n,pres:d.pres,tasa:pct(d.pres,d.n*activos.length)}))
                 .sort((a,b)=>b.n-a.n);
@@ -2406,11 +2428,10 @@ async function renderPanel(){
     </div>`;
 
   const clavesM=Object.keys(r.meses).map(Number).sort((a,b)=>a-b);
-  const maxN=Math.max(...clavesM.map(m=>r.meses[m].n));
   let htmlM=clavesM.map(m=>{
     const t=pct(r.meses[m].pres,r.meses[m].n*activos.length);
     return `<div class="barra"><div class="et">${MESES_NOM[m-1]}<br><span style="color:var(--muted);font-size:11.5px;">${r.meses[m].n} act.</span></div>
-      <div class="tr"><div style="width:${pct(r.meses[m].n,maxN).toFixed(0)}%;background:var(--gold);"></div></div>
+      <div class="tr"><div style="width:${t.toFixed(1)}%;background:var(--gold);"></div></div>
       <div class="vl">${t.toFixed(1)}%</div></div>`;
   }).join("");
   if(clavesM.length>1){
@@ -2432,8 +2453,10 @@ async function renderPanel(){
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
       <td class="cargo-col">${esc(x.m.cargo)}</td>
       <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
-  document.getElementById("pnRanking").innerHTML=`
-    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
+  const filaG=x=>{ const g=guardiasPanel.por[x.m.id]||{asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0}; return `<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>${g.asignadas}</td><td>${g.propias}</td><td>${g.reemplazos}</td><td>${g.cedidas}</td><td><b>${g.total}</b></td></tr>`; };
+  const rankingGuardia=r.porPersona.slice().sort((a,b)=>(guardiasPanel.por[b.m.id]?.total||0)-(guardiasPanel.por[a.m.id]?.total||0));
+  const tablaGuardia=`<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Reemplazos</th><th>Cedidas</th><th>Total</th></tr></thead><tbody>${rankingGuardia.map(filaG).join("")}</tbody></table>`;
+  document.getElementById("pnRanking").innerHTML=tablaGuardia+`\n    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
     <h3>Menor asistencia</h3><table><tbody>${r.porPersona.slice(-5).reverse().map(fila).join("")}</tbody></table>`;
 
   const filaC=x=>`<tr><td>${x.pt.date}</td><td class="name-col">${esc(x.pt.tipo)}${x.pt.detalle?" · "+esc(x.pt.detalle):""}</td>
@@ -2630,7 +2653,7 @@ ${tipos.length>1?`<div class="nota mal"><b>Brecha principal:</b> ${esc(peor.t)} 
 <div class="sec"><h3>4. EVOLUCIÓN MENSUAL</h3><div class="in">
 ${mk.map(m=>{const t=pct(r.meses[m].pres,r.meses[m].n*activos.length);
 return `<div class="bar"><div class="et" style="flex:0 0 30%">${MESES_NOM[m-1]}<i>${r.meses[m].n} act.</i></div>
-<div class="tr"><div style="width:${(r.meses[m].n/maxMes*100).toFixed(0)}%"></div></div><div class="vl">${f1(t)}%</div></div>`}).join("")}
+<div class="tr"><div style="width:${t.toFixed(1)}%"></div></div><div class="vl">${f1(t)}%</div></div>`}).join("")}
 ${mejorMes?`<div class="nota bien"><b>${MESES_NOM[mejorMes-1]}</b> presenta la mayor tasa: <b>${f1(pct(r.meses[mejorMes].pres,r.meses[mejorMes].n*activos.length))}%</b>.</div>`:""}
 </div></div></div>
 
