@@ -285,39 +285,50 @@ function acronimoCargo(p){
 }
 function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "); }
 
-/* Almacenamiento: navegador (localStorage) con respaldo en memoria.
-   No se usa el almacenamiento del visor porque genera errores en algunos entornos. */
-const MEM={};
+/* Persistencia institucional: el servidor/Neon es la única fuente de verdad.
+   Nunca se recuperan datos operativos desde localStorage, sessionStorage o memoria local. */
 let STORAGE_MODE="pendiente";
-function lsAvailable(){
-  try{ const k="__t"; window.localStorage.setItem(k,"1"); window.localStorage.removeItem(k); return true; }
-  catch(e){ return false; }
-}
+function lsAvailable(){ return false; }
 async function sGet(k,f){
+  let r;
   try{
-    const r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
-    if(r.ok){ const data=await r.json(); if(data.value!==null && data.value!==undefined){ MEM[k]=JSON.stringify(data.value); STORAGE_MODE="servidor"; return data.value; } }
-  }catch(e){}
-  if(lsAvailable()){
-    try{ const v=window.localStorage.getItem(k); if(v!=null) return JSON.parse(v); }catch(e){}
+    r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
+  }catch(error){
+    STORAGE_MODE="sin-conexion";
+    actualizarAvisoAlmacenamiento();
+    throw new Error("GERMANIA no pudo consultar la base central.");
   }
-  if(Object.prototype.hasOwnProperty.call(MEM,k)){
-    try{ return JSON.parse(MEM[k]); }catch(e){}
+  if(!r.ok){
+    STORAGE_MODE="sin-conexion";
+    actualizarAvisoAlmacenamiento();
+    throw new Error("GERMANIA no pudo consultar la base central ("+r.status+").");
   }
-  return f;
+  const data=await r.json();
+  STORAGE_MODE="servidor";
+  actualizarAvisoAlmacenamiento();
+  return data.value!==null && data.value!==undefined ? data.value : f;
 }
 const TEST_MODE_KEY="germania:test-mode:v1";
 const TEST_BASELINE_KEY="germania:test-baseline:v1";
 const TEST_AUDIT_KEY="germania:test-audit:v1";
 let TEST_INTERNAL_WRITE=false;
 async function rawSet(k,v){
-  const s=JSON.stringify(v); MEM[k]=s;
-  if(lsAvailable()){ try{ window.localStorage.setItem(k,s); }catch(e){} }
+  let r;
   try{
-    const r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})});
-    if(r.ok){ STORAGE_MODE="servidor"; actualizarAvisoAlmacenamiento(); return true; }
-  }catch(e){}
-  STORAGE_MODE=lsAvailable()?"navegador":"memoria"; actualizarAvisoAlmacenamiento(); return true;
+    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})});
+  }catch(error){
+    STORAGE_MODE="sin-conexion";
+    actualizarAvisoAlmacenamiento();
+    throw new Error("GERMANIA no pudo guardar en la base central.");
+  }
+  if(!r.ok){
+    STORAGE_MODE="sin-conexion";
+    actualizarAvisoAlmacenamiento();
+    throw new Error("GERMANIA no pudo guardar en la base central ("+r.status+").");
+  }
+  STORAGE_MODE="servidor";
+  actualizarAvisoAlmacenamiento();
+  return true;
 }
 async function testModeActivo(){ return (await sGet(TEST_MODE_KEY,{activo:true})).activo!==false; }
 async function registrarUso(tipo,detalle){
@@ -3546,7 +3557,6 @@ async function marcarMiEstado(estado,boton){
   if(boton) boton.classList.add("operating");
   if(navigator.vibrate) navigator.vibrate(55);
   try{
-    if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,sel.value);
     const d=await getDisponibilidadHoy();
     d[sel.value]={estado,desde:new Date().toISOString()};
     await sSet(dispKey(),d);
@@ -3597,7 +3607,6 @@ async function renderDisponibilidad(){
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
 }
 on("miVoluntario","change",async e=>{
-  if(lsAvailable()) localStorage.setItem(DISP_PREF_KEY,e.target.value||"");
   refrescarIdentidadVoluntario();
   await renderDisponibilidad();
 });
