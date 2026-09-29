@@ -142,7 +142,7 @@ function on(id,evento,fn){
       s.classList.add("active");
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
-      if(s.dataset.sub==="odd" && typeof initOdd==="function") initOdd();
+      if(s.dataset.sub==="odd"){ window.top.location.href="/odd-maestras"; return; }
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
       if(s.dataset.sub==="alertas" && typeof renderAlertas==="function") renderAlertas();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
