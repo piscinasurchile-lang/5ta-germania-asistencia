@@ -590,6 +590,8 @@
         </section>
         <section class="gn-config">
           <h3>Configuración del período</h3>
+          <div class="seg" id="gnModoPeriodo"><button type="button" data-gn-modo="normal" class="active">Semana normal</button><button type="button" data-gn-modo="extraordinaria">Guardia extraordinaria</button></div>
+          <div id="gnExtraWrap" style="display:none;margin:12px 0"><label for="gnExtraNombre">Motivo / actividad</label><input id="gnExtraNombre" placeholder="Ej: Feria Aérea, Navidad, Año Nuevo"><p class="sub" style="margin-top:6px">Selecciona uno o más días en el calendario. Las fechas pueden ser no consecutivas.</p></div>
           <div id="gnPeriodoResumen" class="gn-period-box">Toca un miércoles para seleccionar la semana.</div>
           <label class="gn-switch"><input type="checkbox" id="gnDomingoDiurno"> <span>Guardia diurna domingo</span></label>
           <div id="gnDomingoOpciones" style="display:none">
@@ -597,7 +599,7 @@
             <div class="seg"><button type="button" data-gn-lugar="domicilio" class="active">Domicilio</button><button type="button" data-gn-lugar="cuartel">Cuartel</button></div>
             <div id="gnActividadWrap" style="display:none;margin-top:10px"><label for="gnActividad">Actividad en cuartel</label><input id="gnActividad" placeholder="Mantención B-5, revisión de equipos, marcado de herramientas…"></div>
           </div>
-          <div class="gn-actions"><button class="btn secondary" id="gnBorrarSemana">Borrar semana</button><button class="btn" id="gnConfirmarPeriodo">Confirmar período</button></div>
+          <div class="gn-actions"><button class="btn secondary" id="gnBorrarSemana">Borrar semana</button><button class="btn secondary" id="gnEditarPeriodo" style="display:none">Editar período</button><button class="btn secondary" id="gnCerrarInscripcion">Cerrar inscripción / Asignación</button><button class="btn secondary" id="gnSuspenderPeriodo">Suspender por Comandancia</button><button class="btn secondary" id="gnAnularPeriodo" style="display:none">Anular período</button><button class="btn" id="gnConfirmarPeriodo">Confirmar período</button></div>
           <div class="status-msg" id="gnPlanMsg"></div>
         </section>
       </div>
@@ -609,6 +611,8 @@
       <div id="gnVolSemana" class="gn-vol-week"></div>
       <div class="gn-actions"><button class="btn secondary" id="gnVolLimpiar">Limpiar selección</button><button class="btn" id="gnVolConfirmar">Confirmar mi disponibilidad</button></div>
       <div class="status-msg" id="gnVolMsg"></div>
+      <h3 style="margin-top:18px">Mis guardias asignadas</h3>
+      <div id="gnMisAsignadas"></div>
     </div>
 
     <div class="card">
