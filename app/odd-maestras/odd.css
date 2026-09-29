@@ -16,3 +16,16 @@
 .guardGate{margin:12px 0;padding:12px;border:1px solid #2d4653;border-radius:9px;background:#0b1b24;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.guardGate>b{width:100%;font-size:13px}.guardGate>span{padding:6px 9px;border-radius:999px;font-size:11px;font-weight:800}.guardGate>span.ok{background:#173d2c;color:#83e0aa}.guardGate>span.bad{background:#4a211f;color:#ffaaa3}.guardGate>div{width:100%;display:flex;gap:7px;flex-wrap:wrap}.guardGate a{color:#fff;text-decoration:none;background:#223845;border:1px solid #3c5968;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:800}@media(max-width:620px){.guardGate a{flex:1;text-align:center;min-width:120px}}
 
 .pdfPreview{min-height:760px;display:flex;flex-direction:column;gap:8px}.pdfPreview iframe{width:100%;min-height:720px;border:0;border-radius:6px;background:#555}.pdfPreview button{align-self:flex-end;border:1px solid #c8d1d8;background:#fff;color:#17202a;border-radius:7px;padding:8px 12px;font-weight:700}@media(max-width:900px){.pdfPreview,.pdfPreview iframe{min-height:620px}}
+
+/* Unificación visual GERMANIA */
+.oddShell{background:#10191d;color:#f4f3ed}
+.oddTop{background:#202c30;border-bottom:2px solid #d64b52;min-height:72px;height:auto}
+.oddTop b{color:#f0c51d}.oddTop a{padding:10px 14px;border:1px solid #45565d;border-radius:9px;background:#172226;font-weight:800}
+.card{background:#1c292d;border-color:#3a4b50}
+.field input,.field select,.field textarea,.guardLoaded,.signControls label{background:#111b1f;border-color:#45565d}
+.oddTypes button{background:#f4f3ed;border-color:#c8cecf}
+.oddTypes button.active{background:#fff3f3;border-color:#d64b52;color:#b51f28}
+.topActions .pdfTop{background:#d64b52;border-color:#d64b52}
+.status{border-color:#d5ad22}
+.pdfPreview iframe{width:100%;min-height:760px;border:0;background:#fff;border-radius:6px}
+.pdfPreview button{margin-top:10px;border:1px solid #45565d;background:#172226;color:#f4f3ed;border-radius:8px;padding:10px 14px;font-weight:800;cursor:pointer}
