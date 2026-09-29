@@ -3501,6 +3501,8 @@ function dispKey(){ return "disponibilidad:"+todayISO(); }
 function fotoKey(id){ return "germania:foto:"+id; }
 const FOTOS_OFICIALES_POR_RUT={
   "15.243.920-2":"/legacy/voluntarios/karam-puali-lopez.webp",
+  "15.590310-4":"/legacy/voluntarios/fernando-jerez-pantoja.webp",
+  "20.256.703-7":"/legacy/voluntarios/matias-corvalan-garrido.webp",
   "14.413.688-8":"/legacy/voluntarios/susumu-sugiura-aguilar.webp",
   "8.905.167-3":"/legacy/voluntarios/mathias-von-leyser-jux.webp",
   "10.566.726-4":"/legacy/voluntarios/christian-vergara-sandoval.webp",
