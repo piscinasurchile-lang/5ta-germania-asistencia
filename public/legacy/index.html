@@ -780,42 +780,7 @@
       <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
     </div>
 
-    <!-- ODD MAESTRAS -->
-    <div class="subpanel active" id="sub-odd">
-      <div class="card">
-        <h2>ODD · Órdenes del Día</h2>
-        <p class="sub">Acceso principal de Oficialidad. Crea, numera, archiva e imprime Órdenes del Día sin modificar directamente la base maestra hasta que un Oficial confirme cualquier efecto sobre nómina, cargos, Guardia, Asistencia o Hoja de Vida.</p>
-        <div class="field-row">
-          <div class="field"><label for="oddAnio">Año</label><input id="oddAnio" type="number" min="2025" max="2100"></div>
-          <div class="field"><label for="oddNumero">Nº ODD</label><input id="oddNumero" type="number" min="1"></div>
-          <div class="field"><label for="oddFecha">Fecha</label><input id="oddFecha" type="date"></div>
-          <div class="field"><label for="oddTipo">Tipo</label><select id="oddTipo"><option>General / disposición</option><option>Citación / academia</option><option>Guardia nocturna</option><option>Oficialidad / nombramiento</option><option>Subrogación</option><option>Nómina y claves</option><option>Baja / reincorporación</option><option>Otro</option></select></div>
-        </div>
-        <div class="field-row">
-          <div class="field" style="flex:1 1 100%"><label for="oddTitulo">Asunto / título</label><input id="oddTitulo" placeholder="Ej.: Cítese a academia / Guardia Nocturna / Nueva Oficialidad"></div>
-        </div>
-        <div class="field-row">
-          <div class="field" style="flex:1 1 100%"><label for="oddCuerpo">Contenido</label><textarea id="oddCuerpo" rows="10" placeholder="Redacta aquí el contenido de la Orden del Día."></textarea></div>
-        </div>
-        <div class="field-row">
-          <div class="field" style="flex:1 1 100%"><label for="oddDestinatarios">Distribución / destinatarios</label><input id="oddDestinatarios" placeholder="Compañía, Comandancia, otra Compañía, correo..."></div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn" id="oddGuardarBorrador">Guardar borrador</button>
-          <button class="btn gold" id="oddEmitir">Emitir y archivar</button>
-          <button class="btn" id="oddImprimir">Imprimir / PDF</button>
-          <button class="btn" id="oddCompartir">Compartir</button>
-        </div>
-        <div class="foot-note" id="oddMsg"></div>
-      </div>
-      <div class="card">
-        <h2>Archivo correlativo</h2>
-        <p class="sub">El correlativo es anual. Una ODD emitida queda archivada y puede vincularse como respaldo a varios registros sin duplicar el documento.</p>
-        <div id="oddArchivo"></div>
-      </div>
-    </div>
-
-    <!-- OFICIALIDAD -->
+    <!-- ODD legacy retirado: acceso único mediante /odd-maestras -->
     <div class="subpanel" id="sub-oficialidad">
       <div class="card">
         <h2>Oficialidad</h2>
