@@ -1554,6 +1554,75 @@ on("svWaBtn","click",async()=>{
   if(!shared) window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");
 });
 
+/* ============ PLANIFICACIÓN INTEGRAL DE GUARDIA ============ */
+const GN_PLAN_INDEX="guardia-plan:index";
+let gnPlanMes=new Date(), gnPlanDraft=null, gnVolSel=new Set();
+
+function gnISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,10); }
+function gnAdd(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return gnISO(d); }
+function gnPlanKey(ini){ return "guardia-plan:"+ini; }
+async function gnPlanes(){ const idx=await sGet(GN_PLAN_INDEX,[]), out=[]; for(const x of idx){ const p=await sGet(gnPlanKey(x),null); if(p) out.push(p); } return out; }
+async function gnSavePlan(p){ await sSet(gnPlanKey(p.inicio),p); const idx=await sGet(GN_PLAN_INDEX,[]); if(!idx.includes(p.inicio)){ idx.push(p.inicio); idx.sort(); await sSet(GN_PLAN_INDEX,idx); } }
+function gnWeek(ini){ return Array.from({length:7},(_,i)=>gnAdd(ini,i)); }
+function gnFmt(iso){ return new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"}); }
+
+async function renderGnPlanner(){
+ const cal=document.getElementById("gnCalendario"); if(!cal) return;
+ const y=gnPlanMes.getFullYear(),m=gnPlanMes.getMonth();
+ document.getElementById("gnMesTitulo").textContent=new Date(y,m,1).toLocaleDateString("es-CL",{month:"long",year:"numeric"});
+ const planes=await gnPlanes(); const byDay={};
+ planes.forEach(p=>gnWeek(p.inicio).forEach((d,i)=>{byDay[d]={p,i};}));
+ const first=new Date(y,m,1), offset=(first.getDay()+6)%7, begin=new Date(y,m,1-offset);
+ let html="";
+ for(let i=0;i<42;i++){ const d=new Date(begin); d.setDate(begin.getDate()+i); const iso=gnISO(d), rec=byDay[iso]; let cls="gn-day"+(d.getMonth()!==m?" other":"");
+   let mini="";
+   if(rec){ const p=rec.p; if(p.estado==="suspendida"){cls+=" red";mini="Suspendida";} else if(p.estado==="asignacion"){cls+=" red";mini="Asignación";} else if(p.estado==="abierta"){cls+=" open";mini="Inscripción";} else {cls+=" plan"; if(p.completa) cls+=" complete"; mini="Nocturna";}
+     if(rec.i===4 && p.domingoDiurno){ cls=cls.replace(/\bplan\b|\bopen\b/g,"")+" mixed"; mini="Nocturna + Diurna"; }
+   }
+   if(gnPlanDraft && gnWeek(gnPlanDraft.inicio).includes(iso)){cls=cls.replace(/\bopen\b|\bred\b/g,"")+" plan"; if(iso===gnAdd(gnPlanDraft.inicio,4)&&gnPlanDraft.domingoDiurno) cls+=" mixed";}
+   html+=`<button type="button" class="${cls}" data-gn-date="${iso}">${d.getDate()}<span class="mini">${mini}</span></button>`;
+ }
+ cal.innerHTML=html;
+ cal.querySelectorAll("[data-gn-date]").forEach(b=>b.onclick=()=>gnElegirSemana(b.dataset.gnDate));
+ renderGnPeriodo(); await renderGnVoluntario();
+}
+function gnElegirSemana(iso){
+ const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ const msg=document.getElementById("gnPlanMsg"); msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
+ gnPlanDraft={inicio:iso,fin:gnAdd(iso,7),domingoDiurno:false,lugarDomingo:"domicilio",actividad:"",estado:"planificacion",confirmado:false};
+ document.getElementById("gnDomingoDiurno").checked=false; document.getElementById("gnDomingoOpciones").style.display="none"; renderGnPlanner();
+}
+function renderGnPeriodo(){
+ const box=document.getElementById("gnPeriodoResumen"); if(!box) return;
+ if(!gnPlanDraft){box.textContent="Toca un miércoles para seleccionar la semana.";return;}
+ box.innerHTML=`<b>Período seleccionado</b><br>${gnFmt(gnPlanDraft.inicio)} 23:00 → ${gnFmt(gnPlanDraft.fin)} 07:00<br><small>7 turnos de Guardia Nocturna${gnPlanDraft.domingoDiurno?" + Guardia Diurna domingo":""}</small>`;
+}
+on("gnPrevMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()-1,1);renderGnPlanner();});
+on("gnNextMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()+1,1);renderGnPlanner();});
+on("gnBorrarSemana","click",()=>{gnPlanDraft=null;document.getElementById("gnDomingoDiurno").checked=false;document.getElementById("gnDomingoOpciones").style.display="none";document.getElementById("gnPlanMsg").textContent="Selección borrada.";renderGnPlanner();});
+on("gnDomingoDiurno","change",e=>{if(!gnPlanDraft){e.target.checked=false;return;}gnPlanDraft.domingoDiurno=e.target.checked;document.getElementById("gnDomingoOpciones").style.display=e.target.checked?"block":"none";renderGnPlanner();});
+document.querySelectorAll("[data-gn-lugar]").forEach(b=>b.addEventListener("click",()=>{if(!gnPlanDraft)return;gnPlanDraft.lugarDomingo=b.dataset.gnLugar;document.querySelectorAll("[data-gn-lugar]").forEach(x=>x.classList.toggle("active",x===b));document.getElementById("gnActividadWrap").style.display=b.dataset.gnLugar==="cuartel"?"block":"none";}));
+on("gnActividad","input",e=>{if(gnPlanDraft)gnPlanDraft.actividad=e.target.value;});
+on("gnConfirmarPeriodo","click",async()=>{
+ const msg=document.getElementById("gnPlanMsg"); if(!gnPlanDraft){msg.textContent="Selecciona primero un miércoles.";return;}
+ const p={...gnPlanDraft,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"23:00",horaFin:"07:00"};
+ await gnSavePlan(p); gnPlanDraft=null; msg.textContent="Período confirmado. Inscripción abierta."; await renderGnPlanner();
+});
+async function renderGnVoluntario(){
+ const box=document.getElementById("gnVolSemana"); if(!box)return;
+ const planes=await gnPlanes(); const hoy=todayISO(); const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+ if(!p){box.innerHTML='<div class="empty">No hay una semana con inscripción abierta.</div>';return;}
+ const who=document.getElementById("miVoluntario")?.value; const saved=who?await sGet("guardia-inscripcion:"+p.inicio+":"+who,[]):[]; gnVolSel=new Set(saved);
+ box.dataset.inicio=p.inicio;
+ box.innerHTML=gnWeek(p.inicio).map((d,i)=>`<button type="button" class="gn-vol-day available ${gnVolSel.has(d)?"selected":""}" data-gn-vol="${d}"><b>${gnFmt(d)}</b><br><small>23:00–07:00</small>${i===4&&p.domingoDiurno?`<br><small>+ Diurna · ${p.lugarDomingo==="cuartel"?"Cuartel":"Domicilio"}</small>`:""}</button>`).join("");
+ box.querySelectorAll("[data-gn-vol]").forEach(b=>b.onclick=()=>{const d=b.dataset.gnVol;gnVolSel.has(d)?gnVolSel.delete(d):gnVolSel.add(d);b.classList.toggle("selected",gnVolSel.has(d));});
+}
+on("gnVolLimpiar","click",()=>{gnVolSel.clear();document.querySelectorAll("[data-gn-vol]").forEach(x=>x.classList.remove("selected"));});
+on("gnVolConfirmar","click",async()=>{
+ const msg=document.getElementById("gnVolMsg"),who=document.getElementById("miVoluntario")?.value,ini=document.getElementById("gnVolSemana")?.dataset.inicio;
+ if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<2){msg.textContent="Debes seleccionar al menos 2 noches.";return;}
+ await sSet("guardia-inscripcion:"+ini+":"+who,[...gnVolSel].sort()); msg.textContent="Disponibilidad guardada en GERMANIA."; 
+});
+
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
@@ -1713,7 +1782,7 @@ async function cargarGuardia(){
     document.getElementById("gnHoraSal").value=ex.horaSal||"";
     document.getElementById("gnNovedades").value=ex.novedades||"";
     renderGnOficial();
-    document.getElementById("gnOficial").value=ex.oficial||"";
+    document.getElementById("gnOficial").value=ex.oficial||""; const gc=document.getElementById("gnConductor"); if(gc) gc.value=ex.conductor||"";
     renderGnGuardianes(ex.guardianes||[]);
     msg.textContent="Ya existe una guardia registrada para esta fecha y hora. Puedes editarla.";
   } else {
@@ -1792,7 +1861,7 @@ on("gnPdfBtn","click",async()=>{
   const f=document.getElementById("gnFechaIng").value;
   const reg={fechaIng:f,horaIng:document.getElementById("gnHoraIng").value,
     fechaSal:document.getElementById("gnFechaSal").value,horaSal:document.getElementById("gnHoraSal").value,
-    oficial:document.getElementById("gnOficial").value,guardianes:gnTurno,
+    oficial:document.getElementById("gnOficial").value,conductor:document.getElementById("gnConductor")?.value||"",guardianes:gnTurno,
     novedades:document.getElementById("gnNovedades").value.trim()};
   if(!f||!reg.guardianes.length){ alert("Completa la fecha y agrega los guardianes antes de generar el PDF."); return; }
   await sharePdfDoc(gnDocumento(reg),`guardia_${f}.pdf`,`Guardia nocturna del ${f}`);
@@ -3697,3 +3766,7 @@ on("activarCorreoCompaniaBtn","click",()=>{
 
 /* Respuesta tactil: Android/PWA vibra suavemente al pulsar controles. En PC no hace nada. */
 document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
+
+/* Guardia integral: arranque no intrusivo */
+document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>av.classList.add("loading"));} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),4500); renderGnPlanner().catch(()=>{}); });
+window.addEventListener("load",()=>setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),250));
