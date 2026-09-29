@@ -2453,8 +2453,10 @@ async function renderPanel(){
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
       <td class="cargo-col">${esc(x.m.cargo)}</td>
       <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
-  document.getElementById("pnRanking").innerHTML=`
-    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
+  const filaG=x=>{ const g=guardiasPanel.por[x.m.id]||{asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0}; return `<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>${g.asignadas}</td><td>${g.propias}</td><td>${g.reemplazos}</td><td>${g.cedidas}</td><td><b>${g.total}</b></td></tr>`; };
+  const rankingGuardia=r.porPersona.slice().sort((a,b)=>(guardiasPanel.por[b.m.id]?.total||0)-(guardiasPanel.por[a.m.id]?.total||0));
+  const tablaGuardia=`<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Reemplazos</th><th>Cedidas</th><th>Total</th></tr></thead><tbody>${rankingGuardia.map(filaG).join("")}</tbody></table>`;
+  document.getElementById("pnRanking").innerHTML=tablaGuardia+`\n    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
     <h3>Menor asistencia</h3><table><tbody>${r.porPersona.slice(-5).reverse().map(fila).join("")}</tbody></table>`;
 
   const filaC=x=>`<tr><td>${x.pt.date}</td><td class="name-col">${esc(x.pt.tipo)}${x.pt.detalle?" · "+esc(x.pt.detalle):""}</td>
