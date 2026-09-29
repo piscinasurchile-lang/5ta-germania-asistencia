@@ -1644,6 +1644,12 @@ function renderGnOficial(){
       return `<option value="${p.id}">${a?"["+esc(a)+"] ":""}${esc(nombreCompleto(p))}</option>`;
     }).join("");
   if(prev) sel.value=prev;
+  const con=document.getElementById("gnConductor");
+  if(con){
+    const cp=con.value;
+    con.innerHTML=sel.innerHTML;
+    if(cp) con.value=cp;
+  }
 }
 const GN_ESTADOS=[
   ["cuartel","Presente en el cuartel"],
@@ -1809,6 +1815,7 @@ on("gnGuardarBtn","click",async()=>{
     fechaIng:f, horaIng:document.getElementById("gnHoraIng").value,
     fechaSal:document.getElementById("gnFechaSal").value, horaSal:document.getElementById("gnHoraSal").value,
     oficial:document.getElementById("gnOficial").value,
+    conductor:document.getElementById("gnConductor")?.value||"",
     guardianes:gnTurno, novedades:document.getElementById("gnNovedades").value.trim()
   };
   await setGuardia(claveGuardia(f,d.horaIng),d);
@@ -1825,10 +1832,11 @@ function gnDocumento(reg){
   doc.setFontSize(10);
   doc.text(`Ingreso: ${fmtDateLong(reg.fechaIng)} a las ${reg.horaIng||"—"}`,14,36);
   doc.text(`Salida:  ${reg.fechaSal?fmtDateLong(reg.fechaSal):"—"} a las ${reg.horaSal||"—"}`,14,42);
-  doc.text(`Oficial a cargo: ${reg.oficial?nombrePorId(reg.oficial):"—"}`,14,48);
+  doc.text(`OBAC / Oficial a cargo: ${reg.oficial?nombrePorId(reg.oficial):"—"}`,14,48);
+  doc.text(`Conductor / Maquinista: ${reg.conductor?nombrePorId(reg.conductor):"—"}`,14,54);
   const t=normalizaTurno(reg.guardianes);
   const est={cuartel:"En el cuartel",casa:"Desde su casa",no:"No asiste"};
-  doc.autoTable({startY:54,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
+  doc.autoTable({startY:60,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
     head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Justif. correo"]],
     body:t.map(g=>{
       const m=ROSTER.find(x=>x.id===g.id);
@@ -3720,7 +3728,7 @@ function switchTabExtra(name){
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
       const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
-    renderGnOficial(); cargarGuardia(); renderGnLista();
+    renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error);
   }
   if(name==="config"){
     renderTiposTags(); renderCfgRoster(); renderCargoOptions(); loadOficialidadYear();
@@ -3752,7 +3760,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   cargarMiVoluntario();
   await renderDisponibilidad();
   pintarCandado();
-  if(window.__mostrarPestana) window.__mostrarPestana("germania");
+  document.getElementById("appLoading")?.classList.add("hidden");
   setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad(); },15000);
 })();
 
@@ -3768,5 +3776,4 @@ on("activarCorreoCompaniaBtn","click",()=>{
 document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
 
 /* Guardia integral: arranque no intrusivo */
-document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>av.classList.add("loading"));} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),4500); renderGnPlanner().catch(()=>{}); });
-window.addEventListener("load",()=>setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),250));
+document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>av.classList.add("loading"));} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),8000); renderGnPlanner().catch(()=>{}); });
