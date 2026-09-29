@@ -298,8 +298,12 @@
 .persona-foto-wrap{display:inline-flex;align-items:center;gap:8px;vertical-align:middle}.persona-foto{width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;background:#171d22;flex:0 0 34px}
 @media(max-width:700px){.persona-foto{width:30px;height:30px;flex-basis:30px}.persona-foto-wrap{gap:6px}}
 </style>
-</head>
-<body>
+
+<style id="guardia-integral-ui">
+.gn-head,.gn-cal-head,.gn-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.gn-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:16px}.gn-weekdays,.gn-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.gn-weekdays span{text-align:center;font-weight:800;color:#8b6c08;padding:6px}.gn-day{min-height:54px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:inherit;font-weight:800;position:relative}.gn-day.other{opacity:.35}.gn-day.plan{background:#f4c62b;color:#171717;border-color:#a97d00}.gn-day.open{background:#42a85d;color:#fff}.gn-day.day{background:#fff;color:#222}.gn-day.mixed{background:linear-gradient(135deg,#f4c62b 0 50%,#fff 50%);color:#171717}.gn-day.red{background:#c92b2b;color:#fff}.gn-day.complete:after{content:"✓";position:absolute;right:5px;top:3px}.gn-day .mini{display:block;font-size:9px;line-height:1.05;margin-top:2px}.gn-period-box{padding:14px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);margin-bottom:14px}.gn-switch{display:flex;align-items:center;gap:8px;font-weight:800;margin:12px 0}.gn-switch input{width:20px;height:20px}.gn-actions{justify-content:flex-end;margin-top:14px}.gn-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12px}.gn-legend .g{display:inline-block;width:17px;height:17px;border:1px solid #777;border-radius:4px;vertical-align:middle;margin-right:4px}.g.green{background:#42a85d}.g.yellow{background:#f4c62b}.g.white{background:#fff}.g.red{background:#c92b2b}.g.split{background:linear-gradient(135deg,#f4c62b 0 50%,#fff 50%)}.gn-vol-week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.gn-vol-day{padding:12px 7px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);text-align:center}.gn-vol-day.available{background:#42a85d;color:#fff;cursor:pointer}.gn-vol-day.selected{background:#f4c62b;color:#171717;box-shadow:inset 0 0 0 3px #111}.volunteer-avatar{color:transparent}.volunteer-avatar.loading{background:linear-gradient(90deg,#252b30 25%,#3b4248 50%,#252b30 75%);background-size:200% 100%;animation:gnsh 1.2s infinite}.volunteer-avatar.loading{visibility:visible}.app-loading{position:fixed;inset:0;background:rgba(8,11,14,.94);z-index:9999;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff}.app-loading.hidden{display:none}.app-loading-box{padding:28px;max-width:320px}.app-loading-box strong{display:block;font-size:20px;margin:12px}.app-loading-spin{width:38px;height:38px;border:4px solid #444;border-top-color:#f2c230;border-radius:50%;animation:spin .8s linear infinite;margin:auto}@keyframes spin{to{transform:rotate(360deg)}}@keyframes gnsh{to{background-position:-200% 0}}
+@media(max-width:850px){.gn-layout{grid-template-columns:1fr}.gn-vol-week{grid-template-columns:repeat(4,1fr)}}@media(max-width:520px){.gn-vol-week{grid-template-columns:repeat(2,1fr)}.gn-day{min-height:46px;font-size:12px}}
+</style></head>
+<body><div id="appLoading" class="app-loading"><div class="app-loading-box"><div class="app-loading-spin"></div><strong>GERMANIA</strong><div>Estamos cargando la información…</div></div></div>
 <div class="wrap">
 
   <div class="masthead">
@@ -571,61 +575,65 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia">
+    <div class="card gn-planner-card">
+      <div class="gn-head"><div><h2>Programación de Guardia</h2><p class="sub">Semana normal: miércoles 23:00 → miércoles siguiente 07:00 · 7 turnos nocturnos.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
+      <div class="gn-layout">
+        <section>
+          <div class="gn-cal-head"><button class="btn small secondary" id="gnPrevMes">‹</button><strong id="gnMesTitulo"></strong><button class="btn small secondary" id="gnNextMes">›</button></div>
+          <div class="gn-weekdays"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+          <div id="gnCalendario" class="gn-calendar"></div>
+          <div class="gn-legend">
+            <span><i class="g green"></i>Inscripción abierta</span><span><i class="g yellow"></i>Guardia nocturna</span>
+            <span><i class="g white"></i>Guardia diurna</span><span><i class="g split"></i>Nocturna + diurna</span>
+            <span><i class="g red"></i>Asignación / suspendida (con texto)</span>
+          </div>
+        </section>
+        <section class="gn-config">
+          <h3>Configuración del período</h3>
+          <div id="gnPeriodoResumen" class="gn-period-box">Toca un miércoles para seleccionar la semana.</div>
+          <label class="gn-switch"><input type="checkbox" id="gnDomingoDiurno"> <span>Guardia diurna domingo</span></label>
+          <div id="gnDomingoOpciones" style="display:none">
+            <label>Modalidad</label>
+            <div class="seg"><button type="button" data-gn-lugar="domicilio" class="active">Domicilio</button><button type="button" data-gn-lugar="cuartel">Cuartel</button></div>
+            <div id="gnActividadWrap" style="display:none;margin-top:10px"><label for="gnActividad">Actividad en cuartel</label><input id="gnActividad" placeholder="Mantención B-5, revisión de equipos, marcado de herramientas…"></div>
+          </div>
+          <div class="gn-actions"><button class="btn secondary" id="gnBorrarSemana">Borrar semana</button><button class="btn" id="gnConfirmarPeriodo">Confirmar período</button></div>
+          <div class="status-msg" id="gnPlanMsg"></div>
+        </section>
+      </div>
+    </div>
+
     <div class="card">
-      <h2>Ficha de guardia nocturna</h2>
-      <p class="sub">Se registra cada turno de guardia: quiénes la cubren, el oficial a cargo y las novedades del turno.</p>
+      <h2>Guardia del Voluntario</h2>
+      <p class="sub">Cuando la inscripción esté abierta, selecciona al menos 2 noches disponibles. La información se guarda en la base central.</p>
+      <div id="gnVolSemana" class="gn-vol-week"></div>
+      <div class="gn-actions"><button class="btn secondary" id="gnVolLimpiar">Limpiar selección</button><button class="btn" id="gnVolConfirmar">Confirmar mi disponibilidad</button></div>
+      <div class="status-msg" id="gnVolMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Dotación y registro del turno</h2>
+      <p class="sub">OBAC, Conductor/Maquinista y Guardianes se gestionan como funciones separadas. Este registro conserva el detalle histórico de cada turno.</p>
       <div class="field-row">
         <div class="field"><label for="gnFechaIng">Fecha de ingreso</label><input type="date" id="gnFechaIng"></div>
-        <div class="field"><label for="gnHoraIng">Hora de ingreso</label><input type="time" id="gnHoraIng" value="21:00"></div>
+        <div class="field"><label for="gnHoraIng">Hora de ingreso</label><input type="time" id="gnHoraIng" value="23:00"></div>
         <div class="field"><label for="gnFechaSal">Fecha de salida</label><input type="date" id="gnFechaSal"></div>
-        <div class="field"><label for="gnHoraSal">Hora de salida</label><input type="time" id="gnHoraSal" value="08:00"></div>
+        <div class="field"><label for="gnHoraSal">Hora de salida</label><input type="time" id="gnHoraSal" value="07:00"></div>
       </div>
-      <div class="field-row">
-        <div class="field" style="flex:1 1 260px;">
-          <label for="gnOficial">Oficial a cargo de la guardia</label>
-          <select id="gnOficial"></select>
-        </div>
-      </div>
+      <div class="field-row"><div class="field" style="flex:1 1 260px"><label for="gnOficial">OBAC / Oficial a cargo</label><select id="gnOficial"></select></div><div class="field" style="flex:1 1 260px"><label for="gnConductor">Conductor / Maquinista</label><select id="gnConductor"></select></div></div>
       <h3>Guardianes de turno</h3>
-      <p class="sub">Agrega a los voluntarios designados. Si alguno no puede asistir, se registra el motivo, si justificó por correo y quién lo reemplaza. Todo es modificable después.</p>
-      <div class="field-row">
-        <div class="field" style="flex:1 1 240px;">
-          <label for="gnAgregar">Agregar guardián designado</label>
-          <select id="gnAgregar"></select>
-        </div>
-        <div class="field" style="flex:0 0 auto;justify-content:flex-end;">
-          <label>&nbsp;</label><button class="btn small secondary" id="gnAgregarBtn">Agregar</button>
-        </div>
-      </div>
+      <div class="field-row"><div class="field" style="flex:1 1 240px"><label for="gnAgregar">Agregar guardián</label><select id="gnAgregar"></select></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnAgregarBtn">Agregar</button></div></div>
       <div id="gnGuardianes"></div>
-      <div class="field-row" style="margin-top:14px;">
-        <div class="field" style="flex:1 1 100%;">
-          <label for="gnNovedades">Novedades de la guardia</label>
-          <input type="text" id="gnNovedades" placeholder="Sin novedad, o el detalle de lo ocurrido durante el turno">
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn" id="gnGuardarBtn">Guardar guardia</button>
-        <button class="btn gold" id="gnPdfBtn">PDF de esta guardia</button>
-      </div>
+      <div class="field-row" style="margin-top:14px"><div class="field" style="flex:1 1 100%"><label for="gnNovedades">Novedades</label><input id="gnNovedades" placeholder="Sin novedad, o detalle del turno"></div></div>
+      <div class="gn-actions"><button class="btn" id="gnGuardarBtn">Guardar guardia</button><button class="btn gold" id="gnPdfBtn">PDF de esta guardia</button></div>
       <div class="status-msg" id="gnMsg"></div>
     </div>
 
     <div class="card">
       <h2>Informes de guardia</h2>
-      <div class="field-row">
-        <div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div>
-        <div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div>
-        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div>
-        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div>
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn gold" id="gnPdfSemanal">Informe del período</button>
-        <button class="btn gold" id="gnPdfEstad">Informe estadístico</button>
-        <button class="btn" id="gnInfo">Infografía de guardias</button>
-      </div>
-      <div class="summary-row" id="gnResumen" style="margin-top:16px;"></div>
-      <div id="gnLista"></div>
+      <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
+      <div class="gn-actions"><button class="btn gold" id="gnPdfSemanal">Informe del período</button><button class="btn gold" id="gnPdfEstad">Informe estadístico</button><button class="btn" id="gnInfo">Infografía de guardias</button></div>
+      <div class="summary-row" id="gnResumen" style="margin-top:16px"></div><div id="gnLista"></div>
     </div>
   </div>
 
