@@ -2374,7 +2374,8 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
 }
 
 async function renderPanel(){
-  await poblarSelectoresPanel();
+  // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
+  try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
   const R=rangoPanel();
   const {partes,activos,stats}=await datosPanel(R.desde,R.hasta);
   const r=resumen(partes,activos,stats);
