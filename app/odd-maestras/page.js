@@ -1,12 +1,48 @@
 "use client";
-import {useMemo,useState} from "react";
+import {useEffect,useMemo,useState} from "react";
 import "./odd.css";
 const TYPES=[["citacion","Citación / Academia / Ejercicio"],["guardia","Guardia Nocturna"],["nomina","Nómina y Claves"],["disposicion","Disposición General"]];
 const today=new Date().toISOString().slice(0,10);
 export default function Page(){
  const[type,setType]=useState("citacion");
+ const[status,setStatus]=useState("");
+ const[archive,setArchive]=useState([]);
  const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
- const set=(k,v)=>setF(x=>({...x,[k]:v})); const odd=useMemo(()=>String(f.number||"___").padStart(3,"0")+"/"+f.year,[f.number,f.year]);
+ useEffect(()=>{try{setArchive(JSON.parse(localStorage.getItem("germania:odd-maestras:v1")||"[]"))}catch{}},[]);
+ const set=(k,v)=>setF(x=>({...x,[k]:v}));
+ const persist=(estado)=>{
+   if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto.");return false}
+   const key=String(f.year)+"-"+String(f.number).padStart(3,"0");
+   if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
+   const rec={key,type,estado,form:f,updatedAt:new Date().toISOString()};
+   const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
+   localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next);
+   setStatus(estado==="emitida"?"ODD emitida y archivada en este módulo de prueba.":"Borrador guardado."); return true;
+ };
+ const pdf=async()=>{
+   if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
+   const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
+   d.setFont("helvetica","bold"); d.setFontSize(12); d.text('Quinta Compañía de Bomberos "Germania" de Villarrica',105,y,{align:"center"}); y+=6;
+   d.setFont("helvetica","normal"); d.setFontSize(9); d.text("Fundada el 5 de noviembre de 2025",105,y,{align:"center"}); y+=5;
+   d.text("Cuartel General · Valentín Letelier #630 · Villarrica · germaniacbv@gmail.com",105,y,{align:"center"}); y+=9;
+   d.setDrawColor(0); d.setLineWidth(1.2); d.line(20,y,77,y); d.setDrawColor(190,0,0); d.line(77,y,134,y); d.setDrawColor(220,175,0); d.line(134,y,190,y); y+=9;
+   d.setTextColor(0); d.setFontSize(9); d.text("Villarrica · "+(f.issueDate||""),190,y,{align:"right"}); y+=10;
+   d.setFont("helvetica","bold"); d.setFontSize(14); d.text("Orden del Día "+odd,105,y,{align:"center"}); y+=8; d.setFontSize(11); d.text(f.title,105,y,{align:"center",maxWidth:165}); y+=12;
+   d.setFont("helvetica","normal"); d.setFontSize(10);
+   const lines=[];
+   if(type==="citacion") lines.push("Por orden del Capitán de Compañía, cítese a la Quinta Compañía.","","Fecha: "+(f.eventDate||"—")+"   Hora: "+(f.time||"—")+" hrs.","Lugar: "+(f.place||"—"),"Actividad: "+(f.activity||"—"),"Tema: "+(f.topic||"—"),"Vestimenta: "+(f.clothing||"—"),"",f.punctuality||"","Excusas al correo "+(f.excuses||""));
+   if(type==="guardia") lines.push("GUARDIA NOCTURNA","",f.notes||"","", "ANEXO: Programación diaria de Guardia.");
+   if(type==="nomina") lines.push("NÓMINA Y CLAVES","","CLAVE · NOMBRE · APELLIDOS · RUT · CARGO · TELÉFONO","",f.notes||"");
+   if(type==="disposicion") lines.push("VISTOS:",f.seen||"—","","CONSIDERANDO:",f.considering||"—","","SE DISPONE:",f.provisions||"—");
+   for(const block of lines){const wrapped=d.splitTextToSize(block,165); if(y+wrapped.length*5>270){d.addPage();y=20} d.text(wrapped,22,y); y+=Math.max(5,wrapped.length*5)}
+   y+=7; const close=d.splitTextToSize("Tómese razón, distribúyase por medio del correo electrónico institucional, léase y archívese.",165); d.text(close,22,y); y+=22;
+   d.setFont("helvetica","bold"); d.text("CAPITÁN",62,y,{align:"center"}); d.text("AYUDANTE",148,y,{align:"center"});
+   d.setFont("helvetica","normal"); d.setFontSize(8); d.text("GERMANIA · Quinta Compañía · Villarrica",105,290,{align:"center"});
+   return d;
+ };
+ const downloadPdf=async()=>{try{const d=await pdf();if(!d)return;d.save("ODD_"+odd.replace("/","_")+".pdf");setStatus("PDF descargado.")}catch(e){setStatus("No fue posible generar el PDF.")}};
+ const share=async()=>{try{const d=await pdf();if(!d)return;const blob=d.output("blob"),file=new File([blob],"ODD_"+odd.replace("/","_")+".pdf",{type:"application/pdf"});if(navigator.canShare?.({files:[file]})){await navigator.share({title:"ODD "+odd,files:[file]})}else if(navigator.share){await navigator.share({title:"ODD "+odd,text:f.title})}else{setStatus("Compartir no está disponible en este navegador.")}}catch(e){if(e?.name!=="AbortError")setStatus("No fue posible compartir.")}};
+ const odd=useMemo(()=>String(f.number||"___").padStart(3,"0")+"/"+f.year,[f.number,f.year]);
  return <main className="oddShell"><header className="oddTop"><div><b>GERMANIA</b><span> · ODD Maestras</span></div><a href="/">Volver a GERMANIA</a></header>
  <section className="oddIntro"><h1>Generar Orden del Día</h1><p>Selecciona una plantilla. Solo aparecen los campos necesarios y la vista previa cambia en vivo.</p></section>
  <nav className="oddTypes">{TYPES.map(([id,label])=><button key={id} onClick={()=>setType(id)} className={type===id?"active":""}>{label}</button>)}</nav>
@@ -18,7 +54,7 @@ export default function Page(){
  {type==="nomina"&&<><p className="hint">Tomará automáticamente desde GERMANIA: clave, nombre, apellidos, RUT, cargo y teléfono.</p><Field label="Observación / vigencia"><textarea rows={4} value={f.notes} onChange={e=>set("notes",e.target.value)}/></Field></>}
  {type==="disposicion"&&<><Field label="VISTOS"><textarea rows={4} value={f.seen} onChange={e=>set("seen",e.target.value)}/></Field><Field label="CONSIDERANDO"><textarea rows={4} value={f.considering} onChange={e=>set("considering",e.target.value)}/></Field><Field label="SE DISPONE"><textarea rows={7} value={f.provisions} onChange={e=>set("provisions",e.target.value)} placeholder={"1. ...\n2. ..."}/></Field></>}
  <Field label="Distribución / destinatarios"><input value={f.recipients} onChange={e=>set("recipients",e.target.value)}/></Field>
- <div className="actions"><button>Guardar borrador</button><button className="primary">Emitir y archivar</button><button>↓ Descargar PDF</button><button>Compartir</button><button>Correo institucional</button></div><p className="hint">Módulo aislado de prueba: todavía no modifica la base maestra.</p>
+ <div className="actions"><button onClick={()=>persist("borrador")}>Guardar borrador</button><button className="primary" onClick={()=>persist("emitida")}>Emitir y archivar</button><button onClick={downloadPdf}>↓ Descargar PDF</button><button onClick={share}>Compartir</button><button onClick={()=>setStatus("Correo institucional quedará habilitado al conectar el servicio de correo; no se simulará un envío.")}>Correo institucional</button></div>{status&&<div className="status">{status}</div>}<p className="hint">Módulo aislado de prueba: todavía no modifica la base maestra.</p><div className="archive"><b>Archivo del módulo</b>{archive.length===0?<p className="hint">Sin ODD guardadas todavía.</p>:archive.slice().reverse().map(x=><div className="archiveRow" key={x.key+x.updatedAt}><span>ODD {String(x.form.number).padStart(3,"0")}/{x.form.year}</span><span>{x.form.title}</span><em>{x.estado}</em></div>)}</div>
  </section><aside className="preview card"><div className="paper"><div className="paperHead"><img src="/legacy/germania-icon.png" alt="Emblema Germania"/><div><b>Quinta Compañía de Bomberos “Germania” de Villarrica</b><small>Cuartel General · Valentín Letelier #630 · Villarrica</small><small>germaniacbv@gmail.com</small></div></div><div className="flag"></div><p className="date">Villarrica · {f.issueDate||"fecha"}</p><h2>Orden del Día {odd}</h2>{f.title&&<h3>{f.title}</h3>}
  {type==="citacion"&&<div className="docText"><p>Por orden del Capitán de Compañía, cítese a la Quinta Compañía.</p><p><b>Fecha:</b> {f.eventDate||"—"} · <b>Hora:</b> {f.time||"—"} hrs.</p><p><b>Lugar:</b> {f.place||"—"}</p><p><b>Actividad:</b> {f.activity||"—"}</p><p><b>Tema:</b> {f.topic||"—"}</p><p><b>Vestimenta:</b> {f.clothing||"—"}</p><p className="strong">{f.punctuality}</p><p>Excusas al correo {f.excuses}</p></div>}
  {type==="guardia"&&<div className="docText"><h4>GUARDIA NOCTURNA</h4><p>{f.notes||"Complete período, horarios, dotación e instrucciones."}</p><div className="mockTable">ANEXO · Programación diaria de Guardia</div></div>}
