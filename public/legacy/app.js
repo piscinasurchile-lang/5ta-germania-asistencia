@@ -3685,3 +3685,6 @@ on("activarCorreoCompaniaBtn","click",()=>{
   if(e) e.textContent="Correo oficial: germaniacbv@gmail.com · conexión institucional pendiente de autorización Google.";
   alert("GERMANIA usará germaniacbv@gmail.com como correo oficial. La conexión se realizará mediante autorización segura de Google; la contraseña no se guarda en GERMANIA.");
 });
+
+/* Respuesta tactil: Android/PWA vibra suavemente al pulsar controles. En PC no hace nada. */
+document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
