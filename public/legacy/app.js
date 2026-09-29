@@ -2847,7 +2847,7 @@ async function renderHvFoto(){
     const anterior=await sGet(fotoKey(m.id),null);
     if(anterior){ m.foto=anterior; await saveRoster(); }
   }
-  img.src=m.foto||fotoPlaceholder();
+  img.src=fotoVoluntario(m);
 }
 on("hvFotoBtn","click",()=>{ if(hvActual()) document.getElementById("hvFotoInput")?.click(); });
 on("hvFotoInput","change",e=>{
@@ -3499,6 +3499,14 @@ const DISP_LABELS={cuartel:"En cuartel",disponible:"Disponible",fuera:"Fuera de 
 
 function dispKey(){ return "disponibilidad:"+todayISO(); }
 function fotoKey(id){ return "germania:foto:"+id; }
+const FOTOS_OFICIALES_POR_RUT={
+  "15.243.920-2":"/legacy/voluntarios/karam-puali-lopez.webp",
+  "14.413.688-8":"/legacy/voluntarios/susumu-sugiura-aguilar.webp",
+  "8.905.167-3":"/legacy/voluntarios/mathias-von-leyser-jux.webp",
+  "10.566.726-4":"/legacy/voluntarios/christian-vergara-sandoval.webp",
+  "16.711.219-6":"/legacy/voluntarios/andres-herrera-santander.webp"
+};
+function fotoVoluntario(p){ return (p&&p.foto)||(p&&FOTOS_OFICIALES_POR_RUT[p.rut])||fotoPlaceholder(); }
 function fotoPlaceholder(){
   return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171d22"/><circle cx="50" cy="38" r="19" fill="#ffcc00"/><path d="M18 92c4-24 18-36 32-36s28 12 32 36" fill="#ffcc00"/></svg>');
 }
@@ -3514,7 +3522,7 @@ async function refrescarIdentidadVoluntario(){
     const anterior=await sGet(fotoKey(p.id),null);
     if(anterior){ p.foto=anterior; await saveRoster(); }
   }
-  img.src=p.foto||fotoPlaceholder();
+  img.src=fotoVoluntario(p);
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
@@ -3569,7 +3577,7 @@ async function renderDisponibilidad(){
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
     if((e==="cuartel"||e==="disponible")&&String(p.id)===obac) cuenta.obac++;
     const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
-    const foto=p.foto||fotoPlaceholder();
+    const foto=fotoVoluntario(p);
     return `<tr><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
       <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
       <td>${desde}</td><td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td>
