@@ -416,12 +416,22 @@ async function loadAll(){
   }
   r.forEach(m=>{ if(!m.cursos) m.cursos={}; });
   ROSTER=r;
-  TIPOS = await sGet(TIPOS_KEY,null) || DEFAULT_TIPOS.slice();
-  CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
-  SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
-  MNT_TIPOS = await sGet(MNT_TIPOS_KEY,null) || DEFAULT_MNT_TIPOS.slice();
-  INV_CATEGORIAS = await sGet(INV_CAT_KEY,null) || DEFAULT_INV_CATEGORIAS.slice();
-  ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
+  // Configuración independiente: leer en paralelo reduce la latencia de arranque
+  // sin cambiar la fuente de verdad central.
+  const [tipos,cargos,svTipos,mntTipos,invCategorias,ordenModo]=await Promise.all([
+    sGet(TIPOS_KEY,null),
+    sGet(CARGOS_KEY,null),
+    sGet(SV_TIPOS_KEY,null),
+    sGet(MNT_TIPOS_KEY,null),
+    sGet(INV_CAT_KEY,null),
+    sGet("orden:v1",null)
+  ]);
+  TIPOS = tipos || DEFAULT_TIPOS.slice();
+  CARGOS = cargos || DEFAULT_CARGOS.slice();
+  SV_TIPOS = svTipos || DEFAULT_SV_TIPOS.slice();
+  MNT_TIPOS = mntTipos || DEFAULT_MNT_TIPOS.slice();
+  INV_CATEGORIAS = invCategorias || DEFAULT_INV_CATEGORIAS.slice();
+  ORDEN_MODO = ordenModo || "oficialidad";
   renumerar();
 }
 async function saveRoster(){ await sSet(ROSTER_KEY,ROSTER); }
