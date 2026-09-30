@@ -57,8 +57,7 @@ export default function Page(){
    if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
    const rec={key,type,estado,form:{...f},guardSnapshot:type==="guardia"?guardWeek.map(x=>({...x,people:x.people.map(p=>({...p}))})):null,rosterSnapshot:type==="nomina"?selectedRoster.map(p=>({...p})):null,annexSnapshot:annexes.map(({data,...a})=>a),signerSnapshot:{...signers},updatedAt:new Date().toISOString()};
    const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
-   localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next); fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})}).catch(()=>{});
-   setStatus(estado==="emitida"?"ODD emitida y archivada.":"Borrador guardado."); return true;
+   try{const r=await fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})});if(!r.ok)throw new Error("persist");setArchive(next);setStatus(estado==="emitida"?"ODD emitida y archivada en la base central.":"Borrador guardado en la base central.");return true}catch{setStatus("No fue posible guardar en la base central. No se creó una copia local.");return false}
  };
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
