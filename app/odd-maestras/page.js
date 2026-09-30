@@ -20,7 +20,7 @@ export default function Page(){
  const[officials,setOfficials]=useState({capitan:null,ayudante:null});
  const[annexes,setAnnexes]=useState([]);
  const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
- useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);setArchive(JSON.parse(localStorage.getItem("germania:odd-maestras:v1")||"[]"));fetch("/api/state/odd:maestras:v1",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{if(Array.isArray(x.value)){setArchive(x.value);localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(x.value))}}).catch(()=>{})}catch{}
+ useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);fetch("/api/state/odd:maestras:v1",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{setArchive(Array.isArray(x.value)?x.value:[])}).catch(()=>{})}catch{}
    fetch("/api/state/roster:v8",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{
      const list=Array.isArray(x.value)?x.value.filter(p=>p.activo!==false):[];
      setRoster(list);setSelected(list.map(p=>String(p.clave)));setOfficials({capitan:list.find(p=>String(p.cargo||"").toLowerCase().includes("capit"))||null,ayudante:list.find(p=>String(p.cargo||"").toLowerCase().includes("ayud"))||null});
@@ -47,7 +47,7 @@ export default function Page(){
  const set=(k,v)=>setF(x=>({...x,[k]:v}));
  const authority=type==="citacion"?"Artículo 92 ter":"Artículo 91 inciso 1°";
  const addAnnex=e=>{const files=[...(e.target.files||[])];Promise.all(files.map(file=>new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve({name:file.name,type:file.type,size:file.size,data:String(r.result||"")});r.onerror=()=>resolve({name:file.name,type:file.type,size:file.size,data:""});r.readAsDataURL(file)}))).then(items=>setAnnexes(x=>[...x,...items]));e.target.value=""};
- const persist=(estado)=>{
+ const persist=async(estado)=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto.");return false}
    if(estado==="emitida"&&type==="nomina"&&!selectedRoster.length){setStatus("No se puede emitir una nómina sin voluntarios seleccionados.");return false}
    if(estado==="emitida"&&type==="disposicion"&&(!f.seen.trim()||!f.considering.trim()||!f.provisions.trim())){setStatus("Completa VISTOS, CONSIDERANDO y SE DISPONE antes de emitir.");return false}
@@ -57,8 +57,7 @@ export default function Page(){
    if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
    const rec={key,type,estado,form:{...f},guardSnapshot:type==="guardia"?guardWeek.map(x=>({...x,people:x.people.map(p=>({...p}))})):null,rosterSnapshot:type==="nomina"?selectedRoster.map(p=>({...p})):null,annexSnapshot:annexes.map(({data,...a})=>a),signerSnapshot:{...signers},updatedAt:new Date().toISOString()};
    const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
-   localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next); fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})}).catch(()=>{});
-   setStatus(estado==="emitida"?"ODD emitida y archivada.":"Borrador guardado."); return true;
+   try{const r=await fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})});if(!r.ok)throw new Error("persist");setArchive(next);setStatus(estado==="emitida"?"ODD emitida y archivada en la base central.":"Borrador guardado en la base central.");return true}catch{setStatus("No fue posible guardar en la base central. No se creó una copia local.");return false}
  };
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
