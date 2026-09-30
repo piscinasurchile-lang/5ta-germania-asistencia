@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import crypto from "node:crypto";
 import { jsPDF } from "jspdf";
-import { LOGO_B64 } from "../../../../lib/logo";
+import { LOGO_B64 } from "../../../../../lib/logo";
 
 export const runtime="nodejs";
 function equal(a,b){const aa=Buffer.from(String(a||"")),bb=Buffer.from(String(b||""));return aa.length===bb.length&&crypto.timingSafeEqual(aa,bb)}
