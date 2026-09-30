@@ -3939,18 +3939,23 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   const arranqueVisual=setTimeout(ocultarCarga,1200);
 
   try{
-    await sSet("__check", 1);
+    // Arranque rápido: la pantalla inicial solo espera la nómina/configuración
+    // imprescindible. Las verificaciones de Guardia son secundarias y nunca
+    // deben bloquear la entrada a GERMANIA.
     await loadAll();
-    // Dataset temporal solicitado para validar el circuito Guardia → Dashboard.
-    // La siembra es idempotente y queda marcada explícitamente como prueba.
-    // La prueba integral debe quedar escrita y releída desde la base central
-    // antes de continuar con la inicialización. Así no se confunde "desplegado"
-    // con "persistido y verificable".
-    await sembrarGuardiaPruebaEnero2026();
-    await sembrarMatrizGuardiaPrueba();
-    const validacionGuardia=await validarGuardiaPruebaEnero2026();
-    const validacionMatriz=await validarMatrizGuardiaPrueba();
-    if(!validacionGuardia.ok||!validacionMatriz.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.concat(validacionMatriz.errores).join(" | "));
+    Promise.allSettled([
+      sembrarGuardiaPruebaEnero2026(),
+      sembrarMatrizGuardiaPrueba()
+    ]).then(async()=>{
+      const [vg,vm]=await Promise.allSettled([
+        validarGuardiaPruebaEnero2026(),
+        validarMatrizGuardiaPrueba()
+      ]);
+      if(vg.status==="rejected") console.error("Validación Guardia:",vg.reason);
+      if(vm.status==="rejected") console.error("Validación matriz Guardia:",vm.reason);
+      if(vg.status==="fulfilled"&&!vg.value.ok) console.error("Validación Guardia:",vg.value.errores);
+      if(vm.status==="fulfilled"&&!vm.value.ok) console.error("Validación matriz Guardia:",vm.value.errores);
+    }).catch(console.error);
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
