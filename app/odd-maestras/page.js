@@ -18,7 +18,8 @@ export default function Page(){
  const[pdfUrl,setPdfUrl]=useState("");
  const[signers,setSigners]=useState({capitan:true,ayudante:true});
  const[officials,setOfficials]=useState({capitan:null,ayudante:null});
- const[annexes,setAnnexes]=useState([]);\n const[paperFormat,setPaperFormat]=useState("letter");
+ const[annexes,setAnnexes]=useState([]);
+ const[paperFormat,setPaperFormat]=useState("letter");
  const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
  useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);fetch("/api/state/odd:maestras:v1",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{setArchive(Array.isArray(x.value)?x.value:[])}).catch(()=>{})}catch{}
    fetch("/api/state/roster:v8",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{
