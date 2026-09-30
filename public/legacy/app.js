@@ -1681,6 +1681,48 @@ async function sembrarGuardiaPruebaEnero2026(){
   });
 }
 
+
+const GUARDIA_MATRIZ_PRUEBA="guardia:test:matriz:v1";
+async function sembrarMatrizGuardiaPrueba(){
+  if(await sGet(GUARDIA_MATRIZ_PRUEBA,false)) return;
+  const rid=k=>idPorClaveGuardia(k);
+  const q=(k,estado="cuartel",extra={})=>({id:rid(k),estado,motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:"",...extra});
+  const mk=(fecha,obac,conductor,guardianes,caso)=>({fechaIng:fecha,horaIng:"23:00",fechaSal:(()=>{const d=new Date(fecha+"T12:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})(),horaSal:"07:00",oficial:obac?rid(obac):"",conductor:conductor?rid(conductor):"",guardianes:guardianes.filter(x=>x.id),novedades:"MATRIZ TEMPORAL DE PRUEBA · "+caso,esPrueba:true,fuentePrueba:"Matriz completa Guardia Nocturna"});
+  const t=[
+    mk("2026-02-04","45","9",[q("515"),q("516"),q("523"),q("524")],"mínimo completo"),
+    mk("2026-02-05","503","505",[q("520","casa"),q("521"),q("516"),q("525"),q("507")],"domicilio y sobredotación"),
+    mk("2026-02-06","45","9",[q("515"),q("522","no",{motivo:"Enfermedad",correo:true}),q("523"),q("504")],"inasistencia sin reemplazo"),
+    mk("2026-02-07","45","505",[q("515"),q("522","no",{motivo:"Trabajo",correo:true,reemplazo:rid("517"),reemplazoRegistradoEn:"2026-02-07T18:00:00.000Z"}),q("523"),q("504")],"inasistencia con reemplazo"),
+    mk("2026-02-08","503","",[q("513"),q("524"),q("504"),q("516")],"sin conductor"),
+    mk("2026-02-09","","9",[q("75"),q("508"),q("516"),q("522")],"sin OBAC"),
+    mk("2026-02-10","510","505",[q("506"),q("513"),q("516")],"dotación bajo mínimo"),
+    mk("2026-02-11","45","9",[q("517"),q("515"),q("516"),q("523"),q("524"),q("504")],"seis guardianes"),
+    mk("2026-02-12","503","505",[q("517"),q("520"),q("521"),q("525")],"reemplazante vuelve como titular"),
+    mk("2026-02-13","45","9",[q("515","no",{motivo:"Viaje",correo:true,reemplazo:rid("517"),reemplazoRegistradoEn:"2026-02-13T17:00:00.000Z"}),q("516"),q("523"),q("524")],"segundo reemplazo acumulado"),
+    mk("2026-02-14","503","505",[q("513","casa"),q("504","casa"),q("516"),q("522")],"dos desde domicilio"),
+    mk("2026-02-15","45","9",[q("515"),q("516"),q("523"),q("524")],"repetición para acumulados")
+  ];
+  for(const x of t){const k=claveGuardia(x.fechaIng,x.horaIng);if(!(await getGuardia(k)))await setGuardia(k,x);}
+  await sSet(GUARDIA_MATRIZ_PRUEBA,{creadoEn:new Date().toISOString(),temporal:true,turnos:t.length,casos:["mínimo","sobredotación","domicilio","inasistencia sin reemplazo","inasistencia con reemplazo","sin conductor","sin OBAC","bajo mínimo","reemplazos acumulados","participación repetida"]});
+}
+async function validarMatrizGuardiaPrueba(){
+  const errores=[], activos=ROSTER.filter(x=>x.activo!==false);
+  const stats=await guardiasEnRangoPanel("2026-02-04","2026-02-15",activos);
+  if(stats.turnos!==12) errores.push("Matriz: se esperaban 12 turnos y hay "+stats.turnos);
+  if(stats.incompletas!==2) errores.push("Matriz: se esperaban 2 noches bajo mínimo y hay "+stats.incompletas);
+  if(stats.cedidas!==2) errores.push("Matriz: se esperaban 2 guardias cedidas y hay "+stats.cedidas);
+  const christian=stats.por[idPorClaveGuardia("517")], moller=stats.por[idPorClaveGuardia("522")];
+  if(!christian||christian.reemplazos!==2) errores.push("Matriz: Christian debe registrar 2 reemplazos");
+  if(!moller||moller.cedidas<1) errores.push("Matriz: Moller debe registrar al menos 1 cedida");
+  const sinConductor=await getGuardia(claveGuardia("2026-02-08","23:00"));
+  const sinObac=await getGuardia(claveGuardia("2026-02-09","23:00"));
+  if(!sinConductor||sinConductor.conductor) errores.push("Matriz: caso sin conductor inválido");
+  if(!sinObac||sinObac.oficial) errores.push("Matriz: caso sin OBAC inválido");
+  const resultado={ok:errores.length===0,fecha:new Date().toISOString(),turnos:stats.turnos,participacionesEfectivas:stats.realizadas,participantes:stats.participantes,cedidas:stats.cedidas,sobreMinimo:stats.sobreMinimo,nochesBajoMinimo:stats.incompletas,errores};
+  await rawSet("guardia:test:matriz:validacion:v1",resultado);
+  return resultado;
+}
+
 async function validarGuardiaPruebaEnero2026(){
   const errores=[], esperadas=["2026-01-07","2026-01-08","2026-01-09","2026-01-10","2026-01-11","2026-01-12","2026-01-13"];
   const idx=await idxGuardias();
@@ -3904,8 +3946,10 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     // antes de continuar con la inicialización. Así no se confunde "desplegado"
     // con "persistido y verificable".
     await sembrarGuardiaPruebaEnero2026();
+    await sembrarMatrizGuardiaPrueba();
     const validacionGuardia=await validarGuardiaPruebaEnero2026();
-    if(!validacionGuardia.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.join(" | "));
+    const validacionMatriz=await validarMatrizGuardiaPrueba();
+    if(!validacionGuardia.ok||!validacionMatriz.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.concat(validacionMatriz.errores).join(" | "));
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
