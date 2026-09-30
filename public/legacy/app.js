@@ -2307,8 +2307,14 @@ function rangoPanel(){
 
 async function datosPanel(desde,hasta){
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
-  const partes=[];
-  for(const it of idx){ const p=await getParte(it.clave); if(p) partes.push(p); }
+  // Los partes se consultan en paralelo: un registro lento o defectuoso no debe dejar
+  // el Dashboard completo esperando ni impedir que se pinten los demás datos válidos.
+  const resultados=await Promise.allSettled(idx.map(it=>getParte(it.clave)));
+  const partes=resultados
+    .filter(x=>x.status==="fulfilled" && x.value)
+    .map(x=>x.value);
+  const fallidos=resultados.filter(x=>x.status==="rejected").length;
+  if(fallidos) console.error("Dashboard: partes no disponibles:",fallidos);
   partes.sort((a,b)=>a.date<b.date?-1:1);
   const activos=sortedRoster(false);
   const stats={};
@@ -2387,16 +2393,20 @@ async function renderPanel(){
     ? `${R.etiqueta} · ${r.N} actividades · última el ${fmtDateLong(partes[partes.length-1].date)}`
     : `${R.etiqueta} · sin actividades registradas`;
 
-  const yaImportado = await sGet(IMPORT_KEY,null);
-  const totalIdx = (await getIndex()).length;
-  const cajaImp = document.getElementById("pnImport");
-  if(!yaImportado){
-    cajaImp.style.display="block";
-    document.getElementById("pnImportTxt").textContent =
-      "La base 2026 de la Compañía (67 actividades de enero a junio) no está cargada. Puedes incorporarla aquí.";
-  } else {
-    cajaImp.style.display="none";
-  }
+  // El estado de importación es informativo y nunca debe bloquear el Dashboard.
+  // Se actualiza en segundo plano después de disponer de los datos principales.
+  Promise.allSettled([sGet(IMPORT_KEY,null),getIndex()]).then(([imp,idx])=>{
+    const cajaImp=document.getElementById("pnImport");
+    if(!cajaImp) return;
+    if(imp.status==="fulfilled" && !imp.value){
+      cajaImp.style.display="block";
+      const txt=document.getElementById("pnImportTxt");
+      if(txt) txt.textContent="La base 2026 de la Compañía (67 actividades de enero a junio) no está cargada. Puedes incorporarla aquí.";
+    }else if(imp.status==="fulfilled"){
+      cajaImp.style.display="none";
+    }
+    if(idx.status==="rejected") console.error("Dashboard: índice general no disponible para estado de importación.");
+  });
 
   if(!r.N){
     ["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"]
