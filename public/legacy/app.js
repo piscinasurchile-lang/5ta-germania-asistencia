@@ -1634,6 +1634,37 @@ async function setGuardia(c,d){
   if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,fecha:d.fechaIng}); await sSet(GUARDIA_IDX,idx); }
 }
 function claveGuardia(f,h){ return f+"__"+(h||"").replace(":",""); }
+/* Dataset temporal de validación del Dashboard.
+   Fuente: programación de Guardia enero 2026 aportada por la Compañía.
+   NO acredita asistencia efectiva. Se identifica para poder retirarlo íntegramente. */
+const GUARDIA_PRUEBA_ENE26="guardia:test:enero2026:v1";
+function idPorClaveGuardia(clave){ return ROSTER.find(p=>String(p.clave||"")===String(clave))?.id||""; }
+async function sembrarGuardiaPruebaEnero2026(){
+  if(await sGet(GUARDIA_PRUEBA_ENE26,false)) return;
+  const g=(fecha,oficial,conductor,claves,fuente="programación histórica")=>({
+    fechaIng:fecha,horaIng:"23:00",fechaSal:new Date(fecha+"T12:00:00").toISOString().slice(0,10),horaSal:"07:00",
+    oficial:idPorClaveGuardia(oficial),conductor:idPorClaveGuardia(conductor),
+    guardianes:claves.map(k=>({id:idPorClaveGuardia(k),estado:"cuartel",motivo:"",correo:false,obs:"Dato temporal para validar Dashboard; no acredita asistencia efectiva.",reemplazo:"",reemplazoRegistradoEn:""})).filter(x=>x.id),
+    novedades:"REGISTRO TEMPORAL DE PRUEBA · "+fuente+" · eliminar al iniciar operación definitiva.",
+    esPrueba:true,fuentePrueba:"Programación Guardia enero 2026"
+  });
+  const turnos=[
+    // 07/01 se completa como turno de prueba para disponer de las 7 noches requeridas.
+    g("2026-01-07","45","9",["515","516","523","524"],"turno inventado/autorizado sólo para prueba"),
+    // 08/01: voluntarios legibles en la fila superior de la imagen; funciones no legibles, por eso no se inventan.
+    g("2026-01-08","","",["520","521","516"],"programación visible parcialmente en imagen"),
+    g("2026-01-09","45","9",["507","515","516","523","524"]),
+    g("2026-01-10","45","505",["515","522","523","504"]),
+    g("2026-01-11","503","9",["513","524","504"]),
+    g("2026-01-12","503","45",["75","508","516","522"]),
+    g("2026-01-13","510","505",["506","513","516","504"])
+  ];
+  for(const turno of turnos){
+    const clave=claveGuardia(turno.fechaIng,turno.horaIng);
+    if(!(await getGuardia(clave))) await setGuardia(clave,turno);
+  }
+  await sSet(GUARDIA_PRUEBA_ENE26,{creadoEn:new Date().toISOString(),turnos:turnos.length,temporal:true});
+}
 
 function renderGnOficial(){
   const sel=document.getElementById("gnOficial"); if(!sel) return;
@@ -3814,6 +3845,9 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   try{
     await sSet("__check", 1);
     await loadAll();
+    // Dataset temporal solicitado para validar el circuito Guardia → Dashboard.
+    // La siembra es idempotente y queda marcada explícitamente como prueba.
+    sembrarGuardiaPruebaEnero2026().catch(e=>console.error("Guardia prueba enero 2026:",e));
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
