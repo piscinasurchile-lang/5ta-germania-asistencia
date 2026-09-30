@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [migration/nextjs-production, feature/modulos-operativos-pendientes]
+    branches: [main]
   pull_request:
-    branches: [migration/nextjs-production]
+    branches: [main]
 jobs:
   build:
     runs-on: ubuntu-latest

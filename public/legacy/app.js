@@ -2307,8 +2307,14 @@ function rangoPanel(){
 
 async function datosPanel(desde,hasta){
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
-  const partes=[];
-  for(const it of idx){ const p=await getParte(it.clave); if(p) partes.push(p); }
+  // Los partes se consultan en paralelo: un registro lento o defectuoso no debe dejar
+  // el Dashboard completo esperando ni impedir que se pinten los demás datos válidos.
+  const resultados=await Promise.allSettled(idx.map(it=>getParte(it.clave)));
+  const partes=resultados
+    .filter(x=>x.status==="fulfilled" && x.value)
+    .map(x=>x.value);
+  const fallidos=resultados.filter(x=>x.status==="rejected").length;
+  if(fallidos) console.error("Dashboard: partes no disponibles:",fallidos);
   partes.sort((a,b)=>a.date<b.date?-1:1);
   const activos=sortedRoster(false);
   const stats={};
@@ -2387,16 +2393,20 @@ async function renderPanel(){
     ? `${R.etiqueta} · ${r.N} actividades · última el ${fmtDateLong(partes[partes.length-1].date)}`
     : `${R.etiqueta} · sin actividades registradas`;
 
-  const yaImportado = await sGet(IMPORT_KEY,null);
-  const totalIdx = (await getIndex()).length;
-  const cajaImp = document.getElementById("pnImport");
-  if(!yaImportado){
-    cajaImp.style.display="block";
-    document.getElementById("pnImportTxt").textContent =
-      "La base 2026 de la Compañía (67 actividades de enero a junio) no está cargada. Puedes incorporarla aquí.";
-  } else {
-    cajaImp.style.display="none";
-  }
+  // El estado de importación es informativo y nunca debe bloquear el Dashboard.
+  // Se actualiza en segundo plano después de disponer de los datos principales.
+  Promise.allSettled([sGet(IMPORT_KEY,null),getIndex()]).then(([imp,idx])=>{
+    const cajaImp=document.getElementById("pnImport");
+    if(!cajaImp) return;
+    if(imp.status==="fulfilled" && !imp.value){
+      cajaImp.style.display="block";
+      const txt=document.getElementById("pnImportTxt");
+      if(txt) txt.textContent="La base 2026 de la Compañía (67 actividades de enero a junio) no está cargada. Puedes incorporarla aquí.";
+    }else if(imp.status==="fulfilled"){
+      cajaImp.style.display="none";
+    }
+    if(idx.status==="rejected") console.error("Dashboard: índice general no disponible para estado de importación.");
+  });
 
   if(!r.N){
     ["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"]
@@ -3774,23 +3784,44 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   document.getElementById("crestImg").src=LOGO_B64;
   document.getElementById("membreteLogo").src=LOGO_B64;
   document.getElementById("todayLabel").textContent=fmtDateLong(todayISO());
-  await sSet("__check", 1);
-  await loadAll();
-  /* La base parte con el registro 2026 de la Compañía; de ahí en adelante
-     se van sumando las nuevas citaciones y salidas del B-5. */
-  if(!(await sGet(IMPORT_KEY,null)) && (await getIndex()).length===0){
-    try{ await importarHistorico2026(); }catch(e){ console.error("No se pudo cargar la base 2026",e); }
+
+  // La estructura visible no debe esperar la sincronización remota completa.
+  // Las tareas institucionales siguen usando exclusivamente la base central.
+  const ocultarCarga=()=>document.getElementById("appLoading")?.classList.add("hidden");
+  const arranqueVisual=setTimeout(ocultarCarga,1200);
+
+  try{
+    await sSet("__check", 1);
+    await loadAll();
+    renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
+    document.getElementById("ordenModo").value=ORDEN_MODO;
+    document.getElementById("anioOficialidad").value=new Date().getFullYear();
+    document.getElementById("fecha").value=todayISO();
+    clearTimeout(arranqueVisual);
+    ocultarCarga();
+
+    // Datos secundarios: sincronizan sin bloquear la pantalla ni cambiar la pestaña actual.
+    Promise.allSettled([
+      loadListaForSelection(),
+      renderDisponibilidad()
+    ]).then(resultados=>{
+      resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Sincronización inicial:",x.reason));
+    });
+    cargarMiVoluntario();
+    pintarCandado();
+
+    // La importación histórica se verifica en segundo plano y nunca controla la navegación.
+    Promise.allSettled([sGet(IMPORT_KEY,null),getIndex()]).then(async ([imp,idx])=>{
+      if(imp.status==="fulfilled" && idx.status==="fulfilled" && !imp.value && idx.value.length===0){
+        try{ await importarHistorico2026(); }catch(e){ console.error("No se pudo cargar la base 2026",e); }
+      }
+    });
+  }catch(e){
+    console.error("Inicio GERMANIA:",e);
+    clearTimeout(arranqueVisual);
+    ocultarCarga();
   }
-  renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
-  document.getElementById("ordenModo").value=ORDEN_MODO;
-  document.getElementById("anioOficialidad").value=new Date().getFullYear();
-  document.getElementById("fecha").value=todayISO();
-  await loadListaForSelection();
-  cargarMiVoluntario();
-  await renderDisponibilidad();
-  pintarCandado();
-  document.getElementById("appLoading")?.classList.add("hidden");
-  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad(); },15000);
+  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad().catch(console.error); },15000);
 })();
 
 /* Correo institucional GERMANIA: punto de activación visible en Oficialidad.
@@ -3805,4 +3836,4 @@ on("activarCorreoCompaniaBtn","click",()=>{
 document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
 
 /* Guardia integral: arranque no intrusivo */
-document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>av.classList.add("loading"));} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),8000); renderGnPlanner().catch(()=>{}); });
+document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),1800); });
