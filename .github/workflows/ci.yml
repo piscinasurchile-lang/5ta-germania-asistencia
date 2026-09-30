@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [migration/nextjs-production, feature/modulos-operativos-pendientes]
+    branches: [main]
   pull_request:
-    branches: [migration/nextjs-production]
+    branches: [main]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,5 +12,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
