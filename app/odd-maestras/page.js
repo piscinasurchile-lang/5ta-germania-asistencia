@@ -77,7 +77,7 @@ export default function Page(){
    if(type==="nomina") lines.push("NÓMINA Y CLAVES","",f.notes||"");
    if(type==="disposicion") lines.push("VISTOS:",f.seen||"—","","CONSIDERANDO:",f.considering||"—","","SE DISPONE:",f.provisions||"—");
    for(const block of lines){const wrapped=d.splitTextToSize(block,165); if(y+wrapped.length*5>bottom){d.addPage();y=20} d.text(wrapped,22,y); y+=Math.max(5,wrapped.length*5)}
-   y+=7; const close=d.splitTextToSize("Tómese razón, distribúyase por medio del correo electrónico institucional, léase y archívese.",165); d.text(close,22,y); y+=22;
+   y+=7; const close=d.splitTextToSize("Tómese razón, distribúyase por medio del correo electrónico institucional, léase y archívese.",165); const signatureBlock=42;if(y+close.length*5+signatureBlock>bottom){d.addPage();institutionalHead();y=38} d.text(close,22,y); y+=22;
    d.setFont("helvetica","bold");if(signers.ayudante){d.text(fullName(officials.ayudante)||"AYUDANTE",62,y,{align:"center"});d.setFontSize(8);d.text("AYUDANTE",62,y+5,{align:"center"})}if(signers.capitan){d.setFontSize(10);d.text(fullName(officials.capitan)||"CAPITÁN",148,y,{align:"center"});d.setFontSize(8);d.text("CAPITÁN",148,y+5,{align:"center"})}if(annexes.length){y+=18;d.setFont("helvetica","bold");d.text("ANEXOS",22,y);d.setFont("helvetica","normal");annexes.forEach((a,i)=>{y+=5;d.text((i+1)+". "+a.name,22,y)})}
    if(type==="nomina"&&selectedRoster.length){
      const cols=[["Clave",18],["Nombre",25],["A. Paterno",30],["A. Materno",28],["Rut",28],["Cargo",29],["Teléfono",32]],x0=10;
@@ -103,7 +103,7 @@ export default function Page(){
        ay+=h;
      }
    }
-   const pages=d.getNumberOfPages();for(let p=1;p<=pages;p++){d.setPage(p);d.setDrawColor(190);d.line(30,284,180,284);d.setFont("helvetica","normal");d.setFontSize(6);d.setTextColor(130);d.text('2025-2026 Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica | Quinta Compañía de Bomberos "Germania" de Villarrica',105,287,{align:"center"});d.text("Cuartel General del Cuerpo de Bomberos de Villarrica · Valentín Letelier #630 · Villarrica · Chile · germaniacbv@gmail.com",105,290,{align:"center"});}
+   const pages=d.getNumberOfPages();for(let p=1;p<=pages;p++){d.setPage(p);d.setDrawColor(190);d.line(30,pageH-13,180,pageH-13);d.setFont("helvetica","normal");d.setFontSize(6);d.setTextColor(130);d.text('2025-2026 Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica | Quinta Compañía de Bomberos "Germania" de Villarrica',105,pageH-10,{align:"center"});d.text("Cuartel General del Cuerpo de Bomberos de Villarrica · Valentín Letelier #630 · Villarrica · Chile · germaniacbv@gmail.com",105,pageH-7,{align:"center"});}
    return d;
  };
  const previewPdf=async()=>{try{const d=await pdf();if(!d)return;const blob=d.output("blob");if(pdfUrl)URL.revokeObjectURL(pdfUrl);const url=URL.createObjectURL(blob);setPdfUrl(url);setStatus("Vista previa PDF actualizada.");}catch(e){setStatus("No fue posible generar la vista previa PDF.")}};
