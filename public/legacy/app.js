@@ -3784,23 +3784,44 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   document.getElementById("crestImg").src=LOGO_B64;
   document.getElementById("membreteLogo").src=LOGO_B64;
   document.getElementById("todayLabel").textContent=fmtDateLong(todayISO());
-  await sSet("__check", 1);
-  await loadAll();
-  /* La base parte con el registro 2026 de la Compañía; de ahí en adelante
-     se van sumando las nuevas citaciones y salidas del B-5. */
-  if(!(await sGet(IMPORT_KEY,null)) && (await getIndex()).length===0){
-    try{ await importarHistorico2026(); }catch(e){ console.error("No se pudo cargar la base 2026",e); }
+
+  // La estructura visible no debe esperar la sincronización remota completa.
+  // Las tareas institucionales siguen usando exclusivamente la base central.
+  const ocultarCarga=()=>document.getElementById("appLoading")?.classList.add("hidden");
+  const arranqueVisual=setTimeout(ocultarCarga,1200);
+
+  try{
+    await sSet("__check", 1);
+    await loadAll();
+    renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
+    document.getElementById("ordenModo").value=ORDEN_MODO;
+    document.getElementById("anioOficialidad").value=new Date().getFullYear();
+    document.getElementById("fecha").value=todayISO();
+    clearTimeout(arranqueVisual);
+    ocultarCarga();
+
+    // Datos secundarios: sincronizan sin bloquear la pantalla ni cambiar la pestaña actual.
+    Promise.allSettled([
+      loadListaForSelection(),
+      renderDisponibilidad()
+    ]).then(resultados=>{
+      resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Sincronización inicial:",x.reason));
+    });
+    cargarMiVoluntario();
+    pintarCandado();
+
+    // La importación histórica se verifica en segundo plano y nunca controla la navegación.
+    Promise.allSettled([sGet(IMPORT_KEY,null),getIndex()]).then(async ([imp,idx])=>{
+      if(imp.status==="fulfilled" && idx.status==="fulfilled" && !imp.value && idx.value.length===0){
+        try{ await importarHistorico2026(); }catch(e){ console.error("No se pudo cargar la base 2026",e); }
+      }
+    });
+  }catch(e){
+    console.error("Inicio GERMANIA:",e);
+    clearTimeout(arranqueVisual);
+    ocultarCarga();
   }
-  renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
-  document.getElementById("ordenModo").value=ORDEN_MODO;
-  document.getElementById("anioOficialidad").value=new Date().getFullYear();
-  document.getElementById("fecha").value=todayISO();
-  await loadListaForSelection();
-  cargarMiVoluntario();
-  await renderDisponibilidad();
-  pintarCandado();
-  document.getElementById("appLoading")?.classList.add("hidden");
-  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad(); },15000);
+  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad().catch(console.error); },15000);
 })();
 
 /* Correo institucional GERMANIA: punto de activación visible en Oficialidad.
