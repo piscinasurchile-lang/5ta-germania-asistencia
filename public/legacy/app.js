@@ -2383,8 +2383,18 @@ async function renderPanel(){
   // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
   const R=rangoPanel();
-  const {partes,activos,stats}=await datosPanel(R.desde,R.hasta);
-  const r=resumen(partes,activos,stats);
+  let partes,activos,stats,r;
+  try{
+    ({partes,activos,stats}=await datosPanel(R.desde,R.hasta));
+    r=resumen(partes,activos,stats);
+  }catch(e){
+    console.error("Dashboard: no fue posible cargar los datos principales.",e);
+    const corte=document.getElementById("pnCorte");
+    if(corte) corte.textContent=R.etiqueta+" · no fue posible cargar los datos";
+    ["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"]
+      .forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty">No fue posible cargar esta información. Intenta actualizar nuevamente.</div>';});
+    return;
+  }
   // Guardia no debe bloquear el tablero: mientras no existan datos consolidados se informa 0.
   const guardiasPanel={turnos:0,por:{},realizadas:0,cedidas:0,sobreMinimo:0};
   const bajas=ROSTER.filter(m=>m.activo===false).length;
