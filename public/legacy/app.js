@@ -2480,29 +2480,27 @@ function resumen(partes, activos, stats){
 
 async function guardiasEnRangoPanel(desde,hasta,activos){
   const idx=await idxGuardias(), por={};
-  activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,obac:0,conductor:0,total:0});
-  let turnos=0, incompletas=0;
+  activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,ausenciasSinReemplazo:0,obac:0,conductor:0,total:0,cumplimiento:0,adicionales:0});
+  let turnos=0, incompletas=0, sinObac=0, sinConductor=0, sobreDotacion=0;
   for(const it of idx){
-    const fecha=it.fecha||"";
-    if(fecha && (fecha<desde||fecha>hasta)) continue;
-    const g=await getGuardia(it.clave); if(!g) continue;
-    const fechaGuardia=g.fechaIng||fecha;
-    if(!fechaGuardia || fechaGuardia<desde || fechaGuardia>hasta) continue;
-    turnos++;
-    const hechos=new Set(); let cobertura=0;
+    const fecha=it.fecha||""; if(fecha&&(fecha<desde||fecha>hasta))continue;
+    const g=await getGuardia(it.clave); if(!g)continue;
+    const fechaGuardia=g.fechaIng||fecha; if(!fechaGuardia||fechaGuardia<desde||fechaGuardia>hasta)continue;
+    turnos++; const hechos=new Set(); let cobertura=0;
     normalizaTurno(g.guardianes).forEach(x=>{
-      if(por[x.id]){ por[x.id].asignadas++; if(x.estado!=="no"){por[x.id].propias++;hechos.add(x.id);cobertura++;} else if(x.reemplazo) por[x.id].cedidas++; }
+      if(por[x.id]){por[x.id].asignadas++;if(x.estado!=="no"){por[x.id].propias++;hechos.add(x.id);cobertura++;}else if(x.reemplazo)por[x.id].cedidas++;else por[x.id].ausenciasSinReemplazo++;}
       if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;hechos.add(x.reemplazo);cobertura++;}
     });
-    if(cobertura<4) incompletas++;
-    if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}
-    if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}
+    if(cobertura<4)incompletas++; if(cobertura>4)sobreDotacion++;
+    if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}else sinObac++;
+    if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}else sinConductor++;
     hechos.forEach(id=>{if(por[id])por[id].total++;});
   }
-  const v=Object.values(por);
-  return {turnos,por,incompletas,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes:v.filter(x=>x.total>0).length};
+  Object.values(por).forEach(x=>{x.cumplimiento=x.asignadas?pct(x.propias,x.asignadas):0;x.adicionales=x.reemplazos;});
+  const v=Object.values(por),participantes=v.filter(x=>x.total>0).length,conAsignacion=v.filter(x=>x.asignadas>0);
+  const asignadas=conAsignacion.reduce((s,x)=>s+x.asignadas,0),propias=conAsignacion.reduce((s,x)=>s+x.propias,0);
+  return {turnos,por,incompletas,sinObac,sinConductor,sobreDotacion,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),reemplazos:v.reduce((s,x)=>s+x.reemplazos,0),ausenciasSinReemplazo:v.reduce((s,x)=>s+x.ausenciasSinReemplazo,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes,participacionRoster:pct(participantes,activos.length),cumplimientoTotal:asignadas?pct(propias,asignadas):0,cumplimientoCompleto:conAsignacion.filter(x=>x.propias===x.asignadas).length,conCedidas:v.filter(x=>x.cedidas>0).length,reemplazantes:v.filter(x=>x.reemplazos>0).length,sinParticipacion:v.filter(x=>x.total===0).length};
 }
-
 async function renderPanel(){
   // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
@@ -2524,13 +2522,15 @@ async function renderPanel(){
   const guardiasPanel={turnos:0,por:{},realizadas:0,cedidas:0,sobreMinimo:0};
   guardiasEnRangoPanel(R.desde,R.hasta,activos).then(g=>{
     if(!g) return;
-    const ids={turnos:"pnGuardiaTurnos",realizadas:"pnGuardiaRealizadas",sobreMinimo:"pnGuardiaSobreMinimo",cedidas:"pnGuardiaCedidas"};
+    const ids={turnos:"pnGuardiaTurnos",realizadas:"pnGuardiaRealizadas",sobreMinimo:"pnGuardiaSobreMinimo",cedidas:"pnGuardiaCedidas",participantes:"pnGuardiaParticipantes",reemplazos:"pnGuardiaReemplazos",cumplimientoCompleto:"pnGuardiaCumplen",conCedidas:"pnGuardiaConCedidas",reemplazantes:"pnGuardiaReemplazantes",sinParticipacion:"pnGuardiaSinParticipacion",incompletas:"pnGuardiaIncompletas",sinObac:"pnGuardiaSinObac",sinConductor:"pnGuardiaSinConductor"};
     Object.entries(ids).forEach(([k,id])=>{const el=document.getElementById(id);if(el)el.textContent=String(g[k]||0);});
+    const cp=document.getElementById("pnGuardiaCumplimiento");if(cp)cp.textContent=g.cumplimientoTotal.toFixed(1)+"%";
+    const pr=document.getElementById("pnGuardiaParticipacionRoster");if(pr)pr.textContent=g.participacionRoster.toFixed(1)+"%";
     const body=document.getElementById("pnGuardiaRankingBody");
     if(body){
       body.innerHTML=r.porPersona.slice().sort((a,b)=>(g.por[b.m.id]?.total||0)-(g.por[a.m.id]?.total||0)).map(x=>{
         const q=g.por[x.m.id]||{asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0};
-        return `<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>${q.asignadas}</td><td>${q.propias}</td><td>${q.reemplazos}</td><td>${q.cedidas}</td><td><b>${q.total}</b></td></tr>`;
+        return `<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>${q.asignadas}</td><td>${q.propias}</td><td>${q.asignadas?q.cumplimiento.toFixed(1)+"%":"—"}</td><td>${q.reemplazos}</td><td>${q.cedidas}</td><td><b>${q.total}</b></td></tr>`;
       }).join("");
     }
   }).catch(e=>console.error("Dashboard Guardia:",e));
@@ -2556,8 +2556,8 @@ async function renderPanel(){
   });
 
   if(!r.N){
-    document.getElementById("pnKpis").innerHTML='<div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div><div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div><div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div>';
-    document.getElementById("pnRanking").innerHTML='<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Reemplazos</th><th>Cedidas</th><th>Total</th></tr></thead><tbody id="pnGuardiaRankingBody">'+r.porPersona.map(x=>'<tr><td class="n-col">'+(x.m.n||"")+'</td><td class="name-col">'+esc(nombreCompleto(x.m))+'</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>').join("")+'</tbody></table>';
+    document.getElementById("pnKpis").innerHTML='<div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div><div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div><div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipantes">0</div><div class="l">Voluntarios con participación en Guardia</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipacionRoster">0%</div><div class="l">% dotación activa con participación</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplimiento">0%</div><div class="l">Cumplimiento de noches propias</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplen">0</div><div class="l">Voluntarios que cumplieron todas sus noches</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazos">0</div><div class="l">Reemplazos efectivamente realizados</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazantes">0</div><div class="l">Voluntarios que realizaron reemplazos</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaConCedidas">0</div><div class="l">Voluntarios que cedieron al menos una noche</div></div><div class="kpi"><div class="v" id="pnGuardiaSinParticipacion">0</div><div class="l">Voluntarios sin participación en Guardia</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaIncompletas">0</div><div class="l">Noches bajo mínimo de guardianes</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinObac">0</div><div class="l">Noches sin OBAC</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinConductor">0</div><div class="l">Noches sin conductor</div></div>';
+    document.getElementById("pnRanking").innerHTML='<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Cumpl.</th><th>Reemplazos</th><th>Cedidas</th><th>Total efectivo</th></tr></thead><tbody id="pnGuardiaRankingBody">'+r.porPersona.map(x=>'<tr><td class="n-col">'+(x.m.n||"")+'</td><td class="name-col">'+esc(nombreCompleto(x.m))+'</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>').join("")+'</tbody></table>';
     ["pnTipos","pnTramos","pnMeses","pnDetalle","pnConvocatoria","pnHallazgos"]
       .forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Sin actividades generales en este período. Guardia Nocturna se calcula de forma independiente.</div>');
     return;
@@ -2568,7 +2568,7 @@ async function renderPanel(){
     <div class="kpi"><div class="v">${ROSTER.length}</div><div class="l">Dotación listada</div></div>
     <div class="kpi alto"><div class="v">${activos.length}</div><div class="l">Voluntarios activos</div></div>
     <div class="kpi bajo"><div class="v">${bajas}</div><div class="l">Bajas</div></div>
-    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>\n    <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias registradas</div></div>\n    <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Promedio por actividad</div></div>\n    <div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div>\n    <div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div>\n    <div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div>\n    <div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div>`;
+    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>\n    <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias registradas</div></div>\n    <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Promedio por actividad</div></div>\n    <div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div>\n    <div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div>\n    <div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div>\n    <div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipantes">0</div><div class="l">Voluntarios con participación en Guardia</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipacionRoster">0%</div><div class="l">% dotación activa con participación</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplimiento">0%</div><div class="l">Cumplimiento de noches propias</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplen">0</div><div class="l">Voluntarios que cumplieron todas sus noches</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazos">0</div><div class="l">Reemplazos efectivamente realizados</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazantes">0</div><div class="l">Voluntarios que realizaron reemplazos</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaConCedidas">0</div><div class="l">Voluntarios que cedieron al menos una noche</div></div><div class="kpi"><div class="v" id="pnGuardiaSinParticipacion">0</div><div class="l">Voluntarios sin participación en Guardia</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaIncompletas">0</div><div class="l">Noches bajo mínimo de guardianes</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinObac">0</div><div class="l">Noches sin OBAC</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinConductor">0</div><div class="l">Noches sin conductor</div></div>`;
 
   const listaT=Object.entries(r.tipos).map(([t,d])=>({t,n:d.n,pres:d.pres,tasa:pct(d.pres,d.n*activos.length)}))
                 .sort((a,b)=>b.n-a.n);
@@ -2618,7 +2618,7 @@ async function renderPanel(){
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
       <td class="cargo-col">${esc(x.m.cargo)}</td>
       <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
-  const tablaGuardia=`<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Reemplazos</th><th>Cedidas</th><th>Total</th></tr></thead><tbody id="pnGuardiaRankingBody">${r.porPersona.map(x=>`<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>`).join("")}</tbody></table>`;
+  const tablaGuardia=`<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Cumpl.</th><th>Reemplazos</th><th>Cedidas</th><th>Total efectivo</th></tr></thead><tbody id="pnGuardiaRankingBody">${r.porPersona.map(x=>`<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>`).join("")}</tbody></table>`;
   document.getElementById("pnRanking").innerHTML=tablaGuardia+`\n    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
     <h3>Menor asistencia</h3><table><tbody>${r.porPersona.slice(-5).reverse().map(fila).join("")}</tbody></table>`;
 
