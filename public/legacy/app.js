@@ -416,12 +416,22 @@ async function loadAll(){
   }
   r.forEach(m=>{ if(!m.cursos) m.cursos={}; });
   ROSTER=r;
-  TIPOS = await sGet(TIPOS_KEY,null) || DEFAULT_TIPOS.slice();
-  CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
-  SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
-  MNT_TIPOS = await sGet(MNT_TIPOS_KEY,null) || DEFAULT_MNT_TIPOS.slice();
-  INV_CATEGORIAS = await sGet(INV_CAT_KEY,null) || DEFAULT_INV_CATEGORIAS.slice();
-  ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
+  // Configuración independiente: leer en paralelo reduce la latencia de arranque
+  // sin cambiar la fuente de verdad central.
+  const [tipos,cargos,svTipos,mntTipos,invCategorias,ordenModo]=await Promise.all([
+    sGet(TIPOS_KEY,null),
+    sGet(CARGOS_KEY,null),
+    sGet(SV_TIPOS_KEY,null),
+    sGet(MNT_TIPOS_KEY,null),
+    sGet(INV_CAT_KEY,null),
+    sGet("orden:v1",null)
+  ]);
+  TIPOS = tipos || DEFAULT_TIPOS.slice();
+  CARGOS = cargos || DEFAULT_CARGOS.slice();
+  SV_TIPOS = svTipos || DEFAULT_SV_TIPOS.slice();
+  MNT_TIPOS = mntTipos || DEFAULT_MNT_TIPOS.slice();
+  INV_CATEGORIAS = invCategorias || DEFAULT_INV_CATEGORIAS.slice();
+  ORDEN_MODO = ordenModo || "oficialidad";
   renumerar();
 }
 async function saveRoster(){ await sSet(ROSTER_KEY,ROSTER); }
@@ -2324,6 +2334,7 @@ async function poblarAniosHistorial(idx){
 }
 async function renderHistorial(){
   const list=document.getElementById("historialList");
+  if(list) list.innerHTML='<div class="empty" data-loading="1">Estamos cargando el historial. Danos unos segundos…</div>';
   const f=document.getElementById("histTipoFiltro").value;
   const anio=document.getElementById("histAnioFiltro") ? document.getElementById("histAnioFiltro").value : "";
   const fd=document.getElementById("histDescFiltro") ? document.getElementById("histDescFiltro").value : "";
@@ -2503,6 +2514,7 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
   return {turnos,por,incompletas,sinObac,sinConductor,sobreDotacion,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),reemplazos:v.reduce((s,x)=>s+x.reemplazos,0),ausenciasSinReemplazo:v.reduce((s,x)=>s+x.ausenciasSinReemplazo,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes,participacionRoster:pct(participantes,activos.length),cumplimientoTotal:asignadas?pct(propias,asignadas):0,cumplimientoCompleto:conAsignacion.filter(x=>x.propias===x.asignadas).length,conCedidas:v.filter(x=>x.cedidas>0).length,reemplazantes:v.filter(x=>x.reemplazos>0).length,sinParticipacion:v.filter(x=>x.total===0).length};
 }
 async function renderPanel(){
+  moduloCargando(["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"],"Estamos cargando el Dashboard. Danos unos segundos…");
   // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
   const R=rangoPanel();
@@ -3803,9 +3815,11 @@ async function refrescarIdentidadVoluntario(){
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
-  sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+sortedRoster(false)
+  const lista=sortedRoster(false);
+  sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+lista
     .map(p=>`<option value="${p.id}">${p.clave?esc(p.clave)+" · ":""}${esc(nombreCompleto(p))}</option>`).join("");
   sel.value="";
+  sel.disabled=lista.length===0;
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
@@ -3843,6 +3857,7 @@ async function guardiaDeHoy(){
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
+  body.innerHTML='<tr><td colspan="6"><div class="empty" data-loading="1">Estamos actualizando la disponibilidad. Danos unos segundos…</div></td></tr>';
   const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
   const obac=guardia?.oficial?String(guardia.oficial):"";
@@ -3900,6 +3915,11 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
   const t=document.getElementById("menuToggle"); if(t) t.setAttribute("aria-expanded","false");
 }));
 
+/* Estado de carga por módulo: informa la espera sin bloquear la navegación. */
+function moduloCargando(ids,mensaje="Estamos cargando la información. Danos unos segundos…"){
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty" data-loading="1">'+esc(mensaje)+'</div>';});
+}
+
 /* ============ TABS ============ */
 function switchTabExtra(name){
   if(name==="germania") renderDisponibilidad();
@@ -3936,26 +3956,33 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   // La estructura visible no debe esperar la sincronización remota completa.
   // Las tareas institucionales siguen usando exclusivamente la base central.
   const ocultarCarga=()=>document.getElementById("appLoading")?.classList.add("hidden");
-  const arranqueVisual=setTimeout(ocultarCarga,1200);
+  // El mensaje inicial permanece hasta que la nómina central esté realmente lista.
+  // No se oculta por tiempo fijo: evita mostrar un selector vacío durante una conexión lenta.
 
   try{
-    await sSet("__check", 1);
+    // Arranque rápido: la pantalla inicial solo espera la nómina/configuración
+    // imprescindible. Las verificaciones de Guardia son secundarias y nunca
+    // deben bloquear la entrada a GERMANIA.
     await loadAll();
-    // Dataset temporal solicitado para validar el circuito Guardia → Dashboard.
-    // La siembra es idempotente y queda marcada explícitamente como prueba.
-    // La prueba integral debe quedar escrita y releída desde la base central
-    // antes de continuar con la inicialización. Así no se confunde "desplegado"
-    // con "persistido y verificable".
-    await sembrarGuardiaPruebaEnero2026();
-    await sembrarMatrizGuardiaPrueba();
-    const validacionGuardia=await validarGuardiaPruebaEnero2026();
-    const validacionMatriz=await validarMatrizGuardiaPrueba();
-    if(!validacionGuardia.ok||!validacionMatriz.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.concat(validacionMatriz.errores).join(" | "));
+    // La nómina ya está disponible: recién ahora se habilita y completa el selector.
+    cargarMiVoluntario();
+    Promise.allSettled([
+      sembrarGuardiaPruebaEnero2026(),
+      sembrarMatrizGuardiaPrueba()
+    ]).then(async()=>{
+      const [vg,vm]=await Promise.allSettled([
+        validarGuardiaPruebaEnero2026(),
+        validarMatrizGuardiaPrueba()
+      ]);
+      if(vg.status==="rejected") console.error("Validación Guardia:",vg.reason);
+      if(vm.status==="rejected") console.error("Validación matriz Guardia:",vm.reason);
+      if(vg.status==="fulfilled"&&!vg.value.ok) console.error("Validación Guardia:",vg.value.errores);
+      if(vm.status==="fulfilled"&&!vm.value.ok) console.error("Validación matriz Guardia:",vm.value.errores);
+    }).catch(console.error);
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
     document.getElementById("fecha").value=todayISO();
-    clearTimeout(arranqueVisual);
     ocultarCarga();
 
     // Datos secundarios: sincronizan sin bloquear la pantalla ni cambiar la pestaña actual.
@@ -3965,7 +3992,6 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     ]).then(resultados=>{
       resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Sincronización inicial:",x.reason));
     });
-    cargarMiVoluntario();
     pintarCandado();
 
     // La importación histórica se verifica en segundo plano y nunca controla la navegación.
@@ -3976,7 +4002,6 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     });
   }catch(e){
     console.error("Inicio GERMANIA:",e);
-    clearTimeout(arranqueVisual);
     ocultarCarga();
   }
   setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad().catch(console.error); },15000);
@@ -3994,4 +4019,4 @@ on("activarCorreoCompaniaBtn","click",()=>{
 document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
 
 /* Guardia integral: arranque no intrusivo */
-document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),1800); });
+document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} });
