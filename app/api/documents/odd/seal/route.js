@@ -1,6 +1,5 @@
 import { neon } from "@neondatabase/serverless";
 import crypto from "node:crypto";
-import { jsPDF } from "jspdf";
 import { LOGO_B64 } from "../../../../../lib/logo";
 
 export const runtime="nodejs";
@@ -13,7 +12,7 @@ export async function POST(req){
  if(!process.env.DATABASE_URL) return Response.json({error:"database_not_configured"},{status:503});
  try{
   const b=await req.json(),f=b.form||{},type=b.type||"citacion",signers=b.signers||{},format=b.paperFormat==="legal"?"legal":"letter";
-  const sql=neon(process.env.DATABASE_URL),d=new jsPDF({unit:"mm",format});
+  const {jsPDF}=await import("jspdf");const sql=neon(process.env.DATABASE_URL),d=new jsPDF({unit:"mm",format});
   const pageH=d.internal.pageSize.getHeight(),bottom=pageH-22,center=d.internal.pageSize.getWidth()/2;let y=35;
   const head=()=>{d.setFillColor(0);d.rect(20,10,68,3,"F");d.rect(122,10,68,3,"F");d.setFillColor(190,0,0);d.rect(20,13,68,3,"F");d.rect(122,13,68,3,"F");d.setFillColor(255,205,0);d.rect(20,16,68,3,"F");d.rect(122,16,68,3,"F");try{d.addImage(LOGO_B64,"PNG",94,7,22,24)}catch{}};
   const addLines=(arr)=>{d.setFont("helvetica","normal");d.setFontSize(10);for(const x of arr){const w=d.splitTextToSize(String(x||""),165);if(y+w.length*5>bottom){d.addPage();head();y=38}d.text(w,22,y);y+=Math.max(5,w.length*5)}};
