@@ -2334,6 +2334,7 @@ async function poblarAniosHistorial(idx){
 }
 async function renderHistorial(){
   const list=document.getElementById("historialList");
+  if(list) list.innerHTML='<div class="empty" data-loading="1">Estamos cargando el historial. Danos unos segundos…</div>';
   const f=document.getElementById("histTipoFiltro").value;
   const anio=document.getElementById("histAnioFiltro") ? document.getElementById("histAnioFiltro").value : "";
   const fd=document.getElementById("histDescFiltro") ? document.getElementById("histDescFiltro").value : "";
@@ -2513,6 +2514,7 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
   return {turnos,por,incompletas,sinObac,sinConductor,sobreDotacion,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),reemplazos:v.reduce((s,x)=>s+x.reemplazos,0),ausenciasSinReemplazo:v.reduce((s,x)=>s+x.ausenciasSinReemplazo,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes,participacionRoster:pct(participantes,activos.length),cumplimientoTotal:asignadas?pct(propias,asignadas):0,cumplimientoCompleto:conAsignacion.filter(x=>x.propias===x.asignadas).length,conCedidas:v.filter(x=>x.cedidas>0).length,reemplazantes:v.filter(x=>x.reemplazos>0).length,sinParticipacion:v.filter(x=>x.total===0).length};
 }
 async function renderPanel(){
+  moduloCargando(["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"],"Estamos cargando el Dashboard. Danos unos segundos…");
   // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
   const R=rangoPanel();
@@ -3855,6 +3857,7 @@ async function guardiaDeHoy(){
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
+  body.innerHTML='<tr><td colspan="6"><div class="empty" data-loading="1">Estamos actualizando la disponibilidad. Danos unos segundos…</div></td></tr>';
   const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
   const obac=guardia?.oficial?String(guardia.oficial):"";
@@ -3911,6 +3914,11 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
   const m=document.getElementById("mobileMenu"); if(m) m.classList.remove("open");
   const t=document.getElementById("menuToggle"); if(t) t.setAttribute("aria-expanded","false");
 }));
+
+/* Estado de carga por módulo: informa la espera sin bloquear la navegación. */
+function moduloCargando(ids,mensaje="Estamos cargando la información. Danos unos segundos…"){
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty" data-loading="1">'+esc(mensaje)+'</div>';});
+}
 
 /* ============ TABS ============ */
 function switchTabExtra(name){
