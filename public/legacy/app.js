@@ -2392,6 +2392,7 @@ function pct(a,b){ return b? (a/b*100) : 0; }
 async function aniosConDatos(){
   const idx=await getIndex();
   const set=new Set(idx.map(i=>i.date.slice(0,4)));
+  try{ (await idxGuardias()).forEach(i=>{if(i.fecha)set.add(String(i.fecha).slice(0,4));}); }catch(e){ console.error("Dashboard: años de Guardia no disponibles",e); }
   set.add(String(new Date().getFullYear()));
   return [...set].sort().reverse();
 }
@@ -2402,16 +2403,16 @@ async function poblarSelectoresPanel(){
   selA.value = anios.includes(prev) ? prev : anios[0];
   const selM=document.getElementById("pnMes");
   if(!selM.options.length){
-    selM.innerHTML='<option value="acum">Acumulado a la fecha</option><option value="anio">Año completo</option>'
-      + MESES_NOM.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("");
-    selM.value="acum";
+    selM.innerHTML='<option value="anio">Anual · año completo</option>'
+      + MESES_NOM.map((m,i)=>`<option value="${i+1}">Mensual · ${m}</option>`).join("");
+    selM.value="anio";
   }
 }
 
 /* Rango de fechas segun el periodo elegido */
 function rangoPanel(){
   const anio=document.getElementById("pnAnio").value || String(new Date().getFullYear());
-  const modo=document.getElementById("pnMes").value || "acum";
+  const modo=document.getElementById("pnMes").value || "anio";
   const hoy=todayISO();
   if(modo==="anio") return {desde:`${anio}-01-01`, hasta:`${anio}-12-31`, etiqueta:`Año ${anio} completo`, modo};
   if(modo==="acum"){
