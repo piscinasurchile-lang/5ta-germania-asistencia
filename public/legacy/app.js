@@ -2477,8 +2477,10 @@ async function renderPanel(){
   });
 
   if(!r.N){
-    ["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"]
-      .forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Sin datos en este período.</div>');
+    document.getElementById("pnKpis").innerHTML='<div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div><div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div><div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div>';
+    document.getElementById("pnRanking").innerHTML='<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Reemplazos</th><th>Cedidas</th><th>Total</th></tr></thead><tbody id="pnGuardiaRankingBody">'+r.porPersona.map(x=>'<tr><td class="n-col">'+(x.m.n||"")+'</td><td class="name-col">'+esc(nombreCompleto(x.m))+'</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>').join("")+'</tbody></table>';
+    ["pnTipos","pnTramos","pnMeses","pnDetalle","pnConvocatoria","pnHallazgos"]
+      .forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Sin actividades generales en este período. Guardia Nocturna se calcula de forma independiente.</div>');
     return;
   }
 
