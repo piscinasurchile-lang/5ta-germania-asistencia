@@ -1641,31 +1641,45 @@ const GUARDIA_PRUEBA_ENE26="guardia:test:enero2026:v1";
 function idPorClaveGuardia(clave){ return ROSTER.find(p=>String(p.clave||"")===String(clave))?.id||""; }
 async function sembrarGuardiaPruebaEnero2026(){
   if(await sGet(GUARDIA_PRUEBA_ENE26,false)) return;
-  const g=(fecha,oficial,conductor,claves,fuente="programación histórica")=>({
+  const rid=k=>idPorClaveGuardia(k);
+  const guard=(clave,estado="cuartel",extra={})=>({id:rid(clave),estado,motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:"",...extra});
+  const g=(fecha,oficial,conductor,guardianes,fuente="programación histórica")=>({
     fechaIng:fecha,horaIng:"23:00",fechaSal:(()=>{const d=new Date(fecha+"T12:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})(),horaSal:"07:00",
-    oficial:idPorClaveGuardia(oficial),conductor:idPorClaveGuardia(conductor),
-    guardianes:claves.map(k=>({id:idPorClaveGuardia(k),estado:"cuartel",motivo:"",correo:false,obs:"Dato temporal para validar Dashboard; no acredita asistencia efectiva.",reemplazo:"",reemplazoRegistradoEn:""})).filter(x=>x.id),
+    oficial:rid(oficial),conductor:rid(conductor),guardianes:guardianes.filter(x=>x.id),
     novedades:"REGISTRO TEMPORAL DE PRUEBA · "+fuente+" · eliminar al iniciar operación definitiva.",
-    esPrueba:true,fuentePrueba:"Programación Guardia enero 2026"
+    esPrueba:true,fuentePrueba:"Prueba integral Guardia Nocturna enero 2026"
   });
+  const cambioEn="2026-01-10T18:30:00.000Z";
   const turnos=[
-    // 07/01 se completa como turno de prueba para disponer de las 7 noches requeridas.
-    g("2026-01-07","45","9",["515","516","523","524"],"turno inventado/autorizado sólo para prueba"),
-    // 08/01: voluntarios legibles en la fila superior de la imagen; funciones no legibles, por eso no se inventan.
-    g("2026-01-08","","",["520","521","516"],"programación visible parcialmente en imagen"),
-    g("2026-01-09","45","9",["507","515","516","523","524"]),
-    g("2026-01-10","45","505",["515","522","523","504"]),
-    g("2026-01-11","503","9",["513","524","504"]),
-    g("2026-01-12","503","45",["75","508","516","522"]),
-    g("2026-01-13","510","505",["506","513","516","504"])
+    // Caso 1: dotación normal completa.
+    g("2026-01-07","45","9",[guard("515"),guard("516"),guard("523"),guard("524")],"turno de prueba autorizado para completar las 7 noches"),
+    // Caso 2: voluntario desde su domicilio; conserva participación efectiva.
+    g("2026-01-08","503","505",[guard("520","casa",{obs:"Acude al llamado desde su domicilio."}),guard("521"),guard("516"),guard("525")],"prueba de modalidad cuartel/domicilio"),
+    // Caso 3: dotación superior al mínimo.
+    g("2026-01-09","45","9",[guard("507"),guard("515"),guard("516"),guard("523"),guard("524")],"programación histórica · prueba de noche con más de cuatro guardianes"),
+    // Caso 4: cambio de voluntario. Manuel Moller cede; Christian Vergara realiza el reemplazo.
+    g("2026-01-10","45","505",[
+      guard("515"),
+      guard("522","no",{motivo:"Trabajo",correo:true,obs:"Cambio de voluntario simulado para prueba integral.",reemplazo:rid("517"),reemplazoRegistradoEn:cambioEn}),
+      guard("523"),guard("504")
+    ],"prueba de inasistencia justificada y reemplazo"),
+    // Caso 5: falta de un guardián respecto del mínimo para comprobar alerta de cobertura.
+    g("2026-01-11","503","9",[guard("513"),guard("524"),guard("504")],"prueba de dotación incompleta"),
+    // Caso 6: cuatro guardianes y conductor/OBAC completos.
+    g("2026-01-12","503","45",[guard("75"),guard("508"),guard("516"),guard("522")],"programación histórica"),
+    // Caso 7: participación repetida para estadísticas acumuladas.
+    g("2026-01-13","510","505",[guard("506"),guard("513"),guard("516"),guard("504")],"programación histórica · prueba acumulada")
   ];
   for(const turno of turnos){
     const clave=claveGuardia(turno.fechaIng,turno.horaIng);
     if(!(await getGuardia(clave))) await setGuardia(clave,turno);
   }
-  await sSet(GUARDIA_PRUEBA_ENE26,{creadoEn:new Date().toISOString(),turnos:turnos.length,temporal:true});
+  await sSet(GUARDIA_PRUEBA_ENE26,{
+    creadoEn:new Date().toISOString(),turnos:turnos.length,temporal:true,
+    alcance:["OBAC","Conductor/Maquinista","Guardianes","Cuartel","Domicilio","Inasistencia justificada","Reemplazo","Dotación incompleta","Dotación sobre mínimo","Estadística acumulada"],
+    cambioPrueba:{fecha:"2026-01-10",designado:"Manuel Moller Henriquez",reemplazo:"Christian Vergara Sandoval",motivo:"Trabajo"}
+  });
 }
-
 function renderGnOficial(){
   const sel=document.getElementById("gnOficial"); if(!sel) return;
   const prev=sel.value;
