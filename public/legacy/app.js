@@ -3956,13 +3956,16 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   // La estructura visible no debe esperar la sincronización remota completa.
   // Las tareas institucionales siguen usando exclusivamente la base central.
   const ocultarCarga=()=>document.getElementById("appLoading")?.classList.add("hidden");
-  const arranqueVisual=setTimeout(ocultarCarga,1200);
+  // El mensaje inicial permanece hasta que la nómina central esté realmente lista.
+  // No se oculta por tiempo fijo: evita mostrar un selector vacío durante una conexión lenta.
 
   try{
     // Arranque rápido: la pantalla inicial solo espera la nómina/configuración
     // imprescindible. Las verificaciones de Guardia son secundarias y nunca
     // deben bloquear la entrada a GERMANIA.
     await loadAll();
+    // La nómina ya está disponible: recién ahora se habilita y completa el selector.
+    cargarMiVoluntario();
     Promise.allSettled([
       sembrarGuardiaPruebaEnero2026(),
       sembrarMatrizGuardiaPrueba()
@@ -3980,7 +3983,6 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
     document.getElementById("fecha").value=todayISO();
-    clearTimeout(arranqueVisual);
     ocultarCarga();
 
     // Datos secundarios: sincronizan sin bloquear la pantalla ni cambiar la pestaña actual.
@@ -3990,7 +3992,6 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     ]).then(resultados=>{
       resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Sincronización inicial:",x.reason));
     });
-    cargarMiVoluntario();
     pintarCandado();
 
     // La importación histórica se verifica en segundo plano y nunca controla la navegación.
@@ -4001,7 +4002,6 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     });
   }catch(e){
     console.error("Inicio GERMANIA:",e);
-    clearTimeout(arranqueVisual);
     ocultarCarga();
   }
   setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad().catch(console.error); },15000);
@@ -4019,4 +4019,4 @@ on("activarCorreoCompaniaBtn","click",()=>{
 document.addEventListener("click",function(e){const b=e.target.closest("button,.btn,.tab,.subtab");if(!b||b.disabled)return;try{if(navigator.vibrate)navigator.vibrate(22)}catch(_){}},{passive:true});
 
 /* Guardia integral: arranque no intrusivo */
-document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} setTimeout(()=>document.getElementById("appLoading")?.classList.add("hidden"),1800); });
+document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} });
