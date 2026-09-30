@@ -1680,6 +1680,37 @@ async function sembrarGuardiaPruebaEnero2026(){
     cambioPrueba:{fecha:"2026-01-10",designado:"Manuel Moller Henriquez",reemplazo:"Christian Vergara Sandoval",motivo:"Trabajo"}
   });
 }
+
+async function validarGuardiaPruebaEnero2026(){
+  const errores=[], esperadas=["2026-01-07","2026-01-08","2026-01-09","2026-01-10","2026-01-11","2026-01-12","2026-01-13"];
+  const idx=await idxGuardias();
+  const leidas=[];
+  for(const fecha of esperadas){
+    const clave=claveGuardia(fecha,"23:00");
+    if(!idx.some(x=>x.clave===clave)){errores.push("Índice sin "+fecha);continue;}
+    const g=await getGuardia(clave);
+    if(!g){errores.push("Registro sin "+fecha);continue;}
+    leidas.push(g);
+    if(g.fechaIng!==fecha||g.horaIng!=="23:00"||g.horaSal!=="07:00") errores.push("Horario inválido "+fecha);
+  }
+  const cambio=leidas.find(g=>g.fechaIng==="2026-01-10");
+  if(cambio){
+    const moller=idPorClaveGuardia("522"), christian=idPorClaveGuardia("517");
+    const m=normalizaTurno(cambio.guardianes).find(x=>x.id===moller);
+    if(!m||m.estado!=="no"||m.reemplazo!==christian||m.motivo!=="Trabajo"||!m.reemplazoRegistradoEn) errores.push("Reemplazo Moller → Vergara incompleto");
+  }
+  const activos=ROSTER.filter(x=>x.activo!==false);
+  const stats=await guardiasEnRangoPanel("2026-01-07","2026-01-13",activos);
+  const moller=idPorClaveGuardia("522"), christian=idPorClaveGuardia("517");
+  if(stats.turnos!==7) errores.push("Turnos esperados 7, obtenidos "+stats.turnos);
+  if(!stats.por[moller]||stats.por[moller].cedidas<1) errores.push("Moller no registra guardia cedida");
+  if(stats.por[moller]&&stats.por[moller].propias>1) errores.push("Moller recibió crédito por noche cedida");
+  if(!stats.por[christian]||stats.por[christian].reemplazos<1||stats.por[christian].total<1) errores.push("Vergara no recibió crédito por reemplazo");
+  const resultado={ok:errores.length===0,fecha:new Date().toISOString(),turnos:stats.turnos,realizadas:stats.realizadas,cedidas:stats.cedidas,sobreMinimo:stats.sobreMinimo,incompletas:stats.incompletas,participantes:stats.participantes,errores};
+  await rawSet("guardia:test:enero2026:validacion:v1",resultado);
+  return resultado;
+}
+
 function renderGnOficial(){
   const sel=document.getElementById("gnOficial"); if(!sel) return;
   const prev=sel.value;
@@ -3869,7 +3900,12 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     await loadAll();
     // Dataset temporal solicitado para validar el circuito Guardia → Dashboard.
     // La siembra es idempotente y queda marcada explícitamente como prueba.
-    sembrarGuardiaPruebaEnero2026().catch(e=>console.error("Guardia prueba enero 2026:",e));
+    // La prueba integral debe quedar escrita y releída desde la base central
+    // antes de continuar con la inicialización. Así no se confunde "desplegado"
+    // con "persistido y verificable".
+    await sembrarGuardiaPruebaEnero2026();
+    const validacionGuardia=await validarGuardiaPruebaEnero2026();
+    if(!validacionGuardia.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.join(" | "));
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
