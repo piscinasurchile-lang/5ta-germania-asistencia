@@ -3813,9 +3813,11 @@ async function refrescarIdentidadVoluntario(){
 }
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
-  sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+sortedRoster(false)
+  const lista=sortedRoster(false);
+  sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+lista
     .map(p=>`<option value="${p.id}">${p.clave?esc(p.clave)+" · ":""}${esc(nombreCompleto(p))}</option>`).join("");
   sel.value="";
+  sel.disabled=lista.length===0;
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
