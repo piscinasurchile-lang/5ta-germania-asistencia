@@ -2406,8 +2406,9 @@ function resumen(partes, activos, stats){
 }
 
 async function guardiasEnRangoPanel(desde,hasta,activos){
-  const idx=await idxGuardias(), por={}; activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,total:0});
-  let turnos=0;
+  const idx=await idxGuardias(), por={};
+  activos.forEach(m=>por[m.id]={asignadas:0,propias:0,reemplazos:0,cedidas:0,obac:0,conductor:0,total:0});
+  let turnos=0, incompletas=0;
   for(const it of idx){
     const fecha=it.fecha||"";
     if(fecha && (fecha<desde||fecha>hasta)) continue;
@@ -2415,13 +2416,18 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
     const fechaGuardia=g.fechaIng||fecha;
     if(!fechaGuardia || fechaGuardia<desde || fechaGuardia>hasta) continue;
     turnos++;
+    const hechos=new Set(); let cobertura=0;
     normalizaTurno(g.guardianes).forEach(x=>{
-      if(por[x.id]){ por[x.id].asignadas++; if(x.estado!=="no"){por[x.id].propias++;por[x.id].total++;} else if(x.reemplazo) por[x.id].cedidas++; }
-      if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;por[x.reemplazo].total++;}
+      if(por[x.id]){ por[x.id].asignadas++; if(x.estado!=="no"){por[x.id].propias++;hechos.add(x.id);cobertura++;} else if(x.reemplazo) por[x.id].cedidas++; }
+      if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;hechos.add(x.reemplazo);cobertura++;}
     });
+    if(cobertura<4) incompletas++;
+    if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}
+    if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}
+    hechos.forEach(id=>{if(por[id])por[id].total++;});
   }
   const v=Object.values(por);
-  return {turnos,por,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),sobreMinimo:v.filter(x=>x.total>2).length};
+  return {turnos,por,incompletas,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes:v.filter(x=>x.total>0).length};
 }
 
 async function renderPanel(){
