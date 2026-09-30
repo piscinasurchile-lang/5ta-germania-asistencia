@@ -1642,7 +1642,7 @@ function idPorClaveGuardia(clave){ return ROSTER.find(p=>String(p.clave||"")===S
 async function sembrarGuardiaPruebaEnero2026(){
   if(await sGet(GUARDIA_PRUEBA_ENE26,false)) return;
   const g=(fecha,oficial,conductor,claves,fuente="programación histórica")=>({
-    fechaIng:fecha,horaIng:"23:00",fechaSal:new Date(fecha+"T12:00:00").toISOString().slice(0,10),horaSal:"07:00",
+    fechaIng:fecha,horaIng:"23:00",fechaSal:(()=>{const d=new Date(fecha+"T12:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})(),horaSal:"07:00",
     oficial:idPorClaveGuardia(oficial),conductor:idPorClaveGuardia(conductor),
     guardianes:claves.map(k=>({id:idPorClaveGuardia(k),estado:"cuartel",motivo:"",correo:false,obs:"Dato temporal para validar Dashboard; no acredita asistencia efectiva.",reemplazo:"",reemplazoRegistradoEn:""})).filter(x=>x.id),
     novedades:"REGISTRO TEMPORAL DE PRUEBA · "+fuente+" · eliminar al iniciar operación definitiva.",
