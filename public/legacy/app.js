@@ -3863,11 +3863,36 @@ async function refrescarIdentidadVoluntario(){
   }
   img.src=fotoVoluntario(p);
 }
+const DEVICE_VOLUNTARIO_KEY="germania:voluntario-dispositivo:v2";
+function guardarVoluntarioDispositivo(p){
+  if(!p) return;
+  const dato={id:String(p.id||""),clave:String(p.clave||""),rut:String(p.rut||"")};
+  try{ localStorage.setItem(DEVICE_VOLUNTARIO_KEY,JSON.stringify(dato)); }catch(e){ console.warn("No se pudo guardar identidad local",e); }
+  try{ document.cookie="germania_voluntario="+encodeURIComponent(JSON.stringify(dato))+"; Max-Age=31536000; Path=/; SameSite=Lax"; }catch(e){}
+}
+function leerVoluntarioDispositivo(){
+  let dato=null;
+  try{ dato=JSON.parse(localStorage.getItem(DEVICE_VOLUNTARIO_KEY)||"null"); }catch(e){}
+  if(!dato){
+    try{
+      const m=document.cookie.match(/(?:^|; )germania_voluntario=([^;]+)/);
+      if(m) dato=JSON.parse(decodeURIComponent(m[1]));
+    }catch(e){}
+  }
+  if(!dato) return null;
+  return ROSTER.find(p=>p.activo!==false&&(
+    (dato.rut&&String(p.rut)===String(dato.rut))||
+    (dato.clave&&String(p.clave)===String(dato.clave))||
+    (dato.id&&String(p.id)===String(dato.id))
+  ))||null;
+}
 function cargarMiVoluntario(){
   const sel=document.getElementById("miVoluntario"); if(!sel) return;
   sel.innerHTML='<option value="">Seleccionar voluntario…</option>'+sortedRoster(false)
     .map(p=>`<option value="${p.id}">${p.clave?esc(p.clave)+" · ":""}${esc(nombreCompleto(p))}</option>`).join("");
-  sel.value="";
+  const guardado=leerVoluntarioDispositivo();
+  sel.value=guardado?String(guardado.id):"";
+  if(guardado) guardarVoluntarioDispositivo(guardado);
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
@@ -3933,6 +3958,8 @@ async function renderDisponibilidad(){
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
 }
 on("miVoluntario","change",async e=>{
+  const p=ROSTER.find(x=>String(x.id)===String(e.target.value));
+  if(p) guardarVoluntarioDispositivo(p);
   refrescarIdentidadVoluntario();
   await renderDisponibilidad();
 });
