@@ -3941,16 +3941,20 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   try{
     await sSet("__check", 1);
     await loadAll();
-    // Dataset temporal solicitado para validar el circuito Guardia → Dashboard.
-    // La siembra es idempotente y queda marcada explícitamente como prueba.
-    // La prueba integral debe quedar escrita y releída desde la base central
-    // antes de continuar con la inicialización. Así no se confunde "desplegado"
-    // con "persistido y verificable".
-    await sembrarGuardiaPruebaEnero2026();
-    await sembrarMatrizGuardiaPrueba();
-    const validacionGuardia=await validarGuardiaPruebaEnero2026();
-    const validacionMatriz=await validarMatrizGuardiaPrueba();
-    if(!validacionGuardia.ok||!validacionMatriz.ok) throw new Error("Validación integral de Guardia falló: "+validacionGuardia.errores.concat(validacionMatriz.errores).join(" | "));
+    // Guardia se sincroniza y valida en segundo plano. Nunca bloquea el arranque
+    // de la Tablet B-5 ni la selección del voluntario.
+    Promise.allSettled([
+      sembrarGuardiaPruebaEnero2026(),
+      sembrarMatrizGuardiaPrueba()
+    ]).then(async resultados=>{
+      resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Siembra Guardia:",x.reason));
+      const validaciones=await Promise.allSettled([
+        validarGuardiaPruebaEnero2026(),
+        validarMatrizGuardiaPrueba()
+      ]);
+      validaciones.filter(x=>x.status==="rejected").forEach(x=>console.error("Validación Guardia:",x.reason));
+      validaciones.filter(x=>x.status==="fulfilled"&&!x.value?.ok).forEach(x=>console.error("Validación Guardia incompleta:",x.value?.errores||x.value));
+    });
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
