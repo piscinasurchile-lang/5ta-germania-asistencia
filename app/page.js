@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Page() {
+  const frameRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [frameKey, setFrameKey] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), 8000);
@@ -14,20 +17,103 @@ export default function Page() {
       else window.addEventListener("load", register, { once: true });
     }
     return () => clearTimeout(timer);
-  }, []);
+  }, [frameKey]);
+
+  const onFrameLoad = () => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let doc, win;
+    try {
+      doc = frame.contentDocument;
+      win = frame.contentWindow;
+      if (!doc || !win) throw new Error("iframe no disponible");
+    } catch {
+      setReady(true);
+      return;
+    }
+
+    const style = doc.createElement("style");
+    style.textContent = `
+      html,body{width:100%!important;min-height:100%!important;overflow-x:hidden!important}
+      .wrap{max-width:none!important;width:100%!important;margin:0!important;padding:16px 18px 76px!important}
+      .masthead{width:100%!important}
+      #testModeBanner{left:12px!important;right:12px!important;bottom:12px!important;max-width:none!important}
+      @media (min-width:700px){
+        .home-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+        .card{width:100%!important}
+      }
+    `;
+    doc.head.appendChild(style);
+
+    const loading = () => doc.getElementById("appLoading");
+    const isLoaded = () => {
+      const el = loading();
+      return !el || el.classList.contains("hidden") || win.getComputedStyle(el).display === "none";
+    };
+
+    let elapsed = 0;
+    const interval = setInterval(async () => {
+      elapsed += 250;
+      if (isLoaded()) {
+        clearInterval(interval);
+        setReady(true);
+        setFailed(false);
+        return;
+      }
+
+      // La carga histórica/validación de Guardia nunca debe bloquear la interfaz B-5.
+      if (elapsed === 6000) {
+        try {
+          if (typeof win.loadListaForSelection === "function") await win.loadListaForSelection();
+          if (typeof win.cargarMiVoluntario === "function") win.cargarMiVoluntario();
+          if (typeof win.renderDisponibilidad === "function") await win.renderDisponibilidad();
+          if (typeof win.renderTipoSelect === "function") win.renderTipoSelect();
+          if (typeof win.populateTipoFilters === "function") win.populateTipoFilters();
+          loading()?.classList.add("hidden");
+        } catch (e) {
+          console.error("Recuperación Tablet B-5:", e);
+        }
+      }
+
+      if (elapsed >= 12000) {
+        clearInterval(interval);
+        if (isLoaded()) {
+          setReady(true);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      }
+    }, 250);
+  };
+
+  const retry = () => {
+    setReady(false);
+    setFailed(false);
+    setSlow(false);
+    setFrameKey(k => k + 1);
+  };
 
   return (
-    <main style={{ margin: 0, width: "100%", height: "100dvh", overflow: "hidden", background: "#07090b", position: "relative" }}>
+    <main style={{ margin: 0, width: "100vw", height: "100dvh", overflow: "hidden", background: "#07090b", position: "relative" }}>
       {!ready && (
         <div role="status" aria-live="polite" style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#07090b", color: "#fff", fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: 24, textAlign: "center" }}>
           <div>
             <img src="/legacy/germania-icon.svg" alt="Quinta Compañía Germania" width="96" height="96" style={{ objectFit: "contain", marginBottom: 18 }} />
             <div style={{ fontSize: 20, fontWeight: 700 }}>Estamos cargando tu información…</div>
-            <div style={{ marginTop: 8, color: "#c8c8c8", fontSize: 15 }}>{slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
+            <div style={{ marginTop: 8, color: "#c8c8c8", fontSize: 15 }}>{failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
+            {failed && <button type="button" onClick={retry} style={{ marginTop: 18, padding: "11px 18px", borderRadius: 8, border: "1px solid #ffcc00", background: "#171d22", color: "#fff", fontWeight: 700 }}>Reintentar</button>}
           </div>
         </div>
       )}
-      <iframe title="GERMANIA · Quinta Compañía" src="/legacy/index.html" onLoad={() => setReady(true)} style={{ border: 0, width: "100%", height: "100dvh", display: "block", background: "#07090b" }} />
+      <iframe
+        key={frameKey}
+        ref={frameRef}
+        title="GERMANIA · Quinta Compañía"
+        src="/legacy/index.html"
+        onLoad={onFrameLoad}
+        style={{ border: 0, width: "100vw", height: "100dvh", display: "block", background: "#07090b" }}
+      />
     </main>
   );
 }
