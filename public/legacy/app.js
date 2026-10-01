@@ -4004,12 +4004,12 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     await esperarPintado();
     ocultarCarga();
 
-    // La importación histórica se verifica en segundo plano y nunca controla la navegación.
-    Promise.allSettled([sGet(IMPORT_KEY,null),getIndex()]).then(async ([imp,idx])=>{
-      if(imp.status==="fulfilled" && idx.status==="fulfilled" && !imp.value && idx.value.length===0){
-        try{ await importarHistorico2026(); }catch(e){ console.error("No se pudo cargar la base 2026",e); }
-      }
-    });
+    // Reconciliación histórica idempotente: completa automáticamente cualquier
+    // actividad faltante del XLS 2026 sin duplicar las que ya existen.
+    // Corre en segundo plano para no bloquear la Tablet B-5.
+    importarHistorico2026()
+      .then(n=>{ if(n) console.info("Histórico 2026 completado:",n,"actividad(es) faltante(s)."); })
+      .catch(e=>console.error("No se pudo reconciliar la base 2026",e));
   }catch(e){
     console.error("Inicio GERMANIA:",e);
     ocultarCarga();
