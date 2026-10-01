@@ -110,7 +110,7 @@ export default function Page() {
         key={frameKey}
         ref={frameRef}
         title="GERMANIA · Quinta Compañía"
-        src="/legacy/index.html"
+        src={`/legacy/index.html?v=20261001-2&reload=${frameKey}`}
         onLoad={onFrameLoad}
         style={{ border: 0, width: "100vw", height: "100dvh", display: "block", background: "#07090b" }}
       />
