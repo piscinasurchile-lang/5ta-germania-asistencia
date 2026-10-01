@@ -2664,7 +2664,6 @@ async function renderPanel(){
       <div class="kpi"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Cumplimiento de asistencia individual sobre obligaciones vigentes</div></div>
       <div class="kpi medio"><div class="v">${r.mediana.toFixed(1)}%</div><div class="l">Mediana individual según obligaciones propias</div></div>
       <div class="kpi"><div class="v">${r.promedio.toFixed(1)}</div><div class="l">Concurrencia promedio de voluntarios por actividad</div></div>
-      <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Concurrencia promedio por actividad</div></div>
     </div>
     <div class="aviso">Punto de atención: ${esc(peorTipo.t)} es la actividad con menor participación (${peorTipo.tasa.toFixed(1)}%).</div>`;
 }
