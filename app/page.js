@@ -7,7 +7,7 @@ export default function Page() {
   const [ready, setReady] = useState(false);
   const [slow, setSlow] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [frameKey, setFrameKey] = useState(0);
+  const [frameKey, setFrameKey] = useState(0);\n  const [updating, setUpdating] = useState(false);\n  const versionRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), 8000);
@@ -18,6 +18,31 @@ export default function Page() {
     }
     return () => clearTimeout(timer);
   }, [frameKey]);
+
+  useEffect(() => {
+    const checkVersion = async () => {
+      if (document.visibilityState !== "visible" || updating) return;
+      try {
+        const res = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!versionRef.current) { versionRef.current = data.version; return; }
+        if (data.version !== versionRef.current) {
+          const doc = frameRef.current?.contentDocument;
+          const editing = !!doc?.querySelector("input:focus,textarea:focus,select:focus");
+          if (editing) return;
+          versionRef.current = data.version;
+          setUpdating(true);
+          setReady(false);
+          setTimeout(() => { setFrameKey(k => k + 1); setUpdating(false); }, 900);
+        }
+      } catch {}
+    };
+    const timer = setInterval(checkVersion, 15000);
+    document.addEventListener("visibilitychange", checkVersion);
+    checkVersion();
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", checkVersion); };
+  }, [updating]);
 
   const onFrameLoad = () => {
     const frame = frameRef.current;
@@ -100,8 +125,8 @@ export default function Page() {
         <div role="status" aria-live="polite" style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#07090b", color: "#fff", fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: 24, textAlign: "center" }}>
           <div>
             <img src="/legacy/germania-icon.svg" alt="Quinta Compañía Germania" width="96" height="96" style={{ objectFit: "contain", marginBottom: 18 }} />
-            <div style={{ fontSize: 20, fontWeight: 700 }}>Estamos cargando tu información…</div>
-            <div style={{ marginTop: 8, color: "#c8c8c8", fontSize: 15 }}>{failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{updating ? "Actualizando GERMANIA…" : "Estamos cargando tu información…"}</div>
+            <div style={{ marginTop: 8, color: "#c8c8c8", fontSize: 15 }}>{updating ? "Hay una nueva versión. Se aplicará automáticamente." : failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
             {failed && <button type="button" onClick={retry} style={{ marginTop: 18, padding: "11px 18px", borderRadius: 8, border: "1px solid #ffcc00", background: "#171d22", color: "#fff", fontWeight: 700 }}>Reintentar</button>}
           </div>
         </div>
