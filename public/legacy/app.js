@@ -2435,10 +2435,16 @@ function miembroVigenteEnFecha(m,fecha){
   if(m.activo===false&&!baja) return false;
   return true;
 }
-function firmaParteImportado(pt){
+function firmaContenidoParteImportado(pt){
   if(!pt||!pt.importado) return "";
   const presentes=Object.entries(pt.records||{}).filter(([,v])=>v==="presente").map(([id])=>id).sort().join(",");
   return [pt.date||"",pt.tipo||"",pt.detalle||"",presentes].join("|");
+}
+function firmaParteImportado(pt){
+  if(!pt||!pt.importado) return "";
+  // Solo se deduplican copias de la MISMA fila/origen de importación.
+  // Dos llamados reales pueden coincidir en fecha, tipo, detalle e incluso asistentes.
+  return pt.importId ? "id|"+String(pt.importId) : "";
 }
 async function datosPanel(desde,hasta){
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
@@ -3694,20 +3700,30 @@ async function importarHistorico2026(){
   const idx=await getIndex();
   const existentes=(await Promise.allSettled(idx.map(it=>getParte(it.clave))))
     .filter(x=>x.status==="fulfilled"&&x.value).map(x=>x.value);
-  const firmas=new Set(existentes.map(firmaParteImportado).filter(Boolean));
+  const firmasId=new Set(existentes.map(firmaParteImportado).filter(Boolean));
+  // Compatibilidad con el histórico cargado antes de existir importId:
+  // se consume como máximo una coincidencia antigua por cada fila de la fuente.
+  const legacyDisponibles=new Map();
+  existentes.filter(p=>p.importado&&!p.importId).forEach(p=>{
+    const f=firmaContenidoParteImportado(p);
+    legacyDisponibles.set(f,(legacyDisponibles.get(f)||0)+1);
+  });
   let creadas=0, omitidas=0;
-  for(const a of HISTORICO_2026.acts){
+  for(const [orden,a] of HISTORICO_2026.acts.entries()){
     const tipo=a.t;
     if(!TIPOS.includes(tipo)){ TIPOS.push(tipo); }
     const records={};
     ROSTER.forEach(m=>{ records[m.id]="ausente"; });
     mapa.forEach((m,i)=>{ if(m && a.m[i]==="A") records[m.id]="presente"; });
-    const parte={date:a.f,tipo,detalle:a.n,registradoPor:"",records,importado:true};
-    const firma=firmaParteImportado(parte);
-    if(firmas.has(firma)){ omitidas++; continue; }
+    const importId="historico-2026:"+String(orden+1).padStart(3,"0");
+    const parte={date:a.f,tipo,detalle:a.n,registradoPor:"",records,importado:true,importId,importFuente:"FÜNFTE ASISTENCIAS 2026 CBV.xlsx"};
+    const firmaId=firmaParteImportado(parte);
+    if(firmasId.has(firmaId)){ omitidas++; continue; }
+    const legacy=firmaContenidoParteImportado(parte), disponibles=legacyDisponibles.get(legacy)||0;
+    if(disponibles>0){ legacyDisponibles.set(legacy,disponibles-1); omitidas++; continue; }
     const k=await claveNueva(a.f,tipo);
     await setParte(k,parte);
-    firmas.add(firma);
+    firmasId.add(firmaId);
     creadas++;
   }
   await saveTipos(); renderTipoSelect(); populateTipoFilters();
@@ -3769,7 +3785,7 @@ on("impArchivo","change",async(e)=>{
       });
       if(!TIPOS.includes(tipo)) TIPOS.push(tipo);
       const k=await claveNueva(fecha,tipo);
-      await setParte(k,{date:fecha,tipo,detalle:actividad,registradoPor:"",records,importado:true});
+      await setParte(k,{date:fecha,tipo,detalle:actividad,registradoPor:"",records,importado:true,importId:"csv:"+Date.now()+":"+i,importFuente:f.name||"CSV"});
       n++;
     }
     await saveTipos(); renderTipoSelect(); populateTipoFilters();
