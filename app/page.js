@@ -7,7 +7,9 @@ export default function Page() {
   const [ready, setReady] = useState(false);
   const [slow, setSlow] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [frameKey, setFrameKey] = useState(0);\n  const [updating, setUpdating] = useState(false);\n  const versionRef = useRef(null);
+  const [frameKey, setFrameKey] = useState(0);
+  const [updating, setUpdating] = useState(false);
+  const versionRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), 8000);
