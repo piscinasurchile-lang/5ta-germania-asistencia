@@ -2491,7 +2491,16 @@ function resumen(partes, activos, stats){
   });
   const porPersona=activos.map(m=>{
     const oblig=stats[m.id].oblig;
-    return {m,pres:stats[m.id].pres,oblig,p:oblig?pct(stats[m.id].pres,oblig):0};
+    const porTipo={};
+    partes.forEach(pt=>{
+      if(!miembroVigenteEnFecha(m,pt.date)) return;
+      const t=pt.tipo||"Sin tipo";
+      if(!porTipo[t]) porTipo[t]={total:0,pres:0};
+      porTipo[t].total++;
+      if((pt.records&&pt.records[m.id])==="presente") porTipo[t].pres++;
+    });
+    Object.values(porTipo).forEach(d=>d.p=d.total?pct(d.pres,d.total):0);
+    return {m,pres:stats[m.id].pres,oblig,p:oblig?pct(stats[m.id].pres,oblig):0,porTipo};
   }).sort((a,b)=>b.p-a.p);
   const orden=porPersona.filter(x=>x.oblig>0).map(x=>x.p).slice().sort((a,b)=>a-b);
   const mediana=orden.length ? (orden.length%2 ? orden[(orden.length-1)/2]
@@ -2631,13 +2640,18 @@ async function renderPanel(){
   }
   document.getElementById("pnMeses").innerHTML=htmlM;
 
+  const tiposPersona=Object.keys(r.tipos).sort((a,b)=>(r.tipos[b]?.n||0)-(r.tipos[a]?.n||0));
   document.getElementById("pnDetalle").innerHTML=r.porPersona.slice()
     .sort((a,b)=>(a.m.n||999)-(b.m.n||999)).map(x=>{
       const s=stats[x.m.id];
+      const desglose=tiposPersona.map(t=>{
+        const d=x.porTipo[t]||{pres:0,total:0,p:0};
+        return `<span style="display:inline-block;margin:2px 8px 2px 0;"><b>${esc(t)}:</b> ${d.pres}/${d.total} · ${d.p.toFixed(1)}%</span>`;
+      }).join("");
       return `<tr><td class="n-col">${x.m.n||""}</td>
-        <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
+        <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}<div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${desglose}</div></td>
         <td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td>
-        <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
+        <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr>`;
     }).join("");
 
   const fila=x=>`<tr><td class="n-col">${x.m.n||""}</td>
@@ -2696,14 +2710,14 @@ async function generarInforme(desde,hasta,etiqueta,conMeses){
   doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:9},headStyles:{fillColor:[100,90,80]},
     head:[["Tipo de actividad","N°","Asistencias","Tasa"]],
     body:Object.entries(r.tipos).sort((a,b)=>b[1].n-a[1].n)
-      .map(([t,d])=>[t,String(d.n),String(d.pres),pct(d.pres,d.n*activos.length).toFixed(1)+"%"])});
+      .map(([t,d])=>[t,String(d.n),String(d.pres),pct(d.pres,d.posibles).toFixed(1)+"%"])});
 
   if(conMeses){
     const cm=Object.keys(r.meses).map(Number).sort((a,b)=>a-b);
     doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:9},headStyles:{fillColor:[100,90,80]},
       head:[["Mes","Actividades","Asistencias","Tasa"]],
       body:cm.map(m=>[MESES_NOM[m-1],String(r.meses[m].n),String(r.meses[m].pres),
-                      pct(r.meses[m].pres,r.meses[m].n*activos.length).toFixed(1)+"%"])});
+                      pct(r.meses[m].pres,r.meses[m].posibles).toFixed(1)+"%"])});
   }
 
   doc.addPage();
