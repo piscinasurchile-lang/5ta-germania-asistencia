@@ -2424,22 +2424,42 @@ function rangoPanel(){
   return {desde:`${anio}-${m}-01`, hasta:`${anio}-${m}-${fin}`, etiqueta:`${MESES_NOM[modo-1]} de ${anio}`, modo:"mes"};
 }
 
+function miembroVigenteEnFecha(m,fecha){
+  if(!m||!fecha) return false;
+  const ingreso=m.fechaIngreso||FOUNDING_DATE;
+  if(ingreso&&fecha<ingreso) return false;
+  const baja=m.fechaBaja||m.fechaRetiro||"";
+  if(baja&&fecha>baja) return false;
+  // Una baja histórica sin fecha no permite reconstruir obligaciones pasadas con seguridad.
+  // Se excluye del universo estadístico hasta que exista fecha de baja/reincorporación.
+  if(m.activo===false&&!baja) return false;
+  return true;
+}
+function firmaParteImportado(pt){
+  if(!pt||!pt.importado) return "";
+  const presentes=Object.entries(pt.records||{}).filter(([,v])=>v==="presente").map(([id])=>id).sort().join(",");
+  return [pt.date||"",pt.tipo||"",pt.detalle||"",presentes].join("|");
+}
 async function datosPanel(desde,hasta){
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
-  // Los partes se consultan en paralelo: un registro lento o defectuoso no debe dejar
-  // el Dashboard completo esperando ni impedir que se pinten los demás datos válidos.
   const resultados=await Promise.allSettled(idx.map(it=>getParte(it.clave)));
-  const partes=resultados
-    .filter(x=>x.status==="fulfilled" && x.value)
-    .map(x=>x.value);
+  const vistos=new Set(), partes=[];
+  resultados.filter(x=>x.status==="fulfilled"&&x.value).forEach(x=>{
+    const pt=x.value, firma=firmaParteImportado(pt);
+    if(firma&&vistos.has(firma)) return;
+    if(firma) vistos.add(firma);
+    partes.push(pt);
+  });
   const fallidos=resultados.filter(x=>x.status==="rejected").length;
   if(fallidos) console.error("Dashboard: partes no disponibles:",fallidos);
   partes.sort((a,b)=>a.date<b.date?-1:1);
   const activos=sortedRoster(false);
   const stats={};
-  activos.forEach(p=>stats[p.id]={pres:0,just:0,aus:0});
+  activos.forEach(p=>stats[p.id]={pres:0,just:0,aus:0,oblig:0});
   partes.forEach(pt=>{
     activos.forEach(m=>{
+      if(!miembroVigenteEnFecha(m,pt.date)) return;
+      stats[m.id].oblig++;
       const s=(pt.records&&pt.records[m.id])||"ausente";
       if(s==="presente") stats[m.id].pres++;
       else if(s==="justificado") stats[m.id].just++;
@@ -2449,34 +2469,39 @@ async function datosPanel(desde,hasta){
   return {partes, activos, stats};
 }
 
-/* Calculo comun usado por el panel y por los informes */
+/* Estadísticas separadas: concurrencia institucional y asistencia individual. */
 function resumen(partes, activos, stats){
   const N=partes.length;
   const totPres=activos.reduce((s,m)=>s+stats[m.id].pres,0);
-  const posibles=N*activos.length;
+  const posibles=activos.reduce((s,m)=>s+stats[m.id].oblig,0);
   const tipos={};
   const meses={};
   partes.forEach(pt=>{
     const t=pt.tipo||"Sin tipo";
-    if(!tipos[t]) tipos[t]={n:0,pres:0};
+    if(!tipos[t]) tipos[t]={n:0,pres:0,posibles:0};
     tipos[t].n++;
     const mm=parseInt(pt.date.slice(5,7),10);
-    if(!meses[mm]) meses[mm]={n:0,pres:0};
+    if(!meses[mm]) meses[mm]={n:0,pres:0,posibles:0};
     meses[mm].n++;
     activos.forEach(m=>{
+      if(!miembroVigenteEnFecha(m,pt.date)) return;
+      tipos[t].posibles++; meses[mm].posibles++;
       if((pt.records&&pt.records[m.id])==="presente"){ tipos[t].pres++; meses[mm].pres++; }
     });
   });
-  const porPersona=activos.map(m=>({m,pres:stats[m.id].pres,p:pct(stats[m.id].pres,N)}))
-                          .sort((a,b)=>b.p-a.p);
-  const orden=porPersona.map(x=>x.p).slice().sort((a,b)=>a-b);
+  const porPersona=activos.map(m=>{
+    const oblig=stats[m.id].oblig;
+    return {m,pres:stats[m.id].pres,oblig,p:oblig?pct(stats[m.id].pres,oblig):0};
+  }).sort((a,b)=>b.p-a.p);
+  const orden=porPersona.filter(x=>x.oblig>0).map(x=>x.p).slice().sort((a,b)=>a-b);
   const mediana=orden.length ? (orden.length%2 ? orden[(orden.length-1)/2]
                 : (orden[orden.length/2-1]+orden[orden.length/2])/2) : 0;
   const conv=partes.map(pt=>{
-    const c=activos.filter(m=>(pt.records&&pt.records[m.id])==="presente").length;
-    return {pt,c,t:pct(c,activos.length)};
+    const elegibles=activos.filter(m=>miembroVigenteEnFecha(m,pt.date));
+    const c=elegibles.filter(m=>(pt.records&&pt.records[m.id])==="presente").length;
+    return {pt,c,elegibles:elegibles.length,t:pct(c,elegibles.length)};
   }).sort((a,b)=>b.c-a.c);
-  return {N,totPres,posibles,global:pct(totPres,posibles),tipos,meses,porPersona,mediana,conv};
+  return {N,totPres,posibles,global:pct(totPres,posibles),promedio:N?totPres/N:0,tipos,meses,porPersona,mediana,conv};
 }
 
 async function guardiasEnRangoPanel(desde,hasta,activos){
@@ -2569,9 +2594,9 @@ async function renderPanel(){
     <div class="kpi"><div class="v">${ROSTER.length}</div><div class="l">Dotación listada</div></div>
     <div class="kpi alto"><div class="v">${activos.length}</div><div class="l">Voluntarios activos</div></div>
     <div class="kpi bajo"><div class="v">${bajas}</div><div class="l">Bajas</div></div>
-    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>\n    <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias registradas</div></div>\n    <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Promedio por actividad</div></div>\n    <div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div>\n    <div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div>\n    <div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div>\n    <div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipantes">0</div><div class="l">Voluntarios con participación en Guardia</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipacionRoster">0%</div><div class="l">% dotación activa con participación</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplimiento">0%</div><div class="l">Cumplimiento de noches propias</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplen">0</div><div class="l">Voluntarios que cumplieron todas sus noches</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazos">0</div><div class="l">Reemplazos efectivamente realizados</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazantes">0</div><div class="l">Voluntarios que realizaron reemplazos</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaConCedidas">0</div><div class="l">Voluntarios que cedieron al menos una noche</div></div><div class="kpi"><div class="v" id="pnGuardiaSinParticipacion">0</div><div class="l">Voluntarios sin participación en Guardia</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaIncompletas">0</div><div class="l">Noches bajo mínimo de guardianes</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinObac">0</div><div class="l">Noches sin OBAC</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinConductor">0</div><div class="l">Noches sin conductor</div></div>`;
+    <div class="kpi ${r.global>=50?'alto':r.global>=35?'medio':'bajo'}"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Asistencia activa global</div></div>\n    <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias registradas</div></div>\n    <div class="kpi"><div class="v">${r.promedio.toFixed(1)}</div><div class="l">Concurrencia promedio por actividad</div></div>\n    <div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div>\n    <div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div>\n    <div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div>\n    <div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipantes">0</div><div class="l">Voluntarios con participación en Guardia</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipacionRoster">0%</div><div class="l">% dotación activa con participación</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplimiento">0%</div><div class="l">Cumplimiento de noches propias</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplen">0</div><div class="l">Voluntarios que cumplieron todas sus noches</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazos">0</div><div class="l">Reemplazos efectivamente realizados</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazantes">0</div><div class="l">Voluntarios que realizaron reemplazos</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaConCedidas">0</div><div class="l">Voluntarios que cedieron al menos una noche</div></div><div class="kpi"><div class="v" id="pnGuardiaSinParticipacion">0</div><div class="l">Voluntarios sin participación en Guardia</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaIncompletas">0</div><div class="l">Noches bajo mínimo de guardianes</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinObac">0</div><div class="l">Noches sin OBAC</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinConductor">0</div><div class="l">Noches sin conductor</div></div>`;
 
-  const listaT=Object.entries(r.tipos).map(([t,d])=>({t,n:d.n,pres:d.pres,tasa:pct(d.pres,d.n*activos.length)}))
+  const listaT=Object.entries(r.tipos).map(([t,d])=>({t,n:d.n,pres:d.pres,tasa:pct(d.pres,d.posibles)}))
                 .sort((a,b)=>b.n-a.n);
   document.getElementById("pnTipos").innerHTML =
     listaT.map(x=>`<div class="barra"><div class="et">${esc(x.t)}<br><span style="color:var(--muted);font-size:11.5px;">${x.n} actividad${x.n===1?"":"es"}</span></div>
@@ -2595,14 +2620,14 @@ async function renderPanel(){
 
   const clavesM=Object.keys(r.meses).map(Number).sort((a,b)=>a-b);
   let htmlM=clavesM.map(m=>{
-    const t=pct(r.meses[m].pres,r.meses[m].n*activos.length);
+    const t=pct(r.meses[m].pres,r.meses[m].posibles);
     return `<div class="barra"><div class="et">${MESES_NOM[m-1]}<br><span style="color:var(--muted);font-size:11.5px;">${r.meses[m].n} act.</span></div>
       <div class="tr"><div style="width:${t.toFixed(1)}%;background:var(--gold);"></div></div>
       <div class="vl">${t.toFixed(1)}%</div></div>`;
   }).join("");
   if(clavesM.length>1){
-    const mejor=clavesM.reduce((a,b)=>pct(r.meses[a].pres,r.meses[a].n*activos.length)>pct(r.meses[b].pres,r.meses[b].n*activos.length)?a:b);
-    htmlM+=`<div class="aviso ok">${MESES_NOM[mejor-1]} presenta la mayor tasa: ${pct(r.meses[mejor].pres,r.meses[mejor].n*activos.length).toFixed(1)}%.</div>`;
+    const mejor=clavesM.reduce((a,b)=>pct(r.meses[a].pres,r.meses[a].posibles)>pct(r.meses[b].pres,r.meses[b].posibles)?a:b);
+    htmlM+=`<div class="aviso ok">${MESES_NOM[mejor-1]} presenta la mayor tasa: ${pct(r.meses[mejor].pres,r.meses[mejor].posibles).toFixed(1)}%.</div>`;
   }
   document.getElementById("pnMeses").innerHTML=htmlM;
 
@@ -2611,7 +2636,7 @@ async function renderPanel(){
       const s=stats[x.m.id];
       return `<tr><td class="n-col">${x.m.n||""}</td>
         <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
-        <td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td>
+        <td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td>
         <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
     }).join("");
 
@@ -2636,9 +2661,9 @@ async function renderPanel(){
   const peorTipo=listaT.reduce((a,b)=>a.tasa<b.tasa?a:b);
   document.getElementById("pnHallazgos").innerHTML=`
     <div class="kpis">
-      <div class="kpi"><div class="v">${r.totPres}</div><div class="l">Asistencias sobre ${r.posibles} participaciones posibles</div></div>
-      <div class="kpi medio"><div class="v">${r.mediana.toFixed(1)}%</div><div class="l">Mediana de asistencia individual</div></div>
-      <div class="kpi bajo"><div class="v">${r.porPersona.filter(x=>x.p<20).length}</div><div class="l">Voluntarios bajo 20% de asistencia</div></div>
+      <div class="kpi"><div class="v">${r.global.toFixed(1)}%</div><div class="l">Cumplimiento de asistencia individual sobre obligaciones vigentes</div></div>
+      <div class="kpi medio"><div class="v">${r.mediana.toFixed(1)}%</div><div class="l">Mediana individual según obligaciones propias</div></div>
+      <div class="kpi"><div class="v">${r.promedio.toFixed(1)}</div><div class="l">Concurrencia promedio de voluntarios por actividad</div></div>
       <div class="kpi"><div class="v">${(r.totPres/r.N).toFixed(1)}</div><div class="l">Concurrencia promedio por actividad</div></div>
     </div>
     <div class="aviso">Punto de atención: ${esc(peorTipo.t)} es la actividad con menor participación (${peorTipo.tasa.toFixed(1)}%).</div>`;
@@ -3653,19 +3678,27 @@ async function estadoImportacion(){
 
 async function importarHistorico2026(){
   const mapa=HISTORICO_2026.gente.map(emparejar);
-  let creadas=0;
+  const idx=await getIndex();
+  const existentes=(await Promise.allSettled(idx.map(it=>getParte(it.clave))))
+    .filter(x=>x.status==="fulfilled"&&x.value).map(x=>x.value);
+  const firmas=new Set(existentes.map(firmaParteImportado).filter(Boolean));
+  let creadas=0, omitidas=0;
   for(const a of HISTORICO_2026.acts){
     const tipo=a.t;
     if(!TIPOS.includes(tipo)){ TIPOS.push(tipo); }
     const records={};
     ROSTER.forEach(m=>{ records[m.id]="ausente"; });
     mapa.forEach((m,i)=>{ if(m && a.m[i]==="A") records[m.id]="presente"; });
+    const parte={date:a.f,tipo,detalle:a.n,registradoPor:"",records,importado:true};
+    const firma=firmaParteImportado(parte);
+    if(firmas.has(firma)){ omitidas++; continue; }
     const k=await claveNueva(a.f,tipo);
-    await setParte(k,{date:a.f,tipo,detalle:a.n,registradoPor:"",records,importado:true});
+    await setParte(k,parte);
+    firmas.add(firma);
     creadas++;
   }
   await saveTipos(); renderTipoSelect(); populateTipoFilters();
-  await sSet(IMPORT_KEY,{fecha:todayISO(),actividades:creadas});
+  await sSet(IMPORT_KEY,{fecha:todayISO(),actividades:HISTORICO_2026.acts.length,nuevas:creadas,existentes:omitidas});
   return creadas;
 }
 on("impCargarBtn","click",async()=>{
