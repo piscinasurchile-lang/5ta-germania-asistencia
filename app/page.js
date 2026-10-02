@@ -72,42 +72,68 @@ export default function Page() {
     `;
     doc.head.appendChild(style);
 
-    // Disponibilidad: solo cambia el orden visual. La nómina maestra, IDs,
-    // guardias, ODD, asistencia y estadísticas permanecen intactos.
-    // Se mueve el <tr> completo para conservar juntos todos los datos de la fila.
+    // Disponibilidad: conserva la consulta automática, pero evita reconstruir la
+    // tabla cuando el contenido visible no cambió. Así no hay parpadeo periódico.
+    // La nómina maestra, IDs, guardias, ODD, asistencia y estadísticas quedan intactos.
     if (!win.__germaniaDisponibilidadOrdenInstalado && typeof win.renderDisponibilidad === "function") {
       const renderOriginal = win.renderDisponibilidad;
+      let firmaVisual = null;
+
+      const ordenarFilas = async () => {
+        const body = doc.getElementById("dispBody");
+        if (!body || typeof win.getDisponibilidadHoy !== "function" || typeof win.sortedRoster !== "function") return;
+
+        const disponibilidad = await win.getDisponibilidadHoy();
+        const base = win.sortedRoster(false);
+        const filas = Array.from(body.children);
+        if (filas.length !== base.length) return;
+
+        const apellido = (p) => [p.apellidoPaterno || "", p.apellidoMaterno || "", p.nombre || ""]
+          .join(" ")
+          .trim();
+        const esActivo = (p) => {
+          const estado = disponibilidad[p.id]?.estado || "";
+          return estado === "cuartel" || estado === "disponible";
+        };
+
+        const ordenadas = base.map((p, indice) => ({ p, indice, fila: filas[indice] }))
+          .sort((a, b) => {
+            const aActivo = esActivo(a.p);
+            const bActivo = esActivo(b.p);
+            if (aActivo !== bActivo) return aActivo ? -1 : 1;
+            if (aActivo && bActivo) {
+              return apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
+            }
+            return a.indice - b.indice;
+          });
+
+        ordenadas.forEach(({ fila }) => body.appendChild(fila));
+      };
+
       win.renderDisponibilidad = async function (...args) {
+        const bodyAntes = doc.getElementById("dispBody");
+        const resumenAntes = doc.getElementById("dispResumen");
+        const htmlAntes = bodyAntes?.innerHTML ?? null;
+        const resumenHtmlAntes = resumenAntes?.innerHTML ?? null;
+
         const resultado = await renderOriginal.apply(this, args);
         try {
           const body = doc.getElementById("dispBody");
-          if (!body || typeof win.getDisponibilidadHoy !== "function" || typeof win.sortedRoster !== "function") return resultado;
+          const resumen = doc.getElementById("dispResumen");
+          if (!body) return resultado;
 
-          const disponibilidad = await win.getDisponibilidadHoy();
-          const base = win.sortedRoster(false);
-          const filas = Array.from(body.children);
-          if (filas.length !== base.length) return resultado;
+          // El render legado consulta siempre los datos. Si produjo exactamente el
+          // mismo contenido, restauramos los nodos previos para que el usuario no
+          // vea el reemplazo del tbody. Solo un cambio real queda visible.
+          const firmaNueva = `${body.innerHTML}\n${resumen?.innerHTML || ""}`;
+          if (firmaVisual !== null && firmaNueva === firmaVisual && bodyAntes === body) {
+            if (htmlAntes !== null) body.innerHTML = htmlAntes;
+            if (resumen && resumenHtmlAntes !== null) resumen.innerHTML = resumenHtmlAntes;
+            return resultado;
+          }
 
-          const apellido = (p) => [p.apellidoPaterno || "", p.apellidoMaterno || "", p.nombre || ""]
-            .join(" ")
-            .trim();
-          const esActivo = (p) => {
-            const estado = disponibilidad[p.id]?.estado || "";
-            return estado === "cuartel" || estado === "disponible";
-          };
-
-          const ordenadas = base.map((p, indice) => ({ p, indice, fila: filas[indice] }))
-            .sort((a, b) => {
-              const aActivo = esActivo(a.p);
-              const bActivo = esActivo(b.p);
-              if (aActivo !== bActivo) return aActivo ? -1 : 1;
-              if (aActivo && bActivo) {
-                return apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
-              }
-              return a.indice - b.indice;
-            });
-
-          ordenadas.forEach(({ fila }) => body.appendChild(fila));
+          await ordenarFilas();
+          firmaVisual = `${body.innerHTML}\n${resumen?.innerHTML || ""}`;
         } catch (e) {
           console.error("Orden visual de disponibilidad:", e);
         }
