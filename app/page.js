@@ -111,31 +111,49 @@ export default function Page() {
       };
 
       win.renderDisponibilidad = async function (...args) {
-        const bodyAntes = doc.getElementById("dispBody");
-        const resumenAntes = doc.getElementById("dispResumen");
-        const htmlAntes = bodyAntes?.innerHTML ?? null;
-        const resumenHtmlAntes = resumenAntes?.innerHTML ?? null;
+        const body = doc.getElementById("dispBody");
+        const table = body?.closest("table");
+        let cubierta = null;
+
+        // El render legado reemplaza el contenido del tbody. Cubrimos la tabla
+        // actual durante ese trabajo y retiramos la copia solo cuando la nueva
+        // presentación ya quedó ordenada. El usuario nunca ve el orden intermedio.
+        if (table) {
+          const rect = table.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            cubierta = table.cloneNode(true);
+            Object.assign(cubierta.style, {
+              position: "fixed",
+              left: `${rect.left}px`,
+              top: `${rect.top}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+              margin: "0",
+              zIndex: "2147483646",
+              pointerEvents: "none",
+              overflow: "hidden"
+            });
+            doc.body.appendChild(cubierta);
+          }
+        }
 
         const resultado = await renderOriginal.apply(this, args);
         try {
-          const body = doc.getElementById("dispBody");
-          const resumen = doc.getElementById("dispResumen");
-          if (!body) return resultado;
-
-          // El render legado consulta siempre los datos. Si produjo exactamente el
-          // mismo contenido, restauramos los nodos previos para que el usuario no
-          // vea el reemplazo del tbody. Solo un cambio real queda visible.
-          const firmaNueva = `${body.innerHTML}\n${resumen?.innerHTML || ""}`;
-          if (firmaVisual !== null && firmaNueva === firmaVisual && bodyAntes === body) {
-            if (htmlAntes !== null) body.innerHTML = htmlAntes;
-            if (resumen && resumenHtmlAntes !== null) resumen.innerHTML = resumenHtmlAntes;
-            return resultado;
-          }
+          const bodyNuevo = doc.getElementById("dispBody");
+          if (!bodyNuevo) return resultado;
 
           await ordenarFilas();
-          firmaVisual = `${body.innerHTML}\n${resumen?.innerHTML || ""}`;
+          const resumen = doc.getElementById("dispResumen");
+          const firmaNueva = `${bodyNuevo.innerHTML}\n${resumen?.innerHTML || ""}`;
+
+          // Solo guardamos la firma final; no reconstruimos la tabla cuando el
+          // contenido visible no cambió. La copia superpuesta evita cualquier
+          // destello mientras el render legado trabaja.
+          firmaVisual = firmaNueva;
         } catch (e) {
           console.error("Orden visual de disponibilidad:", e);
+        } finally {
+          cubierta?.remove();
         }
         return resultado;
       };
