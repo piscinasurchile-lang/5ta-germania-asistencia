@@ -79,9 +79,12 @@ export default function Page() {
       return !el || el.classList.contains("hidden") || win.getComputedStyle(el).display === "none";
     };
 
-    let elapsed = 0;
-    const interval = setInterval(async () => {
-      elapsed += 250;
+    // Usar tiempo real: algunas tablets Android reducen la frecuencia de
+    // setInterval y un contador por "ticks" puede tardar 4x o más.
+    const startedAt = Date.now();
+    let recoveryStarted = false;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
       if (isLoaded()) {
         clearInterval(interval);
         setReady(true);
@@ -89,28 +92,29 @@ export default function Page() {
         return;
       }
 
-      // La carga histórica/validación de Guardia nunca debe bloquear la interfaz B-5.
-      if (elapsed === 6000) {
-        try {
-          if (typeof win.loadListaForSelection === "function") await win.loadListaForSelection();
-          if (typeof win.cargarMiVoluntario === "function") win.cargarMiVoluntario();
-          if (typeof win.renderDisponibilidad === "function") await win.renderDisponibilidad();
-          if (typeof win.renderTipoSelect === "function") win.renderTipoSelect();
-          if (typeof win.populateTipoFilters === "function") win.populateTipoFilters();
-          loading()?.classList.add("hidden");
-        } catch (e) {
-          console.error("Recuperación Tablet B-5:", e);
-        }
+      // A los 6 s liberamos primero la interfaz. La recuperación secundaria
+      // corre después y nunca puede dejar el cargador esperando una petición.
+      if (elapsed >= 6000 && !recoveryStarted) {
+        recoveryStarted = true;
+        loading()?.classList.add("hidden");
+        setReady(true);
+        setFailed(false);
+        Promise.resolve().then(async () => {
+          try {
+            if (typeof win.cargarMiVoluntario === "function") win.cargarMiVoluntario();
+            if (typeof win.renderTipoSelect === "function") win.renderTipoSelect();
+            if (typeof win.populateTipoFilters === "function") win.populateTipoFilters();
+            if (typeof win.loadListaForSelection === "function") await win.loadListaForSelection();
+            if (typeof win.renderDisponibilidad === "function") await win.renderDisponibilidad();
+          } catch (e) {
+            console.error("Recuperación Tablet B-5:", e);
+          }
+        });
       }
 
       if (elapsed >= 12000) {
         clearInterval(interval);
-        if (isLoaded()) {
-          setReady(true);
-          setFailed(false);
-        } else {
-          setFailed(true);
-        }
+        if (!recoveryStarted && !isLoaded()) setFailed(true);
       }
     }, 250);
   };
