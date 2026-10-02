@@ -3950,17 +3950,28 @@ async function renderDisponibilidad(){
   const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
 
   const apellido=(p)=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
-  const rosterBase=sortedRoster(false).slice();
-  const esDisponible=(p)=>{
-    const estado=d[p.id]?.estado||"";
-    return estado==="cuartel"||estado==="disponible";
+  const ciudad=(p)=>{
+    const r=d[p.id]||{};
+    return String(r.ciudad||r.localidad||r.ubicacion||r.lugar||"").trim();
   };
-  const disponibles=rosterBase.filter(esDisponible).sort((a,b)=>
-    apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"}) ||
-    nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"})
-  );
-  const resto=rosterBase.filter(p=>!esDisponible(p));
-  const rosterOrdenado=[...disponibles,...resto];
+  const prioridad=(p)=>{
+    const e=d[p.id]?.estado||"";
+    if(e==="cuartel") return 0;
+    if(e==="disponible") return 1;
+    if(e==="fuera") return 2;
+    if(e==="no") return 3;
+    return 4;
+  };
+  const rosterOrdenado=sortedRoster(false).map((p,indice)=>({p,indice})).sort((a,b)=>{
+    const pa=prioridad(a.p), pb=prioridad(b.p);
+    if(pa!==pb) return pa-pb;
+    if(pa===0||pa===1) return apellido(a.p).localeCompare(apellido(b.p),"es",{sensitivity:"base"})||a.indice-b.indice;
+    if(pa===2){
+      const porCiudad=ciudad(a.p).localeCompare(ciudad(b.p),"es",{sensitivity:"base"});
+      return porCiudad||apellido(a.p).localeCompare(apellido(b.p),"es",{sensitivity:"base"})||a.indice-b.indice;
+    }
+    return a.indice-b.indice;
+  }).map(x=>x.p);
 
   const html=rosterOrdenado.map(p=>{
     const r=d[p.id]||{}, e=r.estado||"";
@@ -3978,12 +3989,13 @@ async function renderDisponibilidad(){
   }).join("");
 
   if(body.innerHTML!==html) body.innerHTML=html;
-  resumen.innerHTML=`
+  const resumenHtml=`
     <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
     <div class="summary-item"><div class="big">${cuenta.disponible}</div><div class="lbl">Disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de Villarrica</div></div>
     <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>`;
+  if(resumen.innerHTML!==resumenHtml) resumen.innerHTML=resumenHtml;
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
