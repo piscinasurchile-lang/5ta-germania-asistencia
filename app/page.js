@@ -72,7 +72,7 @@ export default function Page() {
     `;
     doc.head.appendChild(style);
 
-    // La Minuta de Disponibilidad se renderiza únicamente en legacy/app.js.\n
+    // La Minuta de Disponibilidad se renderiza únicamente en legacy/app.js.
     const loading = () => doc.getElementById("appLoading");
     const isLoaded = () => {
       const el = loading();
