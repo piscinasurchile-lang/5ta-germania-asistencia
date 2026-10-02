@@ -91,13 +91,17 @@ export default function Page() {
           const apellido = (p) => [p.apellidoPaterno || "", p.apellidoMaterno || "", p.nombre || ""]
             .join(" ")
             .trim();
+          const esActivo = (p) => {
+            const estado = disponibilidad[p.id]?.estado || "";
+            return estado === "cuartel" || estado === "disponible";
+          };
 
           const ordenadas = base.map((p, indice) => ({ p, indice, fila: filas[indice] }))
             .sort((a, b) => {
-              const aDisponible = (disponibilidad[a.p.id]?.estado || "") === "disponible";
-              const bDisponible = (disponibilidad[b.p.id]?.estado || "") === "disponible";
-              if (aDisponible !== bDisponible) return aDisponible ? -1 : 1;
-              if (aDisponible && bDisponible) {
+              const aActivo = esActivo(a.p);
+              const bActivo = esActivo(b.p);
+              if (aActivo !== bActivo) return aActivo ? -1 : 1;
+              if (aActivo && bActivo) {
                 return apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
               }
               return a.indice - b.indice;
