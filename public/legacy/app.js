@@ -2654,19 +2654,34 @@ async function renderPanel(){
         const d=x.porTipo[t]||{pres:0,total:0,p:0};
         return `<span style="display:inline-block;margin:2px 8px 2px 0;"><b>${esc(t)}:</b> ${d.pres}/${d.total} · ${d.p.toFixed(1)}%</span>`;
       }).join("");
-      return `<tr><td class="n-col">${x.m.n||""}</td>
-        <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}<div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${desglose}</div></td>
+      const historial=partes.filter(pt=>miembroVigenteEnFecha(x.m,pt.date)).slice().sort((a,b)=>a.date<b.date?1:-1).map(pt=>{
+        const estado=(pt.records&&pt.records[x.m.id])||"ausente";
+        const etiqueta=estado==="presente"?"Asistió":estado==="justificado"?"Justificado":"No asistió";
+        return `<tr><td>${esc(pt.date||"")}</td><td class="name-col">${esc(pt.tipo||"Sin tipo")}${pt.detalle?" · "+esc(pt.detalle):""}</td><td><b>${etiqueta}</b></td></tr>`;
+      }).join("");
+      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}" style="cursor:pointer;">
+        <td class="n-col">${x.m.n||""}</td>
+        <td class="name-col"><button type="button" class="link-like" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</button><div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${desglose}</div></td>
         <td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td>
-        <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr>`;
+        <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr>
+        <tr id="asistencia-detalle-${esc(String(x.m.id))}" style="display:none;"><td colspan="7"><div class="asistencia-detalle"><b>Detalle de asistencia · ${esc(nombreCompleto(x.m))}</b><table style="margin-top:8px;"><thead><tr><th>Fecha</th><th>Actividad</th><th>Resultado</th></tr></thead><tbody>${historial||'<tr><td colspan="3">Sin actividades en el período.</td></tr>'}</tbody></table></div></td></tr>`;
     }).join("");
+  document.querySelectorAll("[data-toggle-asistencia]").forEach(btn=>btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    const id=btn.dataset.toggleAsistencia, row=document.getElementById("asistencia-detalle-"+id);
+    if(!row)return;
+    const abrir=row.style.display==="none";
+    row.style.display=abrir?"table-row":"none";
+    btn.setAttribute("aria-expanded",abrir?"true":"false");
+  }));
+
 
   const fila=x=>`<tr><td class="n-col">${x.m.n||""}</td>
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
       <td class="cargo-col">${esc(x.m.cargo)}</td>
       <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span>${x.p.toFixed(1)}%</td></tr>`;
   const tablaGuardia=`<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Cumpl.</th><th>Reemplazos</th><th>Cedidas</th><th>Total efectivo</th></tr></thead><tbody id="pnGuardiaRankingBody">${r.porPersona.map(x=>`<tr><td class="n-col">${x.m.n||""}</td><td class="name-col">${esc(nombreCompleto(x.m))}</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>`).join("")}</tbody></table>`;
-  document.getElementById("pnRanking").innerHTML=tablaGuardia+`\n    <h3>Mayor asistencia</h3><table><tbody>${r.porPersona.slice(0,5).map(fila).join("")}</tbody></table>
-    <h3>Menor asistencia</h3><table><tbody>${r.porPersona.slice(-5).reverse().map(fila).join("")}</tbody></table>`;
+  document.getElementById("pnRanking").innerHTML=tablaGuardia;
 
   const filaC=x=>`<tr><td>${x.pt.date}</td><td class="name-col">${esc(x.pt.tipo)}${x.pt.detalle?" · "+esc(x.pt.detalle):""}</td>
       <td style="text-align:center;">${x.c}</td><td style="text-align:center;">${x.t.toFixed(1)}%</td></tr>`;
@@ -4082,7 +4097,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     console.error("Inicio GERMANIA:",e);
     ocultarCarga();
   }
-  setInterval(()=>{ const p=document.getElementById("panel-germania"); if(p&&p.classList.contains("active")) renderDisponibilidad().catch(console.error); },15000);
+  // La minuta se actualiza al entrar, al marcar estado o al pulsar Actualizar. Sin refresco periódico para evitar parpadeos.
 })();
 
 /* Correo institucional GERMANIA: punto de activación visible en Oficialidad.
