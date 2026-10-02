@@ -91,19 +91,38 @@ export default function Page() {
         const apellido = (p) => [p.apellidoPaterno || "", p.apellidoMaterno || "", p.nombre || ""]
           .join(" ")
           .trim();
-        const esActivo = (p) => {
-          const estado = disponibilidad[p.id]?.estado || "";
-          return estado === "cuartel" || estado === "disponible";
+        const estadoDe = (p) => disponibilidad[p.id]?.estado || "";
+        const ciudadDe = (p) => {
+          const r = disponibilidad[p.id] || {};
+          return String(r.ciudad || r.localidad || r.ubicacion || r.lugar || "").trim();
+        };
+        const prioridad = (p) => {
+          const estado = estadoDe(p);
+          if (estado === "cuartel") return 0;
+          if (estado === "disponible") return 1;
+          if (estado === "fuera") return 2;
+          if (estado === "no") return 3;
+          return 4; // Sin informar / aún no incorporado
         };
 
         const ordenadas = base.map((p, indice) => ({ p, indice, fila: filas[indice] }))
           .sort((a, b) => {
-            const aActivo = esActivo(a.p);
-            const bActivo = esActivo(b.p);
-            if (aActivo !== bActivo) return aActivo ? -1 : 1;
-            if (aActivo && bActivo) {
+            const pa = prioridad(a.p);
+            const pb = prioridad(b.p);
+            if (pa !== pb) return pa - pb;
+
+            // Cuartel y Disponible: alfabético por apellido.
+            if (pa === 0 || pa === 1) {
               return apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
             }
+
+            // Fuera de Villarrica: primero por ciudad y luego por apellido.
+            if (pa === 2) {
+              const ciudad = ciudadDe(a.p).localeCompare(ciudadDe(b.p), "es", { sensitivity: "base" });
+              return ciudad || apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
+            }
+
+            // No disponible y Sin informar conservan el orden maestro dentro de su grupo.
             return a.indice - b.indice;
           });
 
