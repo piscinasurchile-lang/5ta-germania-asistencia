@@ -1,46 +1,6 @@
 /* GERMANIA · minuta dinámica estable + detalle individual de asistencia */
 (function(){
-  const esPrioritario=e=>e==="cuartel"||e==="disponible";
-
-  async function minutaDinamica(){
-    const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
-    if(!body||!resumen) return;
-    const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
-    const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
-    const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
-    const apellido=p=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
-    const base=sortedRoster(false).slice();
-    const disponibles=base.filter(p=>esPrioritario(d[p.id]?.estado||"")).sort((a,b)=>
-      apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"})||nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"})
-    );
-    const resto=base.filter(p=>!esPrioritario(d[p.id]?.estado||""));
-    const lista=[...disponibles,...resto];
-    const html=lista.map(p=>{
-      const r=d[p.id]||{}, e=r.estado||"";
-      if(e) cuenta[e]=(cuenta[e]||0)+1;
-      if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
-      const hora=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
-      return `<tr data-voluntario-id="${esc(String(p.id))}">
-        <td style="text-align:center"><img src="${fotoVoluntario(p)}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto"></td>
-        <td class="name-col">${esc(nombreCompleto(p))}</td>
-        <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
-        <td>${hora}</td>
-        <td style="text-align:center">${p.conductor?"◉":"—"}</td>
-        <td style="text-align:center">${guardianes.has(String(p.id))?"🛡":"—"}</td>
-      </tr>`;
-    }).join("");
-    if(body.innerHTML!==html) body.innerHTML=html;
-    const sum=`
-      <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
-      <div class="summary-item"><div class="big">${cuenta.disponible}</div><div class="lbl">Disponibles</div></div>
-      <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
-      <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de Villarrica</div></div>
-      <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Maquinistas disponibles</div></div>`;
-    if(resumen.innerHTML!==sum) resumen.innerHTML=sum;
-    const sel=document.getElementById("miVoluntario"), actual=sel&&sel.value?d[sel.value]:null;
-    document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
-  }
-  renderDisponibilidad=minutaDinamica;
+  /* La minuta se renderiza únicamente desde app.js para evitar carreras entre dos renderizadores. */
 
   function ajustarMinutaMovil(){
     if(document.getElementById("germania-minuta-mobile-css")) return;
