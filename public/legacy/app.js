@@ -3932,27 +3932,37 @@ async function renderDisponibilidad(){
   if(!body||!resumen) return;
   const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
-  const obac=guardia?.oficial?String(guardia.oficial):"";
-  const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0,obac:0};
-  body.innerHTML=sortedRoster(false).map(p=>{
+  const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
+
+  const prioridad={cuartel:0,disponible:1,no:2,fuera:3,"":4};
+  const apellido=(p)=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
+  const rosterOrdenado=sortedRoster(false).slice().sort((a,b)=>{
+    const ea=d[a.id]?.estado||"", eb=d[b.id]?.estado||"";
+    const pa=prioridad[ea]??4, pb=prioridad[eb]??4;
+    if(pa!==pb) return pa-pb;
+    return apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"}) || nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"});
+  });
+
+  const html=rosterOrdenado.map(p=>{
     const r=d[p.id]||{}, e=r.estado||"";
     if(e) cuenta[e]=(cuenta[e]||0)+1;
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
-    if((e==="cuartel"||e==="disponible")&&String(p.id)===obac) cuenta.obac++;
     const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
     const foto=fotoVoluntario(p);
-    return `<tr><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
+    return `<tr data-voluntario-id="${esc(String(p.id))}"><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
       <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
-      <td>${desde}</td><td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td>
-      <td style="text-align:center;">${p.conductor?"◉":"—"}</td><td style="text-align:center;">${String(p.id)===obac?"✓":"—"}</td></tr>`;
+      <td>${desde}</td>
+      <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
+      <td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td></tr>`;
   }).join("");
+
+  if(body.innerHTML!==html) body.innerHTML=html;
   resumen.innerHTML=`
     <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
     <div class="summary-item"><div class="big">${cuenta.disponible}</div><div class="lbl">Disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de Villarrica</div></div>
-    <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>
-    <div class="summary-item"><div class="big">${cuenta.obac}</div><div class="lbl">OBAC disponible</div></div>`;
+    <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>`;
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
