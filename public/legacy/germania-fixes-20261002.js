@@ -1,6 +1,6 @@
 /* GERMANIA · minuta dinámica estable + detalle individual de asistencia */
 (function(){
-  const prioridad={cuartel:0,disponible:1,no:2,fuera:3,"":4};
+  const esPrioritario=e=>e==="cuartel"||e==="disponible";
 
   async function minutaDinamica(){
     const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
@@ -9,13 +9,12 @@
     const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
     const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
     const apellido=p=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
-    const lista=sortedRoster(false).slice().sort((a,b)=>{
-      const ea=d[a.id]?.estado||"", eb=d[b.id]?.estado||"";
-      const pa=prioridad[ea]??4, pb=prioridad[eb]??4;
-      if(pa!==pb) return pa-pb;
-      return apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"})||
-        nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"});
-    });
+    const base=sortedRoster(false).slice();
+    const disponibles=base.filter(p=>esPrioritario(d[p.id]?.estado||"")).sort((a,b)=>
+      apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"})||nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"})
+    );
+    const resto=base.filter(p=>!esPrioritario(d[p.id]?.estado||""));
+    const lista=[...disponibles,...resto];
     const html=lista.map(p=>{
       const r=d[p.id]||{}, e=r.estado||"";
       if(e) cuenta[e]=(cuenta[e]||0)+1;
@@ -42,6 +41,13 @@
     document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
   }
   renderDisponibilidad=minutaDinamica;
+
+  function ajustarMinutaMovil(){
+    if(document.getElementById("germania-minuta-mobile-css")) return;
+    const s=document.createElement("style"); s.id="germania-minuta-mobile-css";
+    s.textContent=`#dispBody{font-size:14px}#dispBody td{vertical-align:middle}@media(max-width:640px){#dispBody.closest{} #dispBody tr td{padding:9px 5px}#dispBody tr td:first-child img{width:32px!important;height:32px!important}#dispBody td:nth-child(2){min-width:118px}#dispBody td:nth-child(3){min-width:92px}#dispBody td:nth-child(4){min-width:62px}#dispBody td:nth-child(5),#dispBody td:nth-child(6){min-width:58px}.table-wrap:has(#dispBody){overflow-x:auto;-webkit-overflow-scrolling:touch}.table-wrap:has(#dispBody) table{min-width:560px}}`;
+    document.head.appendChild(s);
+  }
 
   function ajustarEncabezadoMinuta(){
     const th=document.querySelector("#dispBody")?.closest("table")?.querySelector("thead tr");
@@ -96,6 +102,7 @@
   const obs=new MutationObserver(()=>mejorarEstadisticas());
   document.addEventListener("DOMContentLoaded",()=>{
     ajustarEncabezadoMinuta();
+    ajustarMinutaMovil();
     mejorarEstadisticas();
     const panel=document.getElementById("panel-panel"); if(panel)obs.observe(panel,{childList:true,subtree:true});
     minutaDinamica().catch(console.error);
