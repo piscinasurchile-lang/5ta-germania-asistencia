@@ -3949,7 +3949,9 @@ async function renderDisponibilidad(){
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
     const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
     const foto=fotoVoluntario(p);
-    return `<tr data-voluntario-id="${esc(String(p.id))}"><td class="name-col"><div style="display:flex;align-items:center;gap:8px;"><img src="${foto}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;"><span>${esc(nombreCompleto(p))}</span></div></td>
+    return `<tr data-voluntario-id="${esc(String(p.id))}">
+      <td style="text-align:center;"><img src="${foto}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto;"></td>
+      <td class="name-col">${esc(nombreCompleto(p))}</td>
       <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
       <td>${desde}</td>
       <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
