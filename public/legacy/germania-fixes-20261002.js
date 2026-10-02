@@ -65,6 +65,6 @@
     ajustarMinutaMovil();
     mejorarEstadisticas();
     const panel=document.getElementById("panel-panel"); if(panel)obs.observe(panel,{childList:true,subtree:true});
-    minutaDinamica().catch(console.error);
+    renderDisponibilidad().catch(console.error);
   });
 })();
