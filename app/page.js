@@ -72,6 +72,47 @@ export default function Page() {
     `;
     doc.head.appendChild(style);
 
+    // Disponibilidad: solo cambia el orden visual. La nómina maestra, IDs,
+    // guardias, ODD, asistencia y estadísticas permanecen intactos.
+    // Se mueve el <tr> completo para conservar juntos todos los datos de la fila.
+    if (!win.__germaniaDisponibilidadOrdenInstalado && typeof win.renderDisponibilidad === "function") {
+      const renderOriginal = win.renderDisponibilidad;
+      win.renderDisponibilidad = async function (...args) {
+        const resultado = await renderOriginal.apply(this, args);
+        try {
+          const body = doc.getElementById("dispBody");
+          if (!body || typeof win.getDisponibilidadHoy !== "function" || typeof win.sortedRoster !== "function") return resultado;
+
+          const disponibilidad = await win.getDisponibilidadHoy();
+          const base = win.sortedRoster(false);
+          const filas = Array.from(body.children);
+          if (filas.length !== base.length) return resultado;
+
+          const apellido = (p) => [p.apellidoPaterno || "", p.apellidoMaterno || "", p.nombre || ""]
+            .join(" ")
+            .trim();
+
+          const ordenadas = base.map((p, indice) => ({ p, indice, fila: filas[indice] }))
+            .sort((a, b) => {
+              const aDisponible = (disponibilidad[a.p.id]?.estado || "") === "disponible";
+              const bDisponible = (disponibilidad[b.p.id]?.estado || "") === "disponible";
+              if (aDisponible !== bDisponible) return aDisponible ? -1 : 1;
+              if (aDisponible && bDisponible) {
+                return apellido(a.p).localeCompare(apellido(b.p), "es", { sensitivity: "base" }) || a.indice - b.indice;
+              }
+              return a.indice - b.indice;
+            });
+
+          ordenadas.forEach(({ fila }) => body.appendChild(fila));
+        } catch (e) {
+          console.error("Orden visual de disponibilidad:", e);
+        }
+        return resultado;
+      };
+      win.__germaniaDisponibilidadOrdenInstalado = true;
+      win.renderDisponibilidad().catch(e => console.error("Disponibilidad inicial:", e));
+    }
+
     const loading = () => doc.getElementById("appLoading");
     const isLoaded = () => {
       const el = loading();
