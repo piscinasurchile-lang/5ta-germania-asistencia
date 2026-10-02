@@ -3949,14 +3949,18 @@ async function renderDisponibilidad(){
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
   const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
 
-  const prioridad={cuartel:0,disponible:1,no:2,fuera:3,"":4};
   const apellido=(p)=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
-  const rosterOrdenado=sortedRoster(false).slice().sort((a,b)=>{
-    const ea=d[a.id]?.estado||"", eb=d[b.id]?.estado||"";
-    const pa=prioridad[ea]??4, pb=prioridad[eb]??4;
-    if(pa!==pb) return pa-pb;
-    return apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"}) || nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"});
-  });
+  const rosterBase=sortedRoster(false).slice();
+  const esDisponible=(p)=>{
+    const estado=d[p.id]?.estado||"";
+    return estado==="cuartel"||estado==="disponible";
+  };
+  const disponibles=rosterBase.filter(esDisponible).sort((a,b)=>
+    apellido(a).localeCompare(apellido(b),"es",{sensitivity:"base"}) ||
+    nombreCompleto(a).localeCompare(nombreCompleto(b),"es",{sensitivity:"base"})
+  );
+  const resto=rosterBase.filter(p=>!esDisponible(p));
+  const rosterOrdenado=[...disponibles,...resto];
 
   const html=rosterOrdenado.map(p=>{
     const r=d[p.id]||{}, e=r.estado||"";
