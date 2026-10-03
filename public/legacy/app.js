@@ -149,6 +149,28 @@ function on(id,evento,fn){
       if(s.dataset.sub==="mantencionesb5" && typeof renderMntTodo==="function") renderMntTodo();
       if(s.dataset.sub==="inventariob5" && typeof renderInvTodo==="function") renderInvTodo();
       if(s.dataset.sub==="eppPersonal" && typeof renderEppTodo==="function") renderEppTodo();
+      // Carga bajo demanda para Oficiales. Cada botón inicializa solamente su propio módulo.
+      if(s.dataset.sub==="nomina"){
+        if(typeof renderCfgRoster==="function") renderCfgRoster();
+        if(typeof renderCargoOptions==="function") renderCargoOptions();
+      }
+      if(s.dataset.sub==="hoja"){
+        if(typeof renderHvSelect==="function") renderHvSelect();
+        if(typeof renderHoja==="function") renderHoja();
+        const hf=document.getElementById("hvFecha"); if(hf&&!hf.value) hf.value=todayISO();
+      }
+      if(s.dataset.sub==="cursos"){
+        if(typeof renderCursoMiembroSelect==="function") renderCursoMiembroSelect();
+        if(typeof renderCursos==="function") renderCursos();
+        if(typeof renderCursosCompania==="function") renderCursosCompania();
+      }
+      if(s.dataset.sub==="tipos" && typeof renderTiposTags==="function") renderTiposTags();
+      if(s.dataset.sub==="importar" && typeof estadoImportacion==="function") estadoImportacion();
+      if(s.dataset.sub==="bajas"){
+        if(typeof renderBajasSelects==="function") renderBajasSelects();
+        if(typeof renderBajasList==="function") renderBajasList();
+        const bf=document.getElementById("bajaFecha"); if(bf&&!bf.value) bf.value=todayISO();
+      }
     });
   });
 })();
@@ -4140,11 +4162,9 @@ function switchTabExtra(name){
     renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error);
   }
   if(name==="config"){
-    renderTiposTags(); renderCfgRoster(); renderCargoOptions(); loadOficialidadYear();
-    renderCursoMiembroSelect(); renderCursos(); renderCursosCompania();
-    pintarCandado(); renderBajasSelects(); renderBajasList(); renderHvSelect(); renderHoja(); estadoImportacion();
-    const bf=document.getElementById("bajaFecha"); if(bf && !bf.value) bf.value=todayISO();
-    const hf=document.getElementById("hvFecha");  if(hf && !hf.value) hf.value=todayISO();
+    // Oficiales abre liviano: no consulta módulos secundarios hasta que el usuario los solicita.
+    // Esto evita la ráfaga de lecturas simultáneas que bloqueaba la interfaz.
+    pintarCandado();
   }
 }
 function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(name); }
