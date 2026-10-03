@@ -2777,34 +2777,23 @@ async function renderPanel(){
   }
   document.getElementById("pnMeses").innerHTML=htmlM;
 
-  const tiposPersona=Object.keys(r.tipos).sort((a,b)=>(r.tipos[b]?.n||0)-(r.tipos[a]?.n||0));
   document.getElementById("pnDetalle").innerHTML=r.porPersona.slice()
     .sort((a,b)=>(a.m.n||999)-(b.m.n||999)).map(x=>{
-      const s=stats[x.m.id], categorias=resumenCategoriasVoluntario(partes,x.m);
-      const ordenCats=["Comandancia","Emergencias","Actividades de Compañía","Cursos ANB","Otras"];
-      const resumenCats=ordenCats.filter(cat=>categorias[cat]).map(cat=>{
-        const d=categorias[cat], p=d.total?pct(d.pres,d.total):0;
-        return `<span style="display:inline-block;margin:2px 10px 2px 0;"><b>${esc(cat)}:</b> ${d.pres}/${d.total} · ${p.toFixed(1)}%</span>`;
-      }).join("");
-      const detalleCats=ordenCats.filter(cat=>categorias[cat]).map(cat=>{
-        const d=categorias[cat], p=d.total?pct(d.pres,d.total):0;
-        const filas=partes.filter(pt=>miembroVigenteEnFecha(x.m,pt.date)&&categoriaAsistencia(pt.tipo)===cat)
-          .slice().sort((aa,bb)=>aa.date<bb.date?1:-1).map(pt=>{
-            const estado=(pt.records&&pt.records[x.m.id])||"ausente";
-            const etiqueta=estado==="presente"?"Asistió":estado==="justificado"?"Justificado":"No asistió";
-            return `<tr><td>${esc(pt.date||"")}</td><td class="name-col">${esc(pt.tipo||"Sin tipo")}${pt.detalle?" · "+esc(pt.detalle):""}</td><td><b>${etiqueta}</b></td></tr>`;
-          }).join("");
-        return `<details style="margin:8px 0;border:1px solid #343840;border-radius:7px;padding:8px 10px;"><summary style="cursor:pointer;"><b>${esc(cat)}</b> · ${d.pres}/${d.total} · ${p.toFixed(1)}% <span style="color:var(--muted);">· ${d.just} just. · ${d.aus} no asistió</span></summary><table style="margin-top:8px;"><thead><tr><th>Fecha</th><th>Actividad</th><th>Resultado</th></tr></thead><tbody>${filas}</tbody></table></details>`;
-      }).join("");
-      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}" style="cursor:pointer;"><td class="n-col">${x.m.n||""}</td><td class="name-col"><button type="button" class="link-like" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</button><div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${resumenCats}</div></td><td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td><td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr><tr id="asistencia-detalle-${esc(String(x.m.id))}" style="display:none;"><td colspan="7"><div class="asistencia-detalle"><b>Detalle de asistencia · ${esc(nombreCompleto(x.m))}</b><div style="margin-top:4px;color:var(--muted);">Justificados se muestran separados y no se cuentan como asistencia.</div>${detalleCats||'<div class="empty">Sin actividades en el período.</div>'}</div></td></tr>`;
+      const s=stats[x.m.id];
+      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}"><td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td><td><b>${x.p.toFixed(1)}%</b></td><td><button type="button" class="btn small secondary" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">Ver detalle</button></td></tr><tr id="asistencia-detalle-${esc(String(x.m.id))}" class="detalle-extra" style="display:none;"><td colspan="3"><div class="asistencia-detalle" data-detalle-voluntario="${esc(String(x.m.id))}"></div></td></tr>`;
     }).join("");
-  document.querySelectorAll("[data-toggle-asistencia]").forEach(btn=>btn.addEventListener("click",e=>{
+  document.querySelectorAll("[data-toggle-asistencia]").forEach(btn=>btn.addEventListener("click",async e=>{
     e.stopPropagation();
     const id=btn.dataset.toggleAsistencia, row=document.getElementById("asistencia-detalle-"+id);
     if(!row)return;
     const abrir=row.style.display==="none";
     row.style.display=abrir?"table-row":"none";
     btn.setAttribute("aria-expanded",abrir?"true":"false");
+    btn.textContent=abrir?"Ocultar detalle":"Ver detalle";
+    if(abrir){
+      const cont=row.querySelector("[data-detalle-voluntario]");
+      if(cont) await detalleVoluntario(id,cont);
+    }
   }));
 
   const fila=x=>`<tr><td class="n-col">${x.m.n||""}</td>
