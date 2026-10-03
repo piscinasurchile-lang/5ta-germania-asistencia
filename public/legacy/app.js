@@ -1022,13 +1022,20 @@ function renderCandadoParte(){
   box.innerHTML=`<b>Este parte ya fue guardado y no se puede modificar.</b>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <input id="claveDesbloqueoParte" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
-      <button id="desbloquearParteBtn" class="btn small">Desbloquear para editar</button>
+      <button id="desbloquearParteBtn" class="btn small">Corregir asistencia</button>
     </div>
     <div id="candadoParteMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
   document.getElementById("desbloquearParteBtn").onclick=async()=>{
     const inp=document.getElementById("claveDesbloqueoParte"), m=document.getElementById("candadoParteMsg");
     const res=await autenticarOficialidad(inp.value.trim());
-    if(res.ok){ parteBloqueado=false; renderListaRows(); }
+    if(res.ok){
+      parteBloqueado=false;
+      renderListaRows();
+      const gb=document.getElementById("guardarBtn");
+      if(gb) gb.textContent="Guardar corrección";
+      m.textContent="Asistencia desbloqueada. Corrige y guarda nuevamente; se mantiene el mismo N° de parte.";
+      m.classList.remove("err");
+    }
     else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
   };
 }
@@ -1066,6 +1073,8 @@ async function loadListaForSelection(){
     parteBloqueado=false; parteEsNuevo=true; parteNumeroActual=null; parteAnioActual=null;
   }
   msg.classList.remove("err");
+  const gb=document.getElementById("guardarBtn");
+  if(gb) gb.textContent="Guardar parte";
   renderListaRows();
 }
 on("fecha","change",loadListaForSelection);
@@ -1116,6 +1125,8 @@ function mostrarConfirmarParte(date,tipo){
     const ok=await setParte(currentPartClave,data);
     if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
     parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
+    const gb=document.getElementById("guardarBtn");
+    if(gb) gb.textContent="Guardar parte";
     msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}.`+(MODO_PRUEBA_ABIERTO?" Modo de prueba: edición abierta.":" Ya no se puede modificar sin la clave de Oficialidad.");
     renderResumen(countStatuses(currentRecord));
     renderListaRows();
@@ -1257,7 +1268,7 @@ async function sharePdfDoc(doc,filename,shareText){
 }
 on("pdfBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
-  await downloadPdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`);
+  await downloadPdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`Asistencia_${d}_${slug(t)}${parteNumeroActual?"_N"+String(parteNumeroActual).padStart(3,"0"):""}.pdf`);
 });
 on("waBtn","click",async()=>{
   const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
