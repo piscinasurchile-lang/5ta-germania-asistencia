@@ -979,6 +979,11 @@ function origenAsistencia(pt){
   return {cuenta:true,categoria:"Otras"};
 }
 function parteCuentaAsistencia(pt){ return origenAsistencia(pt).cuenta; }
+function voluntarioAplicaParte(pt,id){
+  if(!parteCuentaAsistencia(pt)) return false;
+  const ids=Array.isArray(pt?.eligibleIds)?pt.eligibleIds.map(String):null;
+  return !ids || ids.includes(String(id));
+}
 
 
 let ORDEN_MODO = "oficialidad"; // "antiguedad" | "oficialidad"
@@ -1523,7 +1528,10 @@ function mostrarConfirmarSv(){
       registradoPor:document.getElementById("svCargoQuinta").value, records,
       modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual,
       origenAsistencia:document.getElementById("svTipoAct").value==="Emergencia"?"emergencia_b5":"citacion_manual",
-      generaAsistencia:true, servicioB5:true
+      generaAsistencia:true, servicioB5:true,
+      eligibleIds:document.getElementById("svTipoAct").value==="Emergencia"
+        ? Object.entries(svConcurrencia).filter(([,v])=>v==="si").map(([id])=>String(id))
+        : sortedRoster(false).map(p=>String(p.id))
     });
     svBloqueado=!MODO_PRUEBA_ABIERTO;
     const gb=document.getElementById("svGuardarBtn");
@@ -2525,6 +2533,7 @@ async function datosPanel(desde,hasta){
   partes.forEach(pt=>{
     activos.forEach(m=>{
       if(!miembroVigenteEnFecha(m,pt.date)) return;
+      if(!voluntarioAplicaParte(pt,m.id)) return;
       stats[m.id].oblig++;
       const s=(pt.records&&pt.records[m.id])||"ausente";
       if(s==="presente") stats[m.id].pres++;
@@ -2550,7 +2559,7 @@ function resumen(partes, activos, stats){
     if(!meses[mm]) meses[mm]={n:0,pres:0,posibles:0};
     meses[mm].n++;
     activos.forEach(m=>{
-      if(!miembroVigenteEnFecha(m,pt.date)) return;
+      if(!miembroVigenteEnFecha(m,pt.date)||!voluntarioAplicaParte(pt,m.id)) return;
       tipos[t].posibles++; meses[mm].posibles++;
       if((pt.records&&pt.records[m.id])==="presente"){ tipos[t].pres++; meses[mm].pres++; }
     });
@@ -2559,7 +2568,7 @@ function resumen(partes, activos, stats){
     const oblig=stats[m.id].oblig;
     const porTipo={};
     partes.forEach(pt=>{
-      if(!miembroVigenteEnFecha(m,pt.date)) return;
+      if(!miembroVigenteEnFecha(m,pt.date)||!voluntarioAplicaParte(pt,m.id)) return;
       const t=pt.tipo||"Sin tipo";
       if(!porTipo[t]) porTipo[t]={total:0,pres:0,just:0,aus:0};
       porTipo[t].total++;
@@ -2575,7 +2584,7 @@ function resumen(partes, activos, stats){
   const mediana=orden.length ? (orden.length%2 ? orden[(orden.length-1)/2]
                 : (orden[orden.length/2-1]+orden[orden.length/2])/2) : 0;
   const conv=partes.map(pt=>{
-    const elegibles=activos.filter(m=>miembroVigenteEnFecha(m,pt.date));
+    const elegibles=activos.filter(m=>miembroVigenteEnFecha(m,pt.date)&&voluntarioAplicaParte(pt,m.id));
     const c=elegibles.filter(m=>(pt.records&&pt.records[m.id])==="presente").length;
     return {pt,c,elegibles:elegibles.length,t:pct(c,elegibles.length)};
   }).sort((a,b)=>b.c-a.c);
@@ -2612,7 +2621,7 @@ function categoriaAsistencia(pt){
 function resumenCategoriasVoluntario(partes,m){
   const cats={};
   partes.forEach(pt=>{
-    if(!miembroVigenteEnFecha(m,pt.date)) return;
+    if(!miembroVigenteEnFecha(m,pt.date)||!voluntarioAplicaParte(pt,m.id)) return;
     const cat=categoriaAsistencia(pt), estado=(pt.records&&pt.records[m.id])||"ausente";
     if(!cats[cat]) cats[cat]={total:0,pres:0,just:0,aus:0};
     const d=cats[cat]; d.total++;
@@ -3313,6 +3322,7 @@ async function renderHvResumen(){
   let pres=0,just=0,aus=0;
   for(const it of idx){
     const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
+    if(!voluntarioAplicaParte(p,m.id)) continue;
     const s=p.records[m.id]; if(!s) continue;
     if(s==="presente") pres++; else if(s==="justificado") just++; else aus++;
   }
@@ -3337,6 +3347,7 @@ async function calcularAsistenciaPorAnio(m){
   const porAnio={};
   for(const it of idx){
     const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
+    if(!voluntarioAplicaParte(p,m.id)) continue;
     const s=p.records[m.id]; if(!s) continue;
     const anio=(it.date||"").slice(0,4); if(!anio) continue;
     if(!porAnio[anio]) porAnio[anio]={pres:0,just:0,aus:0};
