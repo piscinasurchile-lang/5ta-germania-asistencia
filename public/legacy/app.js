@@ -3336,7 +3336,7 @@ async function calcularAsistenciaPorAnio(m){
   const idx=await getIndex();
   const porAnio={};
   for(const it of idx){
-    const p=await getParte(it.clave); if(!p||!p.records) continue;
+    const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
     const s=p.records[m.id]; if(!s) continue;
     const anio=(it.date||"").slice(0,4); if(!anio) continue;
     if(!porAnio[anio]) porAnio[anio]={pres:0,just:0,aus:0};
