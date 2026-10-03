@@ -958,6 +958,29 @@ async function setParte(c,d){
   return ok;
 }
 
+/* Fuente única de asistencia institucional.
+   Solo registros explícitos generan obligación: citaciones y emergencias B-5.
+   Guardia Nocturna queda fuera de este cálculo. */
+function origenAsistencia(pt){
+  const o=String(pt?.origenAsistencia||"");
+  if(o==="emergencia_b5") return {cuenta:true,categoria:"Emergencias"};
+  if(o==="comandancia_citacion") return {cuenta:true,categoria:"Comandancia"};
+  if(o==="odd_5ta_citacion") return {cuenta:true,categoria:"Actividades de Compañía"};
+  if(o==="curso_anb_citacion") return {cuenta:true,categoria:"Cursos ANB"};
+  if(o==="citacion_manual") return {cuenta:true,categoria:"Otras"};
+  if(o) return {cuenta:false,categoria:"Otras"};
+  // Compatibilidad 2026: partes históricos ya eran partes de asistencia.
+  // Se conserva su cómputo sin reinterpretar ODD informativas ni Guardia.
+  const t=String(pt?.tipo||"").toLowerCase();
+  if(t.includes("guardia")) return {cuenta:false,categoria:"Guardia Nocturna"};
+  if(t.includes("emergencia")||t.includes("llamado")||t.includes("alarma")) return {cuenta:true,categoria:"Emergencias"};
+  if(t.includes("comandancia")) return {cuenta:true,categoria:"Comandancia"};
+  if(t.includes("anb")||t.includes("curso")) return {cuenta:true,categoria:"Cursos ANB"};
+  return {cuenta:true,categoria:"Otras"};
+}
+function parteCuentaAsistencia(pt){ return origenAsistencia(pt).cuenta; }
+
+
 let ORDEN_MODO = "oficialidad"; // "antiguedad" | "oficialidad"
 function sortedRoster(incInactive){
   return ROSTER.filter(m=>incInactive||m.activo!==false).slice().sort((a,b)=>{
@@ -1118,7 +1141,9 @@ function mostrarConfirmarParte(date,tipo){
       </div></div>`;
   document.getElementById("revisarDeNuevoBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarBtn").onclick=async()=>{
-    const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord};
+    const tl=String(tipo||"").toLowerCase();
+    const origen=tl.includes("comandancia")?"comandancia_citacion":(tl.includes("anb")||tl.includes("curso"))?"curso_anb_citacion":"citacion_manual";
+    const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord,origenAsistencia:origen,generaAsistencia:true};
     if(parteEsNuevo){ data.anio=anioDe(date); data.numero=await siguienteCorrelativo("parte",data.anio); }
     else { data.numero=parteNumeroActual; data.anio=parteAnioActual; }
     currentPartClave=claveFor(date,tipo);
@@ -1496,7 +1521,9 @@ function mostrarConfirmarSv(){
     await setParte(claveSv,{
       date:fecha, tipo, detalle:detFinal,
       registradoPor:document.getElementById("svCargoQuinta").value, records,
-      modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual
+      modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual,
+      origenAsistencia:document.getElementById("svTipoAct").value==="Emergencia"?"emergencia_b5":"citacion_manual",
+      generaAsistencia:true, servicioB5:true
     });
     svBloqueado=!MODO_PRUEBA_ABIERTO;
     const gb=document.getElementById("svGuardarBtn");
@@ -2487,7 +2514,7 @@ async function datosPanel(desde,hasta){
     const pt=x.value, firma=firmaParteImportado(pt);
     if(firma&&vistos.has(firma)) return;
     if(firma) vistos.add(firma);
-    partes.push(pt);
+    if(parteCuentaAsistencia(pt)) partes.push(pt);
   });
   const fallidos=resultados.filter(x=>x.status==="rejected").length;
   if(fallidos) console.error("Dashboard: partes no disponibles:",fallidos);
@@ -2578,19 +2605,15 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
   const asignadas=conAsignacion.reduce((s,x)=>s+x.asignadas,0),propias=conAsignacion.reduce((s,x)=>s+x.propias,0);
   return {turnos,por,incompletas,sinObac,sinConductor,sobreDotacion,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),reemplazos:v.reduce((s,x)=>s+x.reemplazos,0),ausenciasSinReemplazo:v.reduce((s,x)=>s+x.ausenciasSinReemplazo,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes,participacionRoster:pct(participantes,activos.length),cumplimientoTotal:asignadas?pct(propias,asignadas):0,cumplimientoCompleto:conAsignacion.filter(x=>x.propias===x.asignadas).length,conCedidas:v.filter(x=>x.cedidas>0).length,reemplazantes:v.filter(x=>x.reemplazos>0).length,sinParticipacion:v.filter(x=>x.total===0).length};
 }
-function categoriaAsistencia(tipo){
-  const t=String(tipo||"").toLowerCase();
-  if(t.includes("comandancia")) return "Comandancia";
-  if(t.includes("emergencia")||t.includes("llamado")||t.includes("alarma")) return "Emergencias";
-  if(t.includes("anb")||t.includes("curso")) return "Cursos ANB";
-  if(t.includes("compañ")||t.includes("academ")||t.includes("formaci")||t.includes("ceremon")||t.includes("acto de servicio")) return "Actividades de Compañía";
-  return "Otras";
+function categoriaAsistencia(pt){
+  if(pt&&typeof pt==="object") return origenAsistencia(pt).categoria;
+  return origenAsistencia({tipo:String(pt||"")}).categoria;
 }
 function resumenCategoriasVoluntario(partes,m){
   const cats={};
   partes.forEach(pt=>{
     if(!miembroVigenteEnFecha(m,pt.date)) return;
-    const cat=categoriaAsistencia(pt.tipo), estado=(pt.records&&pt.records[m.id])||"ausente";
+    const cat=categoriaAsistencia(pt), estado=(pt.records&&pt.records[m.id])||"ausente";
     if(!cats[cat]) cats[cat]={total:0,pres:0,just:0,aus:0};
     const d=cats[cat]; d.total++;
     if(estado==="presente")d.pres++; else if(estado==="justificado")d.just++; else d.aus++;
@@ -3289,7 +3312,7 @@ async function renderHvResumen(){
   const idx=await getIndex();
   let pres=0,just=0,aus=0;
   for(const it of idx){
-    const p=await getParte(it.clave); if(!p||!p.records) continue;
+    const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
     const s=p.records[m.id]; if(!s) continue;
     if(s==="presente") pres++; else if(s==="justificado") just++; else aus++;
   }
