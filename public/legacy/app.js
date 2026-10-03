@@ -2532,9 +2532,12 @@ function resumen(partes, activos, stats){
     partes.forEach(pt=>{
       if(!miembroVigenteEnFecha(m,pt.date)) return;
       const t=pt.tipo||"Sin tipo";
-      if(!porTipo[t]) porTipo[t]={total:0,pres:0};
+      if(!porTipo[t]) porTipo[t]={total:0,pres:0,just:0,aus:0};
       porTipo[t].total++;
-      if((pt.records&&pt.records[m.id])==="presente") porTipo[t].pres++;
+      const estado=(pt.records&&pt.records[m.id])||"ausente";
+      if(estado==="presente") porTipo[t].pres++;
+      else if(estado==="justificado") porTipo[t].just++;
+      else porTipo[t].aus++;
     });
     Object.values(porTipo).forEach(d=>d.p=d.total?pct(d.pres,d.total):0);
     return {m,pres:stats[m.id].pres,oblig,p:oblig?pct(stats[m.id].pres,oblig):0,porTipo};
@@ -2573,6 +2576,26 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
   const asignadas=conAsignacion.reduce((s,x)=>s+x.asignadas,0),propias=conAsignacion.reduce((s,x)=>s+x.propias,0);
   return {turnos,por,incompletas,sinObac,sinConductor,sobreDotacion,realizadas:v.reduce((s,x)=>s+x.total,0),cedidas:v.reduce((s,x)=>s+x.cedidas,0),reemplazos:v.reduce((s,x)=>s+x.reemplazos,0),ausenciasSinReemplazo:v.reduce((s,x)=>s+x.ausenciasSinReemplazo,0),sobreMinimo:v.filter(x=>x.total>2).length,participantes,participacionRoster:pct(participantes,activos.length),cumplimientoTotal:asignadas?pct(propias,asignadas):0,cumplimientoCompleto:conAsignacion.filter(x=>x.propias===x.asignadas).length,conCedidas:v.filter(x=>x.cedidas>0).length,reemplazantes:v.filter(x=>x.reemplazos>0).length,sinParticipacion:v.filter(x=>x.total===0).length};
 }
+function categoriaAsistencia(tipo){
+  const t=String(tipo||"").toLowerCase();
+  if(t.includes("comandancia")) return "Comandancia";
+  if(t.includes("emergencia")||t.includes("llamado")||t.includes("alarma")) return "Emergencias";
+  if(t.includes("anb")||t.includes("curso")) return "Cursos ANB";
+  if(t.includes("compañ")||t.includes("academ")||t.includes("formaci")||t.includes("ceremon")||t.includes("acto de servicio")) return "Actividades de Compañía";
+  return "Otras";
+}
+function resumenCategoriasVoluntario(partes,m){
+  const cats={};
+  partes.forEach(pt=>{
+    if(!miembroVigenteEnFecha(m,pt.date)) return;
+    const cat=categoriaAsistencia(pt.tipo), estado=(pt.records&&pt.records[m.id])||"ausente";
+    if(!cats[cat]) cats[cat]={total:0,pres:0,just:0,aus:0};
+    const d=cats[cat]; d.total++;
+    if(estado==="presente")d.pres++; else if(estado==="justificado")d.just++; else d.aus++;
+  });
+  return cats;
+}
+
 async function renderPanel(){
   // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
@@ -2680,22 +2703,23 @@ async function renderPanel(){
   const tiposPersona=Object.keys(r.tipos).sort((a,b)=>(r.tipos[b]?.n||0)-(r.tipos[a]?.n||0));
   document.getElementById("pnDetalle").innerHTML=r.porPersona.slice()
     .sort((a,b)=>(a.m.n||999)-(b.m.n||999)).map(x=>{
-      const s=stats[x.m.id];
-      const desglose=tiposPersona.map(t=>{
-        const d=x.porTipo[t]||{pres:0,total:0,p:0};
-        return `<span style="display:inline-block;margin:2px 8px 2px 0;"><b>${esc(t)}:</b> ${d.pres}/${d.total} · ${d.p.toFixed(1)}%</span>`;
+      const s=stats[x.m.id], categorias=resumenCategoriasVoluntario(partes,x.m);
+      const ordenCats=["Comandancia","Emergencias","Actividades de Compañía","Cursos ANB","Otras"];
+      const resumenCats=ordenCats.filter(cat=>categorias[cat]).map(cat=>{
+        const d=categorias[cat], p=d.total?pct(d.pres,d.total):0;
+        return `<span style="display:inline-block;margin:2px 10px 2px 0;"><b>${esc(cat)}:</b> ${d.pres}/${d.total} · ${p.toFixed(1)}%</span>`;
       }).join("");
-      const historial=partes.filter(pt=>miembroVigenteEnFecha(x.m,pt.date)).slice().sort((a,b)=>a.date<b.date?1:-1).map(pt=>{
-        const estado=(pt.records&&pt.records[x.m.id])||"ausente";
-        const etiqueta=estado==="presente"?"Asistió":estado==="justificado"?"Justificado":"No asistió";
-        return `<tr><td>${esc(pt.date||"")}</td><td class="name-col">${esc(pt.tipo||"Sin tipo")}${pt.detalle?" · "+esc(pt.detalle):""}</td><td><b>${etiqueta}</b></td></tr>`;
+      const detalleCats=ordenCats.filter(cat=>categorias[cat]).map(cat=>{
+        const d=categorias[cat], p=d.total?pct(d.pres,d.total):0;
+        const filas=partes.filter(pt=>miembroVigenteEnFecha(x.m,pt.date)&&categoriaAsistencia(pt.tipo)===cat)
+          .slice().sort((aa,bb)=>aa.date<bb.date?1:-1).map(pt=>{
+            const estado=(pt.records&&pt.records[x.m.id])||"ausente";
+            const etiqueta=estado==="presente"?"Asistió":estado==="justificado"?"Justificado":"No asistió";
+            return `<tr><td>${esc(pt.date||"")}</td><td class="name-col">${esc(pt.tipo||"Sin tipo")}${pt.detalle?" · "+esc(pt.detalle):""}</td><td><b>${etiqueta}</b></td></tr>`;
+          }).join("");
+        return `<details style="margin:8px 0;border:1px solid #343840;border-radius:7px;padding:8px 10px;"><summary style="cursor:pointer;"><b>${esc(cat)}</b> · ${d.pres}/${d.total} · ${p.toFixed(1)}% <span style="color:var(--muted);">· ${d.just} just. · ${d.aus} no asistió</span></summary><table style="margin-top:8px;"><thead><tr><th>Fecha</th><th>Actividad</th><th>Resultado</th></tr></thead><tbody>${filas}</tbody></table></details>`;
       }).join("");
-      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}" style="cursor:pointer;">
-        <td class="n-col">${x.m.n||""}</td>
-        <td class="name-col"><button type="button" class="link-like" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</button><div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${desglose}</div></td>
-        <td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td>
-        <td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr>
-        <tr id="asistencia-detalle-${esc(String(x.m.id))}" style="display:none;"><td colspan="7"><div class="asistencia-detalle"><b>Detalle de asistencia · ${esc(nombreCompleto(x.m))}</b><table style="margin-top:8px;"><thead><tr><th>Fecha</th><th>Actividad</th><th>Resultado</th></tr></thead><tbody>${historial||'<tr><td colspan="3">Sin actividades en el período.</td></tr>'}</tbody></table></div></td></tr>`;
+      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}" style="cursor:pointer;"><td class="n-col">${x.m.n||""}</td><td class="name-col"><button type="button" class="link-like" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</button><div style="margin-top:5px;color:var(--muted);font-size:11.5px;line-height:1.55;">${resumenCats}</div></td><td>${s.pres}</td><td>${s.just}</td><td>${s.aus}</td><td>${s.oblig}</td><td><span class="pct-bar"><div style="width:${x.p.toFixed(0)}%"></div></span><b>${x.p.toFixed(1)}%</b><div style="font-size:10.5px;color:var(--muted);">${s.pres} de ${s.oblig}</div></td></tr><tr id="asistencia-detalle-${esc(String(x.m.id))}" style="display:none;"><td colspan="7"><div class="asistencia-detalle"><b>Detalle de asistencia · ${esc(nombreCompleto(x.m))}</b><div style="margin-top:4px;color:var(--muted);">Justificados se muestran separados y no se cuentan como asistencia.</div>${detalleCats||'<div class="empty">Sin actividades en el período.</div>'}</div></td></tr>`;
     }).join("");
   document.querySelectorAll("[data-toggle-asistencia]").forEach(btn=>btn.addEventListener("click",e=>{
     e.stopPropagation();
@@ -2705,7 +2729,6 @@ async function renderPanel(){
     row.style.display=abrir?"table-row":"none";
     btn.setAttribute("aria-expanded",abrir?"true":"false");
   }));
-
 
   const fila=x=>`<tr><td class="n-col">${x.m.n||""}</td>
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
