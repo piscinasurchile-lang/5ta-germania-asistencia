@@ -1350,13 +1350,20 @@ function renderCandadoSv(){
   box.innerHTML=`<b>Esta hoja de servicio ya fue guardada y no se puede modificar.</b>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <input id="claveDesbloqueoSv" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
-      <button id="desbloquearSvBtn" class="btn small">Desbloquear para editar</button>
+      <button id="desbloquearSvBtn" class="btn small">Corregir hoja</button>
     </div>
     <div id="candadoSvMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
   document.getElementById("desbloquearSvBtn").onclick=async()=>{
     const inp=document.getElementById("claveDesbloqueoSv"), m=document.getElementById("candadoSvMsg");
     const res=await autenticarOficialidad(inp.value.trim());
-    if(res.ok){ svBloqueado=false; renderSvBody(); }
+    if(res.ok){
+      svBloqueado=false;
+      renderSvBody();
+      const gb=document.getElementById("svGuardarBtn");
+      if(gb) gb.textContent="Guardar corrección";
+      m.textContent="Hoja desbloqueada. Corrige los datos y guarda nuevamente; se mantiene el mismo número.";
+      m.classList.remove("err");
+    }
     else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
   };
 }
@@ -1403,6 +1410,8 @@ async function cargarServicio(){
   sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; });
   renderSvTipoOptions();
   actualizarFichaCombustible();
+  const gb=document.getElementById("svGuardarBtn");
+  if(gb) gb.textContent="Guardar hoja";
   renderSvBody();
 }
 on("svFecha","change",cargarServicio);
@@ -1451,7 +1460,10 @@ function mostrarConfirmarSv(){
     const numTxt=`N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}. `;
 
     if(!datos.registrarAsistencia){
-      svBloqueado=!MODO_PRUEBA_ABIERTO; renderSvBody();
+      svBloqueado=!MODO_PRUEBA_ABIERTO;
+      const gb=document.getElementById("svGuardarBtn");
+      if(gb) gb.textContent="Guardar hoja";
+      renderSvBody();
       msg.classList.remove("err");
       msg.textContent=`Hoja de servicio guardada. ${numTxt}No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
       return;
@@ -1475,7 +1487,10 @@ function mostrarConfirmarSv(){
       registradoPor:document.getElementById("svCargoQuinta").value, records,
       modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual
     });
-    svBloqueado=!MODO_PRUEBA_ABIERTO; renderSvBody();
+    svBloqueado=!MODO_PRUEBA_ABIERTO;
+    const gb=document.getElementById("svGuardarBtn");
+    if(gb) gb.textContent="Guardar hoja";
+    renderSvBody();
     msg.classList.remove("err");
     msg.textContent=`Hoja de servicio guardada. ${numTxt}${c.concurrentes} voluntarios concurrieron.`;
   };
@@ -1544,8 +1559,13 @@ function buildServicioPdf(){
   doc.text(`Generado el ${new Date().toLocaleString("es-CL")}`,14,fy+18);
   return doc;
 }
+function svNombrePdf(){
+  const fecha=document.getElementById("svFecha").value||todayISO();
+  const numero=svNumeroActual ? "_N"+String(svNumeroActual).padStart(3,"0") : "";
+  return `B5_${slug(document.getElementById("svTipoAct").value||"servicio")}_${fecha}${numero}.pdf`;
+}
 on("svPdfBtn","click",async()=>{
-  await sharePdfDoc(buildServicioPdf(),`hoja_servicio_b5_${document.getElementById("svFecha").value||todayISO()}.pdf`);
+  await downloadPdfDoc(buildServicioPdf(),svNombrePdf());
 });
 on("svWaBtn","click",async()=>{
   const c=svConteo(), g=id=>document.getElementById(id).value||"";
