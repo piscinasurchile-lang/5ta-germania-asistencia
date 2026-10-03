@@ -2536,9 +2536,22 @@ function firmaParteImportado(pt){
   // Dos llamados reales pueden coincidir en fecha, tipo, detalle e incluso asistentes.
   return pt.importId ? "id|"+String(pt.importId) : "";
 }
+const PANEL_CACHE_TTL_MS=5*60*1000;
+const panelCache=new Map();
+function invalidarCachePanel(){ panelCache.clear(); }
 async function datosPanel(desde,hasta){
+  const cacheKey=desde+"|"+hasta;
+  const cached=panelCache.get(cacheKey);
+  if(cached && (Date.now()-cached.ts)<PANEL_CACHE_TTL_MS) return cached.data;
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
-  const resultados=await Promise.allSettled(idx.map(it=>getParte(it.clave)));
+  const resultados=[];
+  // Carga acotada: evita lanzar cientos de lecturas simultáneas contra Neon.
+  const LOTE=8;
+  for(let i=0;i<idx.length;i+=LOTE){
+    const lote=idx.slice(i,i+LOTE);
+    resultados.push(...await Promise.allSettled(lote.map(it=>getParte(it.clave))));
+    if(i+LOTE<idx.length) await new Promise(resolve=>setTimeout(resolve,0));
+  }
   const vistos=new Set(), partes=[];
   resultados.filter(x=>x.status==="fulfilled"&&x.value).forEach(x=>{
     const pt=x.value, firma=firmaParteImportado(pt);
@@ -2563,7 +2576,9 @@ async function datosPanel(desde,hasta){
       else stats[m.id].aus++;
     });
   });
-  return {partes, activos, stats};
+  const data={partes, activos, stats};
+  panelCache.set(cacheKey,{ts:Date.now(),data});
+  return data;
 }
 
 /* Estadísticas separadas: concurrencia institucional y asistencia individual. */
@@ -2653,7 +2668,11 @@ function resumenCategoriasVoluntario(partes,m){
 }
 
 async function renderPanel(){
-  // El panel no debe esperar la carga de selectores para calcular y pintar sus datos.
+  // Estadística es bajo demanda: solo se ejecuta al entrar explícitamente a esta pestaña.
+  const idsCarga=["pnKpis","pnTipos","pnTramos","pnMeses","pnDetalle","pnRanking","pnConvocatoria","pnHallazgos"];
+  idsCarga.forEach(id=>{const el=document.getElementById(id);if(el)el.setAttribute("aria-busy","true");});
+  const corteCarga=document.getElementById("pnCorte");
+  if(corteCarga) corteCarga.textContent="Estamos cargando tu información…";
   try{ poblarSelectoresPanel().catch(e=>console.error("Selectores panel:",e)); }catch(e){ console.error("Selectores panel:",e); }
   const R=rangoPanel();
   let partes,activos,stats,r;
@@ -2671,7 +2690,9 @@ async function renderPanel(){
   // Guardia nunca bloquea el tablero. El núcleo se pinta primero y la participación
   // de Guardia se consulta después; si no hay registros o falla la consulta, permanece en 0.
   const guardiasPanel={turnos:0,por:{},realizadas:0,cedidas:0,sobreMinimo:0};
-  guardiasEnRangoPanel(R.desde,R.hasta,activos).then(g=>{
+  idsCarga.forEach(id=>document.getElementById(id)?.removeAttribute("aria-busy"));
+  if(corteCarga) corteCarga.textContent=R.etiqueta;
+    guardiasEnRangoPanel(R.desde,R.hasta,activos).then(g=>{
     if(!g) return;
     const ids={turnos:"pnGuardiaTurnos",realizadas:"pnGuardiaRealizadas",sobreMinimo:"pnGuardiaSobreMinimo",cedidas:"pnGuardiaCedidas",participantes:"pnGuardiaParticipantes",reemplazos:"pnGuardiaReemplazos",cumplimientoCompleto:"pnGuardiaCumplen",conCedidas:"pnGuardiaConCedidas",reemplazantes:"pnGuardiaReemplazantes",sinParticipacion:"pnGuardiaSinParticipacion",incompletas:"pnGuardiaIncompletas",sinObac:"pnGuardiaSinObac",sinConductor:"pnGuardiaSinConductor"};
     Object.entries(ids).forEach(([k,id])=>{const el=document.getElementById(id);if(el)el.textContent=String(g[k]||0);});
