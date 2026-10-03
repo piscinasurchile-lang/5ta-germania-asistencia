@@ -2428,10 +2428,11 @@ async function aniosConDatos(){
   return [...set].sort().reverse();
 }
 async function poblarSelectoresPanel(){
-  const selA=document.getElementById("pnAnio"), prev=selA.value;
-  const anios=await aniosConDatos();
-  selA.innerHTML=anios.map(a=>`<option value="${a}">${a}</option>`).join("");
-  selA.value = anios.includes(prev) ? prev : anios[0];
+  const selA=document.getElementById("pnAnio");
+  // GERMANIA 2026: esta vista estadística usa exclusivamente registros del año 2026.
+  selA.innerHTML='<option value="2026">2026</option>';
+  selA.value="2026";
+  selA.disabled=true;
   const selM=document.getElementById("pnMes");
   if(!selM.options.length){
     selM.innerHTML='<option value="anio">Anual · año completo</option>'
@@ -2442,7 +2443,8 @@ async function poblarSelectoresPanel(){
 
 /* Rango de fechas segun el periodo elegido */
 function rangoPanel(){
-  const anio=document.getElementById("pnAnio").value || String(new Date().getFullYear());
+  // Regla de corte vigente: ningún registro fuera de 2026 entra en totales, porcentajes o detalle.
+  const anio="2026";
   const modo=document.getElementById("pnMes").value || "anio";
   const hoy=todayISO();
   if(modo==="anio") return {desde:`${anio}-01-01`, hasta:`${anio}-12-31`, etiqueta:`Año ${anio} completo`, modo};
