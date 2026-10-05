@@ -3303,13 +3303,104 @@ async function renderHvFoto(){
   }
   img.src=fotoVoluntario(m);
 }
+/* ============ FOTOS DE VOLUNTARIOS: se reducen al subir ============
+   Cada foto se ajusta sola a 320 x 320 px (recorte centrado) y se comprime a
+   WebP (o JPEG si el navegador no soporta WebP) hasta quedar en 40 KB como
+   máximo. Así la nómina nunca crece sin control ni deja de guardarse. */
+const FOTO_LADO_PX=320, FOTO_MAX_BYTES=40*1024, FOTO_ENTRADA_MAX_BYTES=20*1024*1024;
+function bytesDeDataUrl(u){
+  const t=String(u||""), i=t.indexOf(","); if(i<0) return 0;
+  const b64=t.slice(i+1), pad=b64.endsWith("==")?2:(b64.endsWith("=")?1:0);
+  return Math.floor(b64.length*3/4)-pad;
+}
+function cargarImagenParaFoto(src){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error("No se pudo leer la imagen."));
+    img.src=src;
+  });
+}
+async function reducirFoto(origen){
+  const esUrl=typeof origen==="string";
+  if(!esUrl){
+    if(!/^image\//.test(origen.type||"")) throw new Error("El archivo no es una imagen.");
+    if(origen.size>FOTO_ENTRADA_MAX_BYTES) throw new Error("La imagen original es demasiado grande (máximo 20 MB).");
+  }
+  let url=null, fuente=null, cerrar=()=>{};
+  try{
+    if(!esUrl && typeof createImageBitmap==="function"){
+      try{ const b=await createImageBitmap(origen,{imageOrientation:"from-image"}); fuente=b; cerrar=()=>{ try{ b.close(); }catch(e){} }; }
+      catch(e){ fuente=null; }
+    }
+    if(!fuente){
+      url=esUrl?origen:URL.createObjectURL(origen);
+      fuente=await cargarImagenParaFoto(url);
+    }
+    const w=fuente.width||fuente.naturalWidth, h=fuente.height||fuente.naturalHeight;
+    if(!w||!h) throw new Error("No se pudo leer la imagen.");
+    const lado=Math.min(w,h), sx=Math.floor((w-lado)/2), sy=Math.floor((h-lado)/2);
+    const lienzo=document.createElement("canvas");
+    lienzo.width=FOTO_LADO_PX; lienzo.height=FOTO_LADO_PX;
+    const ctx=lienzo.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,FOTO_LADO_PX,FOTO_LADO_PX);
+    ctx.imageSmoothingQuality="high";
+    ctx.drawImage(fuente,sx,sy,lado,lado,0,0,FOTO_LADO_PX,FOTO_LADO_PX);
+    for(const formato of ["image/webp","image/jpeg"]){
+      for(const calidad of [0.82,0.72,0.62,0.52,0.42,0.32]){
+        const u=lienzo.toDataURL(formato,calidad);
+        if(!u.startsWith("data:"+formato)) break; /* el navegador no soporta este formato */
+        if(bytesDeDataUrl(u)<=FOTO_MAX_BYTES) return u;
+      }
+    }
+    throw new Error("No fue posible reducir la foto a 40 KB. Prueba con otra imagen.");
+  } finally {
+    cerrar();
+    if(url && !esUrl) URL.revokeObjectURL(url);
+  }
+}
+/* Reduce, guarda en la nómina y, si el guardado falla, deja todo como estaba. */
+async function guardarFotoVoluntario(m,archivo){
+  const nueva=await reducirFoto(archivo);
+  const habia=Object.prototype.hasOwnProperty.call(m,"foto"), anterior=m.foto;
+  m.foto=nueva;
+  try{ await saveRoster(); }
+  catch(e){
+    if(habia) m.foto=anterior; else delete m.foto;
+    throw new Error("No fue posible guardar la foto en la base central. Revisa tu conexión e inténtalo de nuevo.");
+  }
+}
+/* Reduce de una sola vez las fotos antiguas que superen el límite. */
+async function optimizarFotosExistentes(){
+  const msg=document.getElementById("fotosOptimizarMsg"); if(!msg) return;
+  msg.classList.remove("err");
+  const pesadas=ROSTER.filter(m=>typeof m.foto==="string"&&m.foto.startsWith("data:")&&bytesDeDataUrl(m.foto)>FOTO_MAX_BYTES);
+  if(!pesadas.length){ msg.textContent="Todas las fotografías ya están dentro del límite (40 KB)."; return; }
+  const antes=pesadas.reduce((t,m)=>t+bytesDeDataUrl(m.foto),0);
+  if(!confirm("Se reducirán "+pesadas.length+" fotografía(s) ("+Math.round(antes/1024)+" KB) a 320 x 320 px y máximo 40 KB. Esta reducción no se puede deshacer; se recomienda guardar antes una copia de respaldo de la nómina. ¿Continuar?")) return;
+  const originales=new Map(pesadas.map(m=>[m.id,m.foto]));
+  try{
+    for(const m of pesadas) m.foto=await reducirFoto(m.foto);
+    await saveRoster();
+    const despues=pesadas.reduce((t,m)=>t+bytesDeDataUrl(m.foto),0);
+    msg.textContent="Listo: "+pesadas.length+" fotografía(s) reducida(s) de "+Math.round(antes/1024)+" KB a "+Math.round(despues/1024)+" KB.";
+    await renderHvFoto(); await renderDisponibilidad();
+  }catch(err){
+    pesadas.forEach(m=>{ m.foto=originales.get(m.id); });
+    msg.classList.add("err");
+    msg.textContent="No se modificó ninguna foto: "+(err&&err.message?err.message:err);
+  }
+}
+on("fotosOptimizarBtn","click",optimizarFotosExistentes);
+
 on("hvFotoBtn","click",()=>{ if(hvActual()) document.getElementById("hvFotoInput")?.click(); });
-on("hvFotoInput","change",e=>{
-  const file=e.target.files&&e.target.files[0], m=hvActual(); if(!file||!m) return;
-  if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
-  const rd=new FileReader();
-  rd.onload=async()=>{ m.foto=String(rd.result); await saveRoster(); await renderHvFoto(); await refrescarIdentidadVoluntario(); await renderDisponibilidad(); };
-  rd.readAsDataURL(file); e.target.value="";
+on("hvFotoInput","change",async e=>{
+  const archivo=e.target.files&&e.target.files[0], m=hvActual(); if(!archivo||!m) return;
+  e.target.value="";
+  try{
+    await guardarFotoVoluntario(m,archivo);
+    await renderHvFoto(); await refrescarIdentidadVoluntario(); await renderDisponibilidad();
+  }catch(err){ alert((err&&err.message)||"No fue posible guardar la foto."); }
 });
 
 function renderHvAnotaciones(){
@@ -4133,13 +4224,14 @@ on("cambiarFotoBtn","click",()=>{
   if(!sel||!sel.value){ const msg=document.getElementById("miEstadoMsg"); if(msg){msg.textContent="Selecciona tu nombre antes de agregar la foto.";msg.classList.add("err");} return; }
   document.getElementById("miFotoInput")?.click();
 });
-on("miFotoInput","change",e=>{
-  const file=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!file||!sel?.value) return;
-  if(file.size>2500000){ alert("La foto debe pesar menos de 2,5 MB."); e.target.value=""; return; }
-  const rd=new FileReader();
-  rd.onload=async()=>{ try{ const p=ROSTER.find(x=>String(x.id)===String(sel.value)); if(!p) return; p.foto=String(rd.result); await saveRoster(); await refrescarIdentidadVoluntario(); }catch(err){ alert("No fue posible guardar la foto del voluntario."); } };
-  rd.readAsDataURL(file);
+on("miFotoInput","change",async e=>{
+  const archivo=e.target.files&&e.target.files[0], sel=document.getElementById("miVoluntario"); if(!archivo||!sel?.value) return;
   e.target.value="";
+  try{
+    const p=ROSTER.find(x=>String(x.id)===String(sel.value)); if(!p) return;
+    await guardarFotoVoluntario(p,archivo);
+    await refrescarIdentidadVoluntario();
+  }catch(err){ alert((err&&err.message)||"No fue posible guardar la foto del voluntario."); }
 });
 document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado,b)));
 on("actualizarMinuta","click",renderDisponibilidad);
