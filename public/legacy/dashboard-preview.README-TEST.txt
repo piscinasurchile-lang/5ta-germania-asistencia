@@ -1,0 +1,1 @@
+Abrir solo en Vercel Preview. Producción no se toca.
