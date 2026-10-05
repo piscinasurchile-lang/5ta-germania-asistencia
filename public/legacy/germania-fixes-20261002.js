@@ -65,6 +65,7 @@
     ajustarMinutaMovil();
     mejorarEstadisticas();
     const panel=document.getElementById("panel-panel"); if(panel)obs.observe(panel,{childList:true,subtree:true});
-    renderDisponibilidad().catch(console.error);
+    /* No volver a consultar disponibilidad aquí: app.js ya hace la carga inicial.
+       Evita una segunda solicitud idéntica al arrancar GERMANIA. */
   });
 })();
