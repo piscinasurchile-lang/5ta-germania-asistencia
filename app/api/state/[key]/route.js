@@ -10,15 +10,23 @@ function sqlClient() {
   return neon(process.env.DATABASE_URL);
 }
 
-async function ensureSchema(sql) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS app_state (
-      key text PRIMARY KEY,
-      value jsonb NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state(updated_at DESC)`;
+/* La tabla se verifica una sola vez por instancia de la función, no en cada
+   solicitud. Si falla, se vuelve a intentar en la siguiente. */
+let schemaListo = null;
+function ensureSchema(sql) {
+  if (!schemaListo) {
+    schemaListo = (async () => {
+      await sql`
+        CREATE TABLE IF NOT EXISTS app_state (
+          key text PRIMARY KEY,
+          value jsonb NOT NULL,
+          updated_at timestamptz NOT NULL DEFAULT now()
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state(updated_at DESC)`;
+    })().catch((error) => { schemaListo = null; throw error; });
+  }
+  return schemaListo;
 }
 
 export async function GET(_request, { params }) {

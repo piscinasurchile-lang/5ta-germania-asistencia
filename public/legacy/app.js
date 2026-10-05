@@ -352,19 +352,46 @@ async function rawSet(k,v){
   actualizarAvisoAlmacenamiento();
   return true;
 }
-async function testModeActivo(){ return (await sGet(TEST_MODE_KEY,{activo:true})).activo!==false; }
-async function registrarUso(tipo,detalle){
-  if(TEST_INTERNAL_WRITE) return;
-  TEST_INTERNAL_WRITE=true;
+/* El estado del modo prueba casi nunca cambia: se consulta a lo más una vez por
+   minuto (y las consultas simultáneas se unen en una sola), no antes de cada guardado. */
+let TEST_MODE_CACHE={valor:null,hasta:0}, TEST_MODE_PENDIENTE=null;
+function testModeActivo(){
+  if(TEST_MODE_CACHE.valor!==null && Date.now()<TEST_MODE_CACHE.hasta) return Promise.resolve(TEST_MODE_CACHE.valor);
+  if(!TEST_MODE_PENDIENTE){
+    TEST_MODE_PENDIENTE=sGet(TEST_MODE_KEY,{activo:true})
+      .then(v=>{ const activo=v.activo!==false; TEST_MODE_CACHE={valor:activo,hasta:Date.now()+60000}; return activo; })
+      .finally(()=>{ TEST_MODE_PENDIENTE=null; });
+  }
+  return TEST_MODE_PENDIENTE;
+}
+/* Auditoría de uso: los clics se acumulan en memoria y se guardan juntos cada
+   30 s (o al ocultar la pantalla), en vez de leer y reescribir toda la lista en
+   cada clic. */
+let AUDIT_COLA=[], AUDIT_TIMER=null, AUDIT_ENVIANDO=false;
+function registrarUso(tipo,detalle){
+  const sel=document.getElementById("miVoluntario");
+  const p=sel&&sel.value&&typeof ROSTER!=="undefined"?ROSTER.find(x=>String(x.id)===String(sel.value)):null;
+  AUDIT_COLA.push({fecha:new Date().toISOString(),tipo,detalle:String(detalle||"").slice(0,160),voluntario:p?nombreCompleto(p):"Sin identificar",id:p?.id||null});
+  if(!AUDIT_TIMER) AUDIT_TIMER=setTimeout(vaciarAuditoria,30000);
+}
+async function vaciarAuditoria(){
+  if(AUDIT_TIMER){ clearTimeout(AUDIT_TIMER); AUDIT_TIMER=null; }
+  if(AUDIT_ENVIANDO||!AUDIT_COLA.length) return;
+  AUDIT_ENVIANDO=true;
+  const lote=AUDIT_COLA; AUDIT_COLA=[];
   try{
     const a=await sGet(TEST_AUDIT_KEY,[]);
-    const sel=document.getElementById("miVoluntario");
-    const p=sel&&sel.value&&typeof ROSTER!=="undefined"?ROSTER.find(x=>String(x.id)===String(sel.value)):null;
-    a.push({fecha:new Date().toISOString(),tipo,detalle:String(detalle||"").slice(0,160),voluntario:p?nombreCompleto(p):"Sin identificar",id:p?.id||null});
+    a.push(...lote);
     if(a.length>5000) a.splice(0,a.length-5000);
     await rawSet(TEST_AUDIT_KEY,a);
-  }finally{ TEST_INTERNAL_WRITE=false; }
+  }catch(e){
+    AUDIT_COLA=lote.concat(AUDIT_COLA).slice(-500);
+  }finally{
+    AUDIT_ENVIANDO=false;
+    if(AUDIT_COLA.length&&!AUDIT_TIMER) AUDIT_TIMER=setTimeout(vaciarAuditoria,30000);
+  }
 }
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") vaciarAuditoria(); });
 async function sSet(k,v){
   if(!TEST_INTERNAL_WRITE && await testModeActivo() && ![TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY].includes(k)){
     TEST_INTERNAL_WRITE=true;
@@ -386,7 +413,7 @@ async function limpiarDatosPrueba(){
   TEST_INTERNAL_WRITE=true;
   try{ for(const [k,v] of Object.entries(base)) await rawSet(k,v); await rawSet(TEST_BASELINE_KEY,{}); }
   finally{ TEST_INTERNAL_WRITE=false; }
-  await registrarUso("administracion","Limpieza de datos de prueba");
+  registrarUso("administracion","Limpieza de datos de prueba"); await vaciarAuditoria();
   alert("Datos de prueba restaurados. Los datos base protegidos permanecen.");
   location.reload();
 }
@@ -414,7 +441,13 @@ function actualizarAvisoAlmacenamiento(){
 
 /* ============ CARGA ============ */
 async function loadAll(){
-  let r = await sGet(ROSTER_KEY,null);
+  /* Todas las lecturas iniciales salen a la vez: el tiempo de carga es el de la
+     más lenta, no la suma de las siete. */
+  const [rLeida,tiposL,cargosL,svTiposL,mntTiposL,invCatL,ordenL]=await Promise.all([
+    sGet(ROSTER_KEY,null),sGet(TIPOS_KEY,null),sGet(CARGOS_KEY,null),sGet(SV_TIPOS_KEY,null),
+    sGet(MNT_TIPOS_KEY,null),sGet(INV_CAT_KEY,null),sGet("orden:v1",null)
+  ]);
+  let r = rLeida;
   // Una base nueva, una respuesta vacía o un dato inválido nunca debe
   // dejar la aplicación sin nómina. En esos casos se inicializa desde
   // la nómina oficial incluida en la aplicación y se persiste en Neon.
@@ -438,12 +471,12 @@ async function loadAll(){
   }
   r.forEach(m=>{ if(!m.cursos) m.cursos={}; });
   ROSTER=r;
-  TIPOS = await sGet(TIPOS_KEY,null) || DEFAULT_TIPOS.slice();
-  CARGOS = await sGet(CARGOS_KEY,null) || DEFAULT_CARGOS.slice();
-  SV_TIPOS = await sGet(SV_TIPOS_KEY,null) || DEFAULT_SV_TIPOS.slice();
-  MNT_TIPOS = await sGet(MNT_TIPOS_KEY,null) || DEFAULT_MNT_TIPOS.slice();
-  INV_CATEGORIAS = await sGet(INV_CAT_KEY,null) || DEFAULT_INV_CATEGORIAS.slice();
-  ORDEN_MODO = await sGet("orden:v1",null) || "oficialidad";
+  TIPOS = tiposL || DEFAULT_TIPOS.slice();
+  CARGOS = cargosL || DEFAULT_CARGOS.slice();
+  SV_TIPOS = svTiposL || DEFAULT_SV_TIPOS.slice();
+  MNT_TIPOS = mntTiposL || DEFAULT_MNT_TIPOS.slice();
+  INV_CATEGORIAS = invCatL || DEFAULT_INV_CATEGORIAS.slice();
+  ORDEN_MODO = ordenL || "oficialidad";
   renumerar();
 }
 async function saveRoster(){ await sSet(ROSTER_KEY,ROSTER); }
@@ -4283,22 +4316,18 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   const esperarPintado=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
 
   try{
-    await sSet("__check", 1);
     await loadAll();
     // Guardia se sincroniza y valida en segundo plano. Nunca bloquea el arranque
     // de la Tablet B-5 ni la selección del voluntario.
     Promise.allSettled([
       sembrarGuardiaPruebaEnero2026(),
       sembrarMatrizGuardiaPrueba()
-    ]).then(async resultados=>{
+    ]).then(resultados=>{
       resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Siembra Guardia:",x.reason));
-      const validaciones=await Promise.allSettled([
-        validarGuardiaPruebaEnero2026(),
-        validarMatrizGuardiaPrueba()
-      ]);
-      validaciones.filter(x=>x.status==="rejected").forEach(x=>console.error("Validación Guardia:",x.reason));
-      validaciones.filter(x=>x.status==="fulfilled"&&!x.value?.ok).forEach(x=>console.error("Validación Guardia incompleta:",x.value?.errores||x.value));
     });
+    /* Las validaciones de la Guardia de prueba ya no corren en cada apertura:
+       validarGuardiaPruebaEnero2026() y validarMatrizGuardiaPrueba() siguen
+       disponibles para ejecutarlas a mano cuando se necesiten. */
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
@@ -4318,7 +4347,8 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     // Reconciliación histórica idempotente: completa automáticamente cualquier
     // actividad faltante del XLS 2026 sin duplicar las que ya existen.
     // Corre en segundo plano para no bloquear la Tablet B-5.
-    importarHistorico2026()
+    sGet(IMPORT_KEY,null)
+      .then(ya=>ya?0:importarHistorico2026())
       .then(n=>{ if(n) console.info("Histórico 2026 completado:",n,"actividad(es) faltante(s)."); })
       .catch(e=>console.error("No se pudo reconciliar la base 2026",e));
   }catch(e){
