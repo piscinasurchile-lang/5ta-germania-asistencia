@@ -59,6 +59,30 @@
     }
   }
 
+  /* Dashboard Informes: una sola lectura de Guardia por período.
+     Si renderPanel se dispara más de una vez mientras la primera carga sigue activa,
+     comparte la misma promesa en vez de volver a leer todo el histórico. */
+  const guardiaPanelCache=new Map();
+  const guardiaPanelTTL=5*60*1000;
+  if(typeof guardiasEnRangoPanel==="function"){
+    const guardiasEnRangoPanelBase=guardiasEnRangoPanel;
+    guardiasEnRangoPanel=async function(desde,hasta,activos){
+      const key=desde+"|"+hasta;
+      const ahora=Date.now(), cached=guardiaPanelCache.get(key);
+      if(cached && (ahora-cached.ts)<guardiaPanelTTL){
+        return cached.promise;
+      }
+      const promise=Promise.resolve().then(()=>guardiasEnRangoPanelBase(desde,hasta,activos));
+      guardiaPanelCache.set(key,{ts:ahora,promise});
+      try{
+        return await promise;
+      }catch(e){
+        if(guardiaPanelCache.get(key)?.promise===promise) guardiaPanelCache.delete(key);
+        throw e;
+      }
+    };
+  }
+
   const obs=new MutationObserver(()=>mejorarEstadisticas());
   document.addEventListener("DOMContentLoaded",()=>{
     ajustarEncabezadoMinuta();
