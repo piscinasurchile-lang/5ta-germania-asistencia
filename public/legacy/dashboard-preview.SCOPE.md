@@ -1,0 +1,1 @@
+Alcance: Informes/Dashboard únicamente. No modifica Nómina, Disponibilidad, Guardia, ODD, Partes, Resumen de Asistencia ni lógica B5_TABLET.

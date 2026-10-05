@@ -1,0 +1,1 @@
+Preview aislado para validación. No sustituye rutas ni scripts existentes y no debe fusionarse hasta prueba manual.

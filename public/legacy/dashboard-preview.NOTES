@@ -1,0 +1,8 @@
+Causa raíz observada en Dashboard legado:
+- datosPanel carga todos los parte:* del rango.
+- cache legado solo guarda resultado terminado; no deduplica llamadas concurrentes.
+- Guardia recorre guardias:index y luego guardia:*.
+- testModeActivo usa sGet(TEST_MODE_KEY,{activo:true}), por lo que el modo prueba queda activo por defecto cuando no existe configuración.
+- registrarUso lee y reescribe germania:test-audit:v1.
+
+El preview V2 evita por diseño esas rutas de auditoría y mantiene cache + promesas en vuelo.

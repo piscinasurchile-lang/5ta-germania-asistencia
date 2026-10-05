@@ -1,0 +1,1 @@
+El preview solo realiza GET a `/api/state/:key`. No contiene llamadas PUT, POST, PATCH ni DELETE. No cambia nómina, partes, guardias ni auditoría.
