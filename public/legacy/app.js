@@ -350,6 +350,7 @@ async function rawSet(k,v){
   }
   STORAGE_MODE="servidor";
   actualizarAvisoAlmacenamiento();
+  memParteActualizar(k,v);
   return true;
 }
 /* El estado del modo prueba casi nunca cambia: se consulta a lo más una vez por
@@ -392,20 +393,78 @@ async function vaciarAuditoria(){
   }
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") vaciarAuditoria(); });
-async function sSet(k,v){
-  if(!TEST_INTERNAL_WRITE && await testModeActivo() && ![TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY].includes(k)){
-    TEST_INTERNAL_WRITE=true;
-    try{
-      const base=await sGet(TEST_BASELINE_KEY,{});
-      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); await rawSet(TEST_BASELINE_KEY,base); }
+/* Respeta el MODO PRUEBA (copia de respaldo de lo que se modifica) para una o varias claves a la vez. */
+async function pruebaPermiteEscribir(pares){
+  if(TEST_INTERNAL_WRITE || !(await testModeActivo())) return true;
+  const propias=[TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY];
+  const lista=pares.filter(([k])=>!propias.includes(k));
+  if(!lista.length) return true;
+  TEST_INTERNAL_WRITE=true;
+  try{
+    const base=await sGet(TEST_BASELINE_KEY,{});
+    const nuevas=lista.filter(([k])=>!Object.prototype.hasOwnProperty.call(base,k));
+    if(nuevas.length){
+      const actuales=await Promise.all(nuevas.map(([k])=>sGet(k,null)));
+      nuevas.forEach(([k],i)=>{ base[k]=actuales[i]; });
+      await rawSet(TEST_BASELINE_KEY,base);
+    }
+    for(const [k,v] of lista){
       if(typeof ROSTER_KEY!=="undefined" && k===ROSTER_KEY && Array.isArray(base[k]) && Array.isArray(v)){
         const ids=new Set(v.map(x=>String(x.id)));
         const faltan=base[k].filter(x=>!ids.has(String(x.id)));
         if(faltan.length){ alert("MODO PRUEBA: no se permite eliminar voluntarios de la nómina base."); return false; }
       }
-    }finally{ TEST_INTERNAL_WRITE=false; }
-  }
+    }
+    return true;
+  }finally{ TEST_INTERNAL_WRITE=false; }
+}
+async function sSet(k,v){
+  if(!(await pruebaPermiteEscribir([[k,v]]))) return false;
   return rawSet(k,v);
+}
+/* Lectura en bloque: muchos registros en una sola llamada. */
+async function sGetPrefix(prefijo){
+  let r;
+  try{ r=await fetch("/api/state-batch?prefix="+encodeURIComponent(prefijo),{cache:"no-store"}); }
+  catch(e){ throw new Error("GERMANIA no pudo consultar la base central."); }
+  if(!r.ok) throw new Error("GERMANIA no pudo consultar la base central ("+r.status+").");
+  return (await r.json()).items||{};
+}
+async function sGetMany(claves){
+  const out={};
+  for(let i=0;i<claves.length;i+=50){
+    let r;
+    try{ r=await fetch("/api/state-batch?keys="+encodeURIComponent(claves.slice(i,i+50).join(",")),{cache:"no-store"}); }
+    catch(e){ throw new Error("GERMANIA no pudo consultar la base central."); }
+    if(!r.ok) throw new Error("GERMANIA no pudo consultar la base central ("+r.status+").");
+    Object.assign(out,(await r.json()).items||{});
+  }
+  return out;
+}
+/* Guardado atómico: se guardan TODAS las claves o no se guarda ninguna. Cada escritura puede
+   traer "expect" (el valor que se esperaba encontrar): si otra persona lo cambió, no se guarda
+   nada y se lanza un error con .conflicto=true y .clave. */
+async function sSetMany(writes){
+  if(!(await pruebaPermiteEscribir(writes.map(w=>[w.key,w.value])))) throw new Error("Guardado cancelado por el modo prueba.");
+  let r;
+  try{
+    r=await fetch("/api/state-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({writes})});
+  }catch(error){
+    STORAGE_MODE="sin-conexion"; actualizarAvisoAlmacenamiento();
+    throw new Error("Sin conexión con la base central. No se guardó nada; inténtalo de nuevo.");
+  }
+  if(r.status===409){
+    const e=new Error("conflicto"); e.conflicto=true;
+    try{ e.clave=(await r.json()).key||null; }catch(_){}
+    throw e;
+  }
+  if(!r.ok){
+    STORAGE_MODE="sin-conexion"; actualizarAvisoAlmacenamiento();
+    throw new Error("La base central no respondió ("+r.status+"). No se guardó nada; inténtalo de nuevo.");
+  }
+  STORAGE_MODE="servidor"; actualizarAvisoAlmacenamiento();
+  writes.forEach(w=>memParteActualizar(w.key,w.value));
+  return true;
 }
 async function limpiarDatosPrueba(){
   if(!confirm("¿Restaurar todos los datos modificados desde que comenzó el MODO PRUEBA? La nómina base y Hojas de Vida se conservarán.")) return;
@@ -1006,7 +1065,31 @@ async function renderMntGastoMensual(){
 async function renderMntTodo(){ await renderMntProximas(); await renderMntHistorial(); await renderMntGastoMensual(); }
 
 async function getIndex(){ return await sGet(INDEX_KEY,[]); }
-async function getParte(c){ return await sGet("parte:"+c,null); }
+/* Los partes se leen todos juntos (una sola llamada) y se conservan en memoria unos segundos. */
+let PARTES_MEM=null, PARTES_MEM_HASTA=0, PARTES_MEM_CARGA=null;
+function invalidarPartes(){ PARTES_MEM=null; PARTES_MEM_HASTA=0; }
+function memParteActualizar(k,v){
+  if(!PARTES_MEM||typeof k!=="string"||!k.startsWith("parte:")) return;
+  const c=k.slice(6);
+  if(v===null||v===undefined) PARTES_MEM.delete(c); else PARTES_MEM.set(c,v);
+}
+function cargarPartesEnBloque(){
+  if(!PARTES_MEM_CARGA){
+    PARTES_MEM_CARGA=sGetPrefix("parte:").then(items=>{
+      const m=new Map();
+      for(const [k,v] of Object.entries(items)){ if(v!==null&&v!==undefined) m.set(k.slice(6),v); }
+      PARTES_MEM=m; PARTES_MEM_HASTA=Date.now()+30000;
+    }).finally(()=>{ PARTES_MEM_CARGA=null; });
+  }
+  return PARTES_MEM_CARGA;
+}
+async function getParte(c){
+  if(!PARTES_MEM||Date.now()>PARTES_MEM_HASTA){ try{ await cargarPartesEnBloque(); }catch(e){ PARTES_MEM=null; } }
+  if(PARTES_MEM&&PARTES_MEM.has(c)) return PARTES_MEM.get(c);
+  const v=await sGet("parte:"+c,null);   /* no estaba en memoria: se consulta directo */
+  if(v!==null&&PARTES_MEM) PARTES_MEM.set(c,v);
+  return v;
+}
 async function setParte(c,d){
   const ok = await sSet("parte:"+c,d);
   if(ok){ const idx=await getIndex(); if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,date:d.date,tipo:d.tipo}); await sSet(INDEX_KEY,idx); } }
@@ -1092,6 +1175,7 @@ function renderListaRows(){
   if(gb) gb.disabled=parteBloqueado; if(mt) mt.disabled=parteBloqueado;
   renderCandadoParte();
 }
+let parteExistente=null;   /* lo guardado en la base cuando se abrió este parte (detecta cambios de otra persona) */
 function renderCandadoParte(){
   let box=document.getElementById("candadoParte");
   if(!box){
@@ -1099,28 +1183,33 @@ function renderCandadoParte(){
     const ref=document.getElementById("listaBody")?.closest("table");
     if(ref) ref.parentElement.insertBefore(box,ref);
   }
-  if(!parteBloqueado){ box.innerHTML=""; box.style.display="none"; return; }
-  box.style.display="block";
-  box.style.cssText="padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
-  box.innerHTML=`<b>Este parte ya fue guardado y no se puede modificar.</b>
+  ["detalle","registradoPor"].forEach(id=>{ const e=document.getElementById(id); if(e) e.disabled=parteBloqueado; });
+  box.style.cssText="display:block;padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  if(!parteExistente){ box.innerHTML="<b>Parte nuevo</b> · aún sin guardar."; return; }
+  const ex=parteExistente;
+  const num=ex.numero?`N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}`:"sin número";
+  const cuando=ex.modificadoEn||ex.creadoEn;
+  const hora=cuando?new Date(cuando).toLocaleString("es-CL",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"";
+  box.innerHTML=`<b>✔ Guardado</b> · ${esc(num)}${ex.version?` · versión ${ex.version}`:""}${hora?` · ${esc(hora)}`:""}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <input id="claveDesbloqueoParte" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
-      <button id="desbloquearParteBtn" class="btn small">Corregir asistencia</button>
+      ${parteBloqueado
+        ? (MODO_PRUEBA_ABIERTO?"":`<input id="claveDesbloqueoParte" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">`)+`<button id="desbloquearParteBtn" class="btn small" type="button">Modificar</button>`
+        : `<span style="color:#ffcc00;">Editando · recuerda guardar los cambios.</span>`}
+      <button id="verVersionesParteBtn" class="btn small secondary" type="button">Versiones anteriores</button>
     </div>
     <div id="candadoParteMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
-  document.getElementById("desbloquearParteBtn").onclick=async()=>{
-    const inp=document.getElementById("claveDesbloqueoParte"), m=document.getElementById("candadoParteMsg");
-    const res=await autenticarOficialidad(inp.value.trim());
-    if(res.ok){
-      parteBloqueado=false;
-      renderListaRows();
-      const gb=document.getElementById("guardarBtn");
-      if(gb) gb.textContent="Guardar corrección";
-      m.textContent="Asistencia desbloqueada. Corrige y guarda nuevamente; se mantiene el mismo N° de parte.";
-      m.classList.remove("err");
+  const bm=document.getElementById("desbloquearParteBtn");
+  if(bm) bm.onclick=async()=>{
+    const m=document.getElementById("candadoParteMsg");
+    if(!MODO_PRUEBA_ABIERTO){
+      const inp=document.getElementById("claveDesbloqueoParte");
+      const res=await autenticarOficialidad((inp?inp.value:"").trim());
+      if(!res.ok){ m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); return; }
     }
-    else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
+    parteBloqueado=false; renderListaRows();
+    const gb=document.getElementById("guardarBtn"); if(gb) gb.textContent="Guardar corrección";
   };
+  document.getElementById("verVersionesParteBtn").onclick=()=>mostrarVersionesParte();
 }
 function claveFor(d,t){ return d+"__"+slug(t); }
 /* Varias actividades del mismo dia y tipo no deben pisarse: se busca una clave libre */
@@ -1137,8 +1226,12 @@ async function claveNueva(d,t){
 async function loadListaForSelection(){
   const d=document.getElementById("fecha").value, t=document.getElementById("tipoSelect").value;
   if(!d||!t) return;
-  currentPartClave=claveFor(d,t);
-  const ex=await getParte(currentPartClave);
+  await cargarParteEnPantalla(claveFor(d,t));
+}
+/* Abre un parte por su clave exacta (la que tiene en la base), no por fecha y tipo. */
+async function cargarParteEnPantalla(clave){
+  currentPartClave=clave;
+  const ex=await getParte(clave);
   const msg=document.getElementById("statusMsg");
   currentRecord={};
   document.getElementById("resumenBox").style.display="none";
@@ -1146,14 +1239,14 @@ async function loadListaForSelection(){
     currentRecord={...ex.records};
     document.getElementById("detalle").value=ex.detalle||"";
     document.getElementById("registradoPor").value=ex.registradoPor||"";
-    msg.textContent="Ya existe un parte guardado para esta fecha y tipo."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
-    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null;
+    msg.textContent="Parte guardado"+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}`:"")+". Para cambiar algo, presiona «Modificar».";
+    parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null; parteExistente=ex;
   } else {
     sortedRoster(false).forEach(p=>currentRecord[p.id]="ausente");
     document.getElementById("detalle").value="";
     document.getElementById("registradoPor").value="";
     msg.textContent="";
-    parteBloqueado=false; parteEsNuevo=true; parteNumeroActual=null; parteAnioActual=null;
+    parteBloqueado=false; parteEsNuevo=true; parteNumeroActual=null; parteAnioActual=null; parteExistente=null;
   }
   msg.classList.remove("err");
   const gb=document.getElementById("guardarBtn");
@@ -1186,6 +1279,10 @@ on("guardarBtn","click",()=>{
   const date=document.getElementById("fecha").value, tipo=document.getElementById("tipoSelect").value;
   const msg=document.getElementById("statusMsg");
   if(!date||!tipo){ msg.textContent="Selecciona fecha y tipo de citación."; msg.classList.add("err"); return; }
+  if(/B-5$/i.test(tipo)&&!parteExistente){
+    msg.textContent="Las salidas del carro B-5 se registran en la pestaña «Salida B-5» (hoja de servicio): ahí queda también la asistencia. Para corregir una ya guardada, ábrela desde «Historial» o desde «Hojas de servicio guardadas».";
+    msg.classList.add("err"); return;
+  }
   mostrarConfirmarParte(date,tipo);
 });
 function mostrarConfirmarParte(date,tipo){
@@ -1194,28 +1291,115 @@ function mostrarConfirmarParte(date,tipo){
   msg.classList.remove("err");
   msg.innerHTML=`<div style="padding:12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;">
       <b>Revisa antes de guardar:</b> ${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes.<br/>
-      <small>Una vez guardado, este parte no podrá modificarse sin la clave de Oficialidad. ¿Está correcto o quiere revisar de nuevo?</small>
+      <small>${MODO_PRUEBA_ABIERTO?"Después podrás corregirlo con el botón «Modificar».":"Una vez guardado, para modificarlo se necesitará la clave de Oficialidad."} ¿Está correcto o quiere revisar de nuevo?</small>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button id="confirmarGuardarBtn" class="btn small">Sí, está correcto — Guardar</button>
         <button id="revisarDeNuevoBtn" class="btn small secondary">Revisar de nuevo</button>
       </div></div>`;
   document.getElementById("revisarDeNuevoBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarBtn").onclick=async()=>{
-    const tl=String(tipo||"").toLowerCase();
-    const origen=tl.includes("comandancia")?"comandancia_citacion":(tl.includes("anb")||tl.includes("curso"))?"curso_anb_citacion":"citacion_manual";
-    const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord,origenAsistencia:origen,generaAsistencia:true};
-    if(parteEsNuevo){ data.anio=anioDe(date); data.numero=await siguienteCorrelativo("parte",data.anio); }
-    else { data.numero=parteNumeroActual; data.anio=parteAnioActual; }
-    currentPartClave=claveFor(date,tipo);
-    const ok=await setParte(currentPartClave,data);
-    if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
-    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
-    const gb=document.getElementById("guardarBtn");
-    if(gb) gb.textContent="Guardar parte";
-    msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}.`+(MODO_PRUEBA_ABIERTO?" Modo de prueba: edición abierta.":" Ya no se puede modificar sin la clave de Oficialidad.");
-    renderResumen(countStatuses(currentRecord));
-    renderListaRows();
+    const btn=document.getElementById("confirmarGuardarBtn"); btn.disabled=true; btn.textContent="Guardando…";
+    try{
+      const data=await guardarParteAtomico(date,tipo);
+      parteBloqueado=true; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio; parteExistente=data;
+      const gb=document.getElementById("guardarBtn");
+      if(gb) gb.textContent="Guardar parte";
+      msg.classList.remove("err");
+      msg.textContent=`✔ Guardado a las ${new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}. N° ${String(data.numero).padStart(3,"0")}/${data.anio}.`;
+      renderResumen(countStatuses(currentRecord));
+      renderListaRows();
+    }catch(e){
+      msg.classList.add("err");
+      msg.innerHTML=`<b>No se guardó.</b> ${esc((e&&e.message)||"Error desconocido")}
+        <div style="margin-top:8px;"><button id="reintentarParteBtn" class="btn small" type="button">Reintentar</button></div>`;
+      document.getElementById("reintentarParteBtn").onclick=()=>mostrarConfirmarParte(date,tipo);
+    }
   };
+}
+/* Guarda el parte, su número correlativo y el índice en UNA sola operación: o queda todo o no queda nada. */
+async function guardarParteAtomico(date,tipo){
+  const clave=currentPartClave||claveFor(date,tipo);
+  const tl=String(tipo||"").toLowerCase();
+  const origen=tl.includes("comandancia")?"comandancia_citacion":(tl.includes("anb")||tl.includes("curso"))?"curso_anb_citacion":"citacion_manual";
+  const snapshot=parteExistente;   /* lo que había al abrirlo: si otra persona lo cambió después, no se pisa */
+  for(let intento=0;intento<4;intento++){
+    const ahora=new Date().toISOString();
+    const data=Object.assign({},snapshot||{},{
+      date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),
+      records:{...currentRecord},origenAsistencia:origen,generaAsistencia:true,
+      creadoEn:(snapshot&&snapshot.creadoEn)||ahora,modificadoEn:ahora,version:((snapshot&&snapshot.version)||0)+1});
+    const writes=[];
+    if(!snapshot){
+      data.anio=anioDe(date);
+      const corrClave="correlativo:parte:"+data.anio;
+      const corrRaw=await sGet(corrClave,null);
+      data.numero=((corrRaw&&corrRaw.actual)||0)+1;
+      writes.push({key:corrClave,value:{actual:data.numero},expect:corrRaw});
+    }
+    writes.push({key:"parte:"+clave,value:data,expect:snapshot||null});
+    const idxRaw=await sGet(INDEX_KEY,null);
+    const idx=Array.isArray(idxRaw)?idxRaw.map(x=>({...x})):[];
+    const i=idx.findIndex(x=>x.clave===clave);
+    if(i<0) idx.push({clave,date,tipo}); else idx[i]={...idx[i],date,tipo};
+    writes.push({key:INDEX_KEY,value:idx,expect:idxRaw});
+    try{ await sSetMany(writes); return data; }
+    catch(e){
+      if(e&&e.conflicto){
+        if(e.clave==="parte:"+clave) throw new Error(snapshot
+          ? "Otra persona modificó este parte después de que lo abriste. Ábrelo de nuevo desde el Historial para ver sus cambios; no se pisó nada."
+          : "Otra persona ya guardó un parte para esta fecha y tipo. Ábrelo desde el Historial; no se pisó nada.");
+        continue;   /* cambió el contador o el índice: se lee de nuevo y se reintenta */
+      }
+      throw e;
+    }
+  }
+  throw new Error("No se pudo guardar por actividad simultánea de otras personas. Inténtalo de nuevo.");
+}
+
+/* ============ VERSIONES ANTERIORES (recuperar lo que se cambió) ============ */
+async function mostrarVersiones({titulo,key,resumen,alElegir}){
+  const fondo=document.createElement("div");
+  fondo.style.cssText="position:fixed;inset:0;background:#000a;z-index:100000;display:flex;align-items:center;justify-content:center;padding:14px;";
+  const caja=document.createElement("div");
+  caja.style.cssText="background:#15171c;border:1px solid #3a3d44;border-radius:10px;max-width:640px;width:100%;max-height:85vh;overflow:auto;padding:16px;color:#fff;";
+  caja.innerHTML=`<h3 style="margin:0 0 10px;">${esc(titulo)}</h3><div id="verLista">Cargando…</div>
+    <div style="margin-top:12px;text-align:right;"><button type="button" class="btn small secondary" id="verCerrar">Cerrar</button></div>`;
+  fondo.appendChild(caja); document.body.appendChild(fondo);
+  const cerrar=()=>fondo.remove();
+  caja.querySelector("#verCerrar").onclick=cerrar;
+  fondo.addEventListener("click",e=>{ if(e.target===fondo) cerrar(); });
+  const lista=caja.querySelector("#verLista");
+  let versiones=[];
+  try{
+    const r=await fetch("/api/state-history?key="+encodeURIComponent(key),{cache:"no-store"});
+    if(!r.ok) throw new Error(String(r.status));
+    versiones=(await r.json()).versions||[];
+  }catch(e){ lista.textContent="No se pudo consultar el historial de versiones. Inténtalo más tarde."; return; }
+  const vigentes=versiones.filter(v=>v.value!==null&&v.value!==undefined);
+  if(!vigentes.length){ lista.innerHTML='<div class="empty">Todavía no hay versiones anteriores: este registro no se ha modificado desde que se activó el historial.</div>'; return; }
+  const fmt=f=>new Date(f).toLocaleString("es-CL",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  lista.innerHTML=vigentes.map((v,i)=>`<div class="hist-item"><div>
+      <div class="hist-date">Guardada el ${esc(fmt(v.version_at||v.replaced_at))}</div>
+      <div class="hist-acto">${esc(resumen(v.value))}</div></div>
+      <div class="hist-right"><button type="button" class="btn small gold" data-i="${i}">Cargar esta versión</button></div></div>`).join("");
+  lista.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>{ alElegir(vigentes[Number(b.dataset.i)].value); cerrar(); });
+}
+function mostrarVersionesParte(){
+  const clave=currentPartClave; if(!clave) return;
+  if(parteBloqueado&&!MODO_PRUEBA_ABIERTO){ alert("Para cargar una versión anterior, primero presiona «Modificar» e ingresa la clave de Oficialidad."); return; }
+  return mostrarVersiones({
+    titulo:"Versiones anteriores de este parte", key:"parte:"+clave,
+    resumen:v=>{ const c=countStatuses(v.records||{}); return `${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes`+(v.detalle?` · ${v.detalle}`:""); },
+    alElegir:v=>{
+      currentRecord={...(v.records||{})};
+      document.getElementById("detalle").value=v.detalle||"";
+      document.getElementById("registradoPor").value=v.registradoPor||"";
+      parteBloqueado=false; renderListaRows();
+      const gb=document.getElementById("guardarBtn"); if(gb) gb.textContent="Guardar corrección";
+      const m=document.getElementById("statusMsg"); m.classList.remove("err");
+      m.textContent="Versión anterior cargada en pantalla. Revísala y presiona «Guardar corrección» para dejarla como la vigente.";
+    }
+  });
 }
 
 /* ============ PDF ============ */
@@ -1401,12 +1585,239 @@ on("svTipoActAgregarBtn","click",async()=>{
 let svConcurrencia={};   // id -> "si" | "no"
 let svBloqueado=false;
 let svEsNuevo=true, svNumeroActual=null, svAnioActual=null;
-
-function svClave(){
+let svClaveActual=null;       /* clave (estable) de la hoja abierta o ya guardada */
+let svSnapshot=null;          /* lo guardado en la base cuando se abrió (detecta cambios de otra persona) */
+let svParteClaveActual=null;  /* clave del parte de asistencia ligado a esta hoja */
+let svSucio=false;            /* hay cambios sin guardar en pantalla */
+let svCargando=false, svIniciada=false;
+const SV_BORRADOR_KEY="svborrador:v1";
+let svBorradorTimer=null, svBorradorHora=null, svBorradorError=false;
+function svClaveDesdeCampos(){
   const f=document.getElementById("svFecha").value;
   const h=document.getElementById("svHoraSalida").value||"sin-hora";
   return "servicio:"+f+"__"+h.replace(":","");
 }
+/* La clave de una hoja ya creada NO cambia aunque se corrija la fecha u hora de salida. */
+function svClave(){ return svClaveActual||svClaveDesdeCampos(); }
+function svHayContenido(){
+  const ignorar=["svFecha","svTipoAct","svHoraSalida"];
+  const texto=SV_CAMPOS.some(id=>{
+    if(ignorar.includes(id)) return false;
+    const el=document.getElementById(id);
+    return el&&el.tagName!=="SELECT"&&String(el.value||"").trim()!==String(el.defaultValue||"").trim();
+  });
+  return texto||Object.values(svConcurrencia).some(v=>v==="si");
+}
+/* Cada cambio en pantalla se guarda solo como BORRADOR a los pocos segundos: si la tablet se apaga o
+   se cambia de pantalla, lo escrito se puede recuperar. */
+function svMarcarSucio(){
+  if(svBloqueado||svCargando) return;
+  svSucio=true; svBorradorError=false;
+  clearTimeout(svBorradorTimer); svBorradorTimer=setTimeout(svGuardarBorrador,4000);
+  svPintarEstado();
+}
+async function svGuardarBorrador(){
+  clearTimeout(svBorradorTimer); svBorradorTimer=null;
+  if(!svSucio||svBloqueado) return;
+  if(!svClaveActual&&!svHayContenido()) return;
+  try{
+    await rawSet(SV_BORRADOR_KEY,{
+      claveActual:svClaveActual,esNuevo:svEsNuevo,numero:svNumeroActual,anio:svAnioActual,parteClave:svParteClaveActual,
+      datos:svDatos(),registrarAsistencia:document.getElementById("svRegistrarAsistencia").checked,
+      guardadoEn:new Date().toISOString()});
+    svBorradorHora=new Date(); svBorradorError=false;
+  }catch(e){ svBorradorHora=null; svBorradorError=true; }
+  svPintarEstado();
+}
+function svAplicarDatos(d){
+  svCargando=true;
+  try{
+    SV_CAMPOS.forEach(id=>{ const el=document.getElementById(id); if(el&&d[id]!==undefined) el.value=d[id]; });
+    svConcurrencia={...(d.concurrencia||{})};
+  }finally{ svCargando=false; }
+}
+function svCompletarConcurrencia(){ sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; }); }
+function svAsegurarTipo(t){ if(t&&!SV_TIPOS.includes(t)) SV_TIPOS.push(t); }
+function svParteClaveLegacy(ex){   /* hojas guardadas antes de existir 'parteClave' */
+  if(ex.registrarAsistencia===false) return null;
+  const hs=(ex.svHoraSalida||"s-h").replace(":","");
+  return claveFor(ex.svFecha,(ex.svTipoAct||"")+" B-5")+"__"+hs;
+}
+/* Abre una hoja ya guardada (por su clave exacta). Queda en lectura hasta presionar «Modificar». */
+async function abrirHojaServicio(clave){
+  const ex=await sGet(clave,null);
+  if(!ex) throw new Error("No se encontró la hoja de servicio.");
+  svAsegurarTipo(ex.svTipoAct);
+  renderSvTipoOptions();
+  svAplicarDatos(ex);
+  document.getElementById("svRegistrarAsistencia").checked=ex.registrarAsistencia!==false;
+  svClaveActual=clave; svSnapshot=ex; svParteClaveActual=ex.parteClave||svParteClaveLegacy(ex);
+  svEsNuevo=false; svNumeroActual=ex.numero||null; svAnioActual=ex.anio||null;
+  svSucio=false; svBloqueado=true;
+  svCompletarConcurrencia(); actualizarFichaCombustible();
+  const gb=document.getElementById("svGuardarBtn"); if(gb) gb.textContent="Guardar hoja";
+  const msg=document.getElementById("svMsg"); if(msg){ msg.classList.remove("err"); msg.textContent=""; }
+  renderSvBody();
+}
+/* Empieza una hoja en blanco (los campos vuelven a su valor inicial). */
+function svIniciarNueva(){
+  renderSvTipoOptions();
+  svCargando=true;
+  try{
+    SV_CAMPOS.forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      if(el.tagName==="SELECT"){ const i=Array.from(el.options).findIndex(o=>o.defaultSelected); el.selectedIndex=i>=0?i:0; }
+      else el.value=el.defaultValue||"";
+    });
+    document.getElementById("svFecha").value=todayISO();
+  }finally{ svCargando=false; }
+  svConcurrencia={}; svClaveActual=null; svSnapshot=null; svParteClaveActual=null;
+  svEsNuevo=true; svNumeroActual=null; svAnioActual=null; svSucio=false; svBloqueado=false;
+  svBorradorHora=null; svBorradorError=false;
+  clearTimeout(svBorradorTimer); svBorradorTimer=null;
+  svCompletarConcurrencia(); actualizarFichaCombustible();
+  const reg=document.getElementById("svRegistrarAsistencia"), t=document.getElementById("svTipoAct").value;
+  if(reg) reg.checked=(t==="Emergencia"||t==="Acto de servicio");
+  const gb=document.getElementById("svGuardarBtn"); if(gb) gb.textContent="Guardar hoja";
+  const msg=document.getElementById("svMsg"); if(msg){ msg.classList.remove("err"); msg.textContent=""; }
+  renderSvBody();
+}
+async function svAsegurarIniciada(){
+  if(svIniciada) return;
+  svIniciada=true;
+  const f=document.getElementById("svFecha"); if(f&&!f.value) f.value=todayISO();
+  renderSvTipoOptions(); svCompletarConcurrencia(); actualizarFichaCombustible(); renderSvBody();
+  await svOfrecerBorrador();
+}
+async function svOfrecerBorrador(){
+  const box=document.getElementById("svBorradorBox"); if(!box) return;
+  let b=null; try{ b=await sGet(SV_BORRADOR_KEY,null); }catch(e){}
+  const ignorar=["svFecha","svTipoAct","svHoraSalida"];
+  const util=b&&b.datos&&(b.claveActual||SV_CAMPOS.some(id=>!ignorar.includes(id)&&String(b.datos[id]||"").trim()!=="")||Object.values(b.datos.concurrencia||{}).some(v=>v==="si"));
+  if(!util){ box.style.display="none"; box.innerHTML=""; return; }
+  const hora=b.guardadoEn?new Date(b.guardadoEn).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"";
+  box.style.cssText="display:block;padding:12px;margin:0 0 12px;background:#2b2200;border:1px solid #c9a227;border-radius:7px;";
+  box.innerHTML=`<b>Hay una hoja de servicio sin guardar</b> (${esc(b.datos.svFecha||"")} ${esc(b.datos.svHoraSalida||"")} · ${esc(b.datos.svTipoAct||"")}). Se guardó automáticamente${hora?" a las "+esc(hora):""}.
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="svBorradorContinuar" class="btn small" type="button">Continuar con el borrador</button>
+      <button id="svBorradorDescartar" class="btn small secondary" type="button">Descartar</button></div>`;
+  document.getElementById("svBorradorContinuar").onclick=async()=>{
+    if(svSucio&&svHayContenido()&&!confirm("Hay datos sin guardar en pantalla que se reemplazarán por el borrador. ¿Continuar?")) return;
+    svAsegurarTipo(b.datos.svTipoAct); renderSvTipoOptions();
+    svAplicarDatos(b.datos);
+    document.getElementById("svRegistrarAsistencia").checked=b.registrarAsistencia!==false;
+    let snap=null;
+    if(b.claveActual){ try{ snap=await sGet(b.claveActual,null); }catch(e){} }
+    svClaveActual=snap?b.claveActual:null; svSnapshot=snap||null;
+    svParteClaveActual=b.parteClave||null;
+    svEsNuevo=!snap; svNumeroActual=snap?(snap.numero||null):null; svAnioActual=snap?(snap.anio||null):null;
+    svBloqueado=false; svSucio=true;
+    svCompletarConcurrencia(); actualizarFichaCombustible(); renderSvBody();
+    box.style.display="none"; box.innerHTML="";
+  };
+  document.getElementById("svBorradorDescartar").onclick=async()=>{
+    try{ await rawSet(SV_BORRADOR_KEY,null); }catch(e){}
+    box.style.display="none"; box.innerHTML="";
+  };
+}
+async function svCambioIdentidad(){
+  if(svCargando) return;
+  if(svClaveActual){ svMarcarSucio(); return; }   /* hoja ya creada: fecha y hora son datos, la hoja no cambia */
+  let ex=null;
+  try{ ex=await sGet(svClaveDesdeCampos(),null); }catch(e){ svMarcarSucio(); return; }
+  if(!ex){ svMarcarSucio(); return; }               /* hoja nueva: se sigue llenando, no se borra nada */
+  if(svSucio&&svHayContenido()&&!confirm("Ya existe una hoja guardada para esa fecha y hora de salida. ¿Abrirla? Se perderán los datos que aún no guardaste en pantalla.")) return;
+  await abrirHojaServicio(svClaveDesdeCampos());
+  const msg=document.getElementById("svMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Ya existía una hoja guardada para esa fecha y hora de salida."; }
+}
+function svPintarEstado(){
+  const box=document.getElementById("svEstadoBox"); if(!box) return;
+  box.style.cssText="display:block;padding:12px;margin:0 0 12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  const hh=d=>d.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});
+  if(svClaveActual&&svSnapshot){
+    const ex=svSnapshot;
+    const num=ex.numero?`N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}`:"sin número";
+    const cuando=ex.modificadoEn||ex.creadoEn;
+    const hora=cuando?new Date(cuando).toLocaleString("es-CL",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"";
+    box.innerHTML=`<b>✔ Hoja guardada</b> · ${esc(num)}${ex.version?` · versión ${ex.version}`:""}${hora?` · ${esc(hora)}`:""}${svSucio?' · <span style="color:#ffcc00;">cambios sin guardar</span>':""}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${svBloqueado
+          ? (MODO_PRUEBA_ABIERTO?"":`<input id="claveDesbloqueoSv" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">`)+`<button id="svModificarBtn" class="btn small" type="button">Modificar</button>`
+          : `<span style="color:#ffcc00;">Editando · recuerda guardar los cambios.</span>`}
+        <button id="svVersionesBtn" class="btn small secondary" type="button">Versiones anteriores</button>
+        <button id="svNuevaBtn" class="btn small secondary" type="button">Nueva hoja</button>
+      </div><div id="svEstadoMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
+  } else {
+    const detalle=!(svSucio&&svHayContenido())?"sin datos todavía"
+      :svBorradorError?'<span style="color:#ff8a80;">sin conexión: el borrador aún no se está guardando</span>'
+      :svBorradorHora?`borrador guardado automáticamente a las ${hh(svBorradorHora)}`:"guardando borrador…";
+    box.innerHTML=`<b>Hoja nueva</b> · ${detalle}`;
+  }
+  const bm=document.getElementById("svModificarBtn"); if(bm) bm.onclick=svDesbloquear;
+  const bv=document.getElementById("svVersionesBtn"); if(bv) bv.onclick=svMostrarVersiones;
+  const bn=document.getElementById("svNuevaBtn");
+  if(bn) bn.onclick=()=>{
+    if(svSucio&&svHayContenido()&&!confirm("Hay cambios sin guardar en esta hoja. ¿Empezar una hoja nueva de todos modos?")) return;
+    svIniciarNueva();
+  };
+}
+async function svDesbloquear(){
+  const m=document.getElementById("svEstadoMsg");
+  if(!MODO_PRUEBA_ABIERTO){
+    const inp=document.getElementById("claveDesbloqueoSv");
+    const res=await autenticarOficialidad((inp?inp.value:"").trim());
+    if(!res.ok){ if(m){ m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); } return; }
+  }
+  svBloqueado=false; renderSvBody();
+  const gb=document.getElementById("svGuardarBtn"); if(gb) gb.textContent="Guardar corrección";
+}
+function svMostrarVersiones(){
+  if(!svClaveActual) return;
+  if(svBloqueado&&!MODO_PRUEBA_ABIERTO){ alert("Para cargar una versión anterior, primero presiona «Modificar» e ingresa la clave de Oficialidad."); return; }
+  return mostrarVersiones({
+    titulo:"Versiones anteriores de esta hoja", key:svClaveActual,
+    resumen:d=>{ const n=Object.values(d.concurrencia||{}).filter(v=>v==="si").length;
+      return [d.svFecha,d.svHoraSalida,d.svTipoAct,[d.svCalle,d.svNumeracion,d.svSector].filter(Boolean).join(" "),n+" concurrentes"].filter(Boolean).join(" · "); },
+    alElegir:d=>{
+      svAsegurarTipo(d.svTipoAct); renderSvTipoOptions();
+      svAplicarDatos(d);
+      document.getElementById("svRegistrarAsistencia").checked=d.registrarAsistencia!==false;
+      svCompletarConcurrencia(); actualizarFichaCombustible();
+      svBloqueado=false; svSucio=true; renderSvBody();
+      const gb=document.getElementById("svGuardarBtn"); if(gb) gb.textContent="Guardar corrección";
+      const msg=document.getElementById("svMsg"); msg.classList.remove("err");
+      msg.textContent="Versión anterior cargada en pantalla. Revísala y presiona «Guardar corrección» para dejarla como la vigente.";
+    }
+  });
+}
+/* Lista de hojas guardadas, para abrirlas y corregirlas. */
+async function svRenderLista(){
+  const box=document.getElementById("svListaGuardadas"); if(!box) return;
+  let idx;
+  try{ idx=await sGet(SV_INDEX_KEY,[]); }catch(e){ box.innerHTML='<div class="empty">No se pudo cargar la lista (sin conexión).</div>'; return; }
+  if(!idx.length){ box.innerHTML='<div class="empty">Aún no hay hojas de servicio guardadas.</div>'; return; }
+  const orden=idx.slice().sort((a,b)=>((b.fecha||"")+(b.hora||"")).localeCompare((a.fecha||"")+(a.hora||""))).slice(0,12);
+  let docs={}; try{ docs=await sGetMany(orden.map(i=>i.clave)); }catch(e){}
+  box.innerHTML=orden.map(it=>{
+    const d=docs[it.clave]||{};
+    const n=Object.values(d.concurrencia||{}).filter(v=>v==="si").length;
+    const lugar=[d.svCalle,d.svNumeracion,d.svSector].filter(Boolean).join(" ");
+    const num=d.numero?` <span class="badge">N° ${String(d.numero).padStart(3,"0")}/${esc(d.anio)}</span>`:"";
+    return `<div class="hist-item"><div>
+        <div class="hist-date">${esc(fmtDateLong(it.fecha))}${it.hora||d.svHoraSalida?" · "+esc(it.hora||d.svHoraSalida):""} <span class="badge">${esc(it.tipo||d.svTipoAct||"")}</span>${num}</div>
+        <div class="hist-acto">${esc(lugar||d.svNaturaleza||"Sin lugar indicado")}${d.concurrencia?` · ${n} concurrentes`:""}</div>
+      </div><div class="hist-right"><button type="button" class="btn small secondary" data-sv-abrir="${esc(it.clave)}">Abrir</button></div></div>`;
+  }).join("")+(idx.length>orden.length?`<div class="foot-note">Se muestran las ${orden.length} más recientes de ${idx.length}.</div>`:"");
+  box.querySelectorAll("[data-sv-abrir]").forEach(b=>b.addEventListener("click",async()=>{
+    if(svSucio&&svHayContenido()&&!confirm("Hay cambios sin guardar en la hoja que tienes en pantalla. ¿Abrir otra de todos modos?")) return;
+    try{ await abrirHojaServicio(b.dataset.svAbrir); window.scrollTo(0,0); }
+    catch(e){ alert((e&&e.message)||"No se pudo abrir la hoja."); }
+  }));
+}
+function aplicarBloqueoCamposSv(){
+  SV_CAMPOS.concat(["svRegistrarAsistencia","svTipoActNuevo","svTipoActAgregarBtn"]).forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=svBloqueado; });
+}
+
 function renderSvBody(){
   const body=document.getElementById("svBody"); body.innerHTML="";
   sortedRoster(false).forEach(p=>{
@@ -1423,7 +1834,7 @@ function renderSvBody(){
   });
   if(!svBloqueado) body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
     const seg=b.parentElement;
-    svConcurrencia[seg.dataset.id]=b.dataset.st;
+    svConcurrencia[seg.dataset.id]=b.dataset.st; svMarcarSucio();
     seg.querySelectorAll("button").forEach(x=>x.classList.remove("active"));
     b.classList.add("active");
     renderSvResumen();
@@ -1433,36 +1844,7 @@ function renderSvBody(){
   renderSvResumen();
   renderCandadoSv();
 }
-function renderCandadoSv(){
-  let box=document.getElementById("candadoSv");
-  if(!box){
-    box=document.createElement("div"); box.id="candadoSv";
-    const ref=document.getElementById("svBody")?.closest("table");
-    if(ref) ref.parentElement.insertBefore(box,ref);
-  }
-  if(!svBloqueado){ box.innerHTML=""; box.style.display="none"; return; }
-  box.style.display="block";
-  box.style.cssText="padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
-  box.innerHTML=`<b>Esta hoja de servicio ya fue guardada y no se puede modificar.</b>
-    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <input id="claveDesbloqueoSv" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
-      <button id="desbloquearSvBtn" class="btn small">Corregir hoja</button>
-    </div>
-    <div id="candadoSvMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
-  document.getElementById("desbloquearSvBtn").onclick=async()=>{
-    const inp=document.getElementById("claveDesbloqueoSv"), m=document.getElementById("candadoSvMsg");
-    const res=await autenticarOficialidad(inp.value.trim());
-    if(res.ok){
-      svBloqueado=false;
-      renderSvBody();
-      const gb=document.getElementById("svGuardarBtn");
-      if(gb) gb.textContent="Guardar corrección";
-      m.textContent="Hoja desbloqueada. Corrige los datos y guarda nuevamente; se mantiene el mismo número.";
-      m.classList.remove("err");
-    }
-    else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
-  };
-}
+function renderCandadoSv(){ svPintarEstado(); aplicarBloqueoCamposSv(); }
 function svConteo(){
   let concurrentes=0,no=0;
   sortedRoster(false).forEach(p=>{
@@ -1479,6 +1861,7 @@ function renderSvResumen(){
 }
 on("svLimpiarBtn","click",()=>{
   sortedRoster(false).forEach(p=>svConcurrencia[p.id]="no");
+  svMarcarSucio();
   renderSvBody();
 });
 
@@ -1488,30 +1871,18 @@ function svDatos(){
   d.concurrencia={...svConcurrencia};
   return d;
 }
-async function cargarServicio(){
-  const clave=svClave();
-  const ex=await sGet(clave,null);
-  svConcurrencia={};
-  const msg=document.getElementById("svMsg");
-  if(ex){
-    SV_CAMPOS.forEach(id=>{ if(id!=="svFecha"&&ex[id]!==undefined) document.getElementById(id).value=ex[id]; });
-    svConcurrencia={...(ex.concurrencia||{})};
-    document.getElementById("svRegistrarAsistencia").checked = ex.registrarAsistencia!==false;
-    msg.textContent="Ya existe una hoja de servicio guardada para esta fecha y hora de salida."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
-    msg.classList.remove("err");
-    svBloqueado=!MODO_PRUEBA_ABIERTO; svEsNuevo=false; svNumeroActual=ex.numero||null; svAnioActual=ex.anio||null;
-  } else {
-    svBloqueado=false; svEsNuevo=true; svNumeroActual=null; svAnioActual=null;
-  }
-  sortedRoster(false).forEach(p=>{ if(!svConcurrencia[p.id]) svConcurrencia[p.id]="no"; });
-  renderSvTipoOptions();
-  actualizarFichaCombustible();
-  const gb=document.getElementById("svGuardarBtn");
-  if(gb) gb.textContent="Guardar hoja";
-  renderSvBody();
-}
-on("svFecha","change",cargarServicio);
-on("svHoraSalida","change",cargarServicio);
+on("svFecha","change",svCambioIdentidad);
+on("svHoraSalida","change",svCambioIdentidad);
+/* Cualquier otro campo de la hoja que se modifique marca la hoja como "con cambios" (y activa el borrador automático). */
+(function(){
+  const panel=document.getElementById("panel-servicio"); if(!panel) return;
+  ["input","change"].forEach(ev=>panel.addEventListener(ev,e=>{
+    const t=e.target;
+    if(!t||!t.id||t.id==="svFecha"||t.id==="svHoraSalida") return;
+    if(SV_CAMPOS.includes(t.id)||t.id==="svRegistrarAsistencia") svMarcarSucio();
+  }));
+})();
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") svGuardarBorrador(); });
 function actualizarFichaCombustible(){
   const t=document.getElementById("svTipoAct").value;
   const ficha=document.getElementById("svFichaCombustible");
@@ -1539,62 +1910,104 @@ function mostrarConfirmarSv(){
   msg.classList.remove("err");
   msg.innerHTML=`<div style="padding:12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;">
       <b>Revisa antes de guardar:</b> ${c.concurrentes} concurrentes · ${c.no} no concurrió.<br/>
-      <small>Una vez guardada, esta hoja no podrá modificarse sin la clave de Oficialidad. ¿Está correcto o quiere revisar de nuevo?</small>
+      <small>${MODO_PRUEBA_ABIERTO?"Después podrás corregirla con el botón «Modificar».":"Una vez guardada, para modificarla se necesitará la clave de Oficialidad."} ¿Está correcto o quiere revisar de nuevo?</small>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button id="confirmarGuardarSvBtn" class="btn small">Sí, está correcto — Guardar</button>
         <button id="revisarDeNuevoSvBtn" class="btn small secondary">Revisar de nuevo</button>
       </div></div>`;
   document.getElementById("revisarDeNuevoSvBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarSvBtn").onclick=async()=>{
-    const fecha=document.getElementById("svFecha").value;
-    if(svEsNuevo){ svAnioActual=anioDe(fecha); svNumeroActual=await siguienteCorrelativo("servicio",svAnioActual); }
+    const btn=document.getElementById("confirmarGuardarSvBtn"); btn.disabled=true; btn.textContent="Guardando…";
+    try{
+      const r=await guardarServicioAtomico();
+      const d=r.datos, numTxt=`N° ${String(d.numero).padStart(3,"0")}/${d.anio}. `;
+      msg.classList.remove("err");
+      const hora=new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});
+      msg.textContent=d.registrarAsistencia
+        ? `✔ Guardado a las ${hora}. Hoja de servicio ${numTxt}${c.concurrentes} voluntarios concurrieron y quedó registrada su asistencia.`
+        : `✔ Guardado a las ${hora}. Hoja de servicio ${numTxt}No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
+    }catch(e){
+      msg.classList.add("err");
+      msg.innerHTML=`<b>No se guardó.</b> ${esc((e&&e.message)||"Error desconocido")} Lo que escribiste sigue en pantalla.
+        <div style="margin-top:8px;"><button id="reintentarSvBtn" class="btn small" type="button">Reintentar</button></div>`;
+      document.getElementById("reintentarSvBtn").onclick=()=>mostrarConfirmarSv();
+    }
+  };
+}
+/* Guarda la hoja, su parte de asistencia, los índices y el correlativo en UNA sola operación: o queda
+   todo guardado o no queda nada. La clave de la hoja no cambia aunque se corrija la fecha u hora. */
+async function guardarServicioAtomico(){
+  for(let intento=0;intento<4;intento++){
+    const ahora=new Date().toISOString();
     const datos=svDatos();
     datos.registrarAsistencia=document.getElementById("svRegistrarAsistencia").checked;
-    datos.numero=svNumeroActual; datos.anio=svAnioActual;
-    await setServicio(svClave(),datos);
-    svEsNuevo=false;
-    const numTxt=`N° ${String(svNumeroActual).padStart(3,"0")}/${svAnioActual}. `;
-
-    if(!datos.registrarAsistencia){
-      svBloqueado=!MODO_PRUEBA_ABIERTO;
-      const gb=document.getElementById("svGuardarBtn");
-      if(gb) gb.textContent="Guardar hoja";
-      renderSvBody();
-      msg.classList.remove("err");
-      msg.textContent=`Hoja de servicio guardada. ${numTxt}No se registró asistencia (${c.concurrentes} concurrentes anotados solo en la hoja).`;
-      return;
+    const fecha=datos.svFecha;
+    const writes=[];
+    let clave=svClaveActual;
+    if(!clave){
+      clave=svClaveDesdeCampos();
+      if(await sGet(clave,null)) clave=clave+"--"+Date.now().toString(36);   /* ya hay otra con esa fecha y hora: no se pisa */
     }
-
-    // Se registra ademas como citacion, para que cuente en el Control de asistencia
-    const tipo=document.getElementById("svTipoAct").value+" B-5";
-    if(!TIPOS.includes(tipo)){ TIPOS.push(tipo); await saveTipos(); renderTipoSelect(); populateTipoFilters(); }
-    const records={};
-    sortedRoster(true).forEach(p=>{
-      const s=svConcurrencia[p.id]||"no";
-      records[p.id] = (s==="no") ? "ausente" : "presente";
-    });
-    const detalle=[document.getElementById("svCalle").value,document.getElementById("svNumeracion").value,
-                   document.getElementById("svSector").value].filter(Boolean).join(" ");
-    const detFinal=detalle||document.getElementById("svNaturaleza").value;
-    const hs=(document.getElementById("svHoraSalida").value||"s-h").replace(":","");
-    const claveSv=claveFor(fecha,tipo)+"__"+hs;
-    await setParte(claveSv,{
-      date:fecha, tipo, detalle:detFinal,
-      registradoPor:document.getElementById("svCargoQuinta").value, records,
-      modoConcurrencia:{...svConcurrencia}, numero:svNumeroActual, anio:svAnioActual,
-      origenAsistencia:document.getElementById("svTipoAct").value==="Emergencia"?"emergencia_b5":"citacion_manual",
-      generaAsistencia:true, servicioB5:true,
-      eligibleIds:document.getElementById("svTipoAct").value==="Emergencia"
-        ? Object.entries(svConcurrencia).filter(([,v])=>v==="si").map(([id])=>String(id))
-        : sortedRoster(false).map(p=>String(p.id))
-    });
-    svBloqueado=!MODO_PRUEBA_ABIERTO;
-    const gb=document.getElementById("svGuardarBtn");
-    if(gb) gb.textContent="Guardar hoja";
-    renderSvBody();
-    msg.classList.remove("err");
-    msg.textContent=`Hoja de servicio guardada. ${numTxt}${c.concurrentes} voluntarios concurrieron.`;
-  };
+    if(svEsNuevo){
+      const anio=anioDe(fecha), ck="correlativo:servicio:"+anio;
+      const raw=await sGet(ck,null);
+      datos.numero=((raw&&raw.actual)||0)+1; datos.anio=anio;
+      writes.push({key:ck,value:{actual:datos.numero},expect:raw});
+    } else { datos.numero=svNumeroActual; datos.anio=svAnioActual; }
+    datos.creadoEn=(svSnapshot&&svSnapshot.creadoEn)||ahora; datos.modificadoEn=ahora; datos.version=((svSnapshot&&svSnapshot.version)||0)+1;
+    let parteClave=null, tipoParte=null;
+    if(datos.registrarAsistencia){
+      tipoParte=datos.svTipoAct+" B-5";
+      const hs=(datos.svHoraSalida||"s-h").replace(":","");
+      parteClave=svParteClaveActual||(claveFor(fecha,tipoParte)+"__"+hs);
+      const previo=await sGet("parte:"+parteClave,null);
+      const records={}; sortedRoster(true).forEach(p=>{ const s=svConcurrencia[p.id]||"no"; records[p.id]=(s==="no")?"ausente":"presente"; });
+      const detalle=[datos.svCalle,datos.svNumeracion,datos.svSector].filter(Boolean).join(" ")||datos.svNaturaleza;
+      const esEmergencia=datos.svTipoAct==="Emergencia";
+      const parte=Object.assign({},previo||{},{
+        date:fecha,tipo:tipoParte,detalle,registradoPor:datos.svCargoQuinta,records,
+        modoConcurrencia:{...svConcurrencia},numero:datos.numero,anio:datos.anio,
+        origenAsistencia:esEmergencia?"emergencia_b5":"citacion_manual",generaAsistencia:true,servicioB5:true,hojaClave:clave,
+        eligibleIds:esEmergencia?Object.entries(svConcurrencia).filter(([,v])=>v==="si").map(([id])=>String(id)):sortedRoster(false).map(p=>String(p.id)),
+        creadoEn:(previo&&previo.creadoEn)||ahora,modificadoEn:ahora,version:((previo&&previo.version)||0)+1});
+      writes.push({key:"parte:"+parteClave,value:parte,expect:previo});
+      datos.parteClave=parteClave;
+      const ir=await sGet(INDEX_KEY,null), idx=Array.isArray(ir)?ir.map(x=>({...x})):[];
+      const j=idx.findIndex(x=>x.clave===parteClave);
+      if(j<0) idx.push({clave:parteClave,date:fecha,tipo:tipoParte}); else idx[j]={...idx[j],date:fecha,tipo:tipoParte};
+      writes.push({key:INDEX_KEY,value:idx,expect:ir});
+      if(!TIPOS.includes(tipoParte)){
+        const tr=await sGet(TIPOS_KEY,null);
+        writes.push({key:TIPOS_KEY,value:[...(Array.isArray(tr)?tr:TIPOS),tipoParte],expect:tr});
+      }
+    }
+    writes.push({key:clave,value:datos,expect:svClaveActual?svSnapshot:null});
+    const sr=await sGet(SV_INDEX_KEY,null), sidx=Array.isArray(sr)?sr.map(x=>({...x})):[];
+    const entrada={clave,fecha,tipo:datos.svTipoAct,hora:datos.svHoraSalida,numero:datos.numero,anio:datos.anio};
+    const k=sidx.findIndex(x=>x.clave===clave);
+    if(k<0) sidx.push(entrada); else sidx[k]={...sidx[k],...entrada};
+    writes.push({key:SV_INDEX_KEY,value:sidx,expect:sr});
+    try{
+      await sSetMany(writes);
+      svClaveActual=clave; svSnapshot=datos; svParteClaveActual=parteClave; svEsNuevo=false;
+      svNumeroActual=datos.numero; svAnioActual=datos.anio; svSucio=false; svBloqueado=true;
+      clearTimeout(svBorradorTimer); svBorradorTimer=null;
+      rawSet(SV_BORRADOR_KEY,null).catch(()=>{});
+      if(tipoParte&&!TIPOS.includes(tipoParte)){ TIPOS.push(tipoParte); renderTipoSelect(); populateTipoFilters(); }
+      const gb=document.getElementById("svGuardarBtn"); if(gb) gb.textContent="Guardar hoja";
+      renderSvBody(); svRenderLista();
+      return {clave,datos,parteClave};
+    }catch(e){
+      if(e&&e.conflicto){
+        if(e.clave===clave) throw new Error(svClaveActual
+          ? "Otra persona modificó esta hoja después de que la abriste. Ábrela de nuevo desde «Hojas de servicio guardadas» para ver sus cambios; no se pisó nada."
+          : "Otra persona guardó una hoja en ese mismo momento. Presiona Reintentar.");
+        continue;   /* cambió un contador, un índice o el parte: se lee de nuevo y se reintenta */
+      }
+      throw e;
+    }
+  }
+  throw new Error("No se pudo guardar por actividad simultánea de otras personas. Inténtalo de nuevo.");
 }
 
 function buildServicioPdf(){
@@ -2414,6 +2827,29 @@ ${inasist?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6
 });
 
 /* ============ HISTORIAL ============ */
+/* Un parte de salida B-5 se corrige desde su hoja de servicio (ahí está la lista de concurrentes). */
+function hojaClaveDeParte(clave,p){
+  if(p&&p.hojaClave) return p.hojaClave;
+  const m=/^(\d{4}-\d{2}-\d{2})__.+__(\d{4}|s-h)$/.exec(clave||"");
+  return m?("servicio:"+m[1]+"__"+(m[2]==="s-h"?"sin-hora":m[2])):null;
+}
+function esParteDeSalidaB5(clave,p){
+  return !!p && (p.servicioB5===true || /B-5$/i.test(String(p.tipo||""))) && !!hojaClaveDeParte(clave,p);
+}
+async function abrirParteDesdeHistorial(clave){
+  const p=await getParte(clave); if(!p) return;
+  if(esParteDeSalidaB5(clave,p)){
+    const hk=hojaClaveDeParte(clave,p);
+    const hoja=await sGet(hk,null);
+    if(hoja){ await svAsegurarIniciada(); await abrirHojaServicio(hk); switchTab("servicio"); return; }
+  }
+  document.getElementById("fecha").value=p.date;
+  const sel=document.getElementById("tipoSelect");
+  if(![...sel.options].some(o=>o.value===p.tipo)){ const o=document.createElement("option"); o.value=p.tipo; o.textContent=p.tipo; sel.appendChild(o); }
+  sel.value=p.tipo;
+  await cargarParteEnPantalla(clave);
+  switchTab("lista");
+}
 function populateTipoFilters(){
   ["histTipoFiltro"].forEach(id=>{
     const sel=document.getElementById(id); if(!sel) return;
@@ -2478,19 +2914,12 @@ async function renderHistorial(){
       </div>
       <div class="hist-right">
         <div class="hist-count">${c.presente} pres. · ${c.justificado} just. · ${c.ausente} aus.</div>
-        <button class="btn small secondary" data-open="${it.clave}">Editar</button>
+        <button class="btn small secondary" data-open="${it.clave}">Abrir</button>
         <button class="btn small gold" data-pdf="${it.clave}">PDF</button>
       </div>`;
     list.appendChild(div);
   }
-  list.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",async()=>{
-    const p=await getParte(b.dataset.open); if(!p) return;
-    document.getElementById("fecha").value=p.date;
-    renderTipoSelect(); document.getElementById("tipoSelect").value=p.tipo;
-    await loadListaForSelection();
-    document.getElementById("registradoPor").value=p.registradoPor||"";
-    switchTab("lista");
-  }));
+  list.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>abrirParteDesdeHistorial(b.dataset.open)));
   list.querySelectorAll("[data-pdf]").forEach(b=>b.addEventListener("click",async()=>{
     const p=await getParte(b.dataset.pdf); if(!p) return;
     await sharePdfDoc(buildParteDoc(p.date,p.tipo,p.detalle||"",p.records,p.registradoPor||"",p.numero,p.anio),`parte_${p.date}_${slug(p.tipo)}.pdf`);
@@ -4282,11 +4711,9 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
 /* ============ TABS ============ */
 function switchTabExtra(name){
   if(name==="germania") renderDisponibilidad();
-  if(name==="historial") renderHistorial();
+  if(name==="historial"){ invalidarPartes(); renderHistorial(); }
   if(name==="servicio"){
-    const f=document.getElementById("svFecha");
-    if(f && !f.value) f.value=todayISO();
-    cargarServicio();
+    svAsegurarIniciada().then(()=>{ svCompletarConcurrencia(); renderSvBody(); svRenderLista(); });
   }
   if(name==="panel") renderPanel();
   if(name==="guardia"){
