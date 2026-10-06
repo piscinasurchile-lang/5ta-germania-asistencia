@@ -7,10 +7,10 @@ export const metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/legacy/germania-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/legacy/germania-512.png", sizes: "512x512", type: "image/png" }
+      { url: "/legacy/germania-192.png?v=2", sizes: "192x192", type: "image/png" },
+      { url: "/legacy/germania-512.png?v=2", sizes: "512x512", type: "image/png" }
     ],
-    apple: [{ url: "/legacy/germania-192.png", sizes: "192x192", type: "image/png" }]
+    apple: [{ url: "/legacy/germania-192.png?v=2", sizes: "192x192", type: "image/png" }]
   },
   appleWebApp: { capable: true, title: "GERMANIA", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false }
