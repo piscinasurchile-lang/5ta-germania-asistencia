@@ -4157,23 +4157,35 @@ function cargarMiVoluntario(){
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
-/* Cada voluntario conserva su último estado hasta que lo cambie: la tabla nunca amanece vacía ni se corta a las 00:00
-   (la guardia nocturna cruza la medianoche). Cada día se sigue guardando aparte, como historial. */
-const DISP_DIAS_ATRAS=14;
+/* Cada voluntario conserva su último estado HASTA QUE ÉL (o un oficial) lo cambie: no vence a las 24 horas ni a una fecha.
+   Se guarda aparte el último estado de cada uno («disponibilidad:vigente») y, además, cada día se sigue guardando como historial.
+   Para no depender de un solo registro, también se miran los últimos 14 días y se toma siempre el más reciente. */
+const DISP_DIAS_ATRAS=14, DISP_VIGENTE_KEY="disponibilidad:vigente";
 let DISP_PREV=null;
+function dispMasReciente(a,b){
+  if(!a) return b; if(!b) return a;
+  return (Date.parse(b.desde)||0)>=(Date.parse(a.desde)||0)?b:a;
+}
 async function estadosPrevios(){
   const hoy=todayISO();
   if(DISP_PREV&&DISP_PREV.dia===hoy&&Date.now()<DISP_PREV.hasta) return DISP_PREV.mapa;
   const claves=Array.from({length:DISP_DIAS_ATRAS},(_,i)=>"disponibilidad:"+gnAdd(hoy,-(i+1)));
-  const dias=await Promise.all(claves.map(k=>sGet(k,{}).catch(()=>({}))));
+  const [dias,vigente]=await Promise.all([
+    Promise.all(claves.map(k=>sGet(k,{}).catch(()=>({})))),
+    sGet(DISP_VIGENTE_KEY,{}).catch(()=>({}))
+  ]);
   const mapa={};
-  dias.forEach(d=>Object.entries(d||{}).forEach(([id,r])=>{ if(!mapa[id]&&r&&r.estado) mapa[id]=Object.assign({},r,{arrastrado:true}); }));
+  const poner=(id,r)=>{ if(r&&r.estado) mapa[id]=dispMasReciente(mapa[id],Object.assign({},r,{arrastrado:true})); };
+  dias.forEach(d=>Object.entries(d||{}).forEach(([id,r])=>poner(id,r)));
+  Object.entries(vigente||{}).forEach(([id,r])=>poner(id,r));
   DISP_PREV={dia:hoy,hasta:Date.now()+5*60*1000,mapa};
   return mapa;
 }
 async function getDisponibilidadVigente(){
   const [hoy,prev]=await Promise.all([getDisponibilidadHoy(),estadosPrevios()]);
-  return Object.assign({},prev,hoy);
+  const out=Object.assign({},prev);
+  Object.entries(hoy||{}).forEach(([id,r])=>{ if(r&&r.estado) out[id]=dispMasReciente(out[id],r); });
+  return out;
 }
 function dispDesdeTexto(r){
   if(!r||!r.desde) return "—";
@@ -4198,7 +4210,9 @@ async function marcarMiEstado(estado,boton){
     const d=await getDisponibilidadHoy();
     d[sel.value]={estado,desde:new Date().toISOString()};
     await sSet(dispKey(),d);
-    if(msg){msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
+    try{ const vig=await sGet(DISP_VIGENTE_KEY,{}); vig[sel.value]=d[sel.value]; await rawSet(DISP_VIGENTE_KEY,vig); DISP_PREV=null; }
+    catch(e){ console.warn("No se pudo actualizar el último estado de cada voluntario",e); }
+    if(msg){ delete msg.dataset.hint; msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
     await renderDisponibilidad();
     if(navigator.vibrate) navigator.vibrate([45,35,90]);
   }catch(e){
@@ -4270,6 +4284,12 @@ async function renderDisponibilidad(){
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
+  /* Recordatorio amable (no cambia nada solo): si el estado viene de un día anterior, se avisa */
+  const ayuda=document.getElementById("miEstadoMsg");
+  if(ayuda){
+    if(actual&&actual.arrastrado){ ayuda.classList.remove("err"); ayuda.dataset.hint="1"; ayuda.textContent=`Tu estado sigue siendo «${DISP_LABELS[actual.estado]}» (${dispDesdeTexto(actual)}). Si cambió tu situación, toca el botón que corresponda.`; }
+    else if(ayuda.dataset.hint==="1"){ delete ayuda.dataset.hint; ayuda.textContent=""; }
+  }
 }
 on("miVoluntario","change",async e=>{
   const p=ROSTER.find(x=>String(x.id)===String(e.target.value));
