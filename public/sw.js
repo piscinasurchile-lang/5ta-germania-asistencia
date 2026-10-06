@@ -1,4 +1,4 @@
-const CACHE='germania-static-v2';
+const CACHE='germania-static-v3';
 const ASSETS=['/manifest.webmanifest','/legacy/germania-icon.svg','/legacy/germania-192.png','/legacy/germania-512.png'];
 
 self.addEventListener('install',event=>{
