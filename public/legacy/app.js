@@ -2388,28 +2388,32 @@ function renderGnGuardianes(lista){
       const i=+el.dataset.i, c=el.dataset.campo;
       const anterior=gnTurno[i][c];
       gnTurno[i][c] = (c==="correo") ? el.checked : el.value;
+      gnMarcarSucio();
       if(c==="reemplazo" && anterior!==el.value) gnTurno[i].reemplazoRegistradoEn=el.value?new Date().toISOString():"";
       if(c==="estado"){
         if(el.value!=="no"){ gnTurno[i].reemplazo=""; gnTurno[i].reemplazoRegistradoEn=""; }
         renderGnGuardianes();
       } else contarGuardianes();
     });
-    if(el.dataset.campo==="obs") el.addEventListener("input",()=>{ gnTurno[+el.dataset.i].obs=el.value; });
+    if(el.dataset.campo==="obs") el.addEventListener("input",()=>{ gnTurno[+el.dataset.i].obs=el.value; gnMarcarSucio(); });
   });
   box.querySelectorAll("[data-quitar]").forEach(b=>b.addEventListener("click",()=>{
-    gnTurno.splice(+b.dataset.quitar,1); renderGnGuardianes();
+    gnTurno.splice(+b.dataset.quitar,1); gnMarcarSucio(); renderGnGuardianes();
   }));
   // Los reemplazos se muestran una vez pintado el selector
   gnTurno.forEach((g,i)=>{
     const s=box.querySelector(`select[data-campo="reemplazo"][data-i="${i}"]`);
     if(s && g.reemplazo) s.value=g.reemplazo;
   });
+  if(gnBloqueado) box.querySelectorAll("select,input,button").forEach(e=>{ e.disabled=true; });
   renderGnAgregar(); contarGuardianes();
 }
 on("gnAgregarBtn","click",()=>{
+  if(gnBloqueado) return;
   const sel=document.getElementById("gnAgregar");
   if(!sel.value) return;
   gnTurno.push({id:sel.value,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""});
+  gnMarcarSucio();
   renderGnGuardianes();
 });
 
@@ -2435,51 +2439,257 @@ function contarGuardianes(){
   }
 }
 
-async function cargarGuardia(){
-  const f=document.getElementById("gnFechaIng").value, h=document.getElementById("gnHoraIng").value;
-  if(!f) return;
-  const ex=await getGuardia(claveGuardia(f,h));
-  const msg=document.getElementById("gnMsg"); msg.classList.remove("err");
-  if(ex){
-    document.getElementById("gnFechaSal").value=ex.fechaSal||"";
-    document.getElementById("gnHoraSal").value=ex.horaSal||"";
-    document.getElementById("gnNovedades").value=ex.novedades||"";
+/* ============ GUARDIA · estado de la guardia en pantalla ============ */
+let gnClaveActual=null;      /* clave (estable) de la guardia abierta o ya guardada */
+let gnSnapshot=null;         /* lo guardado en la base cuando se abrió (detecta cambios de otra persona) */
+let gnBloqueado=false, gnSucio=false, gnCargando=false, gnIniciada=false;
+const GN_BORRADOR_KEY="gnborrador:v1";
+let gnBorradorTimer=null, gnBorradorHora=null, gnBorradorError=false;
+const GN_CAMPOS=["gnFechaIng","gnHoraIng","gnFechaSal","gnHoraSal","gnOficial","gnConductor","gnNovedades"];
+const gnVal=id=>(document.getElementById(id)?.value)||"";
+function gnDatosFormulario(){
+  return {fechaIng:gnVal("gnFechaIng"),horaIng:gnVal("gnHoraIng"),fechaSal:gnVal("gnFechaSal"),horaSal:gnVal("gnHoraSal"),
+    oficial:gnVal("gnOficial"),conductor:gnVal("gnConductor"),guardianes:JSON.parse(JSON.stringify(gnTurno)),novedades:gnVal("gnNovedades").trim()};
+}
+function gnHayContenido(){ return gnTurno.length>0||gnVal("gnNovedades").trim()!==""||gnVal("gnOficial")!==""||gnVal("gnConductor")!==""; }
+function gnAplicar(d){
+  gnCargando=true;
+  try{
+    document.getElementById("gnFechaIng").value=d.fechaIng||"";
+    document.getElementById("gnHoraIng").value=d.horaIng||"";
+    document.getElementById("gnFechaSal").value=d.fechaSal||"";
+    document.getElementById("gnHoraSal").value=d.horaSal||"";
+    document.getElementById("gnNovedades").value=d.novedades||"";
     renderGnOficial();
-    document.getElementById("gnOficial").value=ex.oficial||""; const gc=document.getElementById("gnConductor"); if(gc) gc.value=ex.conductor||"";
-    renderGnGuardianes(ex.guardianes||[]);
-    msg.textContent="Ya existe una guardia registrada para esta fecha y hora. Puedes editarla.";
-  } else {
+    document.getElementById("gnOficial").value=d.oficial||"";
+    const gc=document.getElementById("gnConductor"); if(gc) gc.value=d.conductor||"";
+    renderGnGuardianes(d.guardianes||[]);
+  }finally{ gnCargando=false; }
+}
+/* Cada cambio se guarda solo como BORRADOR a los pocos segundos: si la tablet se apaga, se puede recuperar. */
+function gnMarcarSucio(){
+  if(gnBloqueado||gnCargando) return;
+  gnSucio=true; gnBorradorError=false;
+  clearTimeout(gnBorradorTimer); gnBorradorTimer=setTimeout(gnGuardarBorrador,4000);
+  gnPintarEstado();
+}
+async function gnGuardarBorrador(){
+  clearTimeout(gnBorradorTimer); gnBorradorTimer=null;
+  if(!gnSucio||gnBloqueado) return;
+  if(!gnClaveActual&&!gnHayContenido()) return;
+  try{
+    await rawSet(GN_BORRADOR_KEY,{claveActual:gnClaveActual,datos:gnDatosFormulario(),guardadoEn:new Date().toISOString()});
+    gnBorradorHora=new Date(); gnBorradorError=false;
+  }catch(e){ gnBorradorHora=null; gnBorradorError=true; }
+  gnPintarEstado();
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") gnGuardarBorrador(); });
+
+/* Abre una guardia ya guardada por su clave exacta. Queda en lectura hasta presionar «Modificar». */
+async function abrirGuardia(clave){
+  const ex=await getGuardia(clave);
+  if(!ex) throw new Error("No se encontró la guardia.");
+  gnAplicar(ex);
+  gnClaveActual=clave; gnSnapshot=ex; gnBloqueado=true; gnSucio=false;
+  const b=document.getElementById("gnGuardarBtn"); if(b) b.textContent="Guardar guardia";
+  const msg=document.getElementById("gnMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Guardia guardada. Para cambiar algo, presiona «Modificar»."; }
+  gnPintarEstado(); aplicarBloqueoGn();
+}
+function gnIniciarNueva(){
+  gnCargando=true;
+  try{
+    document.getElementById("gnFechaIng").value=todayISO();
+    document.getElementById("gnHoraIng").value=document.getElementById("gnHoraIng").defaultValue||"23:00";
+    const d=new Date(); d.setDate(d.getDate()+1); document.getElementById("gnFechaSal").value=d.toISOString().slice(0,10);
+    document.getElementById("gnHoraSal").value=document.getElementById("gnHoraSal").defaultValue||"07:00";
     document.getElementById("gnNovedades").value="";
-    renderGnOficial(); renderGnGuardianes([]);
-  }
+    renderGnOficial(); document.getElementById("gnOficial").value="";
+    const gc=document.getElementById("gnConductor"); if(gc) gc.value="";
+    renderGnGuardianes([]);
+  }finally{ gnCargando=false; }
+  gnClaveActual=null; gnSnapshot=null; gnBloqueado=false; gnSucio=false; gnBorradorHora=null; gnBorradorError=false;
+  clearTimeout(gnBorradorTimer); gnBorradorTimer=null;
+  const b=document.getElementById("gnGuardarBtn"); if(b) b.textContent="Guardar guardia";
+  const msg=document.getElementById("gnMsg"); if(msg){ msg.classList.remove("err"); msg.textContent=""; }
+  gnPintarEstado(); aplicarBloqueoGn();
+}
+async function gnAsegurarIniciada(){
+  renderGnAgregar();
+  if(gnIniciada) return;
+  gnIniciada=true;
+  renderGnOficial(); renderGnGuardianes([]); gnPintarEstado();
+  await gnOfrecerBorrador();
+}
+async function gnOfrecerBorrador(){
+  const box=document.getElementById("gnBorradorBox"); if(!box) return;
+  let b=null; try{ b=await sGet(GN_BORRADOR_KEY,null); }catch(e){}
+  const util=b&&b.datos&&(b.claveActual||(b.datos.guardianes||[]).length>0||String(b.datos.novedades||"").trim()!==""||b.datos.oficial);
+  if(!util){ box.style.display="none"; box.innerHTML=""; return; }
+  const hora=b.guardadoEn?new Date(b.guardadoEn).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"";
+  box.style.cssText="display:block;padding:12px;margin:0 0 12px;background:#2b2200;border:1px solid #c9a227;border-radius:7px;";
+  box.innerHTML=`<b>Hay una guardia sin guardar</b> (${esc(b.datos.fechaIng||"")} ${esc(b.datos.horaIng||"")} · ${(b.datos.guardianes||[]).length} designados). Se guardó automáticamente${hora?" a las "+esc(hora):""}.
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="gnBorradorContinuar" class="btn small" type="button">Continuar con el borrador</button>
+      <button id="gnBorradorDescartar" class="btn small secondary" type="button">Descartar</button></div>`;
+  document.getElementById("gnBorradorContinuar").onclick=async()=>{
+    if(gnSucio&&gnHayContenido()&&!confirm("Hay datos sin guardar en pantalla que se reemplazarán por el borrador. ¿Continuar?")) return;
+    gnAplicar(b.datos);
+    let snap=null; if(b.claveActual){ try{ snap=await getGuardia(b.claveActual); }catch(e){} }
+    gnClaveActual=snap?b.claveActual:null; gnSnapshot=snap||null;
+    gnBloqueado=false; gnSucio=true;
+    box.style.display="none"; box.innerHTML="";
+    gnPintarEstado(); aplicarBloqueoGn();
+  };
+  document.getElementById("gnBorradorDescartar").onclick=async()=>{
+    try{ await rawSet(GN_BORRADOR_KEY,null); }catch(e){}
+    box.style.display="none"; box.innerHTML="";
+  };
+}
+/* Fecha u hora de ingreso: en una guardia ya creada son solo datos (la guardia no cambia);
+   en una nueva, si ya existe una guardia en ese momento se ofrece abrirla. Nunca se borra lo escrito. */
+async function gnCambioIdentidad(){
+  if(gnCargando) return;
+  if(gnClaveActual){ gnMarcarSucio(); return; }
+  const f=gnVal("gnFechaIng"); if(!f){ gnMarcarSucio(); return; }
+  const clave=claveGuardia(f,gnVal("gnHoraIng"));
+  let ex=null; try{ ex=await getGuardia(clave); }catch(e){ gnMarcarSucio(); return; }
+  if(!ex){ gnMarcarSucio(); return; }
+  if(gnSucio&&gnHayContenido()&&!confirm("Ya existe una guardia guardada para esa fecha y hora de ingreso. ¿Abrirla? Se perderán los datos que aún no guardaste en pantalla.")) return;
+  await abrirGuardia(clave);
+  const msg=document.getElementById("gnMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Ya existía una guardia registrada para esa fecha y hora de ingreso."; }
 }
 on("gnFechaIng","change",()=>{
   const f=document.getElementById("gnFechaIng").value;
-  const s=document.getElementById("gnFechaSal");
-  if(f && !s.value){ const d=new Date(f+"T12:00"); d.setDate(d.getDate()+1);
-    s.value=d.toISOString().slice(0,10); }
-  cargarGuardia();
+  const sal=document.getElementById("gnFechaSal");
+  if(f && !sal.value){ const d=new Date(f+"T12:00"); d.setDate(d.getDate()+1); sal.value=d.toISOString().slice(0,10); }
+  gnCambioIdentidad();
 });
-on("gnHoraIng","change",cargarGuardia);
+on("gnHoraIng","change",gnCambioIdentidad);
+["gnFechaSal","gnHoraSal","gnOficial","gnConductor","gnNovedades"].forEach(id=>{
+  const el=document.getElementById(id); if(!el) return;
+  el.addEventListener("input",()=>gnMarcarSucio()); el.addEventListener("change",()=>gnMarcarSucio());
+});
+
+function aplicarBloqueoGn(){
+  GN_CAMPOS.concat(["gnAgregar","gnAgregarBtn","gnGuardarBtn"]).forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=gnBloqueado; });
+  document.querySelectorAll("#gnGuardianes select,#gnGuardianes input,#gnGuardianes button").forEach(e=>{ e.disabled=gnBloqueado; });
+}
+function gnPintarEstado(){
+  const box=document.getElementById("gnEstadoBox"); if(!box) return;
+  box.style.cssText="display:block;padding:12px;margin:0 0 12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  const hh=d=>d.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});
+  if(gnClaveActual&&gnSnapshot){
+    const ex=gnSnapshot, cuando=ex.modificadoEn||ex.creadoEn;
+    const hora=cuando?new Date(cuando).toLocaleString("es-CL",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"";
+    box.innerHTML=`<b>✔ Guardia guardada</b>${ex.version?` · versión ${ex.version}`:""}${hora?` · ${esc(hora)}`:""}${gnSucio?' · <span style="color:#ffcc00;">cambios sin guardar</span>':""}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${gnBloqueado
+          ? (MODO_PRUEBA_ABIERTO?"":`<input id="claveDesbloqueoGn" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">`)+`<button id="gnModificarBtn" class="btn small" type="button">Modificar</button>`
+          : `<span style="color:#ffcc00;">Editando · recuerda guardar los cambios.</span>`}
+        <button id="gnVersionesBtn" class="btn small secondary" type="button">Versiones anteriores</button>
+        <button id="gnNuevaBtn" class="btn small secondary" type="button">Nueva guardia</button>
+      </div><div id="gnEstadoMsg" style="margin-top:6px;font-size:12.5px;"></div>`;
+  } else {
+    const detalle=!(gnSucio&&gnHayContenido())?"sin datos todavía"
+      :gnBorradorError?'<span style="color:#ff8a80;">sin conexión: el borrador aún no se está guardando</span>'
+      :gnBorradorHora?`borrador guardado automáticamente a las ${hh(gnBorradorHora)}`:"guardando borrador…";
+    box.innerHTML=`<b>Guardia nueva</b> · ${detalle}`;
+  }
+  const bm=document.getElementById("gnModificarBtn"); if(bm) bm.onclick=gnDesbloquear;
+  const bv=document.getElementById("gnVersionesBtn"); if(bv) bv.onclick=gnMostrarVersiones;
+  const bn=document.getElementById("gnNuevaBtn");
+  if(bn) bn.onclick=()=>{
+    if(gnSucio&&gnHayContenido()&&!confirm("Hay cambios sin guardar en esta guardia. ¿Empezar una guardia nueva de todos modos?")) return;
+    gnIniciarNueva();
+  };
+}
+async function gnDesbloquear(){
+  const m=document.getElementById("gnEstadoMsg");
+  if(!MODO_PRUEBA_ABIERTO){
+    const inp=document.getElementById("claveDesbloqueoGn");
+    const res=await autenticarOficialidad((inp?inp.value:"").trim());
+    if(!res.ok){ if(m){ m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); } return; }
+  }
+  gnBloqueado=false;
+  const b=document.getElementById("gnGuardarBtn"); if(b) b.textContent="Guardar corrección";
+  gnPintarEstado(); aplicarBloqueoGn();
+}
+function gnMostrarVersiones(){
+  if(!gnClaveActual) return;
+  if(gnBloqueado&&!MODO_PRUEBA_ABIERTO){ alert("Para cargar una versión anterior, primero presiona «Modificar» e ingresa la clave de Oficialidad."); return; }
+  return mostrarVersiones({
+    titulo:"Versiones anteriores de esta guardia", key:"guardia:"+gnClaveActual,
+    resumen:d=>[d.fechaIng+" "+(d.horaIng||""),normalizaTurno(d.guardianes).length+" designados",d.oficial?"Oficial: "+nombrePorId(d.oficial):"",d.novedades?String(d.novedades).slice(0,60):""].filter(Boolean).join(" · "),
+    alElegir:d=>{
+      gnAplicar(d); gnBloqueado=false; gnSucio=true;
+      const b=document.getElementById("gnGuardarBtn"); if(b) b.textContent="Guardar corrección";
+      const msg=document.getElementById("gnMsg"); msg.classList.remove("err");
+      msg.textContent="Versión anterior cargada en pantalla. Revísala y presiona «Guardar corrección» para dejarla como la vigente.";
+      gnPintarEstado(); aplicarBloqueoGn();
+    }
+  });
+}
 
 on("gnGuardarBtn","click",async()=>{
+  if(gnBloqueado) return;
   const msg=document.getElementById("gnMsg");
-  const f=document.getElementById("gnFechaIng").value;
-  const g=gnTurno;
+  const f=gnVal("gnFechaIng");
   if(!f){ msg.textContent="Indica la fecha de ingreso de la guardia."; msg.classList.add("err"); return; }
-  if(!g.length){ msg.textContent="Agrega al menos un guardián designado."; msg.classList.add("err"); return; }
-  const d={
-    fechaIng:f, horaIng:document.getElementById("gnHoraIng").value,
-    fechaSal:document.getElementById("gnFechaSal").value, horaSal:document.getElementById("gnHoraSal").value,
-    oficial:document.getElementById("gnOficial").value,
-    conductor:document.getElementById("gnConductor")?.value||"",
-    guardianes:gnTurno, novedades:document.getElementById("gnNovedades").value.trim()
-  };
-  await setGuardia(claveGuardia(f,d.horaIng),d);
-  msg.classList.remove("err");
-  msg.textContent=`Guardia registrada: ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
-  renderGnLista();
+  if(!gnTurno.length){ msg.textContent="Agrega al menos un guardián designado."; msg.classList.add("err"); return; }
+  const btn=document.getElementById("gnGuardarBtn"), texto=btn.textContent;
+  btn.disabled=true; btn.textContent="Guardando…";
+  try{
+    const r=await guardarGuardiaAtomico();
+    const g=r.datos.guardianes;
+    msg.classList.remove("err");
+    msg.textContent=`✔ Guardada a las ${new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}. ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
+    renderGnLista();
+  }catch(e){
+    msg.classList.add("err");
+    msg.textContent="No se guardó. "+((e&&e.message)||"Error desconocido")+" Lo que escribiste sigue en pantalla; presiona de nuevo el botón para reintentar.";
+    btn.disabled=false; btn.textContent=texto;
+  }
 });
+/* Guarda la guardia y su índice en UNA sola operación (todo o nada). La clave no cambia aunque se corrija la fecha u hora. */
+async function guardarGuardiaAtomico(){
+  const quien=(document.getElementById("miVoluntario")||{}).value||"";
+  for(let intento=0;intento<4;intento++){
+    const ahora=new Date().toISOString();
+    const datos=Object.assign({},gnSnapshot||{},gnDatosFormulario());
+    let clave=gnClaveActual;
+    if(!clave){
+      clave=claveGuardia(datos.fechaIng,datos.horaIng);
+      if(await getGuardia(clave)) clave=clave+"--"+Date.now().toString(36);   /* ya hay otra: no se pisa */
+    }
+    datos.creadoEn=(gnSnapshot&&gnSnapshot.creadoEn)||ahora; datos.modificadoEn=ahora;
+    datos.version=((gnSnapshot&&gnSnapshot.version)||0)+1;
+    if(quien) datos.registradoPorId=quien;
+    const ir=await sGet(GUARDIA_IDX,null), idx=Array.isArray(ir)?ir.map(x=>({...x})):[];
+    const j=idx.findIndex(x=>x.clave===clave);
+    if(j<0) idx.push({clave,fecha:datos.fechaIng}); else idx[j]={...idx[j],fecha:datos.fechaIng};
+    try{
+      await sSetMany([
+        {key:"guardia:"+clave,value:datos,expect:gnClaveActual?gnSnapshot:null},
+        {key:GUARDIA_IDX,value:idx,expect:ir}
+      ]);
+      gnClaveActual=clave; gnSnapshot=datos; gnBloqueado=true; gnSucio=false;
+      clearTimeout(gnBorradorTimer); gnBorradorTimer=null;
+      rawSet(GN_BORRADOR_KEY,null).catch(()=>{});
+      const b=document.getElementById("gnGuardarBtn"); if(b){ b.textContent="Guardar guardia"; }
+      gnPintarEstado(); aplicarBloqueoGn();
+      return {clave,datos};
+    }catch(e){
+      if(e&&e.conflicto){
+        if(e.clave==="guardia:"+clave) throw new Error(gnClaveActual
+          ? "Otra persona modificó esta guardia después de que la abriste. Ábrela de nuevo desde la lista para ver sus cambios; no se pisó nada."
+          : "Otra persona guardó una guardia en ese mismo momento. Inténtalo de nuevo.");
+        continue;   /* cambió el índice: se lee de nuevo y se reintenta */
+      }
+      throw e;
+    }
+  }
+  throw new Error("No se pudo guardar por actividad simultánea de otras personas. Inténtalo de nuevo.");
+}
 
 function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id); return m?nombreCompleto(m):"—"; }
 
@@ -2543,7 +2753,7 @@ async function guardiasEnRango(){
   for(const it of idx){
     if(d && it.fecha<d) continue;
     if(h && it.fecha>h) continue;
-    const g=await getGuardia(it.clave); if(g) out.push(g);
+    const g=await getGuardia(it.clave); if(g){ g._clave=it.clave; out.push(g); }
   }
   return out.sort((a,b)=>a.fechaIng<b.fechaIng?-1:1);
 }
@@ -2590,8 +2800,13 @@ async function renderGnLista(){
             return f.length?" · No asisten: "+f.map(x=>esc(nombrePorId(x.id))+(x.reemplazo?" (reemplazado)":" (sin reemplazo)")).join(", "):"";})()}
           ${g.novedades?" · "+esc(g.novedades):""}</div>
       </div>
-      <div class="hist-right"><span class="badge">${cubrenGuardia(g.guardianes).length}</span></div>
+      <div class="hist-right">${g._clave?`<button type="button" class="btn small secondary" data-gn-abrir="${esc(g._clave)}">Abrir</button> `:""}<span class="badge">${cubrenGuardia(g.guardianes).length}</span></div>
     </div>`).join("");
+  box.querySelectorAll("[data-gn-abrir]").forEach(b=>b.addEventListener("click",async()=>{
+    if(gnSucio&&gnHayContenido()&&!confirm("Hay cambios sin guardar en la guardia que tienes en pantalla. ¿Abrir otra de todos modos?")) return;
+    try{ await abrirGuardia(b.dataset.gnAbrir); document.getElementById("gnEstadoBox")?.scrollIntoView?.({block:"center"}); }
+    catch(e){ alert((e&&e.message)||"No se pudo abrir la guardia."); }
+  }));
 }
 
 on("gnPdfSemanal","click",async()=>{
@@ -4721,7 +4936,7 @@ function switchTabExtra(name){
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
       const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
-    renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error);
+    gnAsegurarIniciada().then(()=>renderGnLista()); renderGnPlanner().catch(console.error);
   }
   if(name==="config"){
     // Oficiales abre liviano: no consulta módulos secundarios hasta que el usuario los solicita.
