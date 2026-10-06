@@ -4157,6 +4157,32 @@ function cargarMiVoluntario(){
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
+/* Cada voluntario conserva su último estado hasta que lo cambie: la tabla nunca amanece vacía ni se corta a las 00:00
+   (la guardia nocturna cruza la medianoche). Cada día se sigue guardando aparte, como historial. */
+const DISP_DIAS_ATRAS=14;
+let DISP_PREV=null;
+async function estadosPrevios(){
+  const hoy=todayISO();
+  if(DISP_PREV&&DISP_PREV.dia===hoy&&Date.now()<DISP_PREV.hasta) return DISP_PREV.mapa;
+  const claves=Array.from({length:DISP_DIAS_ATRAS},(_,i)=>"disponibilidad:"+gnAdd(hoy,-(i+1)));
+  const dias=await Promise.all(claves.map(k=>sGet(k,{}).catch(()=>({}))));
+  const mapa={};
+  dias.forEach(d=>Object.entries(d||{}).forEach(([id,r])=>{ if(!mapa[id]&&r&&r.estado) mapa[id]=Object.assign({},r,{arrastrado:true}); }));
+  DISP_PREV={dia:hoy,hasta:Date.now()+5*60*1000,mapa};
+  return mapa;
+}
+async function getDisponibilidadVigente(){
+  const [hoy,prev]=await Promise.all([getDisponibilidadHoy(),estadosPrevios()]);
+  return Object.assign({},prev,hoy);
+}
+function dispDesdeTexto(r){
+  if(!r||!r.desde) return "—";
+  const f=new Date(r.desde), hoy=todayISO(), dia=gnISO(f);
+  const hora=f.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});
+  if(dia===hoy) return hora;
+  if(dia===gnAdd(hoy,-1)) return "ayer "+hora;
+  return f.toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"})+" "+hora;
+}
 async function marcarMiEstado(estado,boton){
   const sel=document.getElementById("miVoluntario"), msg=document.getElementById("miEstadoMsg");
   if(!sel||!sel.value){
@@ -4191,7 +4217,7 @@ async function guardiaDeHoy(){
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
-  const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
+  const d=await getDisponibilidadVigente(), guardia=await guardiaDeHoy();
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
   const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
 
@@ -4205,8 +4231,7 @@ async function renderDisponibilidad(){
     if(e==="cuartel") return 0;
     if(e==="disponible") return 1;
     if(e==="fuera") return 2;
-    if(e==="no") return 3;
-    return 4;
+    return 3;   /* "no disponible" y quienes aún no han declarado nada quedan en el mismo grupo */
   };
   const rosterOrdenado=sortedRoster(false).map((p,indice)=>({p,indice})).sort((a,b)=>{
     const pa=prioridad(a.p), pb=prioridad(b.p);
@@ -4220,15 +4245,15 @@ async function renderDisponibilidad(){
   }).map(x=>x.p);
 
   const html=rosterOrdenado.map(p=>{
-    const r=d[p.id]||{}, e=r.estado||"";
-    if(e) cuenta[e]=(cuenta[e]||0)+1;
+    const r=d[p.id]||{}, declarado=!!r.estado, e=r.estado||"no";
+    cuenta[e]=(cuenta[e]||0)+1;
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
-    const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
+    const desde=dispDesdeTexto(r);
     const foto=fotoVoluntario(p);
     return `<tr data-voluntario-id="${esc(String(p.id))}">
       <td style="text-align:center;"><img src="${foto}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto;"></td>
       <td class="name-col">${esc(nombreCompleto(p))}</td>
-      <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
+      <td>${'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e])}${declarado?'':' <small style="color:var(--muted)">· sin declarar</small>'}</td>
       <td>${desde}</td>
       <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
       <td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td></tr>`;
