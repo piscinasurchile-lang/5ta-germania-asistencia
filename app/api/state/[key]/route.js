@@ -1,38 +1,11 @@
-import { neon } from "@neondatabase/serverless";
+import { sqlClient, ensureSchema, ensureExtras, validKey, reservedKey, sameOrigin } from "../../../../lib/db.js";
 
 export const runtime = "nodejs";
 
-const valid = (key) => /^[a-zA-Z0-9:_-]{1,100}$/.test(key);
-const reserved = (key) => key.startsWith("security:");
-
-function sqlClient() {
-  if (!process.env.DATABASE_URL) return null;
-  return neon(process.env.DATABASE_URL);
-}
-
-/* La tabla se verifica una sola vez por instancia de la función, no en cada
-   solicitud. Si falla, se vuelve a intentar en la siguiente. */
-let schemaListo = null;
-function ensureSchema(sql) {
-  if (!schemaListo) {
-    schemaListo = (async () => {
-      await sql`
-        CREATE TABLE IF NOT EXISTS app_state (
-          key text PRIMARY KEY,
-          value jsonb NOT NULL,
-          updated_at timestamptz NOT NULL DEFAULT now()
-        )
-      `;
-      await sql`CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state(updated_at DESC)`;
-    })().catch((error) => { schemaListo = null; throw error; });
-  }
-  return schemaListo;
-}
-
 export async function GET(_request, { params }) {
   const { key } = await params;
-  if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
-  if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+  if (!validKey(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
+  if (reservedKey(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
 
   const sql = sqlClient();
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
@@ -47,17 +20,11 @@ export async function GET(_request, { params }) {
   }
 }
 
-function sameOrigin(request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try { return new URL(origin).host === request.headers.get("host"); } catch { return false; }
-}
-
 export async function PUT(request, { params }) {
   if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
   const { key } = await params;
-  if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
-  if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+  if (!validKey(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
+  if (reservedKey(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
 
   const sql = sqlClient();
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
@@ -69,6 +36,9 @@ export async function PUT(request, { params }) {
 
   try {
     await ensureSchema(sql);
+    /* El historial de versiones es un respaldo adicional: si no se puede
+       preparar, el guardado normal continúa igual. */
+    await ensureExtras(sql).catch((error) => console.error("historial no disponible", error));
     const value = JSON.stringify(body.value);
     await sql`
       INSERT INTO app_state (key, value, updated_at)
