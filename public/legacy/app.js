@@ -3706,12 +3706,14 @@ async function autenticarOficialidad(pin){
     const r=await fetch("/api/auth/officiality",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin})});
     if(r.ok) return {ok:true};
     if(r.status===503) return {ok:false,motivo:"no_configurado"};
+    if(r.status===429) return {ok:false,motivo:"demasiados_intentos"};
     return {ok:false,motivo:"clave_incorrecta"};
   }catch(e){ return {ok:false,motivo:"conexion"}; }
 }
 function mensajeOficialidad(motivo){
   if(motivo==="no_configurado") return "El sistema de acceso no está configurado (falta clave inicial en el servidor). Avisa al encargado técnico.";
   if(motivo==="conexion") return "No fue posible conectar. Verifica tu conexión e inténtalo de nuevo.";
+  if(motivo==="demasiados_intentos") return "Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.";
   return "Clave incorrecta.";
 }
 const MODO_PRUEBA_ABIERTO=true;
