@@ -4233,7 +4233,7 @@ const AVISO_TOAST_MS=10000;
 const AVISO_TIPOS={citacion:"Citación",academia:"Academia",curso:"Curso",taller:"Taller",ejercicio:"Ejercicio",disposicion:"Disposición",otro:"Otro"};
 const AVISO_CARGOS=["Ayudante","Secretario","Capitán"];
 const AVISO_PDF_MAX=1536*1024;
-let AVISOS_ODD=null, AVISOS_ODD_HASTA=0, AVISO_TOASTEADOS=new Set();
+let AVISOS_ODD=null, AVISOS_ODD_HASTA=0, AVISO_TOASTEADOS=new Set(), AVISOS_VER_TODAS=false;
 const avisoN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 function avisoCargoHabilitado(cargo){ const c=avisoN(cargo); return AVISO_CARGOS.some(x=>avisoN(x)===c); }
 
@@ -4276,20 +4276,22 @@ async function renderAvisosOdd(forzar){
   const ahora=Date.now();
   const lista=(await cargarAvisosOdd(forzar)).filter(a=>avisoVigente(a,ahora)).sort((x,y)=>String(x.visibleHasta||"~").localeCompare(String(y.visibleHasta||"~")));
   if(!lista.length){ if(box.innerHTML) box.innerHTML=""; return; }
-  const html=lista.map(a=>{
+  if(lista.length<=2) AVISOS_VER_TODAS=false;
+  const visibles=AVISOS_VER_TODAS?lista:lista.slice(0,2), resto=lista.length-visibles.length;
+  const html=visibles.map(a=>{
     const hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity, nueva=!avisoVisto(a.id);
-    return `<button type="button" class="card" data-aviso-odd="${esc(a.id||"")}" style="display:block;width:100%;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:12px;padding:12px 14px;color:inherit;">
+    const linea=[avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",(isFinite(hasta)&&a.cuando)?"faltan "+avisoRestante(hasta,ahora):""].filter(Boolean).join(" · ")||"Toca para ver el detalle";
+    return `<button type="button" class="card" data-aviso-odd="${esc(a.id||"")}" style="display:block;width:100%;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:8px;padding:8px 12px;color:inherit;">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
-        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="badge">${esc(AVISO_TIPOS[a.tipo]||"ODD")}</span>${nueva?'<span class="badge" style="background:#c9a227;color:#000;">Nueva</span>':""}</span>
-        <small style="color:var(--muted);">ODD ${esc(a.numero||"")}</small></div>
-      <div style="font-size:17px;font-weight:700;margin:6px 0 2px;">${esc(a.titulo||"")}</div>
-      ${avisoFechaCorta(a)?`<div>${esc(avisoFechaCorta(a))}${a.lugar?" · "+esc(a.lugar):""}</div>`:(a.lugar?`<div>${esc(a.lugar)}</div>`:"")}
-      ${isFinite(hasta)&&a.cuando?`<small style="color:var(--muted);">faltan ${esc(avisoRestante(hasta,ahora))} · toca para ver el detalle</small>`:`<small style="color:var(--muted);">Toca para ver el detalle</small>`}
+        <span style="display:flex;gap:6px;align-items:center;min-width:0;"><span class="badge">${esc(AVISO_TIPOS[a.tipo]||"ODD")}</span>${nueva?'<span class="badge" style="background:#c9a227;color:#000;">Nueva</span>':""}<b style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.titulo||"")}</b></span>
+        <small style="color:var(--muted);white-space:nowrap;">ODD ${esc(a.numero||"")}</small></div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">${esc(linea)}</div>
     </button>`;
-  }).join("");
+  }).join("")+(resto>0?`<button type="button" class="btn small secondary" data-odd-mas style="margin:0 0 10px;">+${resto} ODD vigente${resto===1?"":"s"} · ver</button>`:"");
   if(box.innerHTML!==html){
     box.innerHTML=html;
     box.querySelectorAll("[data-aviso-odd]").forEach(b=>b.addEventListener("click",()=>abrirDetalleOdd(b.dataset.avisoOdd)));
+    const mas=box.querySelector("[data-odd-mas]"); if(mas) mas.addEventListener("click",()=>{ AVISOS_VER_TODAS=true; renderAvisosOdd(false).catch(()=>{}); });
   }
   /* Aviso de 10 segundos para la primera ODD nueva que aún no se ha visto en este equipo */
   const nuevo=lista.find(a=>!avisoVisto(a.id)&&!AVISO_TOASTEADOS.has(a.id));
