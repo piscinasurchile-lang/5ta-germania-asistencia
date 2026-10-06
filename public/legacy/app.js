@@ -4157,6 +4157,44 @@ function cargarMiVoluntario(){
   refrescarIdentidadVoluntario();
 }
 async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
+/* Cada voluntario conserva su último estado HASTA QUE ÉL (o un oficial) lo cambie: no vence a las 24 horas ni a una fecha.
+   Se guarda aparte el último estado de cada uno («disponibilidad:vigente») y, además, cada día se sigue guardando como historial.
+   Para no depender de un solo registro, también se miran los últimos 14 días y se toma siempre el más reciente. */
+const DISP_DIAS_ATRAS=14, DISP_VIGENTE_KEY="disponibilidad:vigente";
+let DISP_PREV=null;
+function dispMasReciente(a,b){
+  if(!a) return b; if(!b) return a;
+  return (Date.parse(b.desde)||0)>=(Date.parse(a.desde)||0)?b:a;
+}
+async function estadosPrevios(){
+  const hoy=todayISO();
+  if(DISP_PREV&&DISP_PREV.dia===hoy&&Date.now()<DISP_PREV.hasta) return DISP_PREV.mapa;
+  const claves=Array.from({length:DISP_DIAS_ATRAS},(_,i)=>"disponibilidad:"+gnAdd(hoy,-(i+1)));
+  const [dias,vigente]=await Promise.all([
+    Promise.all(claves.map(k=>sGet(k,{}).catch(()=>({})))),
+    sGet(DISP_VIGENTE_KEY,{}).catch(()=>({}))
+  ]);
+  const mapa={};
+  const poner=(id,r)=>{ if(r&&r.estado) mapa[id]=dispMasReciente(mapa[id],Object.assign({},r,{arrastrado:true})); };
+  dias.forEach(d=>Object.entries(d||{}).forEach(([id,r])=>poner(id,r)));
+  Object.entries(vigente||{}).forEach(([id,r])=>poner(id,r));
+  DISP_PREV={dia:hoy,hasta:Date.now()+5*60*1000,mapa};
+  return mapa;
+}
+async function getDisponibilidadVigente(){
+  const [hoy,prev]=await Promise.all([getDisponibilidadHoy(),estadosPrevios()]);
+  const out=Object.assign({},prev);
+  Object.entries(hoy||{}).forEach(([id,r])=>{ if(r&&r.estado) out[id]=dispMasReciente(out[id],r); });
+  return out;
+}
+function dispDesdeTexto(r){
+  if(!r||!r.desde) return "—";
+  const f=new Date(r.desde), hoy=todayISO(), dia=gnISO(f);
+  const hora=f.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});
+  if(dia===hoy) return hora;
+  if(dia===gnAdd(hoy,-1)) return "ayer "+hora;
+  return f.toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"})+" "+hora;
+}
 async function marcarMiEstado(estado,boton){
   const sel=document.getElementById("miVoluntario"), msg=document.getElementById("miEstadoMsg");
   if(!sel||!sel.value){
@@ -4172,7 +4210,9 @@ async function marcarMiEstado(estado,boton){
     const d=await getDisponibilidadHoy();
     d[sel.value]={estado,desde:new Date().toISOString()};
     await sSet(dispKey(),d);
-    if(msg){msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
+    try{ const vig=await sGet(DISP_VIGENTE_KEY,{}); vig[sel.value]=d[sel.value]; await rawSet(DISP_VIGENTE_KEY,vig); DISP_PREV=null; }
+    catch(e){ console.warn("No se pudo actualizar el último estado de cada voluntario",e); }
+    if(msg){ delete msg.dataset.hint; msg.classList.remove("err");msg.textContent=DISP_LABELS[estado]+" · actualizado a las "+new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
     await renderDisponibilidad();
     if(navigator.vibrate) navigator.vibrate([45,35,90]);
   }catch(e){
@@ -4191,7 +4231,7 @@ async function guardiaDeHoy(){
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
-  const d=await getDisponibilidadHoy(), guardia=await guardiaDeHoy();
+  const d=await getDisponibilidadVigente(), guardia=await guardiaDeHoy();
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
   const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
 
@@ -4205,8 +4245,7 @@ async function renderDisponibilidad(){
     if(e==="cuartel") return 0;
     if(e==="disponible") return 1;
     if(e==="fuera") return 2;
-    if(e==="no") return 3;
-    return 4;
+    return 3;   /* "no disponible" y quienes aún no han declarado nada quedan en el mismo grupo */
   };
   const rosterOrdenado=sortedRoster(false).map((p,indice)=>({p,indice})).sort((a,b)=>{
     const pa=prioridad(a.p), pb=prioridad(b.p);
@@ -4220,15 +4259,15 @@ async function renderDisponibilidad(){
   }).map(x=>x.p);
 
   const html=rosterOrdenado.map(p=>{
-    const r=d[p.id]||{}, e=r.estado||"";
-    if(e) cuenta[e]=(cuenta[e]||0)+1;
+    const r=d[p.id]||{}, declarado=!!r.estado, e=r.estado||"no";
+    cuenta[e]=(cuenta[e]||0)+1;
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
-    const desde=r.desde?new Date(r.desde).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}):"—";
+    const desde=dispDesdeTexto(r);
     const foto=fotoVoluntario(p);
     return `<tr data-voluntario-id="${esc(String(p.id))}">
       <td style="text-align:center;"><img src="${foto}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto;"></td>
       <td class="name-col">${esc(nombreCompleto(p))}</td>
-      <td>${e?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span style="color:var(--muted)">Sin informar</span>'}</td>
+      <td>${'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e])}${declarado?'':' <small style="color:var(--muted)">· sin declarar</small>'}</td>
       <td>${desde}</td>
       <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
       <td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td></tr>`;
@@ -4245,6 +4284,12 @@ async function renderDisponibilidad(){
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
+  /* Recordatorio amable (no cambia nada solo): si el estado viene de un día anterior, se avisa */
+  const ayuda=document.getElementById("miEstadoMsg");
+  if(ayuda){
+    if(actual&&actual.arrastrado){ ayuda.classList.remove("err"); ayuda.dataset.hint="1"; ayuda.textContent=`Tu estado sigue siendo «${DISP_LABELS[actual.estado]}» (${dispDesdeTexto(actual)}). Si cambió tu situación, toca el botón que corresponda.`; }
+    else if(ayuda.dataset.hint==="1"){ delete ayuda.dataset.hint; ayuda.textContent=""; }
+  }
 }
 on("miVoluntario","change",async e=>{
   const p=ROSTER.find(x=>String(x.id)===String(e.target.value));
