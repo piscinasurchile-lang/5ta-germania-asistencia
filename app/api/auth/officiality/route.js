@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import crypto from "node:crypto";
+import { estado, registrarFallo, limpiar } from "../../../../lib/ratelimit.js";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,10 @@ async function verifyPin(pin){
 export async function POST(req){
   if(!signingSecret()||!process.env.OFFICIALITY_PIN) return NextResponse.json({ok:false,error:"auth_not_configured"},{status:503});
   const {pin}=await req.json().catch(()=>({}));
-  if(!await verifyPin(pin)) return NextResponse.json({ok:false},{status:401});
+  const lim=await estado("oficialidad",req);
+  if(lim.bloqueado) return NextResponse.json({ok:false,error:"demasiados_intentos",esperaSeg:lim.esperaSeg},{status:429,headers:{"Retry-After":String(lim.esperaSeg)}});
+  if(!await verifyPin(pin)){ await registrarFallo("oficialidad",req); return NextResponse.json({ok:false},{status:401}); }
+  await limpiar("oficialidad",req);
   const res=NextResponse.json({ok:true});
   res.cookies.set("quinta_oficialidad",token(),{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"strict",path:"/",maxAge:60*60*8});
   return res;
