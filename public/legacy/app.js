@@ -2691,6 +2691,165 @@ async function guardarGuardiaAtomico(){
   throw new Error("No se pudo guardar por actividad simultánea de otras personas. Inténtalo de nuevo.");
 }
 
+/* ============ INFORME DE LA GUARDIA (oficial a cargo) ============
+   Solo informa: avisa lo que falta, nunca bloquea. Referencia: mínimo 5 (OBAC, conductor y 3 bomberos, según la ODD); meta 6.
+   Lo ven quienes ocupan hoy el cargo de Capitán o de Teniente Tercero (los cargos cambian cada año: se lee de la nómina). */
+const INF_MIN=5, INF_META=6, INF_SEMANAS_EQUIDAD=8;
+const infN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function infCargoHabilitado(cargo){ const s=infN(cargo); return /\bcapit/.test(s)||(/\b(teniente|tte)\b/.test(s)&&/\b(3|tercero|tercer)\b/.test(s)); }
+function infQuienSoy(){ const id=(document.getElementById("miVoluntario")||{}).value; return ROSTER.find(p=>String(p.id)===String(id))||null; }
+/* El miércoles en que empieza la semana que contiene (o precede) a la fecha. */
+function infMiercolesDe(iso){
+  const d=new Date(iso+"T12:00:00"); const atras=(d.getDay()-3+7)%7; d.setDate(d.getDate()-atras); return gnISO(d);
+}
+const infFecha=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"2-digit"});
+const infNom=id=>{ const m=ROSTER.find(p=>String(p.id)===String(id)); return m?nombreCompleto(m):"—"; };
+
+async function infCargarDatos(ini){
+  const dias=gnWeek(ini), activos=sortedRoster(false);
+  const idx=await idxGuardias();
+  const desde=gnAdd(ini,-7*INF_SEMANAS_EQUIDAD), hasta=dias[6];
+  const enRango=idx.filter(i=>i&&i.fecha&&i.fecha>=desde&&i.fecha<=hasta);
+  const [ins,gs]=await Promise.all([
+    sGetMany(activos.map(p=>"guardia-inscripcion:"+ini+":"+p.id)),
+    sGetMany(enRango.map(i=>"guardia:"+i.clave))
+  ]);
+  const insc={}; activos.forEach(p=>{ const v=ins["guardia-inscripcion:"+ini+":"+p.id]; insc[p.id]=new Set(Array.isArray(v)?v:[]); });
+  const guardias=enRango.map(i=>{ const g=gs["guardia:"+i.clave]; return g?Object.assign({},g,{_clave:i.clave}):null; }).filter(Boolean);
+  const planes=await gnPlanes(); const plan=planes.find(p=>p.inicio===ini)||null;
+  return {ini,dias,activos,insc,guardias,plan};
+}
+/* Función pura: de los datos al informe. */
+function infCalcular(d){
+  const {ini,dias,activos,insc,guardias,plan}=d;
+  const previas=guardias.filter(g=>g.fechaIng<ini), semana=guardias.filter(g=>dias.includes(g.fechaIng));
+  /* equidad: noches efectivas (se queda o entra de reemplazo) y veces como OBAC/conductor en las semanas anteriores */
+  const efectivas={}, comoObac={}, comoCond={};
+  previas.forEach(g=>{
+    normalizaTurno(g.guardianes).forEach(x=>{ if(x.estado!=="no") efectivas[x.id]=(efectivas[x.id]||0)+1; else if(x.reemplazo) efectivas[x.reemplazo]=(efectivas[x.reemplazo]||0)+1; });
+    if(g.oficial) comoObac[g.oficial]=(comoObac[g.oficial]||0)+1;
+    if(g.conductor) comoCond[g.conductor]=(comoCond[g.conductor]||0)+1;
+  });
+  const porFecha={}; semana.forEach(g=>{ const a=porFecha[g.fechaIng]; if(!a||normalizaTurno(g.guardianes).length>normalizaTurno(a.guardianes).length) porFecha[g.fechaIng]=g; });
+  const esCond=id=>!!(ROSTER.find(p=>String(p.id)===String(id))||{}).conductor;
+  const noches=dias.map(fecha=>{
+    const inscritos=activos.filter(p=>insc[p.id]&&insc[p.id].has(fecha)).map(p=>p.id);
+    const g=porFecha[fecha]||null, avisos=[];
+    let obac="", conductor="", cubren=[], total=0, proyeccion=false;
+    if(g){
+      obac=g.oficial||""; conductor=g.conductor||"";
+      cubren=cubrenGuardia(g.guardianes);
+      total=new Set([obac,conductor,...cubren].filter(Boolean)).size;
+      if(!obac) avisos.push("sin OBAC");
+      if(!conductor) avisos.push("sin conductor"); else if(!esCond(conductor)) avisos.push("el conductor asignado no figura como autorizado");
+      if(total<INF_MIN) avisos.push(`dotación de ${total} (mínimo ${INF_MIN})`);
+      if(normalizaTurno(g.guardianes).some(x=>x.estado==="casa")) avisos.push("hay guardianes en estado «desde su casa» (la guardia es solo presencial)");
+    } else {
+      proyeccion=true;
+      const condInsc=inscritos.filter(esCond);
+      total=inscritos.length+1;   /* inscritos + el OBAC que se asigne */
+      if(!inscritos.length) avisos.push("sin inscritos");
+      if(!condInsc.length) avisos.push("sin conductor inscrito");
+      avisos.push("OBAC por asignar");
+      if(total<INF_MIN) avisos.push(`proyección de ${total} (mínimo ${INF_MIN})`);
+    }
+    const grave=avisos.some(a=>/sin OBAC|sin conductor|sin inscritos|mínimo|no figura/.test(a));
+    const nivel=grave?"rojo":(total<INF_META?"ambar":"verde");
+    return {fecha,inscritos,registrada:!!g,clave:g?g._clave:null,obac,conductor,cubren,total,proyeccion,avisos,nivel};
+  });
+  const faltan=noches.filter(n=>n.nivel!=="verde");
+  /* quién ya está en cada noche, para no sugerirlo */
+  const enNoche=n=>new Set([...n.inscritos,...n.cubren,n.obac,n.conductor].filter(Boolean).map(String));
+  const ordenEquidad=(a,b)=>((efectivas[a.id]||0)-(efectivas[b.id]||0))||nombreCompleto(a).localeCompare(nombreCompleto(b));
+  noches.forEach(n=>{
+    n.sugeridos=[]; n.sugeridosConductor=[]; n.sugeridosObac=[];
+    if(n.nivel==="verde") return;
+    const ya=enNoche(n);
+    if(n.total<INF_META) n.sugeridos=activos.filter(p=>!ya.has(String(p.id))).sort(ordenEquidad).slice(0,4).map(p=>({id:p.id,efectivas:efectivas[p.id]||0}));
+    if(!n.conductor&&!n.inscritos.some(esCond)) n.sugeridosConductor=activos.filter(p=>p.conductor&&!ya.has(String(p.id))).sort((a,b)=>((comoCond[a.id]||0)-(comoCond[b.id]||0))||ordenEquidad(a,b)).slice(0,3).map(p=>({id:p.id,veces:comoCond[p.id]||0}));
+    if(!n.obac) n.sugeridosObac=activos.filter(p=>cargoPriority(p.cargo)!==99&&!/conductor/i.test(p.cargo||"")&&String(p.id)!==String(n.conductor)).sort((a,b)=>((comoObac[a.id]||0)-(comoObac[b.id]||0))||(cargoPriority(a.cargo)-cargoPriority(b.cargo))).slice(0,3).map(p=>({id:p.id,veces:comoObac[p.id]||0}));
+  });
+  const voluntarios=activos.map(p=>({id:p.id,noches:dias.filter(f=>insc[p.id]&&insc[p.id].has(f)).length}));
+  const conductores=activos.filter(p=>p.conductor).map(p=>({id:p.id,inscrito:voluntarios.find(v=>v.id===p.id).noches,asignado:noches.filter(n=>String(n.conductor)===String(p.id)).length}));
+  const cambios=[];
+  semana.forEach(g=>normalizaTurno(g.guardianes).forEach(x=>{ if(x.estado==="no") cambios.push({fecha:g.fechaIng,sale:x.id,motivo:x.motivo||"",reemplazo:x.reemplazo||"",registradoEn:x.reemplazoRegistradoEn||"",correo:!!x.correo}); }));
+  return {ini,dias,plan,noches,voluntarios,conductores,cambios,
+    verdes:noches.filter(n=>n.nivel==="verde").length,ambar:noches.filter(n=>n.nivel==="ambar").length,rojas:noches.filter(n=>n.nivel==="rojo").length,
+    sinInscribir:voluntarios.filter(v=>v.noches===0).map(v=>v.id),pocas:voluntarios.filter(v=>v.noches===1).map(v=>v.id)};
+}
+let INF_ULTIMO=null;
+async function renderGnInforme(){
+  const acceso=document.getElementById("gnInformeAcceso"), cont=document.getElementById("gnInformeContenido"); if(!acceso||!cont) return;
+  const yo=infQuienSoy();
+  if(!yo||!infCargoHabilitado(yo.cargo)){
+    cont.style.display="none";
+    const titulares=ROSTER.filter(p=>p.activo!==false&&infCargoHabilitado(p.cargo)).map(p=>`${p.cargo}: ${nombreCompleto(p)}`);
+    acceso.innerHTML=`<div class="empty">El informe de la guardia es para el Capitán y el Teniente Tercero. ${yo?`Hoy tu cargo es «${esc(yo.cargo||"Voluntario")}».`:"Selecciona tu nombre en «Mi voluntario» para verlo."}${titulares.length?`<br><small>Titulares actuales: ${esc(titulares.join(" · "))}</small>`:""}</div>`;
+    return;
+  }
+  acceso.innerHTML=""; cont.style.display="block";
+  const inp=document.getElementById("infSemana");
+  if(!inp.value){
+    const planes=await gnPlanes(), hoy=todayISO();
+    const prox=planes.filter(p=>p.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+    inp.value=prox?prox.inicio:infMiercolesDe(hoy);
+  }
+  const ini=infMiercolesDe(inp.value); inp.value=ini;
+  const cuerpo=document.getElementById("infCuerpo"); cuerpo.innerHTML='<div class="empty">Preparando el informe…</div>';
+  try{ INF_ULTIMO=infCalcular(await infCargarDatos(ini)); }
+  catch(e){ cuerpo.innerHTML='<div class="empty">No se pudo preparar el informe (sin conexión). Presiona «Actualizar».</div>'; return; }
+  infPintar(INF_ULTIMO);
+}
+function infPintar(r){
+  const col={verde:"#81c784",ambar:"#ffcc00",rojo:"#ff8a80"}, txt={verde:"En regla",ambar:"Bajo la meta",rojo:"Revisar"};
+  document.getElementById("infResumen").innerHTML=`
+    <div class="summary-item"><div class="big" style="color:${col.verde}">${r.verdes}</div><div class="lbl">Noches en regla</div></div>
+    <div class="summary-item"><div class="big" style="color:${col.ambar}">${r.ambar}</div><div class="lbl">Bajo la meta de ${INF_META}</div></div>
+    <div class="summary-item"><div class="big" style="color:${col.rojo}">${r.rojas}</div><div class="lbl">Para revisar</div></div>
+    <div class="summary-item"><div class="big">${r.sinInscribir.length}</div><div class="lbl">Sin inscribirse</div></div>
+    <div class="summary-item"><div class="big">${r.pocas.length}</div><div class="lbl">Con 1 sola noche</div></div>`;
+  const fila=n=>`<tr>
+      <td><b>${esc(infFecha(n.fecha))}</b></td>
+      <td>${n.inscritos.length}</td>
+      <td>${n.obac?esc(infNom(n.obac)):'<span style="color:#ffb74d">por asignar</span>'}</td>
+      <td>${n.conductor?esc(infNom(n.conductor)):(n.proyeccion&&n.inscritos.some(id=>(ROSTER.find(p=>String(p.id)===String(id))||{}).conductor)?'<span style="color:var(--muted)">inscrito, por asignar</span>':'<span style="color:#ffb74d">por asignar</span>')}</td>
+      <td>${n.total}${n.proyeccion?' <small style="color:var(--muted)">(proyección)</small>':""}</td>
+      <td style="color:${col[n.nivel]};font-weight:700;">${txt[n.nivel]}</td></tr>
+      ${n.avisos.length?`<tr><td></td><td colspan="5" style="font-size:12.5px;color:#ffb74d;">${esc(n.avisos.join(" · "))}</td></tr>`:""}`;
+  const sug=r.noches.filter(n=>n.sugeridos.length||n.sugeridosObac.length||n.sugeridosConductor.length);
+  const cuerpo=document.getElementById("infCuerpo");
+  cuerpo.innerHTML=`
+    <p class="foot-note" style="margin:0 0 8px;">Semana del ${esc(infFecha(r.ini))} al ${esc(infFecha(r.dias[6]))}${r.plan?` · período ${esc(r.plan.estado||"")}`:" · sin período confirmado en el calendario"}. Referencia: mínimo ${INF_MIN} (OBAC, conductor y 3 bomberos), meta ${INF_META}.</p>
+    <table><thead><tr><th>Noche</th><th>Inscritos</th><th>OBAC</th><th>Conductor</th><th>Total</th><th>Estado</th></tr></thead><tbody>${r.noches.map(fila).join("")}</tbody></table>
+    <h3 style="margin-top:18px;">Voluntarios</h3>
+    <div class="foot-note">${r.sinInscribir.length?`<b>Sin inscribirse (${r.sinInscribir.length}):</b> ${esc(r.sinInscribir.map(infNom).join(", "))}.`:"Todos los voluntarios activos se inscribieron."}${r.pocas.length?`<br><b>Con una sola noche (${r.pocas.length}):</b> ${esc(r.pocas.map(infNom).join(", "))}.`:""}</div>
+    <h3 style="margin-top:18px;">Conductores autorizados</h3>
+    <div class="foot-note">${r.conductores.length?r.conductores.map(c=>`${esc(infNom(c.id))}: inscrito en ${c.inscrito} noche${c.inscrito===1?"":"s"}, asignado en ${c.asignado}`).join("<br>"):"No hay conductores marcados en la nómina."}</div>
+    ${sug.length?`<h3 style="margin-top:18px;">Para completar</h3>${sug.map(n=>`<div class="hist-item"><div><div class="hist-date">${esc(infFecha(n.fecha))}</div><div class="hist-acto">${[
+      n.sugeridos.length?`Podrían sumarse (menos noches en las últimas ${INF_SEMANAS_EQUIDAD} semanas): ${esc(n.sugeridos.map(x=>infNom(x.id)+" ("+x.efectivas+")").join(", "))}`:"",
+      n.sugeridosConductor.length?`Conductores: ${esc(n.sugeridosConductor.map(x=>infNom(x.id)).join(", "))}`:"",
+      n.sugeridosObac.length?`OBAC posibles: ${esc(n.sugeridosObac.map(x=>infNom(x.id)+" ("+x.veces+" como OBAC)").join(", "))}`:""].filter(Boolean).join("<br>")}</div></div></div>`).join("")}`:""}
+    <h3 style="margin-top:18px;">Cambios y retiros de la semana</h3>
+    ${r.cambios.length?r.cambios.map(c=>`<div class="hist-item"><div><div class="hist-date">${esc(infFecha(c.fecha))}</div><div class="hist-acto">Sale: ${esc(infNom(c.sale))}${c.motivo?` · ${esc(c.motivo)}`:""} · ${c.reemplazo?"Entra: "+esc(infNom(c.reemplazo))+(c.registradoEn?" (registrado "+esc(new Date(c.registradoEn).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))+")":""):"<span style=\"color:#ffb74d\">sin reemplazo</span>"}${c.correo?" · justificó por correo":""}</div></div></div>`).join(""):'<div class="foot-note">No hay cambios ni retiros registrados en esta semana.</div>'}
+    <p class="foot-note" style="margin-top:14px;">Esto es solo informativo. Para asignar OBAC y conductor y registrar la dotación de cada noche, usa «Dotación y registro del turno».</p>`;
+}
+function infResumenTexto(r){
+  r=r||INF_ULTIMO; if(!r) return "";
+  const l=[`GUARDIA NOCTURNA · semana del ${infFecha(r.ini)} al ${infFecha(r.dias[6])}`,`En regla: ${r.verdes} · Bajo la meta: ${r.ambar} · Para revisar: ${r.rojas}`,""];
+  r.noches.forEach(n=>l.push(`${infFecha(n.fecha)}: ${n.inscritos.length} inscritos · OBAC: ${n.obac?infNom(n.obac):"por asignar"} · Conductor: ${n.conductor?infNom(n.conductor):"por asignar"} · ${n.nivel==="verde"?"en regla":n.nivel==="ambar"?"bajo la meta":"REVISAR"}${n.avisos.length?" ("+n.avisos.join("; ")+")":""}`));
+  if(r.sinInscribir.length) l.push("","Sin inscribirse: "+r.sinInscribir.map(infNom).join(", "));
+  if(r.pocas.length) l.push("Con una sola noche: "+r.pocas.map(infNom).join(", "));
+  return l.join("\n");
+}
+on("infActualizarBtn","click",()=>renderGnInforme());
+on("infSemana","change",()=>renderGnInforme());
+on("infCopiarBtn","click",async()=>{
+  const t=infResumenTexto(); if(!t) return;
+  try{ await navigator.clipboard.writeText(t); alert("Resumen copiado. Puedes pegarlo en el grupo de oficiales."); }
+  catch(e){ const a=document.createElement("textarea"); a.value=t; document.body.appendChild(a); a.select(); try{ document.execCommand("copy"); alert("Resumen copiado."); }catch(_){ alert(t); } a.remove(); }
+});
+on("miVoluntario","change",()=>renderGnInforme());
+
 function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id); return m?nombreCompleto(m):"—"; }
 
 function gnDocumento(reg){
@@ -5193,7 +5352,7 @@ function switchTabExtra(name){
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
       const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
-    gnAsegurarIniciada().then(()=>renderGnLista()); renderGnPlanner().catch(console.error);
+    gnAsegurarIniciada().then(()=>{ renderGnLista(); renderGnInforme(); }); renderGnPlanner().catch(console.error);
   }
   if(name==="config"){
     // Oficiales abre liviano: no consulta módulos secundarios hasta que el usuario los solicita.

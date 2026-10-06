@@ -583,6 +583,18 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia">
+  <div class="card" id="gnInformeCard">
+    <div class="gn-head"><div><h2>Informe de la guardia</h2><p class="sub">Para el oficial a cargo: qué pasa en la semana antes de decidir y de generar la ODD. Solo informa: no bloquea nada.</p></div></div>
+    <div id="gnInformeAcceso"></div>
+    <div id="gnInformeContenido" style="display:none;">
+      <div class="field-row">
+        <div class="field" style="flex:0 0 200px;"><label for="infSemana">Semana (miércoles de inicio)</label><input type="date" id="infSemana"></div>
+        <div class="field" style="flex:0 0 auto;justify-content:flex-end;"><label>&nbsp;</label><span><button class="btn small" id="infActualizarBtn" type="button">Actualizar</button> <button class="btn small secondary" id="infCopiarBtn" type="button">Copiar resumen</button></span></div>
+      </div>
+      <div class="summary-row" id="infResumen" style="margin:10px 0;"></div>
+      <div id="infCuerpo"></div>
+    </div>
+  </div>
     <div class="card gn-planner-card">
       <div class="gn-head"><div><h2>Programación de Guardia</h2><p class="sub">Semana normal: miércoles 23:00 → miércoles siguiente 07:00 · 7 turnos nocturnos.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
       <div class="gn-layout">
