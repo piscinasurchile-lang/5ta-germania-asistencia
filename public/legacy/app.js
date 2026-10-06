@@ -4183,6 +4183,76 @@ async function marcarMiEstado(estado,boton){
     botones.forEach(b=>{b.disabled=false;b.classList.remove("operating");});
   }
 }
+/* ============ ODD EN LA PANTALLA VOLUNTARIOS ============
+   Las ODD que emiten los oficiales para los voluntarios (registro «odd-avisos:v1») aparecen aquí desde que se emiten
+   y DESAPARECEN SOLAS a la hora indicada (para una citación, la hora de la actividad). El registro queda guardado
+   como archivo: dejar de mostrarla no la borra. Cada aviso trae su propia hora de término, con zona horaria. */
+const AVISOS_ODD_KEY="odd-avisos:v1";
+let AVISOS_ODD=null, AVISOS_ODD_HASTA=0;
+async function cargarAvisosOdd(forzar){
+  if(!forzar&&AVISOS_ODD&&Date.now()<AVISOS_ODD_HASTA) return AVISOS_ODD;
+  try{ const v=await sGet(AVISOS_ODD_KEY,[]); AVISOS_ODD=Array.isArray(v)?v:[]; AVISOS_ODD_HASTA=Date.now()+60000; }
+  catch(e){ AVISOS_ODD=AVISOS_ODD||[]; }
+  return AVISOS_ODD;
+}
+function avisoVigente(a,ahora){
+  ahora=ahora||Date.now();
+  if(!a||a.anulada||!Array.isArray(a.destinatarios)||!a.destinatarios.includes("voluntarios")) return false;
+  const desde=a.visibleDesde?Date.parse(a.visibleDesde):0, hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity;
+  if(Number.isNaN(desde)||Number.isNaN(hasta)) return false;
+  return ahora>=desde&&ahora<hasta;
+}
+function avisoRestante(hasta,ahora){
+  const ms=hasta-ahora; if(!isFinite(ms)) return "";
+  const min=Math.floor(ms/60000);
+  if(min<1) return "menos de 1 minuto";
+  if(min<60) return min+" min";
+  const hh=Math.floor(min/60), mm=min%60;
+  if(hh<48) return hh+" h"+(mm?" "+mm+" min":"");
+  return Math.floor(hh/24)+" días";
+}
+async function renderAvisosOdd(forzar){
+  const box=document.getElementById("avisosOdd"); if(!box) return;
+  const ahora=Date.now();
+  const lista=(await cargarAvisosOdd(forzar)).filter(a=>avisoVigente(a,ahora)).sort((x,y)=>String(x.visibleHasta||"").localeCompare(String(y.visibleHasta||"")));
+  if(!lista.length){ if(box.innerHTML) box.innerHTML=""; return; }
+  const html=lista.map(a=>{
+    const c=a.citacion||{}, hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity;
+    const cuando=c.fecha?new Date(c.fecha+"T12:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"}):"";
+    const fila=(k,v)=>v?`<div style="display:flex;gap:10px;margin:3px 0;"><span style="flex:0 0 96px;color:var(--muted);">${k}</span><b>${esc(v)}</b></div>`:"";
+    return `<div class="card" style="border:1px solid #c9a227;margin-bottom:14px;" data-aviso-odd="${esc(a.id||"")}">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">
+        <h2 style="margin:0;">Orden del Día ${esc(a.numero||"")}</h2>
+        <span class="badge">${esc(a.tipo==="citacion"?"Citación":(a.tipo||"ODD"))}</span></div>
+      ${a.titulo?`<p class="sub" style="margin:4px 0 10px;">${esc(a.titulo)}</p>`:""}
+      ${cuando?`<p style="margin:0 0 10px;">Se cita a la <b>Quinta Compañía</b> el <b>${esc(cuando)}${c.hora?" a las "+esc(c.hora)+" hrs.":""}</b></p>`:""}
+      ${fila("Lugar:",c.lugar)}${fila("Actividad:",c.actividad)}${fila("Tema:",c.tema)}${fila("Vestimenta:",c.vestimenta)}
+      ${c.puntualidad?'<p style="margin:10px 0 0;"><b><u>Se exige PUNTUALIDAD</u></b></p>':""}
+      ${c.excusas?`<p style="margin:6px 0 0;color:var(--muted);">Excusas al correo ${esc(c.excusas)}</p>`:""}
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        ${a.pdf?`<button type="button" class="btn small secondary" data-odd-pdf="${esc(a.pdf)}">Ver ODD (PDF)</button>`:""}
+        ${isFinite(hasta)?`<small style="color:var(--muted);">Se muestra hasta la hora de la citación · faltan ${esc(avisoRestante(hasta,ahora))}</small>`:""}</div>
+    </div>`;
+  }).join("");
+  if(box.innerHTML!==html){
+    box.innerHTML=html;
+    box.querySelectorAll("[data-odd-pdf]").forEach(b=>b.addEventListener("click",()=>abrirPdfAviso(b.dataset.oddPdf)));
+  }
+}
+async function abrirPdfAviso(clave){
+  try{
+    const d=await sGet(clave,null);
+    if(!d||!d.dataUrl){ alert("El documento no está disponible."); return; }
+    const blob=await (await fetch(d.dataUrl)).blob();
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,"_blank");
+    if(!w){ const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){ alert("No fue posible abrir el documento."); }
+}
+setInterval(()=>{ renderAvisosOdd(false).catch(()=>{}); },30000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") renderAvisosOdd(true).catch(()=>{}); });
+
 async function guardiaDeHoy(){
   const idx=await idxGuardias();
   const it=idx.slice().reverse().find(x=>x.fecha===todayISO());
@@ -4328,6 +4398,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     /* Las validaciones de la Guardia de prueba ya no corren en cada apertura:
        validarGuardiaPruebaEnero2026() y validarMatrizGuardiaPrueba() siguen
        disponibles para ejecutarlas a mano cuando se necesiten. */
+    renderAvisosOdd(true).catch(()=>{});
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
