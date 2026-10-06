@@ -3746,23 +3746,61 @@ function renderCargoOptions(){
   const fi=document.getElementById("fiCargo");
   if(fi && fi.tagName==="SELECT"){ const cur=fi.value||"Voluntario"; fi.innerHTML=cargoSelectOptions(cur); }
 }
+/* ============ OFICIALIDAD · cambio de cargos ============ */
+let OFI_ANTERIOR={};      /* titulares del año anterior: id por cargo */
+let OFI_SNAPSHOT=null;    /* lo guardado en la base cuando se abrió el año (detecta cambios de otra persona) */
+let OFI_META=null;        /* vigencia, fuente, versión del año abierto */
+let OFI_FUENTE=null;      /* de dónde salieron los datos que hay en pantalla */
+let OFI_ULTIMO_ARCHIVO=null;
+const ofiNombre=id=>{ const m=ROSTER.find(p=>String(p.id)===String(id)); return m?nombreCompleto(m):"—"; };
+function ofiMsg(texto,error){ const m=document.getElementById("oficialidadMsg"); if(!m) return; m.textContent=texto||""; m.classList.toggle("err",!!error); }
 function renderOficialidad(asignaciones){
   const body=document.getElementById("oficialidadBody"); body.innerHTML="";
   const opts = '<option value="">— sin asignar —</option>' +
     sortedRoster(true).map(p=>`<option value="${p.id}">${esc(nombreCompleto(p))}</option>`).join("");
   CARGOS.forEach(cargo=>{
+    const antes=OFI_ANTERIOR[cargo];
     const tr=document.createElement("tr");
     tr.innerHTML=`<td>${esc(cargo)}</td>
+      <td class="ofi-antes" style="color:var(--muted);">${antes?esc(ofiNombre(antes)):"—"}</td>
       <td><select class="ofi-select" data-cargo="${esc(cargo)}">${opts}</select></td>
+      <td class="ofi-estado" style="font-size:12.5px;"></td>
       <td><button class="del-btn" data-del-cargo="${esc(cargo)}" title="Quitar cargo">🗑</button></td>`;
     body.appendChild(tr);
     const sel=tr.querySelector("select");
     if(asignaciones && asignaciones[cargo]) sel.value=asignaciones[cargo];
+    sel.addEventListener("change",ofiActualizarEstados);
   });
   body.querySelectorAll("[data-del-cargo]").forEach(b=>b.addEventListener("click",async()=>{
     CARGOS=CARGOS.filter(c=>c!==b.dataset.delCargo);
     await saveCargos(); renderCargoOptions(); loadOficialidadYear();
   }));
+  ofiActualizarEstados();
+}
+/* Compara, cargo por cargo, lo que hay en pantalla con el año anterior. */
+function ofiContarEstados(){
+  const filas=[...document.querySelectorAll("#oficialidadBody tr")];
+  const usados={};
+  filas.forEach(tr=>{ const sel=tr.querySelector(".ofi-select"); if(sel&&sel.value) (usados[sel.value]=usados[sel.value]||[]).push(sel.dataset.cargo); });
+  const c={mantienen:0,cambian:0,nuevos:0,vacantes:0,dobles:0};
+  const estados=filas.map(tr=>{
+    const sel=tr.querySelector(".ofi-select"), cargo=sel.dataset.cargo, antes=OFI_ANTERIOR[cargo]||"", ahora=sel.value;
+    let txt="—", color="var(--muted)";
+    if(!ahora&&antes){ txt="Queda vacante"; color="#ffb74d"; c.vacantes++; }
+    else if(ahora&&!antes){ txt="Nuevo"; color="#4fc3f7"; c.nuevos++; }
+    else if(ahora&&String(antes)===String(ahora)){ txt="Se mantiene"; color="#81c784"; c.mantienen++; }
+    else if(ahora){ txt="Cambia"; color="#ffcc00"; c.cambian++; }
+    if(ahora&&usados[ahora].length>1){ txt+=" · tiene "+usados[ahora].length+" cargos"; c.dobles++; }
+    return {tr,txt,color};
+  });
+  c.texto=[c.mantienen+" se mantienen",c.cambian+" cambian",c.nuevos+" nuevos",c.vacantes+" quedan vacantes"].join(" · ")+(c.dobles?" · "+c.dobles+" con más de un cargo (revisar)":"");
+  c.estados=estados;
+  return c;
+}
+function ofiActualizarEstados(){
+  const c=ofiContarEstados();
+  c.estados.forEach(e=>{ const td=e.tr.querySelector(".ofi-estado"); if(td){ td.textContent=e.txt; td.style.color=e.color; } });
+  const r=document.getElementById("ofiResumen"); if(r) r.textContent=c.texto;
 }
 /* Códigos funcionales de Oficialidad.
    REGLA GERMANIA: el código de Oficial pertenece al CARGO, no a la persona.
@@ -3789,61 +3827,287 @@ function oficialidadDesdeNomina(){
   });
   return asign;
 }
+/* ---- Interpretar texto, planillas y respuestas de lectura ---- */
+function ofiNormalizarTexto(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+}
+/* Lleva cualquier forma de escribir un cargo a los de la lista: «Tte. 2º», «Teniente Segundo», «Tesorero Gral.»… */
+function ofiNormalizarCargo(t){
+  const s=ofiNormalizarTexto(t); if(!s) return null;
+  const num=(()=>{ const m=s.match(/\b(1|2|3|primero|primer|segundo|tercero|tercer)\b/); if(!m) return null; return ({primero:1,primer:1,segundo:2,tercero:3,tercer:3})[m[1]]||Number(m[1]); })();
+  if(/\bdirector/.test(s)) return "Director";
+  if(/\bsecretari/.test(s)) return "Secretario";
+  if(/\btesorer/.test(s)) return /\b(general|gral)\b/.test(s)?"Tesorero General":"Tesorero";
+  if(/\bcapit/.test(s)) return "Capitán";
+  if(/\b(teniente|tte)\b/.test(s)) return num?("Teniente "+num):null;
+  if(/\bayudante/.test(s)) return "Ayudante";
+  if(/\bjefe de maq/.test(s)) return "Jefe de Máquinas";
+  if(/\b(conductor|maquinista)/.test(s)) return (num&&num>1)?("conductor "+num):"Conductor";
+  return null;
+}
+const OFI_CARGO_RE=/(jefe de maquinas|tesorero general|tesorero gral|tesorero|director|secretari[oa]|capitan|teniente (?:primero|segundo|tercero|[123])|tte (?:primero|segundo|tercero|[123])|teniente|tte|ayudante|conductor(?: [0-9])?|maquinista)/g;
+const ofiTitulo=t=>t.replace(/\b([a-z])/g,c=>c.toUpperCase());
+/* Texto de una ODD, de un PDF o de una tabla (incluso con dos columnas por fila). */
+function ofiParseTexto(texto){
+  const pares=[], vistos=new Set();
+  String(texto||"").split(/\r?\n/).forEach(linea=>{
+    const n=ofiNormalizarTexto(linea); if(!n) return;
+    const marcas=[...n.matchAll(OFI_CARGO_RE)];
+    marcas.forEach((m,i)=>{
+      const cargo=ofiNormalizarCargo(m[0]); if(!cargo||vistos.has(cargo)) return;
+      const fin=i+1<marcas.length?marcas[i+1].index:n.length;
+      const toks=n.slice(m.index+m[0].length,fin).split(" ").filter(Boolean);
+      const nombre=[];
+      for(const t of toks){ if(/^\d+$/.test(t)||/^(voluntari[oa]|aspirante)$/.test(t)) break; nombre.push(t); }
+      if(nombre.length<2) return;
+      vistos.add(cargo); pares.push({cargo,nombre:ofiTitulo(nombre.join(" "))});
+    });
+  });
+  return pares;
+}
+function ofiParseCSV(texto){
+  const pares=[];
+  String(texto||"").split(/\r?\n/).forEach((l,i)=>{
+    const c=l.split(/;|\t|,/).map(x=>x.trim()); if(c.length<2||!c[0]||!c[1]) return;
+    if(i===0&&/^cargo$/i.test(c[0])) return;
+    pares.push({cargo:ofiNormalizarCargo(c[0])||c[0],nombre:c[1]});
+  });
+  return pares;
+}
+function ofiDetectarAnio(texto){ const m=String(texto||"").match(/\b\d{1,3}\/(20\d{2})\b/)||String(texto||"").match(/\b(20\d{2})\b/); return m?Number(m[1]):null; }
+function ofiTokens(s){ return ofiNormalizarTexto(s).split(" ").filter(t=>t.length>1&&!["de","del","la","las","los","y"].includes(t)); }
+function ofiLev(a,b){
+  const d=Array.from({length:a.length+1},(_,i)=>[i]); for(let j=1;j<=b.length;j++) d[0][j]=j;
+  for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+/* Busca en la nómina a quién corresponde un nombre escrito en el documento. Solo elige si hay una coincidencia clara. */
+function ofiCoincidir(nombre){
+  const tn=ofiTokens(nombre); if(!tn.length) return {id:null,puntaje:0,alternativas:[]};
+  const cand=ROSTER.map(m=>{
+    const tm=ofiTokens([m.nombre,m.apellidoPaterno,m.apellidoMaterno].filter(Boolean).join(" "));
+    let hit=0; tn.forEach(t=>{ if(tm.some(u=>u===t||(t.length>=5&&u.length>=5&&ofiLev(t,u)<=1))) hit++; });
+    return {id:m.id,puntaje:hit/tn.length};
+  }).sort((a,b)=>b.puntaje-a.puntaje);
+  const [a,b]=[cand[0],cand[1]];
+  const claro=a&&a.puntaje>=0.66&&(!b||a.puntaje-b.puntaje>=0.2);
+  return {id:claro?a.id:null,puntaje:a?a.puntaje:0,alternativas:cand.filter(c=>c.puntaje>=0.34).slice(0,3).map(c=>c.id)};
+}
+/* Pone en la tabla lo que se leyó. No toca los cargos que el documento no menciona. */
+function ofiAplicarPropuesta(pares,fuente){
+  const avisos=[]; let puestos=0;
+  const selects=[...document.querySelectorAll(".ofi-select")];
+  pares.forEach(p=>{
+    const cargo=ofiNormalizarCargo(p.cargo)||p.cargo;
+    const sel=selects.find(x=>ofiNormalizarTexto(x.dataset.cargo)===ofiNormalizarTexto(cargo));
+    if(!sel){ avisos.push(`El cargo «${p.cargo}» no está en la lista de cargos (puedes agregarlo abajo).`); return; }
+    const c=ofiCoincidir(p.nombre);
+    if(c.id){ sel.value=c.id; puestos++; }
+    else if(c.alternativas.length) avisos.push(`No estoy seguro de quién es «${p.nombre}» (${sel.dataset.cargo}). ¿${c.alternativas.map(ofiNombre).join(" o ")}? Elígelo en la tabla.`);
+    else avisos.push(`No encontré a «${p.nombre}» (${sel.dataset.cargo}) en la nómina. Elígelo en la tabla.`);
+  });
+  OFI_FUENTE=fuente||null;
+  ofiActualizarEstados();
+  ofiMostrarAvisos(avisos,`Se leyeron ${pares.length} cargo${pares.length===1?"":"s"} y se colocaron ${puestos}. Revisa la tabla y presiona «Guardar y aplicar».`);
+  return {puestos,avisos};
+}
+function ofiMostrarAvisos(avisos,intro){
+  const box=document.getElementById("ofiAvisos"); if(!box) return;
+  if(!avisos.length&&!intro){ box.innerHTML=""; return; }
+  box.innerHTML=`<div style="padding:10px 12px;margin:6px 0;background:#101216;border:1px solid #3a3d44;border-radius:7px;font-size:13.5px;">${intro?`<b>${esc(intro)}</b>`:""}${avisos.length?`<ul style="margin:6px 0 0 18px;padding:0;color:#ffb74d;">${avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:""}</div>`;
+}
+
+/* ---- Cargar el año ---- */
 async function loadOficialidadYear(){
   const input=document.getElementById("anioOficialidad");
-  const msg=document.getElementById("oficialidadMsg");
   const anio=String(input?.value||"").trim();
-  if(!/^\d{4}$/.test(anio)||Number(anio)<2023||Number(anio)>2100){
-    if(msg){msg.textContent="Indica un año válido entre 2023 y 2100.";msg.classList.add("err");}
-    return;
-  }
-  if(msg){msg.textContent="Cargando "+anio+"…";msg.classList.remove("err");}
+  if(!/^\d{4}$/.test(anio)||Number(anio)<2023||Number(anio)>2100){ ofiMsg("Indica un año válido entre 2023 y 2100.",true); return; }
+  ofiMsg("Cargando "+anio+"…");
+  const caja=document.getElementById("ofiClaveBox"); if(caja) caja.style.display=MODO_PRUEBA_ABIERTO?"none":"block";
   try{
-    const data=await sGet("oficialidad:"+anio,null);
+    const [data,meta,previo]=await Promise.all([sGet("oficialidad:"+anio,null),sGet("oficialidad-meta:"+anio,null),sGet("oficialidad:"+(Number(anio)-1),null)]);
+    OFI_SNAPSHOT=data; OFI_META=meta; OFI_ANTERIOR=previo||{}; OFI_FUENTE=null;
+    const hoy=todayISO();
+    document.getElementById("ofiVigencia").value=(meta&&meta.vigenteDesde)||(anio===hoy.slice(0,4)?hoy:anio+"-01-01");
     renderOficialidad(data||oficialidadDesdeNomina());
-    if(msg) msg.textContent=data?"Oficialidad guardada para "+anio+".":"No hay oficialidad guardada para "+anio+" — se rescataron automáticamente los cargos vigentes en la nómina. Revisa y guarda para dejarlo registrado.";
+    ofiMostrarAvisos([],"");
+    ofiPintarEstado();
+    ofiMsg(data?"":"Todavía no hay oficialidad guardada para "+anio+": se muestran los cargos vigentes en la nómina. Usa «Mantener», lee la ODD o elige a mano.");
   }catch(e){
     console.error("No se pudo cargar oficialidad",e);
-    renderOficialidad({});
-    if(msg){msg.textContent="No fue posible cargar la oficialidad de "+anio+".";msg.classList.add("err");}
+    OFI_SNAPSHOT=null; OFI_META=null; OFI_ANTERIOR={}; renderOficialidad({});
+    ofiMsg("No fue posible cargar la oficialidad de "+anio+".",true);
   }
 }
+function ofiPintarEstado(){
+  const box=document.getElementById("ofiEstado"); if(!box) return;
+  if(!OFI_SNAPSHOT){ box.style.display="none"; box.innerHTML=""; return; }
+  const m=OFI_META||{}, anio=document.getElementById("anioOficialidad").value;
+  const cuando=m.modificadoEn?new Date(m.modificadoEn).toLocaleString("es-CL",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+  const fuente=m.fuente&&m.fuente.tipo?({manual:"a mano",mantener:"se mantuvieron los del año anterior",foto:"foto",pdf:"PDF",texto:"texto pegado",csv:"planilla"})[m.fuente.tipo]||m.fuente.tipo:"";
+  box.style.cssText="display:block;padding:12px;margin:0 0 12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
+  box.innerHTML=`<b>✔ Oficialidad ${esc(anio)} guardada</b>${m.vigenteDesde?` · rige desde ${esc(fmtDateLong(m.vigenteDesde))}`:""}${m.version?` · versión ${m.version}`:""}${cuando?` · ${esc(cuando)}`:""}${fuente?` · origen: ${esc(fuente)}${m.fuente&&m.fuente.nombre?" («"+esc(m.fuente.nombre)+"»)":""}`:""}
+    <div style="margin-top:8px;"><button class="btn small secondary" id="ofiVersionesBtn" type="button">Versiones anteriores</button></div>`;
+  document.getElementById("ofiVersionesBtn").onclick=()=>mostrarVersiones({
+    titulo:"Versiones anteriores de la oficialidad "+anio, key:"oficialidad:"+anio,
+    resumen:v=>Object.entries(v||{}).map(([c,id])=>c+": "+ofiNombre(id)).join(" · ").slice(0,200),
+    alElegir:v=>{ renderOficialidad(v); OFI_FUENTE={tipo:"manual",nombre:"versión anterior"}; ofiMsg("Versión anterior cargada en pantalla. Revísala y presiona «Guardar y aplicar» para dejarla vigente."); }
+  });
+}
+
+/* ---- Tres caminos para llenar la tabla: mantener, leer un archivo o pegar texto ---- */
 on("anioOficialidad","change",loadOficialidadYear);
+on("ofiMantenerBtn","click",()=>{
+  const anio=document.getElementById("anioOficialidad").value;
+  if(!Object.keys(OFI_ANTERIOR).length){ ofiMsg("No hay oficialidad guardada para "+(Number(anio)-1)+". Elige a mano o lee la ODD.",true); return; }
+  const avisos=[]; let n=0;
+  document.querySelectorAll(".ofi-select").forEach(sel=>{
+    const id=OFI_ANTERIOR[sel.dataset.cargo]; if(!id) return;
+    const m=ROSTER.find(p=>String(p.id)===String(id));
+    if(m&&m.activo!==false){ sel.value=id; n++; } else avisos.push(`${sel.dataset.cargo}: «${ofiNombre(id)}» ya no está activo; elige quién lo reemplaza.`);
+  });
+  OFI_FUENTE={tipo:"mantener",nombre:String(Number(anio)-1)};
+  ofiActualizarEstados();
+  ofiMostrarAvisos(avisos,`Se mantuvieron ${n} cargos del año anterior. Cambia solo los que correspondan y presiona «Guardar y aplicar».`);
+});
+on("ofiPegarBtn","click",()=>{ const b=document.getElementById("ofiPegarBox"); b.style.display=b.style.display==="none"?"block":"none"; });
+on("ofiAnalizarBtn","click",()=>{
+  const t=document.getElementById("ofiTexto").value;
+  const pares=(/;|\t/.test(t)&&t.split(/\r?\n/).filter(l=>/[;\t]/.test(l)).length>=2)?ofiParseCSV(t):ofiParseTexto(t);
+  if(!pares.length){ ofiMostrarAvisos(["No reconocí ningún cargo en el texto. Prueba con una línea por cargo, por ejemplo: Capitán; Nombre Apellido."],""); return; }
+  const anio=ofiDetectarAnio(t); if(anio&&!document.getElementById("anioOficialidad").value) document.getElementById("anioOficialidad").value=anio;
+  ofiAplicarPropuesta(pares,{tipo:/;|\t/.test(t)?"csv":"texto",nombre:""});
+});
+on("ofiLeerBtn","click",()=>document.getElementById("ofiArchivo").click());
+on("ofiArchivo","change",e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) ofiProcesarArchivo(f); });
+
+/* Foto o PDF: se reduce la imagen y se consulta la lectura (solo con la clave de Oficialidad). */
+async function ofiReducirDocumento(file){
+  const lado=1600;
+  let bmp=null;
+  if(typeof createImageBitmap==="function"){ try{ bmp=await createImageBitmap(file,{imageOrientation:"from-image"}); }catch(e){ bmp=null; } }
+  let fuente=bmp, url=null;
+  if(!fuente){ url=URL.createObjectURL(file); fuente=await cargarImagenParaFoto(url); }
+  try{
+    const w=fuente.width||fuente.naturalWidth, h=fuente.height||fuente.naturalHeight; if(!w||!h) throw new Error("No se pudo leer la imagen.");
+    const k=Math.min(1,lado/Math.max(w,h));
+    const c=document.createElement("canvas"); c.width=Math.round(w*k); c.height=Math.round(h*k);
+    const ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(fuente,0,0,c.width,c.height);
+    return c.toDataURL("image/jpeg",0.85);
+  } finally { if(bmp&&bmp.close) bmp.close(); if(url) URL.revokeObjectURL(url); }
+}
+function ofiLeerComoDataUrl(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error("No se pudo leer el archivo.")); r.readAsDataURL(file); }); }
+async function ofiProcesarArchivo(file){
+  OFI_ULTIMO_ARCHIVO=file;
+  const nombre=file.name||"archivo", tipo=file.type||"";
+  ofiMostrarAvisos([],"Leyendo «"+nombre+"»…");
+  try{
+    if(/^text\//.test(tipo)||/\.(csv|txt)$/i.test(nombre)){
+      const t=await file.text(), esCsv=/\.csv$/i.test(nombre)||(/;|\t/.test(t)&&t.split(/\r?\n/).filter(l=>/[;\t]/.test(l)).length>=2);
+      const pares=esCsv?ofiParseCSV(t):ofiParseTexto(t);
+      if(!pares.length){ ofiMostrarAvisos(["No reconocí cargos en «"+nombre+"»."],""); return; }
+      ofiAplicarPropuesta(pares,{tipo:esCsv?"csv":"texto",nombre}); return;
+    }
+    let dataUrl;
+    if(/^image\//.test(tipo)) dataUrl=await ofiReducirDocumento(file);
+    else if(tipo==="application/pdf"){ if(file.size>5*1024*1024){ ofiMostrarAvisos(["El PDF pesa más de 5 MB. Sácale una foto o pega su texto."],""); return; } dataUrl=await ofiLeerComoDataUrl(file); }
+    else { ofiMostrarAvisos(["Ese tipo de archivo no se puede leer. Usa una foto, un PDF, una planilla CSV o un texto."],""); return; }
+    const media=dataUrl.slice(5,dataUrl.indexOf(";")), datos=dataUrl.slice(dataUrl.indexOf(",")+1);
+    const r=await fetch("/api/oficialidad-lectura",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({media_type:media,data:datos})});
+    if(r.status===401){ ofiPedirClave(); return; }
+    if(r.status===501){ ofiMostrarAvisos(["La lectura automática de fotos y PDF todavía no está activada (falta la clave de IA en Vercel). Mientras tanto puedes pegar el texto de la ODD, cargar una planilla CSV, usar «Mantener todos» o elegir a mano."],""); return; }
+    if(r.status===422){ ofiMostrarAvisos(["No encontré cargos de oficialidad en ese documento. Prueba con una foto más nítida o pega el texto."],""); return; }
+    if(!r.ok){ ofiMostrarAvisos(["No se pudo leer el documento ("+r.status+"). Inténtalo de nuevo o usa otra vía."],""); return; }
+    const j=await r.json();
+    if(j.anio&&!document.getElementById("anioOficialidad").value) document.getElementById("anioOficialidad").value=j.anio;
+    if(j.fecha) document.getElementById("ofiVigencia").value=j.fecha;
+    ofiAplicarPropuesta(j.cargos||[],{tipo:media==="application/pdf"?"pdf":"foto",nombre,mime:media,dataUrl:dataUrl.length<=1200000?dataUrl:""});
+  }catch(e){ ofiMostrarAvisos(["No se pudo procesar el archivo: "+((e&&e.message)||e)],""); }
+}
+/* La lectura necesita la sesión de Oficialidad que entrega el servidor. A diferencia de autenticarOficialidad(),
+   aquí SIEMPRE se consulta al servidor (aunque la app esté en modo prueba), porque es lo que deja la cookie de sesión. */
+async function ofiAutenticarServidor(pin){
+  try{
+    const r=await fetch("/api/auth/officiality",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin})});
+    if(r.ok) return {ok:true};
+    if(r.status===503) return {ok:false,motivo:"no_configurado"};
+    if(r.status===429) return {ok:false,motivo:"demasiados_intentos"};
+    return {ok:false,motivo:"clave_incorrecta"};
+  }catch(e){ return {ok:false,motivo:"conexion"}; }
+}
+/* La lectura exige la clave de Oficialidad: se pide aquí y se reintenta sola. */
+function ofiPedirClave(){
+  const box=document.getElementById("ofiAvisos");
+  box.innerHTML=`<div style="padding:10px 12px;margin:6px 0;background:#101216;border:1px solid #3a3d44;border-radius:7px;font-size:13.5px;">
+    <b>Para leer documentos escribe la clave de Oficialidad.</b>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;"><input type="password" id="ofiClaveLectura" placeholder="Clave de Oficialidad" style="padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;min-width:200px;"><button class="btn small" id="ofiClaveLecturaBtn" type="button">Entrar y leer</button></div>
+    <div id="ofiClaveLecturaMsg" style="margin-top:6px;color:#ff8a80;"></div></div>`;
+  document.getElementById("ofiClaveLecturaBtn").onclick=async()=>{
+    const res=await ofiAutenticarServidor(document.getElementById("ofiClaveLectura").value.trim());
+    if(!res.ok){ document.getElementById("ofiClaveLecturaMsg").textContent=res.motivo==="demasiados_intentos"?"Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.":mensajeOficialidad(res.motivo); return; }
+    if(OFI_ULTIMO_ARCHIVO) ofiProcesarArchivo(OFI_ULTIMO_ARCHIVO);
+  };
+}
+
+/* ---- Guardar y aplicar: cargos del año, vigencia, origen y nómina en UNA sola operación ---- */
 on("agregarCargoBtn","click",async()=>{
   const inp=document.getElementById("nuevoCargoInput"), v=inp.value.trim();
   if(!v||CARGOS.includes(v)) return;
   CARGOS.push(v); await saveCargos(); inp.value="";
   renderCargoOptions(); loadOficialidadYear();
 });
-on("guardarOficialidadBtn","click",async()=>{
-  const anio=document.getElementById("anioOficialidad").value;
-  const msg=document.getElementById("oficialidadMsg");
-  if(!anio){ msg.textContent="Indica el año."; msg.classList.add("err"); return; }
+async function ofiAplicar(){
+  const anio=String(document.getElementById("anioOficialidad").value||"").trim();
+  if(!/^\d{4}$/.test(anio)){ ofiMsg("Indica el año.",true); return; }
+  const vig=document.getElementById("ofiVigencia").value||(anio+"-01-01");
   const asign={};
   document.querySelectorAll(".ofi-select").forEach(sel=>{ if(sel.value) asign[sel.dataset.cargo]=sel.value; });
-  await sSet("oficialidad:"+anio,asign);
-  // aplicar a la nómina: limpiar cargos de oficialidad previos y asignar los nuevos
-  const asignados=new Set(Object.values(asign));
-  ROSTER.forEach(m=>{
-    if(cargoPriority(m.cargo)!==99 && !asignados.has(m.id)){
-      m.cargo = (m.categoria==="Aspirante") ? "Aspirante" : "Voluntario";
+  if(!Object.keys(asign).length){ ofiMsg("Asigna al menos un cargo.",true); return; }
+  const c=ofiContarEstados();
+  if(!confirm(`Se guardará la oficialidad ${anio}, vigente desde ${fmtDateLong(vig)}.\n\n${c.texto}\n\nLa nómina se actualizará con estos cargos. ¿Confirmas?`)) return;
+  if(!MODO_PRUEBA_ABIERTO){
+    const res=await autenticarOficialidad(((document.getElementById("ofiClave")||{}).value||"").trim());
+    if(!res.ok){ ofiMsg(mensajeOficialidad(res.motivo),true); return; }
+  }
+  const btn=document.getElementById("guardarOficialidadBtn"); btn.disabled=true;
+  try{
+    const nuevo=JSON.parse(JSON.stringify(ROSTER)), asignados=new Set(Object.values(asign).map(String));
+    nuevo.forEach(m=>{ if(cargoPriority(m.cargo)!==99 && !asignados.has(String(m.id))) m.cargo=(m.categoria==="Aspirante")?"Aspirante":"Voluntario"; });
+    Object.entries(asign).forEach(([cargo,id])=>{
+      const m=nuevo.find(x=>String(x.id)===String(id)); if(!m) return;
+      m.cargo=cargo; if(!m.anotaciones) m.anotaciones=[];
+      const detalle=`Ejerció como ${cargo} durante ${anio} (desde ${fmtDateLong(vig)}). Código funcional del cargo: ${codigoOperativo(m,cargo)}. Código personal conservado: ${m.clave||"sin registrar"}.`;
+      if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)) m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:vig,institucion:"5ª Compañía Germania",detalle});
+    });
+    const ahora=new Date().toISOString(), quien=(document.getElementById("miVoluntario")||{}).value||"";
+    const meta={vigenteDesde:vig,registradoPorId:quien,fuente:{tipo:(OFI_FUENTE&&OFI_FUENTE.tipo)||"manual",nombre:(OFI_FUENTE&&OFI_FUENTE.nombre)||""},
+      resumen:{mantienen:c.mantienen,cambian:c.cambian,nuevos:c.nuevos,vacantes:c.vacantes},
+      creadoEn:(OFI_META&&OFI_META.creadoEn)||ahora,modificadoEn:ahora,version:((OFI_META&&OFI_META.version)||0)+1};
+    try{
+      await sSetMany([
+        {key:"oficialidad:"+anio,value:asign,expect:OFI_SNAPSHOT},
+        {key:"oficialidad-meta:"+anio,value:meta,expect:OFI_META},
+        {key:ROSTER_KEY,value:nuevo}
+      ]);
+    }catch(e){
+      if(e&&e.conflicto) throw new Error("Otra persona modificó la oficialidad de "+anio+" mientras la editabas. Vuelve a cargar el año para ver sus cambios; no se pisó nada.");
+      throw e;
     }
-  });
-  Object.entries(asign).forEach(([cargo,id])=>{
-    const m=ROSTER.find(x=>x.id===id); if(!m) return;
-    m.cargo=cargo;
-    if(!m.anotaciones) m.anotaciones=[];
-    const codigoFuncional=codigoOperativo(m,cargo);
-    const detalle=`Ejerció como ${cargo} durante ${anio}. Código funcional del cargo: ${codigoFuncional}. Código personal conservado: ${m.clave||"sin registrar"}.`;
-    if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
-      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",institucion:"5ª Compañía Germania",detalle});
+    ROSTER=nuevo; OFI_SNAPSHOT=asign; OFI_META=meta;
+    let respaldo="";
+    if(OFI_FUENTE&&OFI_FUENTE.dataUrl){
+      try{ await rawSet("oficialidad-fuente:"+anio,{tipo:OFI_FUENTE.tipo,nombre:OFI_FUENTE.nombre,mime:OFI_FUENTE.mime,dataUrl:OFI_FUENTE.dataUrl,guardadoEn:ahora}); respaldo=" El documento original quedó guardado."; }
+      catch(e){ respaldo=" Atención: no se pudo guardar el documento original."; }
     }
-  });
-  await saveRoster();
-  msg.classList.remove("err");
-  msg.textContent=`Oficialidad ${anio} guardada y aplicada a la nómina.`;
-  renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions(); renderMntTipoOptions(); renderBuscadorOpciones();
-});
+    ofiPintarEstado(); OFI_FUENTE=null;
+    ofiMsg(`✔ Oficialidad ${anio} guardada y aplicada a la nómina (vigente desde ${fmtDateLong(vig)}).${respaldo}`);
+    renderListaRows(); renderCfgRoster(); renderRegistradoPorOptions(); renderCursoMiembroSelect(); renderSvTipoOptions(); renderMntTipoOptions(); renderBuscadorOpciones();
+    ofiActualizarEstados();
+  }catch(e){
+    ofiMsg("No se guardó nada. "+((e&&e.message)||"Error desconocido")+" Lo que elegiste sigue en pantalla.",true);
+  }finally{ btn.disabled=false; }
+}
+on("guardarOficialidadBtn","click",ofiAplicar);
 
 /* ============ FICHA DE INGRESO ============ */
 on("registrarIngresoBtn","click",async()=>{

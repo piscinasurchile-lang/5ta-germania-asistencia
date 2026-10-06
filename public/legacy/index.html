@@ -808,18 +808,35 @@
       <div class="card">
         <h2>Oficialidad</h2>
         <p class="sub">Los cargos se eligen cada año. Asigna aquí quién ocupa cada cargo y el año queda registrado; al guardar, la nómina se actualiza.</p>
+        <div id="ofiEstado"></div>
         <div class="field-row">
           <div class="field" style="flex:0 0 140px;"><label for="anioOficialidad">Año</label><input type="number" id="anioOficialidad" min="2023" max="2100"></div>
+          <div class="field" style="flex:0 0 190px;"><label for="ofiVigencia">Rige desde (fecha de la ODD)</label><input type="date" id="ofiVigencia"></div>
         </div>
+        <div class="gn-actions" style="margin:4px 0 10px;">
+          <button class="btn secondary" id="ofiMantenerBtn" type="button">Mantener todos los del año anterior</button>
+          <button class="btn secondary" id="ofiLeerBtn" type="button">Leer desde foto o archivo</button>
+          <button class="btn secondary" id="ofiPegarBtn" type="button">Pegar texto de la ODD</button>
+          <input type="file" id="ofiArchivo" accept="image/*,application/pdf,.csv,.txt,text/plain,text/csv" style="display:none">
+        </div>
+        <div id="ofiPegarBox" style="display:none;margin-bottom:10px;">
+          <textarea id="ofiTexto" rows="6" style="width:100%;box-sizing:border-box;" placeholder="Pega aquí el texto de la ODD de cargos, o filas «Cargo;Nombre»"></textarea>
+          <div style="margin-top:6px;"><button class="btn small" id="ofiAnalizarBtn" type="button">Analizar texto</button></div>
+        </div>
+        <div id="ofiClaveBox" style="display:none;margin-bottom:10px;">
+          <input type="password" id="ofiClave" placeholder="Clave de Oficialidad" style="padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;min-width:200px;">
+        </div>
+        <div id="ofiAvisos"></div>
+        <div class="foot-note" id="ofiResumen" style="margin:8px 0;"></div>
         <table>
-          <thead><tr><th style="width:44%">Cargo</th><th>Integrante</th><th></th></tr></thead>
+          <thead><tr><th style="width:26%">Cargo</th><th style="width:24%">Año anterior</th><th>Integrante</th><th style="width:15%">Estado</th><th></th></tr></thead>
           <tbody id="oficialidadBody"></tbody>
         </table>
         <div class="field-row" style="margin-top:14px;margin-bottom:0;">
           <div class="field" style="flex:1 1 220px;"><input type="text" id="nuevoCargoInput" placeholder="Agregar cargo, ej: Teniente 3"></div>
           <div class="field" style="flex:0 0 auto;"><button class="btn secondary" id="agregarCargoBtn">Agregar cargo</button></div>
         </div>
-        <div style="margin-top:14px;"><button class="btn" id="guardarOficialidadBtn">Guardar oficialidad del año</button></div>
+        <div style="margin-top:14px;"><button class="btn" id="guardarOficialidadBtn">Guardar y aplicar a la nómina</button></div>
         <div class="status-msg" id="oficialidadMsg"></div>
       </div>
     </div>
