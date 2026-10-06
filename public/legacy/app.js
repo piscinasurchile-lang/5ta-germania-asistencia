@@ -4223,6 +4223,252 @@ async function marcarMiEstado(estado,boton){
     botones.forEach(b=>{b.disabled=false;b.classList.remove("operating");});
   }
 }
+/* ============ ODD PARA LOS VOLUNTARIOS ============
+   El Ayudante (o Secretario o Capitán) informa una ODD con unos pocos datos; los voluntarios la ven como una tarjeta corta
+   (qué es y cuándo). Al tocarla se abre el detalle, con «Agregar a mi calendario» y el PDF si lo hay. Desaparece sola a la
+   hora de la citación; el registro (y el PDF) quedan guardados como archivo. Sin servicios externos y sin costo: se lee
+   un registro pequeño por minuto y el PDF solo se descarga si alguien lo toca. */
+const AVISOS_ODD_KEY="odd-avisos:v1";
+const AVISO_TOAST_MS=10000;
+const AVISO_TIPOS={citacion:"Citación",academia:"Academia",curso:"Curso",taller:"Taller",ejercicio:"Ejercicio",disposicion:"Disposición",otro:"Otro"};
+const AVISO_CARGOS=["Ayudante","Secretario","Capitán"];
+const AVISO_PDF_MAX=1536*1024;
+let AVISOS_ODD=null, AVISOS_ODD_HASTA=0, AVISO_TOASTEADOS=new Set(), AVISOS_VER_TODAS=false;
+const avisoN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function avisoCargoHabilitado(cargo){ const c=avisoN(cargo); return AVISO_CARGOS.some(x=>avisoN(x)===c); }
+
+/* Hora de Chile -> instante absoluto (considera el horario de verano). */
+function instanteChile(fecha,hora){
+  const [y,m,d]=String(fecha).split("-").map(Number), [hh,mm]=String(hora||"00:00").split(":").map(Number);
+  const suponer=Date.UTC(y,m-1,d,hh,mm);
+  const desfase=ms=>{ const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(ms)).reduce((o,x)=>{o[x.type]=x.value;return o;},{}); return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-ms; };
+  let t=suponer-desfase(suponer); t=suponer-desfase(t); return t;
+}
+async function cargarAvisosOdd(forzar){
+  if(!forzar&&AVISOS_ODD&&Date.now()<AVISOS_ODD_HASTA) return AVISOS_ODD;
+  try{ const v=await sGet(AVISOS_ODD_KEY,[]); AVISOS_ODD=Array.isArray(v)?v:[]; AVISOS_ODD_HASTA=Date.now()+60000; }
+  catch(e){ AVISOS_ODD=AVISOS_ODD||[]; }
+  return AVISOS_ODD;
+}
+function avisoVigente(a,ahora){
+  ahora=ahora||Date.now();
+  if(!a||a.anulada||!Array.isArray(a.destinatarios)||!a.destinatarios.includes("voluntarios")) return false;
+  const desde=a.visibleDesde?Date.parse(a.visibleDesde):0, hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity;
+  if(Number.isNaN(desde)||Number.isNaN(hasta)) return false;
+  return ahora>=desde&&ahora<hasta;
+}
+function avisoRestante(hasta,ahora){
+  const ms=hasta-ahora; if(!isFinite(ms)) return "";
+  const min=Math.floor(ms/60000);
+  if(min<1) return "menos de 1 minuto";
+  if(min<60) return min+" min";
+  const hh=Math.floor(min/60), mm=min%60;
+  if(hh<48) return hh+" h"+(mm?" "+mm+" min":"");
+  return Math.floor(hh/24)+" días";
+}
+function avisoVisto(id){ try{ return JSON.parse(localStorage.getItem("germania:odd-vistas")||"[]").includes(id); }catch(e){ return false; } }
+function marcarAvisoVisto(id){ try{ const v=JSON.parse(localStorage.getItem("germania:odd-vistas")||"[]"); if(!v.includes(id)){ v.push(id); localStorage.setItem("germania:odd-vistas",JSON.stringify(v.slice(-100))); } }catch(e){} }
+const avisoFechaCorta=a=>{ const c=a.cuando; if(!c||!c.fecha) return ""; const f=new Date(c.fecha+"T12:00").toLocaleDateString("es-CL",{weekday:"short",day:"numeric",month:"short"}).replace(".",""); return f+(c.hora?" · "+c.hora:""); };
+
+/* ---- Lo que ven los voluntarios ---- */
+async function renderAvisosOdd(forzar){
+  const box=document.getElementById("avisosOdd"); if(!box) return;
+  const ahora=Date.now();
+  const lista=(await cargarAvisosOdd(forzar)).filter(a=>avisoVigente(a,ahora)).sort((x,y)=>String(x.visibleHasta||"~").localeCompare(String(y.visibleHasta||"~")));
+  if(!lista.length){ if(box.innerHTML) box.innerHTML=""; return; }
+  if(lista.length<=2) AVISOS_VER_TODAS=false;
+  const visibles=AVISOS_VER_TODAS?lista:lista.slice(0,2), resto=lista.length-visibles.length;
+  const html=visibles.map(a=>{
+    const hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity, nueva=!avisoVisto(a.id);
+    const linea=[avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",(isFinite(hasta)&&a.cuando)?"faltan "+avisoRestante(hasta,ahora):""].filter(Boolean).join(" · ")||"Toca para ver el detalle";
+    return `<button type="button" class="card" data-aviso-odd="${esc(a.id||"")}" style="display:block;width:100%;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:8px;padding:8px 12px;color:inherit;">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+        <span style="display:flex;gap:6px;align-items:center;min-width:0;"><span class="badge">${esc(AVISO_TIPOS[a.tipo]||"ODD")}</span>${nueva?'<span class="badge" style="background:#c9a227;color:#000;">Nueva</span>':""}<b style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.titulo||"")}</b></span>
+        <small style="color:var(--muted);white-space:nowrap;">ODD ${esc(a.numero||"")}</small></div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">${esc(linea)}</div>
+    </button>`;
+  }).join("")+(resto>0?`<button type="button" class="btn small secondary" data-odd-mas style="margin:0 0 10px;">+${resto} ODD vigente${resto===1?"":"s"} · ver</button>`:"");
+  if(box.innerHTML!==html){
+    box.innerHTML=html;
+    box.querySelectorAll("[data-aviso-odd]").forEach(b=>b.addEventListener("click",()=>abrirDetalleOdd(b.dataset.avisoOdd)));
+    const mas=box.querySelector("[data-odd-mas]"); if(mas) mas.addEventListener("click",()=>{ AVISOS_VER_TODAS=true; renderAvisosOdd(false).catch(()=>{}); });
+  }
+  /* Aviso de 10 segundos para la primera ODD nueva que aún no se ha visto en este equipo */
+  const nuevo=lista.find(a=>!avisoVisto(a.id)&&!AVISO_TOASTEADOS.has(a.id));
+  if(nuevo) mostrarToastOdd(nuevo);
+}
+function mostrarToastOdd(a){
+  AVISO_TOASTEADOS.add(a.id);
+  const anterior=document.getElementById("oddToast"); if(anterior) anterior.remove();
+  const t=document.createElement("button"); t.type="button"; t.id="oddToast";
+  t.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100001;max-width:92vw;background:#c9a227;color:#000;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;";
+  t.textContent="Nueva ODD "+(a.numero||"")+" · "+(a.titulo||"")+" · toca para ver";
+  t.onclick=()=>{ t.remove(); abrirDetalleOdd(a.id); };
+  document.body.appendChild(t);
+  setTimeout(()=>{ if(t.parentNode) t.remove(); },AVISO_TOAST_MS);
+}
+function cerrarModalOdd(){ const m=document.getElementById("oddModal"); if(m) m.remove(); }
+function modalOdd(html){
+  cerrarModalOdd();
+  const f=document.createElement("div"); f.id="oddModal";
+  f.style.cssText="position:fixed;inset:0;background:#000b;z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto;";
+  const c=document.createElement("div");
+  c.style.cssText="background:#15171c;border:1px solid #3a3d44;border-radius:12px;max-width:560px;width:100%;padding:16px;color:#fff;margin:auto;";
+  c.innerHTML=html; f.appendChild(c); document.body.appendChild(f);
+  f.addEventListener("click",e=>{ if(e.target===f) cerrarModalOdd(); });
+  return c;
+}
+async function abrirDetalleOdd(id){
+  const a=(await cargarAvisosOdd(false)).find(x=>x.id===id); if(!a) return;
+  marcarAvisoVisto(id);
+  const aviso=document.getElementById("oddToast"); if(aviso) aviso.remove();
+  const fila=(k,v)=>v?`<div style="display:flex;gap:10px;margin:6px 0;"><span style="flex:0 0 96px;color:#9aa0a8;">${k}</span><b>${esc(v)}</b></div>`:"";
+  const cuando=a.cuando&&a.cuando.fecha?new Date(a.cuando.fecha+"T12:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"})+(a.cuando.hora?" a las "+a.cuando.hora+" hrs.":""):"";
+  const c=modalOdd(`
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><span class="badge">${esc(AVISO_TIPOS[a.tipo]||"ODD")}</span><small style="color:#9aa0a8;">Orden del Día ${esc(a.numero||"")}</small></div>
+    <h2 style="margin:8px 0 10px;">${esc(a.titulo||"")}</h2>
+    ${cuando?`<p style="margin:0 0 10px;font-size:16px;">${esc(cuando)}</p>`:""}
+    ${fila("Lugar:",a.lugar)}${fila("Tema:",a.tema)}${fila("Vestimenta:",a.vestimenta)}${fila("Importante:",a.nota)}
+    ${a.puntualidad?'<p style="margin:12px 0 0;"><b><u>Se exige PUNTUALIDAD</u></b></p>':""}
+    ${a.excusas?`<p style="margin:6px 0 0;color:#9aa0a8;">Excusas al correo ${esc(a.excusas)}</p>`:""}
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+      ${a.cuando&&a.cuando.fecha?'<button type="button" class="btn small" id="oddCalBtn">Agregar a mi calendario</button>':""}
+      ${a.pdf?'<button type="button" class="btn small secondary" id="oddPdfBtn">Ver ODD completa (PDF)</button>':""}
+      <button type="button" class="btn small secondary" id="oddCerrarBtn">Cerrar</button></div>`);
+  c.querySelector("#oddCerrarBtn").onclick=cerrarModalOdd;
+  const cal=c.querySelector("#oddCalBtn"); if(cal) cal.onclick=()=>descargarIcs(a);
+  const pdf=c.querySelector("#oddPdfBtn"); if(pdf) pdf.onclick=()=>abrirPdfAviso(a.pdf);
+  renderAvisosOdd(false).catch(()=>{});
+}
+async function abrirPdfAviso(clave){
+  try{
+    const d=await sGet(clave,null);
+    if(!d||!d.dataUrl){ alert("El documento no está disponible."); return; }
+    const blob=await (await fetch(d.dataUrl)).blob();
+    const url=URL.createObjectURL(blob);
+    const w=window.open(url,"_blank");
+    if(!w){ const a=document.createElement("a"); a.href=url; a.target="_blank"; a.rel="noopener"; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){ alert("No fue posible abrir el documento."); }
+}
+
+/* ---- Agregar al calendario (archivo .ics, hora de Chile, recordatorios 2 h y 30 min antes) ---- */
+const icsEscapar=t=>String(t||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+const icsFecha=ms=>new Date(ms).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+function construirIcs(a){
+  const ini=instanteChile(a.cuando.fecha,a.cuando.hora||"00:00"), fin=ini+(a.duracionMin||120)*60000;
+  const desc=[`Orden del Día ${a.numero||""}`,a.tema?"Tema: "+a.tema:"",a.vestimenta?"Vestimenta: "+a.vestimenta:"",a.puntualidad?"Se exige PUNTUALIDAD":"",a.excusas?"Excusas al correo "+a.excusas:""].filter(Boolean).join("\n");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Quinta Compania Germania//ODD//ES","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
+    "UID:odd-"+String(a.id||"").replace(/[^\w-]/g,"")+"@germania","DTSTAMP:"+icsFecha(Date.now()),"DTSTART:"+icsFecha(ini),"DTEND:"+icsFecha(fin),
+    "SUMMARY:"+icsEscapar(a.titulo||"Orden del Día"),a.lugar?"LOCATION:"+icsEscapar(a.lugar):"","DESCRIPTION:"+icsEscapar(desc),
+    "BEGIN:VALARM","TRIGGER:-PT2H","ACTION:DISPLAY","DESCRIPTION:"+icsEscapar(a.titulo||"Orden del Día"),"END:VALARM",
+    "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY","DESCRIPTION:"+icsEscapar(a.titulo||"Orden del Día"),"END:VALARM","END:VEVENT","END:VCALENDAR"].filter(Boolean).join("\r\n")+"\r\n";
+}
+function descargarIcs(a){
+  const blob=new Blob([construirIcs(a)],{type:"text/calendar;charset=utf-8"});
+  const url=URL.createObjectURL(blob), l=document.createElement("a");
+  l.href=url; l.download="ODD-"+String(a.numero||"").replace(/[^\w]+/g,"-")+".ics";
+  document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+
+/* ---- «Ayudante informa ODD» ---- */
+function infoAvisoQuienSoy(){ const id=(document.getElementById("miVoluntario")||{}).value; return ROSTER.find(p=>String(p.id)===String(id))||null; }
+async function abrirFormularioAviso(editarId){
+  const yo=infoAvisoQuienSoy();
+  if(!yo||!avisoCargoHabilitado(yo.cargo)){
+    const titulares=ROSTER.filter(p=>p.activo!==false&&avisoCargoHabilitado(p.cargo)).map(p=>`${p.cargo}: ${nombreCompleto(p)}`);
+    modalOdd(`<h2 style="margin:0 0 8px;">Ayudante informa ODD</h2><p>Solo el Ayudante, el Secretario o el Capitán pueden informar una ODD. ${yo?`Hoy tu cargo es «${esc(yo.cargo||"Voluntario")}».`:"Selecciona tu nombre en «Voluntario que está usando este dispositivo» (pantalla principal)."}</p>${titulares.length?`<p style="color:#9aa0a8;font-size:13px;">Titulares actuales: ${esc(titulares.join(" · "))}</p>`:""}<div style="margin-top:12px;"><button type="button" class="btn small secondary" id="oddCerrarBtn">Cerrar</button></div>`).querySelector("#oddCerrarBtn").onclick=cerrarModalOdd;
+    return;
+  }
+  const lista=await cargarAvisosOdd(true);
+  const ed=editarId?lista.find(x=>x.id===editarId):null;
+  const anio=String(new Date().getFullYear()), nums=lista.filter(x=>String(x.numero||"").endsWith("/"+anio)).map(x=>parseInt(x.numero,10)).filter(Number.isFinite);
+  const sugerido=nums.length?String(Math.max(...nums)+1).padStart(3,"0")+"/"+anio:"";
+  const v=(k,def)=>esc(ed&&ed[k]!==undefined?ed[k]:(def||""));
+  const cu=ed&&ed.cuando?ed.cuando:{};
+  const campo=(id,etq,html)=>`<div style="margin:8px 0;"><label for="${id}" style="display:block;font-size:13px;color:#c9ccd1;margin-bottom:3px;">${etq}</label>${html}</div>`;
+  const inp=(id,val,extra)=>`<input id="${id}" value="${val}" ${extra||""} style="width:100%;box-sizing:border-box;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">`;
+  const recientes=lista.slice().sort((x,y)=>String(y.publicadaEn||"").localeCompare(String(x.publicadaEn||""))).slice(0,8);
+  const c=modalOdd(`
+    <h2 style="margin:0 0 4px;">Ayudante informa ODD</h2>
+    <p style="margin:0 0 8px;color:#9aa0a8;font-size:13px;">Lo básico para que los voluntarios la vean en su pantalla. ${ed?"Estás editando la ODD "+esc(ed.numero)+".":""}</p>
+    ${campo("avTipo","Tipo",`<select id="avTipo" style="width:100%;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">${Object.entries(AVISO_TIPOS).map(([k,t])=>`<option value="${k}"${(ed?ed.tipo:"citacion")===k?" selected":""}>${t}</option>`).join("")}</select>`)}
+    ${campo("avNumero","N.º de la ODD (ej. 063/"+anio+")",inp("avNumero",v("numero",sugerido),'placeholder="063/'+anio+'" inputmode="numeric"'))}
+    ${campo("avTitulo","Título corto (qué es)",inp("avTitulo",v("titulo"),'placeholder="Academia de Extricación I"'))}
+    <div style="display:flex;gap:8px;">${campo("avFecha","Fecha de la actividad",inp("avFecha",esc(cu.fecha||""),'type="date"'))}${campo("avHora","Hora",inp("avHora",esc(cu.hora||""),'type="time"'))}</div>
+    ${campo("avLugar","Lugar",inp("avLugar",v("lugar"),'placeholder="Cuartel General, Valentín Letelier #630"'))}
+    ${campo("avTema","Tema (opcional)",inp("avTema",v("tema")))}
+    ${campo("avVestimenta","Vestimenta (opcional)",inp("avVestimenta",v("vestimenta"),'placeholder="Uniforme de trabajo"'))}
+    ${campo("avHasta","Mostrar hasta (solo si no tiene fecha de actividad)",inp("avHasta",esc(ed&&!cu.fecha&&ed.visibleHasta?ed.visibleHasta.slice(0,10):""),'type="date"'))}
+    ${campo("avExcusas","Excusas al correo",inp("avExcusas",v("excusas","germaniacbv@gmail.com")))}
+    <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="avPuntual"${ed?(ed.puntualidad?" checked":""):" checked"}> Se exige puntualidad</label>
+    ${campo("avPdf","PDF de la ODD (opcional, máx. 1,5 MB)",'<input type="file" id="avPdf" accept="application/pdf">')}
+    ${MODO_PRUEBA_ABIERTO?"":campo("avClave","Clave de Oficialidad",'<input type="password" id="avClave" style="width:100%;box-sizing:border-box;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">')}
+    <div id="avMsg" style="min-height:20px;margin:8px 0;font-size:13.5px;color:#ff8a80;"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn" id="avPublicar">${ed?"Guardar cambios":"Publicar a los voluntarios"}</button><button type="button" class="btn secondary" id="avCancelar">Cancelar</button></div>
+    ${recientes.length?`<h3 style="margin:18px 0 6px;">Publicadas</h3>${recientes.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid #3a3d44;padding:8px 0;"><span style="font-size:13.5px;">${esc(x.numero||"")} · ${esc(x.titulo||"")}${x.anulada?' <small style="color:#ffb74d;">(retirada)</small>':""}</span><span style="display:flex;gap:6px;"><button type="button" class="btn small secondary" data-av-editar="${esc(x.id)}">Editar</button>${x.anulada?"":`<button type="button" class="btn small secondary" data-av-retirar="${esc(x.id)}">Retirar</button>`}</span></div>`).join("")}`:""}`);
+  c.querySelector("#avCancelar").onclick=cerrarModalOdd;
+  c.querySelectorAll("[data-av-editar]").forEach(b=>b.onclick=()=>abrirFormularioAviso(b.dataset.avEditar));
+  c.querySelectorAll("[data-av-retirar]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("¿Retirar esta ODD de la pantalla de los voluntarios? Queda guardada en el archivo.")) return;
+    try{ await retirarAvisoOdd(b.dataset.avRetirar); abrirFormularioAviso(); }catch(e){ c.querySelector("#avMsg").textContent="No se pudo retirar: "+((e&&e.message)||e); }
+  });
+  c.querySelector("#avPublicar").onclick=async()=>{
+    const msg=c.querySelector("#avMsg"), btn=c.querySelector("#avPublicar"); msg.style.color="#ff8a80"; msg.textContent="";
+    btn.disabled=true;
+    try{
+      await publicarAvisoOdd({editarId:ed?ed.id:null,tipo:c.querySelector("#avTipo").value,numero:c.querySelector("#avNumero").value.trim(),titulo:c.querySelector("#avTitulo").value.trim(),
+        fecha:c.querySelector("#avFecha").value,hora:c.querySelector("#avHora").value,lugar:c.querySelector("#avLugar").value.trim(),tema:c.querySelector("#avTema").value.trim(),
+        vestimenta:c.querySelector("#avVestimenta").value.trim(),hasta:c.querySelector("#avHasta").value,excusas:c.querySelector("#avExcusas").value.trim(),
+        puntualidad:c.querySelector("#avPuntual").checked,archivo:(c.querySelector("#avPdf").files||[])[0]||null,clave:(c.querySelector("#avClave")||{}).value||""});
+      cerrarModalOdd();
+      alert("ODD informada. Los voluntarios ya la ven en su pantalla.");
+    }catch(e){ msg.textContent=(e&&e.message)||"No se pudo publicar."; btn.disabled=false; }
+  };
+}
+async function publicarAvisoOdd(f){
+  const num=String(f.numero||"");
+  if(!/^\d{1,3}\/\d{4}$/.test(num)) throw new Error("Escribe el número de la ODD con este formato: 063/2026.");
+  if(!f.titulo) throw new Error("Escribe el título corto: qué es la ODD.");
+  if(f.fecha&&!/^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) throw new Error("La fecha de la actividad no es válida.");
+  if(f.hora&&!f.fecha) throw new Error("Indica también la fecha de la actividad.");
+  if(!f.fecha&&!f.hasta) throw new Error("Indica la fecha de la actividad, o hasta qué día se muestra la ODD.");
+  const yo=infoAvisoQuienSoy(); if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden informar una ODD.");
+  if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(f.clave||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
+  const [anioODD,nroODD]=[num.split("/")[1],num.split("/")[0].padStart(3,"0")];
+  const id=f.editarId||("odd-"+anioODD+"-"+nroODD);
+  const ahora=new Date().toISOString();
+  const visibleHasta=f.fecha?new Date(instanteChile(f.fecha,f.hora||"23:59")).toISOString():new Date(instanteChile(f.hasta,"23:59")).toISOString();
+  let pdfClave=null;
+  if(f.archivo){
+    if(f.archivo.type!=="application/pdf") throw new Error("El archivo debe ser un PDF.");
+    if(f.archivo.size>AVISO_PDF_MAX) throw new Error("El PDF pesa más de 1,5 MB. Publica la ODD sin PDF o reduce el archivo.");
+    const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error("No se pudo leer el PDF.")); r.readAsDataURL(f.archivo); });
+    pdfClave="odd-pdf:"+id.replace(/^odd-/,"");
+    if(!(await sSet(pdfClave,{mime:"application/pdf",nombre:f.archivo.name,dataUrl,guardadoEn:ahora}))) throw new Error("No se pudo guardar el PDF.");
+  }
+  const lista=(await cargarAvisosOdd(true)).map(x=>Object.assign({},x));
+  const previo=lista.find(x=>x.id===id), idx=lista.findIndex(x=>x.id===id);
+  const reg=Object.assign({},previo||{},{id,numero:num,tipo:f.tipo,titulo:f.titulo,destinatarios:["voluntarios"],
+    cuando:f.fecha?{fecha:f.fecha,hora:f.hora||""}:null,lugar:f.lugar,tema:f.tema,vestimenta:f.vestimenta,excusas:f.excusas,puntualidad:!!f.puntualidad,
+    visibleDesde:(previo&&previo.visibleDesde)||ahora,visibleHasta,informadaPor:yo.id,publicadaEn:(previo&&previo.publicadaEn)||ahora,
+    modificadaEn:previo?ahora:undefined,version:((previo&&previo.version)||0)+1,anulada:false});
+  if(pdfClave) reg.pdf=pdfClave;
+  if(idx>=0) lista[idx]=reg; else lista.push(reg);
+  if(!(await sSet(AVISOS_ODD_KEY,lista))) throw new Error("No se pudo guardar la ODD. Inténtalo de nuevo.");
+  AVISOS_ODD=lista; AVISOS_ODD_HASTA=Date.now()+60000;
+  await renderAvisosOdd(true);
+}
+async function retirarAvisoOdd(id){
+  const lista=(await cargarAvisosOdd(true)).map(x=>x.id===id?Object.assign({},x,{anulada:true,retiradaEn:new Date().toISOString()}):x);
+  if(!(await sSet(AVISOS_ODD_KEY,lista))) throw new Error("No se pudo guardar el cambio.");
+  AVISOS_ODD=lista; AVISOS_ODD_HASTA=Date.now()+60000;
+  await renderAvisosOdd(true);
+}
+on("oddInformarBtn","click",()=>abrirFormularioAviso());
+setInterval(()=>{ renderAvisosOdd(false).catch(()=>{}); },60000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") renderAvisosOdd(true).catch(()=>{}); });
+
 async function guardiaDeHoy(){
   const idx=await idxGuardias();
   const it=idx.slice().reverse().find(x=>x.fecha===todayISO());
@@ -4373,6 +4619,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     /* Las validaciones de la Guardia de prueba ya no corren en cada apertura:
        validarGuardiaPruebaEnero2026() y validarMatrizGuardiaPrueba() siguen
        disponibles para ejecutarlas a mano cuando se necesiten. */
+    renderAvisosOdd(true).catch(()=>{});
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
