@@ -2701,29 +2701,22 @@ function gnDocumento(reg){
   doc.text(`Salida:  ${reg.fechaSal?fmtDateLong(reg.fechaSal):"—"} a las ${reg.horaSal||"—"}`,14,42);
   doc.text(`OBAC / Oficial a cargo: ${reg.oficial?nombrePorId(reg.oficial):"—"}`,14,48);
   doc.text(`Conductor / Maquinista: ${reg.conductor?nombrePorId(reg.conductor):"—"}`,14,54);
+  /* El PDF muestra solo a quienes hicieron la guardia: los presentes y los reemplazantes que entraron.
+     Quienes no asistieron, sus motivos y las justificaciones quedan guardados para estadística y control, pero no se imprimen. */
   const t=normalizaTurno(reg.guardianes);
-  const est={cuartel:"En el cuartel",casa:"Desde su casa",no:"No asiste"};
-  doc.autoTable({startY:60,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    head:[["N°","Clave","Guardián designado","Situación","Motivo","Reemplazado por","Cambio registrado","Justif. correo"]],
-    body:t.map(g=>{
-      const m=ROSTER.find(x=>x.id===g.id);
-      return [m?m.n||"":"", m?m.clave||"—":"—", m?nombreCompleto(m):"—",
-              est[g.estado]||"", g.estado==="no"?(g.motivo||"—"):"—",
-              g.reemplazo?nombrePorId(g.reemplazo):"—",
-              g.reemplazoRegistradoEn?new Date(g.reemplazoRegistradoEn).toLocaleString("es-CL"):"—",
-              g.estado==="no"?(g.correo?"Sí":"No"):"—"];
-    })});
-  const cubren=cubrenGuardia(reg.guardianes);
+  const efectivos=[];
+  t.forEach(g=>{ if(g.estado!=="no") efectivos.push({id:g.id,rol:"Presente"}); });
+  t.forEach(g=>{ if(g.estado==="no"&&g.reemplazo&&!efectivos.some(e=>e.id===g.reemplazo)) efectivos.push({id:g.reemplazo,rol:"Reemplazo"}); });
+  doc.autoTable({startY:60,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]},
+    head:[["N°","Clave","Guardián","Situación"]],
+    body:efectivos.length?efectivos.map(e=>{
+      const m=ROSTER.find(x=>x.id===e.id);
+      return [m?m.n||"":"", m?m.clave||"—":"—", m?nombreCompleto(m):"—", e.rol];
+    }):[["","","Sin guardianes presentes",""]]});
   doc.setFont("helvetica","bold"); doc.setFontSize(9);
-  doc.text(`Cubren la guardia: ${cubren.length} de ${t.length} designados`,14,doc.lastAutoTable.finalY+6);
+  doc.text(`Guardianes en la guardia: ${efectivos.length}`,14,doc.lastAutoTable.finalY+6);
   doc.setFont("helvetica","normal");
-  const obs=t.filter(g=>g.estado==="no"&&g.obs);
-  if(obs.length){
-    doc.autoTable({startY:doc.lastAutoTable.finalY+10,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
-      head:[["Justificaciones recibidas",""]],
-      body:obs.map(g=>[nombrePorId(g.id),g.obs])});
-  }
-  doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:9},headStyles:{fillColor:[100,90,80]},
+  doc.autoTable({startY:doc.lastAutoTable.finalY+12,styles:{fontSize:9},headStyles:{fillColor:[100,90,80]},
     head:[["Novedades de la guardia"]],
     body:[[reg.novedades||"Sin novedad"]]});
   let fy=doc.lastAutoTable.finalY+22;
