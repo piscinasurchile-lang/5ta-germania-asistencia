@@ -20,7 +20,7 @@ Cada escritura puede indicar el valor que esperaba encontrar. Si otra persona lo
 
 ## Historial de versiones
 La tabla `app_state_hist` se llena sola con un *trigger* en `app_state`: guarda el valor **anterior** cada vez que un registro cambia o se elimina.
-No se versionan: claves `germania:*` (auditoría de uso), `svborrador:*` (borrador automático), claves `__*` y valores de más de ~300 KB.
+No se versionan: claves `germania:*` (auditoría de uso), `svborrador:*` (borrador automático), `security:*` (intentos de acceso y PIN), claves `__*` y valores de más de ~300 KB.
 
 Recuperar a mano una versión (SQL):
 ```sql
