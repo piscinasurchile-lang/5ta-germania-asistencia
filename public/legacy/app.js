@@ -1976,6 +1976,7 @@ async function gnConflictosSemana(p,who,noches,rol){
     const d=await sGet(gnRolSemanalKey(r,p.inicio),null), asign=d?.personas?.[who]?.noches||[];
     noches.forEach(n=>{ if(asign.includes(n)) conflictos.push({noche:n,rol:r}); });
   }
+  // Las funciones operativas se comparan por fecha; el cargo institucional no cambia.
   const vol=await sGet("guardia-inscripcion:"+p.inicio+":"+who,[]);
   if(rol!=="voluntario"&&Array.isArray(vol)) noches.forEach(n=>{ if(vol.includes(n)) conflictos.push({noche:n,rol:"voluntario"}); });
   return conflictos;
