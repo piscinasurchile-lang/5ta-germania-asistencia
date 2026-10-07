@@ -46,3 +46,12 @@ test("guardia: partial transfer cannot display a completed success", () => {
   assert.ok(section.includes('msg.textContent="La función se guardó, pero falta conciliar'));
   assert.ok(section.includes('GN_INS_CACHE=null;\n      return;'));
 });
+
+test("guardia: operational conflicts are checked again before saving", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const first = section.indexOf("const noches=");
+  const recheck = section.indexOf("const conflictosActuales=await gnConflictosSemana(");
+  const save = section.indexOf("await gnGuardarRolSemanal(");
+  assert.ok(first >= 0 && recheck > first && save > recheck);
+  assert.ok(section.includes("La asignación cambió mientras editabas"));
+});
