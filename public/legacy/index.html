@@ -1264,7 +1264,12 @@
     <!-- IMPORTAR -->
     <div class="subpanel" id="sub-importar">
       <div class="card"><h2>Datos de prueba</h2><p class="sub">Qué se guardó mientras la app estuvo en modo prueba. Es solo una consulta: no borra nada.</p>
-        <button class="btn small" id="verPruebaBtn" type="button">Ver datos de prueba</button><div id="pruebaDatos" style="margin-top:12px;"></div></div>
+        <button class="btn small" id="verPruebaBtn" type="button">Ver datos de prueba</button><div id="pruebaDatos" style="margin-top:12px;"></div>
+        <h3 style="margin:18px 0 6px;">Guardias de prueba</h3>
+        <p class="sub">Las guardias de enero–febrero 2026 y la matriz de prueba (marcadas «REGISTRO/MATRIZ TEMPORAL DE PRUEBA»). Retirarlas deja un respaldo y no toca las guardias reales.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn small secondary" id="gpVerBtn" type="button">Ver guardias de prueba</button><button class="btn small" id="gpRetirarBtn" type="button">Retirar guardias de prueba</button></div>
+        <div class="field" style="margin-top:8px;"><label for="gpClave">Clave de Oficialidad (si la app la pide)</label><input type="password" id="gpClave"></div>
+        <div id="gpMsg" style="min-height:20px;margin-top:6px;font-size:13.5px;"></div></div>
       <div class="card">
         <h2>Reducir fotografías de voluntarios</h2>
         <p class="sub">Ajusta las fotografías antiguas que pesan más de 15 KB a 200 × 200 px, para que la app abra más rápido. Las fotos nuevas ya se reducen solas al subirlas. Antes de reducir, se guarda un respaldo de las originales.</p>
