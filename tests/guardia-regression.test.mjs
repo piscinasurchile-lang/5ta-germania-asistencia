@@ -55,3 +55,11 @@ test("guardia: operational conflicts are checked again before saving", () => {
   assert.ok(first >= 0 && recheck > first && save > recheck);
   assert.ok(section.includes("La asignación cambió mientras editabas"));
 });
+
+test("guardia: empty operational assignment is rejected before any write", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const emptyGuard = section.indexOf('if(!noches.length)');
+  const save = section.indexOf("await gnGuardarRolSemanal(");
+  assert.ok(emptyGuard >= 0 && save > emptyGuard);
+  assert.ok(section.includes("Selecciona al menos una noche"));
+});
