@@ -3337,10 +3337,10 @@ async function renderHvFoto(){
   img.src=fotoVoluntario(m);
 }
 /* ============ FOTOS DE VOLUNTARIOS: se reducen al subir ============
-   Cada foto se ajusta sola a 320 x 320 px (recorte centrado) y se comprime a
-   WebP (o JPEG si el navegador no soporta WebP) hasta quedar en 40 KB como
+   Cada foto se ajusta sola a 200 x 200 px (recorte centrado) y se comprime a
+   WebP (o JPEG si el navegador no soporta WebP) hasta quedar en 15 KB como
    máximo. Así la nómina nunca crece sin control ni deja de guardarse. */
-const FOTO_LADO_PX=320, FOTO_MAX_BYTES=40*1024, FOTO_ENTRADA_MAX_BYTES=20*1024*1024;
+const FOTO_LADO_PX=200, FOTO_MAX_BYTES=15*1024, FOTO_ENTRADA_MAX_BYTES=20*1024*1024;
 function bytesDeDataUrl(u){
   const t=String(u||""), i=t.indexOf(","); if(i<0) return 0;
   const b64=t.slice(i+1), pad=b64.endsWith("==")?2:(b64.endsWith("=")?1:0);
@@ -3386,7 +3386,7 @@ async function reducirFoto(origen){
         if(bytesDeDataUrl(u)<=FOTO_MAX_BYTES) return u;
       }
     }
-    throw new Error("No fue posible reducir la foto a 40 KB. Prueba con otra imagen.");
+    throw new Error("No fue posible reducir la foto a "+Math.round(FOTO_MAX_BYTES/1024)+" KB. Prueba con otra imagen.");
   } finally {
     cerrar();
     if(url && !esUrl) URL.revokeObjectURL(url);
@@ -3404,25 +3404,64 @@ async function guardarFotoVoluntario(m,archivo){
   }
 }
 /* Reduce de una sola vez las fotos antiguas que superen el límite. */
+/* Las fotos viajan dentro de la nómina, que se descarga al abrir la app: mientras más pesen, más tarda en abrir con poca señal.
+   Esta herramienta reduce las antiguas. Antes guarda un respaldo de las originales; si una foto está dañada, las demás se arreglan igual. */
+async function reducirFotosEnRespaldoDePrueba(){
+  /* En modo prueba la app guarda una copia de la nómina para «Restaurar pruebas», y esa copia se descarga en CADA guardado. */
+  const base=await sGet(TEST_BASELINE_KEY,null);
+  if(!base||!Array.isArray(base[ROSTER_KEY])) return 0;
+  let n=0;
+  for(const x of base[ROSTER_KEY]){
+    if(typeof x.foto==="string"&&x.foto.startsWith("data:")&&bytesDeDataUrl(x.foto)>FOTO_MAX_BYTES){
+      try{ x.foto=await reducirFoto(x.foto); n++; }catch(e){}
+    }
+  }
+  if(n) await rawSet(TEST_BASELINE_KEY,base);
+  return n;
+}
 async function optimizarFotosExistentes(){
   const msg=document.getElementById("fotosOptimizarMsg"); if(!msg) return;
   msg.classList.remove("err");
+  const maxKb=Math.round(FOTO_MAX_BYTES/1024);
   const pesadas=ROSTER.filter(m=>typeof m.foto==="string"&&m.foto.startsWith("data:")&&bytesDeDataUrl(m.foto)>FOTO_MAX_BYTES);
-  if(!pesadas.length){ msg.textContent="Todas las fotografías ya están dentro del límite (40 KB)."; return; }
+  if(!pesadas.length){
+    /* Si alguna escritura simultánea dejó pesada la copia de «modo prueba», volver a presionar el botón la aligera */
+    let extra=""; try{ const n=await reducirFotosEnRespaldoDePrueba(); if(n) extra=" Se aligeró la copia de «modo prueba» ("+n+" foto(s))."; }catch(e){}
+    msg.textContent="Todas las fotografías ya están dentro del límite ("+maxKb+" KB)."+extra; return;
+  }
   const antes=pesadas.reduce((t,m)=>t+bytesDeDataUrl(m.foto),0);
-  if(!confirm("Se reducirán "+pesadas.length+" fotografía(s) ("+Math.round(antes/1024)+" KB) a 320 x 320 px y máximo 40 KB. Esta reducción no se puede deshacer; se recomienda guardar antes una copia de respaldo de la nómina. ¿Continuar?")) return;
+  if(!confirm("Se reducirán "+pesadas.length+" fotografía(s) ("+Math.round(antes/1024)+" KB) a "+FOTO_LADO_PX+" x "+FOTO_LADO_PX+" px y máximo "+maxKb+" KB. Antes se guarda un respaldo de las fotos originales. ¿Continuar?")) return;
+  const btn=document.getElementById("fotosOptimizarBtn"); if(btn) btn.disabled=true;
   const originales=new Map(pesadas.map(m=>[m.id,m.foto]));
   try{
-    for(const m of pesadas) m.foto=await reducirFoto(m.foto);
+    /* 1) Respaldo de las originales: si no se puede guardar, no se toca nada */
+    const clave="fotos:respaldo:"+todayISO();
+    const respaldo=Object.assign({},await sGet(clave,{}));
+    pesadas.forEach(m=>{ if(!respaldo[m.id]) respaldo[m.id]=originales.get(m.id); });
+    if(!(await sSet(clave,respaldo))) throw new Error("No se pudo guardar el respaldo de las fotos originales.");
+    /* 2) Reducir una por una */
+    const fallidas=[]; let hechas=0;
+    for(const m of pesadas){
+      msg.textContent="Reduciendo fotografías… "+(hechas+fallidas.length+1)+" de "+pesadas.length;
+      try{ m.foto=await reducirFoto(originales.get(m.id)); hechas++; }
+      catch(e){ m.foto=originales.get(m.id); fallidas.push(nombreCompleto(m)); }
+    }
+    if(!hechas) throw new Error("Ninguna foto se pudo reducir"+(fallidas.length?": "+fallidas.join(", "):"")+".");
     await saveRoster();
     const despues=pesadas.reduce((t,m)=>t+bytesDeDataUrl(m.foto),0);
-    msg.textContent="Listo: "+pesadas.length+" fotografía(s) reducida(s) de "+Math.round(antes/1024)+" KB a "+Math.round(despues/1024)+" KB.";
+    /* La copia de «modo prueba» se verifica después de aligerarla: otro guardado simultáneo podría pisarla con su versión antigua */
+    let extra=""; try{
+      let primero=0;
+      for(let pasada=0;pasada<4;pasada++){ const n=await reducirFotosEnRespaldoDePrueba(); if(!pasada) primero=n; if(!n) break; await new Promise(r=>setTimeout(r,400)); }
+      if(primero) extra=" También se aligeró la copia de «modo prueba» ("+primero+" foto(s)).";
+    }catch(e){ console.warn("No se pudo aligerar la copia de modo prueba",e); }
+    msg.textContent="Listo: "+hechas+" fotografía(s) reducida(s) de "+Math.round(antes/1024)+" KB a "+Math.round(despues/1024)+" KB. Las originales quedaron respaldadas."+extra+(fallidas.length?" No se pudieron procesar: "+fallidas.join(", ")+".":"");
     await renderHvFoto(); await renderDisponibilidad();
   }catch(err){
     pesadas.forEach(m=>{ m.foto=originales.get(m.id); });
     msg.classList.add("err");
     msg.textContent="No se modificó ninguna foto: "+(err&&err.message?err.message:err);
-  }
+  }finally{ if(btn) btn.disabled=false; }
 }
 on("fotosOptimizarBtn","click",optimizarFotosExistentes);
 
