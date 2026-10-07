@@ -4280,17 +4280,22 @@ async function renderAvisosOdd(forzar){
   const visibles=AVISOS_VER_TODAS?lista:lista.slice(0,2), resto=lista.length-visibles.length;
   const html=visibles.map(a=>{
     const hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity, nueva=!avisoVisto(a.id);
-    const linea=[avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",(isFinite(hasta)&&a.cuando)?"faltan "+avisoRestante(hasta,ahora):""].filter(Boolean).join(" · ")||"Toca para ver el detalle";
-    return `<button type="button" class="card" data-aviso-odd="${esc(a.id||"")}" style="display:block;width:100%;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:8px;padding:8px 12px;color:inherit;">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
-        <span style="display:flex;gap:6px;align-items:center;min-width:0;"><span class="badge">${esc(AVISO_TIPOS[a.tipo]||"ODD")}</span>${nueva?'<span class="badge" style="background:#c9a227;color:#000;">Nueva</span>':""}<b style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.titulo||"")}</b></span>
-        <small style="color:var(--muted);white-space:nowrap;">ODD ${esc(a.numero||"")}</small></div>
-      <div style="font-size:13px;color:var(--muted);margin-top:2px;">${esc(linea)}</div>
-    </button>`;
+    /* El tipo solo se muestra si el título no lo dice ya («Academia de Extricación I» no repite «Academia») */
+    const tipo=AVISO_TIPOS[a.tipo]||"", verTipo=tipo&&a.tipo!=="otro"&&!avisoN(a.titulo).includes(avisoN(tipo));
+    const linea=[verTipo?tipo:"",avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",(isFinite(hasta)&&a.cuando)?"faltan "+avisoRestante(hasta,ahora):""].filter(Boolean).join(" · ")||"Toca para ver el detalle";
+    return `<div class="card" role="button" tabindex="0" data-aviso-odd="${esc(a.id||"")}" style="display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow:hidden;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:8px;padding:8px 12px;color:#101214;">
+      <div style="display:flex;gap:8px;align-items:center;min-width:0;">
+        ${nueva?'<span style="flex:none;background:#c9a227;color:#000;border-radius:999px;padding:0 9px;font-size:12px;font-weight:700;">Nueva</span>':""}
+        <b style="flex:1 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.titulo||"")}</b></div>
+      <div style="font-size:13px;color:#5f6b76;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(linea)}</div>
+    </div>`;
   }).join("")+(resto>0?`<button type="button" class="btn small secondary" data-odd-mas style="margin:0 0 10px;">+${resto} ODD vigente${resto===1?"":"s"} · ver</button>`:"");
   if(box.innerHTML!==html){
     box.innerHTML=html;
-    box.querySelectorAll("[data-aviso-odd]").forEach(b=>b.addEventListener("click",()=>abrirDetalleOdd(b.dataset.avisoOdd)));
+    box.querySelectorAll("[data-aviso-odd]").forEach(b=>{
+      b.addEventListener("click",()=>abrirDetalleOdd(b.dataset.avisoOdd));
+      b.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); abrirDetalleOdd(b.dataset.avisoOdd); } });
+    });
     const mas=box.querySelector("[data-odd-mas]"); if(mas) mas.addEventListener("click",()=>{ AVISOS_VER_TODAS=true; renderAvisosOdd(false).catch(()=>{}); });
   }
   /* Aviso de 10 segundos para la primera ODD nueva que aún no se ha visto en este equipo */
@@ -4300,10 +4305,10 @@ async function renderAvisosOdd(forzar){
 function mostrarToastOdd(a){
   AVISO_TOASTEADOS.add(a.id);
   const anterior=document.getElementById("oddToast"); if(anterior) anterior.remove();
-  const t=document.createElement("button"); t.type="button"; t.id="oddToast";
-  t.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100001;max-width:92vw;background:#c9a227;color:#000;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;";
-  t.textContent="Nueva ODD "+(a.numero||"")+" · "+(a.titulo||"")+" · toca para ver";
-  t.onclick=()=>{ t.remove(); abrirDetalleOdd(a.id); };
+  const t=document.createElement("div"); t.id="oddToast"; t.setAttribute("role","button"); t.tabIndex=0;
+  t.style.cssText="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100001;box-sizing:border-box;width:max-content;max-width:92vw;background:#c9a227;color:#000;border-radius:10px;padding:9px 14px;font-weight:700;font-size:14px;line-height:1.2;text-align:center;cursor:pointer;";
+  t.textContent="Nueva ODD "+(a.numero||"")+" · toca para ver";
+  t.onclick=()=>{ t.remove(); abrirDetalleOdd(a.id); }; t.onkeydown=e=>{ if(e.key==="Enter"||e.key===" ") t.onclick(); };
   document.body.appendChild(t);
   setTimeout(()=>{ if(t.parentNode) t.remove(); },AVISO_TOAST_MS);
 }
