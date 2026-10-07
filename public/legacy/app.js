@@ -407,7 +407,27 @@ async function sSet(k,v){
   }
   return rawSet(k,v);
 }
+/* ---- Qué se considera «dato de prueba» (solo lectura) ---- */
+const PRUEBA_NOMBRES={parte:"Partes (asistencia y emergencias)",partes:"Índice de partes",guardia:"Guardias registradas",guardias:"Índice de guardias","guardia-inscripcion":"Inscripciones de guardia","guardia-confirmacion":"Confirmaciones de guardia","guardia-plan":"Períodos de guardia",disponibilidad:"Estados de los voluntarios",roster:"Nómina de voluntarios","odd-avisos":"ODD informadas","odd-pdf":"PDF de ODD",oficialidad:"Oficialidad por año","oficialidad-meta":"Oficialidad (detalle)",hoja:"Hojas de servicio",fotos:"Respaldo de fotos"};
+async function verDatosPrueba(){
+  const out=document.getElementById("pruebaDatos"); if(!out) return; out.textContent="Leyendo…";
+  try{
+    const base=await sGet(TEST_BASELINE_KEY,{}), claves=Object.keys(base||{}), grupos={};
+    claves.forEach(k=>{ const g=k.split(":")[0]; const x=grupos[g]||(grupos[g]={total:0,nuevas:0,mod:0}); x.total++; (base[k]===null||base[k]===undefined)?x.nuevas++:x.mod++; });
+    const sembrados=[["guardia:test:enero2026:v1","Guardias de prueba de enero–febrero 2026 (marcadas «REGISTRO TEMPORAL DE PRUEBA»)"],["guardia:test:matriz:v1","Matriz de guardia de prueba"]];
+    const est=await Promise.all(sembrados.map(([k])=>sGet(k,false).catch(()=>false)));
+    const filas=Object.entries(grupos).sort((a,b)=>b[1].total-a[1].total).map(([g,x])=>`<tr><td>${esc(PRUEBA_NOMBRES[g]||g)}</td><td>${x.total}</td><td>${x.nuevas}</td><td>${x.mod}</td></tr>`).join("");
+    out.innerHTML=`<p><b>${claves.length} registro(s)</b> guardados desde que empezó el modo prueba. «Nuevos» no existían antes (por ejemplo, lo que se inscribió o informó desde entonces); «modificados» ya existían y se cambiaron.</p>
+      <table style="table-layout:fixed;width:100%;"><thead><tr><th style="width:52%">Tipo de dato</th><th>Total</th><th>Nuevos</th><th>Modif.</th></tr></thead><tbody style="overflow-wrap:anywhere;">${filas||'<tr><td colspan="4">No hay registros marcados.</td></tr>'}</tbody></table>
+      <p style="margin-top:12px;"><b>Datos de prueba que sembró el programa:</b></p><ul style="margin:4px 0 0 18px;">${sembrados.map(([k,t],i)=>`<li>${esc(t)}: ${est[i]?"<b>sí están</b>":"no están"}</li>`).join("")}</ul>
+      <p class="foot-note" style="margin-top:10px;">Esto es solo una lista para consultar: no borra nada. El botón «Restaurar pruebas» está bloqueado, porque revertiría también los datos reales marcados aquí.</p>`;
+  }catch(e){ out.textContent="No se pudo leer: "+((e&&e.message)||e); }
+}
+on("verPruebaBtn","click",verDatosPrueba);
+const RESTAURAR_PRUEBAS_BLOQUEADO=true;
 async function limpiarDatosPrueba(){
+  /* BLOQUEADO: la app ya guarda datos reales (inscripciones, ODD, estados…) y esta restauración los borraría junto con los de prueba. */
+  if(RESTAURAR_PRUEBAS_BLOQUEADO){ alert("Restaurar pruebas está bloqueado: la app ya tiene datos reales y esta acción los borraría. Para ver qué se considera dato de prueba: Oficiales → Importar / respaldo → «Ver datos de prueba»."); return; }
   if(!confirm("¿Restaurar todos los datos modificados desde que comenzó el MODO PRUEBA? La nómina base y Hojas de Vida se conservarán.")) return;
   const base=await sGet(TEST_BASELINE_KEY,{});
   TEST_INTERNAL_WRITE=true;
