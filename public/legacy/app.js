@@ -2014,6 +2014,9 @@ on("gnRolGuardar","click",async()=>{
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort(), conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
+  // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
+  const conflictosActuales=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
+  if(conflictosActuales.some(x=>x.rol!=="voluntario")){ msg.textContent="La asignación cambió mientras editabas. Actualiza y vuelve a intentarlo."; return; }
   try {
     // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
     await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
