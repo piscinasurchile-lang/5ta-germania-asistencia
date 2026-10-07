@@ -1818,10 +1818,15 @@ async function renderGnInscripcionCard(forzar){
   const cierreTxt=new Date(hasta).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   const nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","");
   const sel=[...GN_INS_SEL].sort(); const n=sel.length;
+  const yo=ROSTER.find(x=>String(x.id)===String(who));
+  const cargoYo=precN(yo?.cargo||"");
+  const puedeVerRefuerzo=cargoYo.includes("capitan")||cargoYo.includes("teniente tercero")||cargoYo.includes("teniente 3");
+  const reforzadas=dias.filter(f=>(conteos[f]||0)>4);
   box.innerHTML=`<div class="card" style="min-width:0;margin-bottom:12px;">
     <h2 style="margin:0;">Guardia nocturna · elige tus noches</h2>
     <p class="sub" style="margin:4px 0 0;">Semana ${esc(gnFmt(p.inicio))} 23:00 → ${esc(gnFmt(gnAdd(p.inicio,7)))} 08:00 · solo presencial, en el cuartel.<br>Cierra el <b>${esc(cierreTxt)}</b> · faltan ${esc(avisoRestante(hasta,Date.now()))}.</p>
     <div class="gi-noches">${dias.map(f=>`<button type="button" class="gi-n ${GN_INS_SEL.has(f)?"on":""}" data-gi="${f}"><b>${esc(nom(f))}</b><span>${f.slice(8)}</span><small class="gn-coverage">${conteos[f]||0} voluntario${(conteos[f]||0)===1?"":"s"}</small></button>`).join("")}</div>
+    ${puedeVerRefuerzo&&reforzadas.length?`<div class="gn-refuerzo"><b>REFORZADA · información de mando</b><br>${reforzadas.map(f=>esc(nom(f)+" "+f.slice(8)+": "+conteos[f]+" voluntarios · +"+(conteos[f]-4))).join(" · ")}</div>`:""}
     <div id="giAviso" style="min-height:20px;font-size:13.5px;color:#c92b2b;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
       <span style="font-size:14px;"><b>${n?"Elegiste "+n+(n===1?" noche":" noches")+":":"Aún no eliges noches"}</b> ${esc(sel.map(f=>nom(f)+" "+f.slice(8)).join(" · "))}<br><small style="opacity:.7;">Mínimo: 2 noches${conf&&!conf.cumple?" · confirmaste "+conf.noches+": te falta 1 o justifica":""}</small></span>
