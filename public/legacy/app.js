@@ -2029,6 +2029,8 @@ async function gnObacCandidatos(){
 }
 async function gnObacSiguiente(p,meta){
   const candidatos=await gnObacCandidatos(), decisiones=meta.decisiones||{};
+  const confirmados=Object.values(decisiones).filter(d=>d.estado==="confirmado").length;
+  if(confirmados>=Number(meta.objetivo||6)) return null;
   for(const x of candidatos){
     const id=String(x.m.id), d=decisiones[id];
     if(!d||d.estado==="pendiente") return x;
