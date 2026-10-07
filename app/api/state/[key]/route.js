@@ -58,6 +58,7 @@ export async function PUT(request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+  if (key.startsWith("guardia-rol:") || key.startsWith("guardia-obac-meta:") || key.startsWith("guardia-revision:")) return Response.json({ error: "auth_required" }, { status: 403 });
 
   const sql = sqlClient();
   if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
