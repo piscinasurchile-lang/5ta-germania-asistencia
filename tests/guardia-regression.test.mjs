@@ -24,3 +24,11 @@ test("guardia: conductor/officer conflict is checked by night", () => {
 test("guardia: OBAC invitation stops when target is reached", () => {
   assert.ok(app.includes("if(confirmados>=Number(meta.objetivo||6)) return null;"));
 });
+
+test("guardia: role assignment is saved before volunteer nights are removed", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const save = section.indexOf("await gnGuardarRolSemanal(");
+  const transfer = section.indexOf("await gnTransferirDesdeVoluntario(");
+  assert.ok(save >= 0 && transfer > save);
+  assert.ok(section.includes("transferencia parcial"));
+});
