@@ -440,7 +440,7 @@ async function verGuardiasDePrueba(){
 async function retirarGuardiasDePrueba(){
   try{
     const id=document.getElementById("miVoluntario")?.value, yo=ROSTER.find(x=>String(x.id)===String(id));
-    if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden retirar las guardias de prueba. Elige tu nombre en la pantalla principal.");
+    if(!yo||!puedeAdministrar(yo)) throw new Error("Solo el Ayudante, el Secretario, el Capitán o el administrador pueden retirar las guardias de prueba. Elige tu nombre en la pantalla principal.");
     if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(document.getElementById("gpClave")?.value||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
     const l=await guardiasDePrueba(); if(!l.length){ gpMsg("No hay guardias de prueba."); return; }
     if(!confirm(`Se retirarán ${l.length} guardia(s) de prueba (${l.map(x=>x.it.fecha||x.it.clave).sort().join(", ")}). Las guardias reales no se tocan. Antes se guarda un respaldo. ¿Continuar?`)) return;
@@ -1908,7 +1908,7 @@ on("precGuardarBtn","click",async()=>{
     if(!/^\d{1,3}\/\d{4}$/.test(num)) throw new Error("Escribe el número de la ODD con este formato: 037/2026.");
     if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new Error("Indica la fecha de la ODD.");
     const id=document.getElementById("miVoluntario")?.value, yo=ROSTER.find(x=>String(x.id)===String(id));
-    if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden actualizar la precedencia. Elige tu nombre en la pantalla principal.");
+    if(!yo||!puedeAdministrar(yo)) throw new Error("Solo el Ayudante, el Secretario, el Capitán o el administrador pueden actualizar la precedencia. Elige tu nombre en la pantalla principal.");
     if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(document.getElementById("precClave").value||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
     const previo=await precLeerEstricto(); if(!previo) throw new Error("No se pudo leer la precedencia vigente. Inténtalo de nuevo.");
     const nuevo={odd:{numero:num,fecha,titulo:"Orden de precedencia del mando operativo",dejaSinEfecto:previo.odd?[previo.odd.numero]:[],firmas:[]},vigenteDesde:fecha,lista:PREC_NUEVA.map((x,i)=>({n:i+1,cargo:x.cargo,nombre:x.nombre})),
@@ -4465,6 +4465,10 @@ const AVISO_PDF_MAX=1536*1024;
 let AVISOS_ODD=null, AVISOS_ODD_HASTA=0, AVISO_TOASTEADOS=new Set(), AVISOS_VER_TODAS=false;
 const avisoN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 function avisoCargoHabilitado(cargo){ const c=avisoN(cargo); return AVISO_CARGOS.some(x=>avisoN(x)===c); }
+/* Administrador del sistema: puede hacer las mismas tareas de administración que el Ayudante, el Secretario o el Capitán
+   (informar ODD, actualizar la precedencia, retirar guardias de prueba). Se identifica por su código de voluntario. */
+const ADMIN_CLAVES=["517"];
+const puedeAdministrar=m=>!!m&&(avisoCargoHabilitado(m.cargo)||ADMIN_CLAVES.includes(String(m.clave)));
 
 /* Hora de Chile -> instante absoluto (considera el horario de verano). */
 function instanteChile(fecha,hora){
@@ -4609,9 +4613,9 @@ function descargarIcs(a){
 function infoAvisoQuienSoy(){ const id=(document.getElementById("miVoluntario")||{}).value; return ROSTER.find(p=>String(p.id)===String(id))||null; }
 async function abrirFormularioAviso(editarId){
   const yo=infoAvisoQuienSoy();
-  if(!yo||!avisoCargoHabilitado(yo.cargo)){
+  if(!yo||!puedeAdministrar(yo)){
     const titulares=ROSTER.filter(p=>p.activo!==false&&avisoCargoHabilitado(p.cargo)).map(p=>`${p.cargo}: ${nombreCompleto(p)}`);
-    modalOdd(`<h2 style="margin:0 0 8px;">Ayudante informa ODD</h2><p>Solo el Ayudante, el Secretario o el Capitán pueden informar una ODD. ${yo?`Hoy tu cargo es «${esc(yo.cargo||"Voluntario")}».`:"Selecciona tu nombre en «Voluntario que está usando este dispositivo» (pantalla principal)."}</p>${titulares.length?`<p style="color:#9aa0a8;font-size:13px;">Titulares actuales: ${esc(titulares.join(" · "))}</p>`:""}<div style="margin-top:12px;"><button type="button" class="btn small secondary" id="oddCerrarBtn">Cerrar</button></div>`).querySelector("#oddCerrarBtn").onclick=cerrarModalOdd;
+    modalOdd(`<h2 style="margin:0 0 8px;">Ayudante informa ODD</h2><p>Solo el Ayudante, el Secretario, el Capitán o el administrador pueden informar una ODD. ${yo?`Hoy tu cargo es «${esc(yo.cargo||"Voluntario")}».`:"Selecciona tu nombre en «Voluntario que está usando este dispositivo» (pantalla principal)."}</p>${titulares.length?`<p style="color:#9aa0a8;font-size:13px;">Titulares actuales: ${esc(titulares.join(" · "))}</p>`:""}<div style="margin-top:12px;"><button type="button" class="btn small secondary" id="oddCerrarBtn">Cerrar</button></div>`).querySelector("#oddCerrarBtn").onclick=cerrarModalOdd;
     return;
   }
   const lista=await cargarAvisosOdd(true);
@@ -4667,7 +4671,7 @@ async function publicarAvisoOdd(f){
   if(f.fecha&&!/^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) throw new Error("La fecha de la actividad no es válida.");
   if(f.hora&&!f.fecha) throw new Error("Indica también la fecha de la actividad.");
   if(!f.fecha&&!f.hasta) throw new Error("Indica la fecha de la actividad, o hasta qué día se muestra la ODD.");
-  const yo=infoAvisoQuienSoy(); if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden informar una ODD.");
+  const yo=infoAvisoQuienSoy(); if(!yo||!puedeAdministrar(yo)) throw new Error("Solo el Ayudante, el Secretario, el Capitán o el administrador pueden informar una ODD.");
   if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(f.clave||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
   const [anioODD,nroODD]=[num.split("/")[1],num.split("/")[0].padStart(3,"0")];
   const id=f.editarId||("odd-"+anioODD+"-"+nroODD);
