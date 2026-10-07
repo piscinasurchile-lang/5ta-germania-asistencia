@@ -783,6 +783,7 @@
       <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
       <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
       <button class="subtab" data-sub="oficialidad">Oficialidad</button>
+    <button class="subtab" data-sub="precedencia">Precedencia</button>
       <button class="subtab" data-sub="nomina">Nómina</button>
       <button class="subtab" data-sub="hoja">Hoja de vida</button>
       <button class="subtab" data-sub="ingreso">Ingreso</button>
@@ -800,6 +801,24 @@
     </div>
 
     <!-- ODD legacy retirado: acceso único mediante /odd-maestras -->
+    <div class="subpanel" id="sub-precedencia">
+      <div class="card">
+        <h2>Precedencia del mando operativo</h2>
+        <p class="sub" id="precFuente"></p>
+        <table style="table-layout:fixed;width:100%;"><thead><tr><th style="width:12%">N.º</th><th style="width:34%">Cargo</th><th>Nombre</th></tr></thead><tbody id="precBody" style="overflow-wrap:anywhere;"></tbody></table>
+        <div class="foot-note" id="precNota" style="margin-top:8px;"></div>
+        <details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;">Actualizar con una ODD nueva</summary>
+          <p class="sub">Pega la tabla de la ODD (una fila por persona: N.º, cargo y nombre). La anterior queda guardada.</p>
+          <textarea id="precTexto" rows="8" style="width:100%;box-sizing:border-box;" placeholder="1 Capitán Nombre Apellido Apellido&#10;2 Teniente Primero …"></textarea>
+          <div style="margin:8px 0;"><button class="btn small" id="precAnalizarBtn" type="button">Revisar</button></div>
+          <div id="precVista"></div>
+          <div class="field-row"><div class="field"><label for="precNumero">N.º de la ODD</label><input id="precNumero" placeholder="037/2026"></div><div class="field"><label for="precFecha">Fecha de la ODD</label><input type="date" id="precFecha"></div></div>
+          <div class="field" id="precClaveBox"><label for="precClave">Clave de Oficialidad (si la app la pide)</label><input type="password" id="precClave"></div>
+          <div id="precMsg" style="min-height:20px;margin:6px 0;font-size:13.5px;"></div>
+          <button class="btn" id="precGuardarBtn" type="button" style="display:none;">Guardar como precedencia vigente</button>
+        </details>
+      </div>
+    </div>
     <div class="subpanel" id="sub-oficialidad">
       <div class="card">
         <h2>Oficialidad</h2>

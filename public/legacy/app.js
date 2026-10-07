@@ -142,7 +142,7 @@ function on(id,evento,fn){
       s.classList.add("active");
       const sp=document.getElementById("sub-"+s.dataset.sub);
       if(sp) sp.classList.add("active");
-      if(s.dataset.sub==="odd"){ window.top.location.href="/odd-maestras"; return; }
+      if(s.dataset.sub==="odd"){ window.top.location.href="/odd-maestras"; return; } if(s.dataset.sub==="precedencia") renderPrecedencia();
       if(s.dataset.sub==="oficialidad" && typeof loadOficialidadYear==="function") loadOficialidadYear();
       if(s.dataset.sub==="alertas" && typeof renderAlertas==="function") renderAlertas();
       if(s.dataset.sub==="correlativos" && typeof renderCorrelativoResumen==="function"){ renderCorrelativoResumen(); renderCorrelativoHistorial(); }
@@ -1798,6 +1798,74 @@ async function gnInsJustificar(p,who){
 on("miVoluntario","change",()=>renderGnInscripcionCard(true));
 setInterval(()=>{ renderGnInscripcionCard(false).catch(()=>{}); },60000);
 
+/* ============ PRECEDENCIA DEL MANDO OPERATIVO ============
+   Orden de precedencia vigente según la última ODD (hoy la ODD 037/2026). Se guarda aparte, con su ODD de origen y las versiones
+   anteriores, y NO la borra «Restaurar pruebas» (es dato de referencia, no de prueba). Sirve para sugerir OBAC y el mando en la B-5. */
+const PRECEDENCIA_KEY="precedencia:v1";
+const PRECEDENCIA_ODD_037={odd:{numero:"037/2026",fecha:"2026-05-18",titulo:"Orden de precedencia del mando operativo de la Compañía",dejaSinEfecto:["006/2026 (17 de enero de 2026)"],firmas:["Francisco Vega Lara · Ayudante","Fernando Jerez Pantoja · Capitán"]},vigenteDesde:"2026-05-18",
+  lista:[["Capitán","Fernando Jerez Pantoja"],["Teniente Primero","Tomás Lara Jeffs"],["Teniente Segundo","Matías Corvalán Garrido"],["Teniente Tercero","Andrés Herrera Santander"],["Voluntario","Pablo Arellano Graell"],["Voluntario","Ludwig von Plessing Cea"],["Voluntario","Gustavo Jerez Pantoja"],["Ayudante","Francisco Vega Lara"],["Jefe de Máquinas","Diego Lozano González"],["Tesorero General","Fernando Ortega Gutiérrez"],["Voluntario","Cristóbal Rascheya Travini"],["Director","Karam Puali López"],["Secretario","Susumu Sugiura Aguilar"],["Tesorero","Mathias Von Leyser Jux"],["Voluntario","Luis Bustos Rivera"],["Voluntario","Rodolfo Maldonado Avendaño"],["Voluntario","Manuel Moller Henríquez"],["Voluntario","Natalia Yáñez Navarrete"],["Voluntario","José Álvarez Álvarez"],["Voluntario","María Paz Solo de Zaldivar Lavanchy"],["Voluntario","María Paz Ortega González"],["Voluntario","Joaquín Bustos Guzmán"],["Voluntario","León Campino del Villar"],["Voluntario","Cesar Ilarre Castro"],["Voluntario","Christian Vergara Sandoval"],["Voluntario","Juan Pablo Orlandini Retamal"],["Voluntario","Vaslav Rubeska Becerra"],["Voluntario","Magdalena Cortés García"]]};
+const PREC_CARGOS=["Capitán","Teniente Primero","Teniente Segundo","Teniente Tercero","Ayudante","Jefe de Máquinas","Tesorero General","Tesorero","Director","Secretario","Voluntario","Voluntaria","Secretaria","Cadete","Aspirante"];
+const precN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const precTokens=t=>precN(t).split(" ").filter(x=>x.length>1&&!["de","del","la","las","los","y"].includes(x));
+function precBuscar(nombre){
+  const a=precTokens(nombre); if(!a.length) return null;
+  return ROSTER.find(m=>{ const b=precTokens([m.nombre,m.apellidoPaterno,m.apellidoMaterno].filter(Boolean).join(" ")); if(!b.length) return false; const [c,l]=a.length<=b.length?[a,b]:[b,a]; return c.every(x=>l.includes(x)); })||null;
+}
+/* Lectura estricta: solo devuelve «null» si el servidor respondió que NO existe (un fallo de red nunca cuenta como «no existe») */
+async function precLeerEstricto(){ const r=await fetch("/api/state/"+encodeURIComponent(PRECEDENCIA_KEY)); if(!r.ok) throw new Error("lectura"); const j=await r.json(); return j&&j.value!==undefined?j.value:null; }
+async function sembrarPrecedencia(){
+  try{
+    if(await precLeerEstricto()) return;
+    const b=PRECEDENCIA_ODD_037;
+    await rawSet(PRECEDENCIA_KEY,{odd:b.odd,vigenteDesde:b.vigenteDesde,lista:b.lista.map(([cargo,nombre],i)=>({n:i+1,cargo,nombre})),historial:[],version:1,guardadaEn:new Date().toISOString()});
+  }catch(e){ /* sin conexión: no se siembra nada */ }
+}
+function precParseTexto(t){
+  const re=new RegExp("^\\s*(\\d{1,3})[.)]?\\s+("+PREC_CARGOS.slice().sort((a,b)=>b.length-a.length).join("|")+")\\s+(.+?)\\s*$","i"), out=[];
+  String(t||"").split(/\r?\n/).forEach(l=>{ const m=re.exec(l); if(m){ const c=PREC_CARGOS.find(x=>x.toLowerCase()===m[2].toLowerCase())||m[2]; out.push({n:Number(m[1]),cargo:c,nombre:m[3].replace(/[.\s]+$/,"")}); } });
+  return out;
+}
+function precRevisar(lista){
+  const av=[]; if(lista.length<4) av.push("Se reconocieron muy pocas filas ("+lista.length+"). Revisa que el texto traiga N.º, cargo y nombre.");
+  lista.forEach((x,i)=>{ if(x.n!==i+1) av.push("La numeración se corta en la fila "+(i+1)+" (dice "+x.n+")."); });
+  const vistos=new Set(); lista.forEach(x=>{ const k=precN(x.nombre); if(vistos.has(k)) av.push("«"+x.nombre+"» aparece dos veces."); vistos.add(k); });
+  return av;
+}
+async function renderPrecedencia(){
+  const body=document.getElementById("precBody"); if(!body) return;
+  let d=null; try{ d=await sGet(PRECEDENCIA_KEY,null); }catch(e){}
+  const hay=d&&Array.isArray(d.lista)&&d.lista.length;
+  document.getElementById("precFuente").innerHTML=hay?`Según la <b>ODD ${esc(d.odd.numero)}</b> (${esc(fmtDateLong(d.odd.fecha))}), firmada por ${esc((d.odd.firmas||[]).join(" y "))}.${(d.odd.dejaSinEfecto||[]).length?" Deja sin efecto la ODD "+esc(d.odd.dejaSinEfecto.join(", "))+".":""} Versión ${d.version||1}${(d.historial||[]).length?" · "+d.historial.length+" anterior(es) guardada(s)":""}.`:"Todavía no hay una precedencia guardada.";
+  if(!hay){ body.innerHTML=""; document.getElementById("precNota").textContent=""; return; }
+  let sin=0;
+  body.innerHTML=d.lista.map(x=>{ const m=precBuscar(x.nombre); if(!m) sin++; return `<tr><td>${x.n}</td><td>${esc(x.cargo)}</td><td>${esc(x.nombre)}${m?"":' <small style="opacity:.65;">· sin ficha en la nómina</small>'}</td></tr>`; }).join("");
+  document.getElementById("precNota").textContent=(d.lista.length-sin)+" de "+d.lista.length+" figuran en la nómina."+(sin?" Los que no figuran se muestran igual: revisa su nombre en la nómina.":"");
+}
+let PREC_NUEVA=null;
+on("precAnalizarBtn","click",()=>{
+  const lista=precParseTexto(document.getElementById("precTexto").value), av=precRevisar(lista), v=document.getElementById("precVista"), g=document.getElementById("precGuardarBtn");
+  PREC_NUEVA=lista.length>=4&&!av.length?lista:null;
+  v.innerHTML=`<p style="margin:8px 0;"><b>${lista.length} fila(s) reconocida(s).</b></p>${av.length?`<ul style="color:#c92b2b;margin:0 0 8px 18px;">${av.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`:'<p style="color:#116b2e;margin:0 0 8px;">La lista está completa y ordenada. Completa el N.º y la fecha de la ODD y guárdala.</p>'}`;
+  g.style.display=PREC_NUEVA?"inline-block":"none";
+});
+on("precGuardarBtn","click",async()=>{
+  const msg=document.getElementById("precMsg"); msg.style.color="#c92b2b"; msg.textContent="";
+  try{
+    const num=document.getElementById("precNumero").value.trim(), fecha=document.getElementById("precFecha").value;
+    if(!PREC_NUEVA) throw new Error("Primero presiona «Revisar» con la tabla de la ODD.");
+    if(!/^\d{1,3}\/\d{4}$/.test(num)) throw new Error("Escribe el número de la ODD con este formato: 037/2026.");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new Error("Indica la fecha de la ODD.");
+    const id=document.getElementById("miVoluntario")?.value, yo=ROSTER.find(x=>String(x.id)===String(id));
+    if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden actualizar la precedencia. Elige tu nombre en la pantalla principal.");
+    if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(document.getElementById("precClave").value||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
+    const previo=await precLeerEstricto(); if(!previo) throw new Error("No se pudo leer la precedencia vigente. Inténtalo de nuevo.");
+    const nuevo={odd:{numero:num,fecha,titulo:"Orden de precedencia del mando operativo",dejaSinEfecto:previo.odd?[previo.odd.numero]:[],firmas:[]},vigenteDesde:fecha,lista:PREC_NUEVA.map((x,i)=>({n:i+1,cargo:x.cargo,nombre:x.nombre})),
+      historial:[{odd:previo.odd,vigenteDesde:previo.vigenteDesde,lista:previo.lista,reemplazadaEn:new Date().toISOString(),version:previo.version||1}].concat(previo.historial||[]),version:(previo.version||1)+1,guardadaEn:new Date().toISOString(),registradaPor:yo.id};
+    if(!(await rawSet(PRECEDENCIA_KEY,nuevo))) throw new Error("No se pudo guardar. Inténtalo de nuevo.");
+    PREC_NUEVA=null; document.getElementById("precGuardarBtn").style.display="none"; document.getElementById("precVista").innerHTML="";
+    msg.style.color="#116b2e"; msg.textContent="Precedencia actualizada con la ODD "+num+". La anterior quedó guardada."; await renderPrecedencia();
+  }catch(e){ msg.textContent=(e&&e.message)||"No se pudo guardar."; }
+});
 async function renderGnVoluntario(){
  const box=document.getElementById("gnVolSemana"); if(!box)return;
  const planes=await gnPlanes(); const hoy=todayISO(); const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
@@ -4733,7 +4801,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     /* Las validaciones de la Guardia de prueba ya no corren en cada apertura:
        validarGuardiaPruebaEnero2026() y validarMatrizGuardiaPrueba() siguen
        disponibles para ejecutarlas a mano cuando se necesiten. */
-    renderAvisosOdd(true).catch(()=>{}); renderGnInscripcionCard(true).catch(()=>{});
+    renderAvisosOdd(true).catch(()=>{}); renderGnInscripcionCard(true).catch(()=>{}); sembrarPrecedencia();
     renderTipoSelect(); populateTipoFilters(); renderRegistradoPorOptions(); renderCargoOptions();
     document.getElementById("ordenModo").value=ORDEN_MODO;
     document.getElementById("anioOficialidad").value=new Date().getFullYear();
