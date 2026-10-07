@@ -1949,6 +1949,44 @@ on("gnVolConfirmar","click",async()=>{
  await sSet("guardia-inscripcion:"+ini+":"+who,[...gnVolSel].sort()); msg.textContent="Disponibilidad guardada en GERMANIA."; 
 });
 
+/* Coordinación semanal por funciones: una sola semana central, sin duplicar la Guardia. */
+function gnRolSemanalKey(rol,inicio){ return "guardia-rol:"+rol+":"+inicio; }
+function gnEsMaquinista(m){
+  const t=precN([m?.cargo,m?.rol,m?.especialidad].filter(Boolean).join(" "));
+  return t.includes("maquin")||t.includes("conductor")||t.includes("jefe de maquinas");
+}
+function gnEsOficial(m){
+  const t=precN(m?.cargo||"");
+  return t.includes("capitan")||t.includes("teniente primero")||t.includes("teniente segundo")||t.includes("teniente tercero")||t.includes("teniente 1")||t.includes("teniente 2")||t.includes("teniente 3");
+}
+async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
+  const key=gnRolSemanalKey(rol,p.inicio), actual=await sGet(key,{inicio:p.inicio,fin:p.fin,rol,personas:{},historial:[]});
+  const previo=actual.personas?.[who]||null, ahora=new Date().toISOString();
+  actual.personas=actual.personas||{};
+  actual.historial=actual.historial||[];
+  if(previo) actual.historial.push({id:who,previo,cambiadoEn:ahora});
+  actual.personas[who]={id:who,noches:[...new Set(noches)].sort(),actualizadoEn:ahora,...extra};
+  actual.actualizadoEn=ahora;
+  if(actual.historial.length>300) actual.historial=actual.historial.slice(-300);
+  return await sSet(key,actual);
+}
+async function gnConflictosSemana(p,who,noches,rol){
+  const roles=["maquinista","oficial","obac"], conflictos=[];
+  for(const r of roles){
+    if(r===rol) continue;
+    const d=await sGet(gnRolSemanalKey(r,p.inicio),null), asign=d?.personas?.[who]?.noches||[];
+    noches.forEach(n=>{ if(asign.includes(n)) conflictos.push({noche:n,rol:r}); });
+  }
+  const vol=await sGet("guardia-inscripcion:"+p.inicio+":"+who,[]);
+  if(rol!=="voluntario"&&Array.isArray(vol)) noches.forEach(n=>{ if(vol.includes(n)) conflictos.push({noche:n,rol:"voluntario"}); });
+  return conflictos;
+}
+async function gnTransferirDesdeVoluntario(p,who,noches){
+  const key="guardia-inscripcion:"+p.inicio+":"+who, vol=await sGet(key,[]);
+  if(!Array.isArray(vol)) return;
+  const queda=vol.filter(n=>!noches.includes(n));
+  if(queda.length!==vol.length) await sSet(key,queda);
+}
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
