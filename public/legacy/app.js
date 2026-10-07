@@ -2013,9 +2013,15 @@ on("gnRolGuardar","click",async()=>{
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort(), conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
-  await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
-  await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
-  msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
+  try {
+    // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
+    await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
+    await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
+    msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
+  } catch (error) {
+    console.error("No se pudo guardar la función de Guardia",error);
+    msg.textContent="No se completó la asignación. Comprueba permisos y conexión; la inscripción original no se elimina antes de guardar el rol.";
+  }
 });
 on("miVoluntario","change",()=>renderGnRolSemanal().catch(()=>{}));
 /* OBAC semanal: convocatoria privada y secuencial según precedencia vigente. */
