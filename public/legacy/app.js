@@ -1784,24 +1784,34 @@ on("gnConfirmarPeriodo","click",async()=>{
 });
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
-   Mínimo sugerido: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
+   Mínimo: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
 let GN_INS_SEL=new Set(), GN_INS_CLAVE="", GN_INS_CACHE=null;
 function gnInsCierreMs(p){ const t=p.cierre?Date.parse(p.cierre):NaN; return Number.isNaN(t)?instanteChile(gnAdd(p.inicio,-1),"19:00"):t; }
+async function gnConteosSemana(p){
+  const dias=gnWeek(p.inicio), conteos=Object.fromEntries(dias.map(d=>[d,0]));
+  const lecturas=await Promise.all(ROSTER.filter(x=>x.activo!==false).map(async m=>{
+    try{return await sGet("guardia-inscripcion:"+p.inicio+":"+m.id,[]);}catch(e){return [];}
+  }));
+  lecturas.forEach(noches=>(Array.isArray(noches)?noches:[]).forEach(d=>{
+    if(Object.prototype.hasOwnProperty.call(conteos,d)) conteos[d]++;
+  }));
+  return conteos;
+}
 async function gnInsDatos(who,forzar){
   const ahora=Date.now();
   if(!forzar&&GN_INS_CACHE&&GN_INS_CACHE.who===who&&ahora<GN_INS_CACHE.hasta) return GN_INS_CACHE;
   const planes=await gnPlanes();
   const p=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||null;
-  let saved=[],conf=null;
-  if(p){ [saved,conf]=await Promise.all([sGet("guardia-inscripcion:"+p.inicio+":"+who,[]),sGet("guardia-confirmacion:"+p.inicio+":"+who,null)]); }
-  GN_INS_CACHE={who,p,saved:Array.isArray(saved)?saved:[],conf,hasta:ahora+60000}; return GN_INS_CACHE;
+  let saved=[],conf=null,conteos={};
+  if(p){ [saved,conf,conteos]=await Promise.all([sGet("guardia-inscripcion:"+p.inicio+":"+who,[]),sGet("guardia-confirmacion:"+p.inicio+":"+who,null),gnConteosSemana(p)]); }
+  GN_INS_CACHE={who,p,saved:Array.isArray(saved)?saved:[],conf,conteos,hasta:ahora+60000}; return GN_INS_CACHE;
 }
 async function renderGnInscripcionCard(forzar){
   const box=document.getElementById("gnInscripcionCard"); if(!box) return;
   const who=document.getElementById("miVoluntario")?.value;
   if(!who){ box.innerHTML=""; return; }
   let d; try{ d=await gnInsDatos(who,forzar); }catch(e){ return; }
-  const {p,saved,conf}=d;
+  const {p,saved,conf,conteos={}}=d;
   if(!p||Date.now()>=gnInsCierreMs(p)||(conf&&(conf.cumple||conf.justificacion))){ if(box.innerHTML) box.innerHTML=""; return; }
   const clave=p.inicio+":"+who; if(GN_INS_CLAVE!==clave){ GN_INS_CLAVE=clave; GN_INS_SEL=new Set(saved); }
   const dias=gnWeek(p.inicio), hasta=gnInsCierreMs(p);
@@ -1811,10 +1821,10 @@ async function renderGnInscripcionCard(forzar){
   box.innerHTML=`<div class="card" style="min-width:0;margin-bottom:12px;">
     <h2 style="margin:0;">Guardia nocturna · elige tus noches</h2>
     <p class="sub" style="margin:4px 0 0;">Semana ${esc(gnFmt(p.inicio))} 23:00 → ${esc(gnFmt(gnAdd(p.inicio,7)))} 08:00 · solo presencial, en el cuartel.<br>Cierra el <b>${esc(cierreTxt)}</b> · faltan ${esc(avisoRestante(hasta,Date.now()))}.</p>
-    <div class="gi-noches">${dias.map(f=>`<button type="button" class="gi-n ${GN_INS_SEL.has(f)?"on":""}" data-gi="${f}"><b>${esc(nom(f))}</b><span>${f.slice(8)}</span></button>`).join("")}</div>
+    <div class="gi-noches">${dias.map(f=>`<button type="button" class="gi-n ${GN_INS_SEL.has(f)?"on":""}" data-gi="${f}"><b>${esc(nom(f))}</b><span>${f.slice(8)}</span><small class="gn-coverage">${conteos[f]||0} voluntario${(conteos[f]||0)===1?"":"s"}</small></button>`).join("")}</div>
     <div id="giAviso" style="min-height:20px;font-size:13.5px;color:#c92b2b;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-      <span style="font-size:14px;"><b>${n?"Elegiste "+n+(n===1?" noche":" noches")+":":"Aún no eliges noches"}</b> ${esc(sel.map(f=>nom(f)+" "+f.slice(8)).join(" · "))}<br><small style="opacity:.7;">Mínimo sugerido: 2 noches${conf&&!conf.cumple?" · confirmaste "+conf.noches+": te falta 1 o justifica":""}</small></span>
+      <span style="font-size:14px;"><b>${n?"Elegiste "+n+(n===1?" noche":" noches")+":":"Aún no eliges noches"}</b> ${esc(sel.map(f=>nom(f)+" "+f.slice(8)).join(" · "))}<br><small style="opacity:.7;">Mínimo: 2 noches${conf&&!conf.cumple?" · confirmaste "+conf.noches+": te falta 1 o justifica":""}</small></span>
       <button type="button" class="btn" id="giConfirmar">Confirmar mis noches</button></div>
     <p style="margin:10px 0 0;font-size:13px;"><a href="#" id="giJustificar" style="color:inherit;text-decoration:underline;">No puedo cumplir: justificar por correo</a></p></div>`;
   box.querySelectorAll("[data-gi]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gi; GN_INS_SEL.has(f)?GN_INS_SEL.delete(f):GN_INS_SEL.add(f); renderGnInscripcionCard(false); });
