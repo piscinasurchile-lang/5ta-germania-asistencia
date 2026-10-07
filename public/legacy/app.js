@@ -2015,6 +2015,63 @@ on("gnRolGuardar","click",async()=>{
   msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
 });
 on("miVoluntario","change",()=>renderGnRolSemanal().catch(()=>{}));
+/* OBAC semanal: convocatoria privada y secuencial según precedencia vigente. */
+const GN_OBAC_META_PREFIX="guardia-obac-meta:";
+async function gnObacMeta(p){
+  return await sGet(GN_OBAC_META_PREFIX+p.inicio,{inicio:p.inicio,objetivo:6,decisiones:{},actualizadoEn:null});
+}
+async function gnObacGuardarMeta(p,d){
+  d.actualizadoEn=new Date().toISOString();
+  return await sSet(GN_OBAC_META_PREFIX+p.inicio,d);
+}
+async function gnObacCandidatos(){
+  const prec=await sGet(PRECEDENCIA_KEY,null);
+  return (prec?.lista||[]).map(x=>({ref:x,m:precBuscar(x.nombre)})).filter(x=>x.m);
+}
+async function gnObacSiguiente(p,meta){
+  const candidatos=await gnObacCandidatos(), decisiones=meta.decisiones||{};
+  for(const x of candidatos){
+    const id=String(x.m.id), d=decisiones[id];
+    if(!d||d.estado==="pendiente") return x;
+  }
+  return null;
+}
+async function renderGnObac(){
+  const box=document.getElementById("gnObacTurno"), who=document.getElementById("miVoluntario")?.value;
+  if(!box||!who){ if(box) box.style.display="none"; return; }
+  const planes=await gnPlanes(), ahora=Date.now();
+  const p=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  if(!p){ box.style.display="none"; return; }
+  const meta=await gnObacMeta(p), next=await gnObacSiguiente(p,meta);
+  if(!next||String(next.m.id)!==String(who)){ box.style.display="none"; return; }
+  box.style.display="block"; box.dataset.inicio=p.inicio;
+  const rol=await sGet(gnRolSemanalKey("obac",p.inicio),null), saved=rol?.personas?.[who]?.noches||[];
+  const sel=new Set(saved), out=document.getElementById("gnObacDias");
+  out.innerHTML=gnWeek(p.inicio).map(f=>'<button type="button" class="gn-vol-day available '+(sel.has(f)?"selected":"")+'" data-gn-obac="'+f+'"><b>'+esc(gnFmt(f))+'</b><br><small>23:00–08:00</small></button>').join("");
+  out.querySelectorAll("[data-gn-obac]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gnObac; sel.has(f)?sel.delete(f):sel.add(f); b.classList.toggle("selected",sel.has(f)); });
+  box._gnObac={p,who,sel,meta};
+}
+on("gnObacNo","click",async()=>{
+  const box=document.getElementById("gnObacTurno"), x=box?._gnObac; if(!x) return;
+  x.meta.decisiones=x.meta.decisiones||{}; x.meta.decisiones[x.who]={estado:"no_puede",respondidoEn:new Date().toISOString()};
+  await gnObacGuardarMeta(x.p,x.meta);
+  document.getElementById("gnObacMsg").textContent="Registrado: no puedes cumplir como OBAC. Sigues disponible para inscribirte como voluntario.";
+  setTimeout(()=>renderGnObac().catch(()=>{}),400);
+});
+on("gnObacSi","click",async()=>{
+  const box=document.getElementById("gnObacTurno"), x=box?._gnObac; if(!x) return;
+  const noches=[...x.sel].sort(), msg=document.getElementById("gnObacMsg");
+  if(!noches.length){ msg.textContent="Selecciona al menos una noche en que puedas cumplir como OBAC."; return; }
+  const conflictos=await gnConflictosSemana(x.p,x.who,noches,"obac");
+  if(conflictos.some(y=>y.rol!=="voluntario")){ msg.textContent="Hay un cruce con otra función esa noche. Elige otra noche."; return; }
+  await gnTransferirDesdeVoluntario(x.p,x.who,noches);
+  await gnGuardarRolSemanal("obac",x.p,x.who,noches,{fuente:"precedencia",estado:"confirmado"});
+  x.meta.decisiones=x.meta.decisiones||{}; x.meta.decisiones[x.who]={estado:"confirmado",noches,respondidoEn:new Date().toISOString()};
+  await gnObacGuardarMeta(x.p,x.meta); GN_INS_CACHE=null;
+  msg.textContent="OBAC confirmado y guardado en la semana central.";
+  setTimeout(()=>renderGnObac().catch(()=>{}),400);
+});
+on("miVoluntario","change",()=>renderGnObac().catch(()=>{}));
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
