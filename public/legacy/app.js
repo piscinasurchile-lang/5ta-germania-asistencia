@@ -2098,6 +2098,34 @@ async function renderGnMandoResumen(){
   document.getElementById("gnMandoResumenBody").innerHTML='<div class="gn-refuerzo"><b>OBAC por precedencia: '+confirmados+' / '+objetivo+'</b> · faltan '+Math.max(0,objetivo-confirmados)+' · no pueden '+rechazados+'</div><div class="gn-vol-week">'+filas+'</div><p class="sub" style="margin-top:10px">Este resumen se reconstruye desde la información central de la semana y queda disponible para la revisión previa de la ODD.</p>';
 }
 on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
+async function gnGuardarRevisionSemanal(p){
+  const [conteos,maq,ofi,obac,meta]=await Promise.all([
+    gnConteosSemana(p),
+    sGet(gnRolSemanalKey("maquinista",p.inicio),null),
+    sGet(gnRolSemanalKey("oficial",p.inicio),null),
+    sGet(gnRolSemanalKey("obac",p.inicio),null),
+    gnObacMeta(p)
+  ]);
+  const snapshot={
+    inicio:p.inicio,fin:p.fin,generadoEn:new Date().toISOString(),
+    plan:{estado:p.estado,horaInicio:p.horaInicio,horaFin:p.horaFin,cierre:p.cierre},
+    voluntariosPorNoche:conteos,
+    maquinistas:maq?.personas||{},oficiales:ofi?.personas||{},obac:obac?.personas||{},
+    obacPrecedencia:{objetivo:Number(meta.objetivo||6),decisiones:meta.decisiones||{}}
+  };
+  const key="guardia-revision:"+p.inicio, anterior=await sGet(key,null);
+  snapshot.version=(anterior?.version||0)+1;
+  snapshot.historial=(anterior?.historial||[]).slice(-19);
+  if(anterior) snapshot.historial.push({version:anterior.version,generadoEn:anterior.generadoEn});
+  await sSet(key,snapshot);
+  return snapshot;
+}
+async function gnPrepararRevisionActual(){
+  const planes=await gnPlanes(), hoy=todayISO();
+  const p=planes.filter(x=>x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  if(!p) return null;
+  return await gnGuardarRevisionSemanal(p);
+}
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
