@@ -2012,7 +2012,9 @@ on("gnRolLimpiar","click",()=>{ GN_ROL_SEL.clear(); document.querySelectorAll("[
 on("gnRolGuardar","click",async()=>{
   const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
-  const noches=[...GN_ROL_SEL].sort(), conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
+  const noches=[...GN_ROL_SEL].sort();
+  if(!noches.length){ msg.textContent="Selecciona al menos una noche para asignar la función."; return; }
+  const conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
   // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
   const conflictosActuales=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
