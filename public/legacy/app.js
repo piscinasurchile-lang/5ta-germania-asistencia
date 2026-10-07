@@ -2100,6 +2100,18 @@ async function renderGnMandoResumen(){
   if(btn) btn.onclick=async()=>{ const msg=document.getElementById("gnMandoMsg"); btn.disabled=true; try{ const s=await gnGuardarRevisionSemanal(p); msg.textContent="Revisión ODD guardada · versión "+s.version+" · "+new Date(s.generadoEn).toLocaleString("es-CL"); }catch(e){ msg.textContent="No se pudo guardar la revisión ODD."; } finally{ btn.disabled=false; } };
 }
 on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
+/* Refrescar las vistas de roles cuando se abre Guardia, no solo al cambiar persona. */
+const gnRolesObserver=new MutationObserver(()=>{
+  const panel=document.getElementById("gnRolesSemana");
+  if(panel&&document.getElementById("miVoluntario")?.value){
+    renderGnRolSemanal().catch(()=>{});
+    renderGnObac().catch(()=>{});
+    renderGnMandoResumen().catch(()=>{});
+  }
+});
+const gnGuardiaVista=document.getElementById("gnVolSemana");
+if(gnGuardiaVista) gnRolesObserver.observe(gnGuardiaVista,{childList:true});
+
 async function gnGuardarRevisionSemanal(p){
   const [conteos,maq,ofi,obac,meta]=await Promise.all([
     gnConteosSemana(p),
