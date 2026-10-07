@@ -1758,6 +1758,7 @@ async function renderGnPlanner(){
  cal.innerHTML=html;
  cal.querySelectorAll("[data-gn-date]").forEach(b=>b.onclick=()=>gnElegirSemana(b.dataset.gnDate));
  renderGnPeriodo(); await renderGnVoluntario();
+ await Promise.allSettled([renderGnRolSemanal(),renderGnObac(),renderGnMandoResumen()]);
 }
 function gnElegirSemana(iso){
  const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ const msg=document.getElementById("gnPlanMsg"); msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
@@ -2100,46 +2101,6 @@ async function renderGnMandoResumen(){
   if(btn) btn.onclick=async()=>{ const msg=document.getElementById("gnMandoMsg"); btn.disabled=true; try{ const s=await gnGuardarRevisionSemanal(p); msg.textContent="Revisión ODD guardada · versión "+s.version+" · "+new Date(s.generadoEn).toLocaleString("es-CL"); }catch(e){ msg.textContent="No se pudo guardar la revisión ODD."; } finally{ btn.disabled=false; } };
 }
 on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
-/* Refrescar las vistas de roles cuando se abre Guardia, no solo al cambiar persona. */
-const gnRolesObserver=new MutationObserver(()=>{
-  const panel=document.getElementById("gnRolesSemana");
-  if(panel&&document.getElementById("miVoluntario")?.value){
-    renderGnRolSemanal().catch(()=>{});
-    renderGnObac().catch(()=>{});
-    renderGnMandoResumen().catch(()=>{});
-  }
-});
-const gnGuardiaVista=document.getElementById("gnVolSemana");
-if(gnGuardiaVista) gnRolesObserver.observe(gnGuardiaVista,{childList:true});
-
-async function gnGuardarRevisionSemanal(p){
-  const [conteos,maq,ofi,obac,meta]=await Promise.all([
-    gnConteosSemana(p),
-    sGet(gnRolSemanalKey("maquinista",p.inicio),null),
-    sGet(gnRolSemanalKey("oficial",p.inicio),null),
-    sGet(gnRolSemanalKey("obac",p.inicio),null),
-    gnObacMeta(p)
-  ]);
-  const snapshot={
-    inicio:p.inicio,fin:p.fin,generadoEn:new Date().toISOString(),
-    plan:{estado:p.estado,horaInicio:p.horaInicio,horaFin:p.horaFin,cierre:p.cierre},
-    voluntariosPorNoche:conteos,
-    maquinistas:maq?.personas||{},oficiales:ofi?.personas||{},obac:obac?.personas||{},
-    obacPrecedencia:{objetivo:Number(meta.objetivo||6),decisiones:meta.decisiones||{}}
-  };
-  const key="guardia-revision:"+p.inicio, anterior=await sGet(key,null);
-  snapshot.version=(anterior?.version||0)+1;
-  snapshot.historial=(anterior?.historial||[]).slice(-19);
-  if(anterior) snapshot.historial.push({version:anterior.version,generadoEn:anterior.generadoEn});
-  await sSet(key,snapshot);
-  return snapshot;
-}
-async function gnPrepararRevisionActual(){
-  const planes=await gnPlanes(), hoy=todayISO();
-  const p=planes.filter(x=>x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
-  if(!p) return null;
-  return await gnGuardarRevisionSemanal(p);
-}
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
