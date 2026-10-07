@@ -32,3 +32,10 @@ test("guardia: role assignment is saved before volunteer nights are removed", ()
   assert.ok(save >= 0 && transfer > save);
   assert.ok(section.includes("transferencia parcial"));
 });
+
+test("guardia: OBAC precedence cannot be read or overwritten anonymously", () => {
+  const get = api.split("export async function GET")[1].split("export async function PUT")[0];
+  const put = api.split("export async function PUT")[1];
+  assert.ok(get.includes('key.startsWith("precedencia:")'));
+  assert.ok(put.includes('key.startsWith("precedencia:")'));
+});
