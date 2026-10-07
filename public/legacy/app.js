@@ -424,6 +424,38 @@ async function verDatosPrueba(){
   }catch(e){ out.textContent="No se pudo leer: "+((e&&e.message)||e); }
 }
 on("verPruebaBtn","click",verDatosPrueba);
+/* ---- Guardias de prueba: ver y retirar (con respaldo) ---- */
+const esGuardiaDePrueba=g=>!!g&&(g.esPrueba===true||/(REGISTRO|MATRIZ) TEMPORAL DE PRUEBA/.test(String(g.novedades||"")));
+async function guardiasDePrueba(){
+  const idx=await idxGuardias(), out=[];
+  for(const it of idx){ const g=await sGet("guardia:"+it.clave,null); if(esGuardiaDePrueba(g)) out.push({it,g}); }
+  return out;
+}
+function gpMsg(t,error){ const m=document.getElementById("gpMsg"); if(m){ m.textContent=t||""; m.style.color=error?"#c92b2b":"inherit"; } }
+async function verGuardiasDePrueba(){
+  gpMsg("Leyendo…");
+  try{ const l=await guardiasDePrueba(); gpMsg(l.length?`Hay ${l.length} guardia(s) de prueba: ${l.map(x=>x.it.fecha||x.it.clave).sort().join(", ")}. Las guardias reales no se tocan.`:"No hay guardias de prueba."); }
+  catch(e){ gpMsg("No se pudo leer: "+((e&&e.message)||e),true); }
+}
+async function retirarGuardiasDePrueba(){
+  try{
+    const id=document.getElementById("miVoluntario")?.value, yo=ROSTER.find(x=>String(x.id)===String(id));
+    if(!yo||!avisoCargoHabilitado(yo.cargo)) throw new Error("Solo el Ayudante, el Secretario o el Capitán pueden retirar las guardias de prueba. Elige tu nombre en la pantalla principal.");
+    if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(document.getElementById("gpClave")?.value||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
+    const l=await guardiasDePrueba(); if(!l.length){ gpMsg("No hay guardias de prueba."); return; }
+    if(!confirm(`Se retirarán ${l.length} guardia(s) de prueba (${l.map(x=>x.it.fecha||x.it.clave).sort().join(", ")}). Las guardias reales no se tocan. Antes se guarda un respaldo. ¿Continuar?`)) return;
+    const clave="guardias:respaldo-prueba:"+todayISO(), resp=Object.assign({},await sGet(clave,{}));
+    l.forEach(x=>{ resp[x.it.clave]=x.g; });
+    if(!(await rawSet(clave,resp))) throw new Error("No se pudo guardar el respaldo. No se retiró nada.");
+    const quitar=new Set(l.map(x=>x.it.clave));
+    for(const x of l){ if(!(await rawSet("guardia:"+x.it.clave,null))) throw new Error("No se pudo retirar «"+x.it.clave+"». Lo ya retirado está en el respaldo; vuelve a intentarlo."); }
+    const idx=(await idxGuardias()).filter(i=>!quitar.has(i.clave));
+    if(!(await rawSet(GUARDIA_IDX,idx))) throw new Error("Se retiraron las guardias pero no se pudo actualizar el índice. Vuelve a intentarlo.");
+    gpMsg(`Listo: se retiraron ${l.length} guardia(s) de prueba. Respaldo guardado en «${clave}».`);
+  }catch(e){ gpMsg((e&&e.message)||"No se pudo retirar.",true); }
+}
+on("gpVerBtn","click",verGuardiasDePrueba);
+on("gpRetirarBtn","click",retirarGuardiasDePrueba);
 const RESTAURAR_PRUEBAS_BLOQUEADO=true;
 async function limpiarDatosPrueba(){
   /* BLOQUEADO: la app ya guarda datos reales (inscripciones, ODD, estados…) y esta restauración los borraría junto con los de prueba. */
@@ -4812,12 +4844,7 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
     await loadAll();
     // Guardia se sincroniza y valida en segundo plano. Nunca bloquea el arranque
     // de la Tablet B-5 ni la selección del voluntario.
-    Promise.allSettled([
-      sembrarGuardiaPruebaEnero2026(),
-      sembrarMatrizGuardiaPrueba()
-    ]).then(resultados=>{
-      resultados.filter(x=>x.status==="rejected").forEach(x=>console.error("Siembra Guardia:",x.reason));
-    });
+    /* Las guardias de prueba ya no se siembran al abrir la app (se retiran desde Oficiales → Importar / respaldo). */
     /* Las validaciones de la Guardia de prueba ya no corren en cada apertura:
        validarGuardiaPruebaEnero2026() y validarMatrizGuardiaPrueba() siguen
        disponibles para ejecutarlas a mano cuando se necesiten. */
