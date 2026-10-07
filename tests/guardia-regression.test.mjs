@@ -39,3 +39,10 @@ test("guardia: OBAC precedence cannot be read or overwritten anonymously", () =>
   assert.ok(get.includes('key.startsWith("precedencia:")'));
   assert.ok(put.includes('key.startsWith("precedencia:")'));
 });
+
+test("guardia: partial transfer cannot display a completed success", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  assert.ok(section.includes('catch (transferError)'));
+  assert.ok(section.includes('msg.textContent="La función se guardó, pero falta conciliar'));
+  assert.ok(section.includes('GN_INS_CACHE=null;\n      return;'));
+});
