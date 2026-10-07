@@ -1992,7 +1992,10 @@ async function renderGnRolSemanal(){
   if(!box||!who){ if(box) box.style.display="none"; return; }
   const yo=ROSTER.find(x=>String(x.id)===String(who)), planes=await gnPlanes(), hoy=todayISO();
   const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
-  let rol=gnEsOficial(yo)?"oficial":gnEsMaquinista(yo)?"maquinista":"";
+  const esOficial=gnEsOficial(yo), esConductor=gnEsMaquinista(yo);
+  const selector=document.getElementById("gnRolSelector"), wrap=document.getElementById("gnRolSelectorWrap");
+  if(wrap) wrap.style.display=esOficial&&esConductor?"block":"none";
+  let rol=esOficial&&esConductor?(selector?.value||"oficial"):esOficial?"oficial":esConductor?"maquinista":"";
   if(!p||!rol){ box.style.display="none"; return; }
   GN_ROL_PLAN=p; GN_ROL_ACTIVO=rol;
   const d=await sGet(gnRolSemanalKey(rol,p.inicio),null), saved=d?.personas?.[who]?.noches||[];
@@ -2003,12 +2006,13 @@ async function renderGnRolSemanal(){
   out.innerHTML=dias.map(f=>'<button type="button" class="gn-vol-day available '+(GN_ROL_SEL.has(f)?"selected":"")+'" data-gn-rol="'+f+'"><b>'+esc(gnFmt(f))+'</b><br><small>23:00–08:00</small></button>').join("");
   out.querySelectorAll("[data-gn-rol]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gnRol; GN_ROL_SEL.has(f)?GN_ROL_SEL.delete(f):GN_ROL_SEL.add(f); b.classList.toggle("selected",GN_ROL_SEL.has(f)); });
 }
+on("gnRolSelector","change",()=>renderGnRolSemanal().catch(()=>{}));
 on("gnRolLimpiar","click",()=>{ GN_ROL_SEL.clear(); document.querySelectorAll("[data-gn-rol]").forEach(x=>x.classList.remove("selected")); });
 on("gnRolGuardar","click",async()=>{
   const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort(), conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
-  if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="Hay un cruce con otra función esa noche. Corrige la selección."; return; }
+  if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
   await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
   await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
   msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
