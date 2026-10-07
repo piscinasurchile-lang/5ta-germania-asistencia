@@ -1992,7 +1992,7 @@ async function renderGnRolSemanal(){
   if(!box||!who){ if(box) box.style.display="none"; return; }
   const yo=ROSTER.find(x=>String(x.id)===String(who)), planes=await gnPlanes(), hoy=todayISO();
   const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
-  let rol=gnEsMaquinista(yo)?"maquinista":gnEsOficial(yo)?"oficial":"";
+  let rol=gnEsOficial(yo)?"oficial":gnEsMaquinista(yo)?"maquinista":"";
   if(!p||!rol){ box.style.display="none"; return; }
   GN_ROL_PLAN=p; GN_ROL_ACTIVO=rol;
   const d=await sGet(gnRolSemanalKey(rol,p.inicio),null), saved=d?.personas?.[who]?.noches||[];
