@@ -2016,7 +2016,15 @@ on("gnRolGuardar","click",async()=>{
   try {
     // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
     await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
-    await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
+    try {
+      await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
+    } catch (transferError) {
+      // El rol se guardó; no afirmar éxito total si la baja del rol anterior falló.
+      console.error("Guardia: transferencia parcial",transferError);
+      msg.textContent="La función se guardó, pero falta conciliar las noches de voluntario. Solicita revisión al administrador.";
+      GN_INS_CACHE=null;
+      return;
+    }
     msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
   } catch (error) {
     console.error("No se pudo guardar la función de Guardia",error);
