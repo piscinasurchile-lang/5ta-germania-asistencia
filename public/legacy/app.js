@@ -2095,7 +2095,9 @@ async function renderGnMandoResumen(){
     return '<div class="gn-vol-day" style="min-width:0"><b>'+esc(gnFmt(f))+'</b><br><small>'+v+' voluntarios'+(extra?' · REFORZADA +'+extra:'')+'<br>'+porNoche(maq,f)+' MAQ · '+porNoche(ofi,f)+' oficial · '+porNoche(obac,f)+' OBAC</small></div>';
   }).join("");
   box.style.display="block";
-  document.getElementById("gnMandoResumenBody").innerHTML='<div class="gn-refuerzo"><b>OBAC por precedencia: '+confirmados+' / '+objetivo+'</b> · faltan '+Math.max(0,objetivo-confirmados)+' · no pueden '+rechazados+'</div><div class="gn-vol-week">'+filas+'</div><p class="sub" style="margin-top:10px">Este resumen se reconstruye desde la información central de la semana y queda disponible para la revisión previa de la ODD.</p>';
+  document.getElementById("gnMandoResumenBody").innerHTML='<div class="gn-refuerzo"><b>OBAC por precedencia: '+confirmados+' / '+objetivo+'</b> · faltan '+Math.max(0,objetivo-confirmados)+' · no pueden '+rechazados+'</div><div class="gn-vol-week">'+filas+'</div><p class="sub" style="margin-top:10px">Este resumen se reconstruye desde la información central de la semana y queda disponible para la revisión previa de la ODD.</p><div class="gn-actions"><button type="button" class="btn" id="gnGuardarRevision">Guardar revisión para ODD</button></div>';
+  const btn=document.getElementById("gnGuardarRevision");
+  if(btn) btn.onclick=async()=>{ const msg=document.getElementById("gnMandoMsg"); btn.disabled=true; try{ const s=await gnGuardarRevisionSemanal(p); msg.textContent="Revisión ODD guardada · versión "+s.version+" · "+new Date(s.generadoEn).toLocaleString("es-CL"); }catch(e){ msg.textContent="No se pudo guardar la revisión ODD."; } finally{ btn.disabled=false; } };
 }
 on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
 async function gnGuardarRevisionSemanal(p){
