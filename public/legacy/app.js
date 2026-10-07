@@ -2072,6 +2072,34 @@ on("gnObacSi","click",async()=>{
   setTimeout(()=>renderGnObac().catch(()=>{}),400);
 });
 on("miVoluntario","change",()=>renderGnObac().catch(()=>{}));
+async function renderGnMandoResumen(){
+  const box=document.getElementById("gnMandoResumen"), who=document.getElementById("miVoluntario")?.value;
+  if(!box||!who){ if(box) box.style.display="none"; return; }
+  const yo=ROSTER.find(x=>String(x.id)===String(who)), cargo=precN(yo?.cargo||"");
+  const mando=cargo.includes("capitan")||cargo.includes("teniente tercero")||cargo.includes("teniente 3");
+  if(!mando){ box.style.display="none"; return; }
+  const planes=await gnPlanes(), hoy=todayISO();
+  const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  if(!p){ box.style.display="none"; return; }
+  const [conteos,maq,ofi,obac,meta]=await Promise.all([
+    gnConteosSemana(p),
+    sGet(gnRolSemanalKey("maquinista",p.inicio),null),
+    sGet(gnRolSemanalKey("oficial",p.inicio),null),
+    sGet(gnRolSemanalKey("obac",p.inicio),null),
+    gnObacMeta(p)
+  ]);
+  const porNoche=(doc,f)=>Object.values(doc?.personas||{}).filter(x=>(x.noches||[]).includes(f)).length;
+  const decisiones=Object.values(meta.decisiones||{}), confirmados=decisiones.filter(x=>x.estado==="confirmado").length;
+  const rechazados=decisiones.filter(x=>x.estado==="no_puede").length, objetivo=Number(meta.objetivo||6);
+  const dias=gnWeek(p.inicio);
+  const filas=dias.map(f=>{
+    const v=conteos[f]||0, extra=Math.max(0,v-4);
+    return '<div class="gn-vol-day" style="min-width:0"><b>'+esc(gnFmt(f))+'</b><br><small>'+v+' voluntarios'+(extra?' · REFORZADA +'+extra:'')+'<br>'+porNoche(maq,f)+' MAQ · '+porNoche(ofi,f)+' oficial · '+porNoche(obac,f)+' OBAC</small></div>';
+  }).join("");
+  box.style.display="block";
+  document.getElementById("gnMandoResumenBody").innerHTML='<div class="gn-refuerzo"><b>OBAC por precedencia: '+confirmados+' / '+objetivo+'</b> · faltan '+Math.max(0,objetivo-confirmados)+' · no pueden '+rechazados+'</div><div class="gn-vol-week">'+filas+'</div><p class="sub" style="margin-top:10px">Este resumen se reconstruye desde la información central de la semana y queda disponible para la revisión previa de la ODD.</p>';
+}
+on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
