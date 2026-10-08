@@ -1758,6 +1758,7 @@ async function renderGnPlanner(){
  cal.innerHTML=html;
  cal.querySelectorAll("[data-gn-date]").forEach(b=>b.onclick=()=>gnElegirSemana(b.dataset.gnDate));
  renderGnPeriodo(); await renderGnVoluntario();
+ await Promise.allSettled([renderGnRolSemanal(),renderGnObac(),renderGnMandoResumen()]);
 }
 function gnElegirSemana(iso){
  const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ const msg=document.getElementById("gnPlanMsg"); msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
@@ -1784,37 +1785,52 @@ on("gnConfirmarPeriodo","click",async()=>{
 });
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
-   Mínimo sugerido: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
+   Mínimo: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
 let GN_INS_SEL=new Set(), GN_INS_CLAVE="", GN_INS_CACHE=null;
 function gnInsCierreMs(p){ const t=p.cierre?Date.parse(p.cierre):NaN; return Number.isNaN(t)?instanteChile(gnAdd(p.inicio,-1),"19:00"):t; }
+async function gnConteosSemana(p){
+  const dias=gnWeek(p.inicio), conteos=Object.fromEntries(dias.map(d=>[d,0]));
+  const lecturas=await Promise.all(ROSTER.filter(x=>x.activo!==false).map(async m=>{
+    try{return await sGet("guardia-inscripcion:"+p.inicio+":"+m.id,[]);}catch(e){return [];}
+  }));
+  lecturas.forEach(noches=>(Array.isArray(noches)?noches:[]).forEach(d=>{
+    if(Object.prototype.hasOwnProperty.call(conteos,d)) conteos[d]++;
+  }));
+  return conteos;
+}
 async function gnInsDatos(who,forzar){
   const ahora=Date.now();
   if(!forzar&&GN_INS_CACHE&&GN_INS_CACHE.who===who&&ahora<GN_INS_CACHE.hasta) return GN_INS_CACHE;
   const planes=await gnPlanes();
   const p=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||null;
-  let saved=[],conf=null;
-  if(p){ [saved,conf]=await Promise.all([sGet("guardia-inscripcion:"+p.inicio+":"+who,[]),sGet("guardia-confirmacion:"+p.inicio+":"+who,null)]); }
-  GN_INS_CACHE={who,p,saved:Array.isArray(saved)?saved:[],conf,hasta:ahora+60000}; return GN_INS_CACHE;
+  let saved=[],conf=null,conteos={};
+  if(p){ [saved,conf,conteos]=await Promise.all([sGet("guardia-inscripcion:"+p.inicio+":"+who,[]),sGet("guardia-confirmacion:"+p.inicio+":"+who,null),gnConteosSemana(p)]); }
+  GN_INS_CACHE={who,p,saved:Array.isArray(saved)?saved:[],conf,conteos,hasta:ahora+60000}; return GN_INS_CACHE;
 }
 async function renderGnInscripcionCard(forzar){
   const box=document.getElementById("gnInscripcionCard"); if(!box) return;
   const who=document.getElementById("miVoluntario")?.value;
   if(!who){ box.innerHTML=""; return; }
   let d; try{ d=await gnInsDatos(who,forzar); }catch(e){ return; }
-  const {p,saved,conf}=d;
+  const {p,saved,conf,conteos={}}=d;
   if(!p||Date.now()>=gnInsCierreMs(p)||(conf&&(conf.cumple||conf.justificacion))){ if(box.innerHTML) box.innerHTML=""; return; }
   const clave=p.inicio+":"+who; if(GN_INS_CLAVE!==clave){ GN_INS_CLAVE=clave; GN_INS_SEL=new Set(saved); }
   const dias=gnWeek(p.inicio), hasta=gnInsCierreMs(p);
   const cierreTxt=new Date(hasta).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   const nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","");
   const sel=[...GN_INS_SEL].sort(); const n=sel.length;
+  const yo=ROSTER.find(x=>String(x.id)===String(who));
+  const cargoYo=precN(yo?.cargo||"");
+  const puedeVerRefuerzo=cargoYo.includes("capitan")||cargoYo.includes("teniente tercero")||cargoYo.includes("teniente 3");
+  const reforzadas=dias.filter(f=>(conteos[f]||0)>4);
   box.innerHTML=`<div class="card" style="min-width:0;margin-bottom:12px;">
     <h2 style="margin:0;">Guardia nocturna · elige tus noches</h2>
     <p class="sub" style="margin:4px 0 0;">Semana ${esc(gnFmt(p.inicio))} 23:00 → ${esc(gnFmt(gnAdd(p.inicio,7)))} 08:00 · solo presencial, en el cuartel.<br>Cierra el <b>${esc(cierreTxt)}</b> · faltan ${esc(avisoRestante(hasta,Date.now()))}.</p>
-    <div class="gi-noches">${dias.map(f=>`<button type="button" class="gi-n ${GN_INS_SEL.has(f)?"on":""}" data-gi="${f}"><b>${esc(nom(f))}</b><span>${f.slice(8)}</span></button>`).join("")}</div>
+    <div class="gi-noches">${dias.map(f=>`<button type="button" class="gi-n ${GN_INS_SEL.has(f)?"on":""}" data-gi="${f}"><b>${esc(nom(f))}</b><span>${f.slice(8)}</span><small class="gn-coverage">${conteos[f]||0} voluntario${(conteos[f]||0)===1?"":"s"}</small></button>`).join("")}</div>
+    ${puedeVerRefuerzo&&reforzadas.length?`<div class="gn-refuerzo"><b>REFORZADA · información de mando</b><br>${reforzadas.map(f=>esc(nom(f)+" "+f.slice(8)+": "+conteos[f]+" voluntarios · +"+(conteos[f]-4))).join(" · ")}</div>`:""}
     <div id="giAviso" style="min-height:20px;font-size:13.5px;color:#c92b2b;"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-      <span style="font-size:14px;"><b>${n?"Elegiste "+n+(n===1?" noche":" noches")+":":"Aún no eliges noches"}</b> ${esc(sel.map(f=>nom(f)+" "+f.slice(8)).join(" · "))}<br><small style="opacity:.7;">Mínimo sugerido: 2 noches${conf&&!conf.cumple?" · confirmaste "+conf.noches+": te falta 1 o justifica":""}</small></span>
+      <span style="font-size:14px;"><b>${n?"Elegiste "+n+(n===1?" noche":" noches")+":":"Aún no eliges noches"}</b> ${esc(sel.map(f=>nom(f)+" "+f.slice(8)).join(" · "))}<br><small style="opacity:.7;">Mínimo: 2 noches${conf&&!conf.cumple?" · confirmaste "+conf.noches+": te falta 1 o justifica":""}</small></span>
       <button type="button" class="btn" id="giConfirmar">Confirmar mis noches</button></div>
     <p style="margin:10px 0 0;font-size:13px;"><a href="#" id="giJustificar" style="color:inherit;text-decoration:underline;">No puedo cumplir: justificar por correo</a></p></div>`;
   box.querySelectorAll("[data-gi]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gi; GN_INS_SEL.has(f)?GN_INS_SEL.delete(f):GN_INS_SEL.add(f); renderGnInscripcionCard(false); });
@@ -1831,14 +1847,12 @@ function gnInsAviso(t){ const a=document.getElementById("giAviso"); if(a) a.text
 function gnInsToast(t){ const x=document.createElement("div"); x.id="giToast"; x.style.cssText="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100001;background:#116b2e;color:#fff;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px;max-width:92vw;text-align:center;"; x.textContent=t; document.body.appendChild(x); setTimeout(()=>x.remove(),10000); }
 async function gnInsConfirmar(p,who){
   const sel=[...GN_INS_SEL].sort(), n=sel.length, nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","")+" "+iso.slice(8);
-  if(!n){ gnInsAviso("Elige al menos una noche, o justifica por correo."); return; }
+  if(!n){ gnInsAviso("Elige al menos 2 noches, o justifica por correo."); return; }
+  if(n<2){ gnInsAviso("El mínimo es 2 noches. Agrega otra noche o usa la justificación por correo."); return; }
   const confirmar=async(just)=>{ try{ await gnInsGuardar(p,who,sel,just); cerrarModalOdd(); gnInsToast("Noches confirmadas: "+sel.map(nom).join(" · ")); await renderGnInscripcionCard(true); }catch(e){ cerrarModalOdd(); gnInsAviso((e&&e.message)||"No se pudo guardar."); } };
-  const c=modalOdd(n===1
-    ?`<h2 style="margin:0 0 8px;">Marcaste solo 1 noche</h2><p>El mínimo sugerido es 2 noches. Puedes agregar otra, confirmar así o justificar por correo.</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button type="button" class="btn" id="giOtra">Agregar otra noche</button><button type="button" class="btn secondary" id="giSolo">Confirmar solo 1</button><button type="button" class="btn secondary" id="giJust">Justificar por correo</button></div>`
-    :`<h2 style="margin:0 0 8px;">¿Estás seguro?</h2><p>Vas a confirmar estas noches de guardia:</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><p style="color:#9aa0a8;font-size:14px;">Después no podrás cambiarlas desde aquí: los cambios se piden al Teniente Tercero.</p><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn" id="giSi">Sí, confirmar</button><button type="button" class="btn secondary" id="giVolver">Volver</button></div>`);
+  const c=modalOdd(`<h2 style="margin:0 0 8px;">¿Estás seguro?</h2><p>Vas a confirmar estas noches de guardia:</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><p style="color:#9aa0a8;font-size:14px;">Después no podrás cambiarlas desde aquí: los cambios se piden al Teniente Tercero.</p><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn" id="giSi">Sí, confirmar</button><button type="button" class="btn secondary" id="giVolver">Volver</button></div>`);
   const q=id=>c.querySelector("#"+id);
-  if(n===1){ q("giOtra").onclick=cerrarModalOdd; q("giSolo").onclick=()=>confirmar(null); q("giJust").onclick=()=>{ cerrarModalOdd(); gnInsJustificar(p,who); }; }
-  else { q("giSi").onclick=()=>confirmar(null); q("giVolver").onclick=cerrarModalOdd; }
+  q("giSi").onclick=()=>confirmar(null); q("giVolver").onclick=cerrarModalOdd;
 }
 async function gnInsJustificar(p,who){
   const m=ROSTER.find(x=>String(x.id)===String(who)); const sel=[...GN_INS_SEL].sort();
@@ -1934,6 +1948,242 @@ on("gnVolConfirmar","click",async()=>{
  await sSet("guardia-inscripcion:"+ini+":"+who,[...gnVolSel].sort()); msg.textContent="Disponibilidad guardada en GERMANIA."; 
 });
 
+/* Coordinación semanal por funciones: una sola semana central, sin duplicar la Guardia. */
+function gnRolSemanalKey(rol,inicio){ return "guardia-rol:"+rol+":"+inicio; }
+function gnEsMaquinista(m){
+  const t=precN([m?.cargo,m?.rol,m?.especialidad].filter(Boolean).join(" "));
+  return t.includes("maquin")||t.includes("conductor")||t.includes("jefe de maquinas");
+}
+function gnEsOficial(m){
+  const t=precN(m?.cargo||"");
+  return t.includes("capitan")||t.includes("teniente primero")||t.includes("teniente segundo")||t.includes("teniente tercero")||t.includes("teniente 1")||t.includes("teniente 2")||t.includes("teniente 3");
+}
+async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
+  if(!["maquinista","oficial","obac"].includes(rol)||!p||typeof p.inicio!=="string"||typeof p.fin!=="string"||!String(who||"").trim()){
+    throw new Error("Guardia: función, período o voluntario inválido.");
+  }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(p.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(p.fin)||p.inicio>p.fin){
+    throw new Error("Guardia: límites de semana inválidos.");
+  }
+  if(!Array.isArray(noches)||!noches.length||noches.some(n=>typeof n!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<p.inicio||n>p.fin)){
+    throw new Error("Guardia: fechas de asignación inválidas o fuera de la semana.");
+  }
+  if(!extra||typeof extra!=="object"||Array.isArray(extra)||["id","noches","actualizadoEn","__proto__","constructor","prototype"].some(k=>Object.prototype.hasOwnProperty.call(extra,k))){
+    throw new Error("Guardia: metadatos de función inválidos.");
+  }
+  const key=gnRolSemanalKey(rol,p.inicio), actual=await sGet(key,{inicio:p.inicio,fin:p.fin,rol,personas:{},historial:[]});
+  if(!actual||typeof actual!=="object"||Array.isArray(actual)||!actual.personas||typeof actual.personas!=="object"||Array.isArray(actual.personas)||!Array.isArray(actual.historial)){
+    throw new Error("Guardia: registro semanal inválido; se requiere conciliación antes de guardar.");
+  }
+  if(actual.inicio!==p.inicio||actual.fin!==p.fin||actual.rol!==rol){
+    throw new Error("Guardia: registro semanal corresponde a otra semana o función.");
+  }
+  if(actual.historial.some(h=>!h||typeof h!=="object"||Array.isArray(h))){
+    throw new Error("Guardia: historial semanal inválido; se requiere conciliación antes de guardar.");
+  }
+  if(Object.prototype.hasOwnProperty.call(actual.personas,who)&&(!actual.personas[who]||typeof actual.personas[who]!=="object"||Array.isArray(actual.personas[who])||!Array.isArray(actual.personas[who].noches))){
+    throw new Error("Guardia: asignación previa inválida; se requiere conciliación antes de guardar.");
+  }
+  const previo=actual.personas?.[who]||null, ahora=new Date().toISOString();
+  actual.personas=actual.personas||{};
+  actual.historial=actual.historial||[];
+  if(previo) actual.historial.push({id:who,previo,cambiadoEn:ahora});
+  actual.personas[who]={id:who,noches:[...new Set(noches)].sort(),actualizadoEn:ahora,...extra};
+  actual.actualizadoEn=ahora;
+  // Conservar el historial completo: el truncamiento automático puede borrar auditoría de guardias.
+  const guardado=await sSet(key,actual);
+  if(guardado!==true) throw new Error("Guardia: la asignación de función no fue confirmada por la base central.");
+  return true;
+}
+async function gnConflictosSemana(p,who,noches,rol){
+  const roles=["maquinista","oficial","obac"], conflictos=[];
+  for(const r of roles){
+    if(r===rol) continue;
+    const d=await sGet(gnRolSemanalKey(r,p.inicio),null), asign=d?.personas?.[who]?.noches||[];
+    noches.forEach(n=>{ if(asign.includes(n)) conflictos.push({noche:n,rol:r}); });
+  }
+  // Las funciones operativas se comparan por fecha; el cargo institucional no cambia.
+  const vol=await sGet("guardia-inscripcion:"+p.inicio+":"+who,[]);
+  if(rol!=="voluntario"&&Array.isArray(vol)) noches.forEach(n=>{ if(vol.includes(n)) conflictos.push({noche:n,rol:"voluntario"}); });
+  return conflictos;
+}
+async function gnTransferirDesdeVoluntario(p,who,noches){
+  const key="guardia-inscripcion:"+p.inicio+":"+who, vol=await sGet(key,[]);
+  if(!Array.isArray(vol)) throw new Error("Guardia: inscripción de voluntario inválida; se requiere conciliación.");
+  const queda=vol.filter(n=>!noches.includes(n));
+  if(queda.length!==vol.length){
+    const guardado=await sSet(key,queda);
+    if(guardado!==true) throw new Error("Guardia: la transferencia de noches no fue confirmada por la base central.");
+  }
+}
+let GN_ROL_SEL=new Set(), GN_ROL_ACTIVO="", GN_ROL_PLAN=null;
+async function renderGnRolSemanal(){
+  const box=document.getElementById("gnRolesSemana"), who=document.getElementById("miVoluntario")?.value;
+  if(!box||!who){ if(box) box.style.display="none"; return; }
+  const yo=ROSTER.find(x=>String(x.id)===String(who)), planes=await gnPlanes(), hoy=todayISO();
+  const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  const esOficial=gnEsOficial(yo), esConductor=gnEsMaquinista(yo);
+  const selector=document.getElementById("gnRolSelector"), wrap=document.getElementById("gnRolSelectorWrap");
+  if(wrap) wrap.style.display=esOficial&&esConductor?"block":"none";
+  let rol=esOficial&&esConductor?(selector?.value||"oficial"):esOficial?"oficial":esConductor?"maquinista":"";
+  if(!p||!rol){ box.style.display="none"; return; }
+  GN_ROL_PLAN=p; GN_ROL_ACTIVO=rol;
+  const d=await sGet(gnRolSemanalKey(rol,p.inicio),null), saved=d?.personas?.[who]?.noches||[];
+  GN_ROL_SEL=new Set(saved); box.style.display="block";
+  document.getElementById("gnRolTitulo").textContent=rol==="maquinista"?"Guardia · Maquinistas":"Guardia · Oficiales";
+  document.getElementById("gnRolSub").textContent=rol==="maquinista"?"Selecciona los días que puedes cubrir como conductor/maquinista.":"Selecciona los días que puedes cubrir como oficial.";
+  const dias=gnWeek(p.inicio), out=document.getElementById("gnRolDias");
+  out.innerHTML=dias.map(f=>'<button type="button" class="gn-vol-day available '+(GN_ROL_SEL.has(f)?"selected":"")+'" data-gn-rol="'+f+'"><b>'+esc(gnFmt(f))+'</b><br><small>23:00–08:00</small></button>').join("");
+  out.querySelectorAll("[data-gn-rol]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gnRol; GN_ROL_SEL.has(f)?GN_ROL_SEL.delete(f):GN_ROL_SEL.add(f); b.classList.toggle("selected",GN_ROL_SEL.has(f)); });
+}
+on("gnRolSelector","change",()=>renderGnRolSemanal().catch(()=>{}));
+on("gnRolLimpiar","click",()=>{ GN_ROL_SEL.clear(); document.querySelectorAll("[data-gn-rol]").forEach(x=>x.classList.remove("selected")); });
+on("gnRolGuardar","click",async()=>{
+  const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
+  if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
+  const botonGuardar=document.getElementById("gnRolGuardar");
+  if(botonGuardar?.disabled) return;
+  if(botonGuardar) botonGuardar.disabled=true;
+  try {
+  const noches=[...GN_ROL_SEL].sort();
+  const rolSolicitado=GN_ROL_ACTIVO;
+  const planSolicitado={...GN_ROL_PLAN};
+  const identidadSolicitada=String(who);
+  if(!ROSTER.some(x=>String(x.id)===identidadSolicitada))){
+    msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
+  }
+  const actual=ROSTER.find(x=>String(x.id)===identidadSolicitada);
+  if((rolSolicitado==="oficial"&&!gnEsOficial(actual))||(rolSolicitado==="maquinista"&&!gnEsMaquinista(actual))){
+    msg.textContent="La función seleccionada no corresponde a tu registro de nómina."; return;
+  }
+  if(planSolicitado.estado!=="abierta"||planSolicitado.fin<todayISO()){
+    msg.textContent="La semana de guardia ya no está abierta. Actualiza la planificación."; return;
+  }
+  if(!noches.length){ msg.textContent="Selecciona al menos una noche para asignar la función."; return; }
+  if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<planSolicitado.inicio||n>planSolicitado.fin)){
+    msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
+  }
+  const planesVigentes=await gnPlanes();
+  if(!planesVigentes.some(p=>p.inicio===planSolicitado.inicio&&p.fin===planSolicitado.fin&&p.estado==="abierta"&&p.fin>=todayISO())){
+    msg.textContent="La semana fue cerrada o modificada. Actualiza la planificación."; return;
+  }
+  const conflictos=await gnConflictosSemana(planSolicitado,identidadSolicitada,noches,rolSolicitado);
+  if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
+  // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
+  const conflictosActuales=await gnConflictosSemana(planSolicitado,identidadSolicitada,noches,rolSolicitado);
+  if(conflictosActuales.some(x=>x.rol!=="voluntario")){ msg.textContent="La asignación cambió mientras editabas. Actualiza y vuelve a intentarlo."; return; }
+  try {
+    // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
+    await gnGuardarRolSemanal(rolSolicitado,planSolicitado,identidadSolicitada,noches);
+    try {
+      await gnTransferirDesdeVoluntario(planSolicitado,identidadSolicitada,noches);
+    } catch (transferError) {
+      // El rol se guardó; no afirmar éxito total si la baja del rol anterior falló.
+      console.error("Guardia: transferencia parcial",transferError);
+      msg.textContent="La función se guardó, pero falta conciliar las noches de voluntario. Solicita revisión al administrador.";
+      GN_INS_CACHE=null;
+      return;
+    }
+    msg.textContent="Días guardados en la semana central de Guardia."; GN_INS_CACHE=null;
+  } catch (error) {
+    console.error("No se pudo guardar la función de Guardia",error);
+    msg.textContent="No se completó la asignación. Comprueba permisos y conexión; la inscripción original no se elimina antes de guardar el rol.";
+  }
+  } catch (error) {
+    console.error("Guardia: error de validación o conexión",error);
+    msg.textContent="No se pudo validar la asignación con el servidor. Revisa la conexión y vuelve a intentarlo.";
+  } finally { if(botonGuardar) botonGuardar.disabled=false; }
+});
+on("miVoluntario","change",()=>renderGnRolSemanal().catch(()=>{}));
+/* OBAC semanal: convocatoria privada y secuencial según precedencia vigente. */
+const GN_OBAC_META_PREFIX="guardia-obac-meta:";
+async function gnObacMeta(p){
+  return await sGet(GN_OBAC_META_PREFIX+p.inicio,{inicio:p.inicio,objetivo:6,decisiones:{},actualizadoEn:null});
+}
+async function gnObacGuardarMeta(p,d){
+  d.actualizadoEn=new Date().toISOString();
+  return await sSet(GN_OBAC_META_PREFIX+p.inicio,d);
+}
+async function gnObacCandidatos(){
+  const prec=await sGet(PRECEDENCIA_KEY,null);
+  return (prec?.lista||[]).map(x=>({ref:x,m:precBuscar(x.nombre)})).filter(x=>x.m);
+}
+async function gnObacSiguiente(p,meta){
+  const candidatos=await gnObacCandidatos(), decisiones=meta.decisiones||{};
+  const confirmados=Object.values(decisiones).filter(d=>d.estado==="confirmado").length;
+  if(confirmados>=Number(meta.objetivo||6)) return null;
+  for(const x of candidatos){
+    const id=String(x.m.id), d=decisiones[id];
+    if(!d||d.estado==="pendiente") return x;
+  }
+  return null;
+}
+async function renderGnObac(){
+  const box=document.getElementById("gnObacTurno"), who=document.getElementById("miVoluntario")?.value;
+  if(!box||!who){ if(box) box.style.display="none"; return; }
+  const planes=await gnPlanes(), ahora=Date.now();
+  const p=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  if(!p){ box.style.display="none"; return; }
+  const meta=await gnObacMeta(p), next=await gnObacSiguiente(p,meta);
+  if(!next||String(next.m.id)!==String(who)){ box.style.display="none"; return; }
+  box.style.display="block"; box.dataset.inicio=p.inicio;
+  const rol=await sGet(gnRolSemanalKey("obac",p.inicio),null), saved=rol?.personas?.[who]?.noches||[];
+  const sel=new Set(saved), out=document.getElementById("gnObacDias");
+  out.innerHTML=gnWeek(p.inicio).map(f=>'<button type="button" class="gn-vol-day available '+(sel.has(f)?"selected":"")+'" data-gn-obac="'+f+'"><b>'+esc(gnFmt(f))+'</b><br><small>23:00–08:00</small></button>').join("");
+  out.querySelectorAll("[data-gn-obac]").forEach(b=>b.onclick=()=>{ const f=b.dataset.gnObac; sel.has(f)?sel.delete(f):sel.add(f); b.classList.toggle("selected",sel.has(f)); });
+  box._gnObac={p,who,sel,meta};
+}
+on("gnObacNo","click",async()=>{
+  const box=document.getElementById("gnObacTurno"), x=box?._gnObac; if(!x) return;
+  x.meta.decisiones=x.meta.decisiones||{}; x.meta.decisiones[x.who]={estado:"no_puede",respondidoEn:new Date().toISOString()};
+  await gnObacGuardarMeta(x.p,x.meta);
+  document.getElementById("gnObacMsg").textContent="Registrado: no puedes cumplir como OBAC. Sigues disponible para inscribirte como voluntario.";
+  setTimeout(()=>renderGnObac().catch(()=>{}),400);
+});
+on("gnObacSi","click",async()=>{
+  const box=document.getElementById("gnObacTurno"), x=box?._gnObac; if(!x) return;
+  const noches=[...x.sel].sort(), msg=document.getElementById("gnObacMsg");
+  if(!noches.length){ msg.textContent="Selecciona al menos una noche en que puedas cumplir como OBAC."; return; }
+  const conflictos=await gnConflictosSemana(x.p,x.who,noches,"obac");
+  if(conflictos.some(y=>y.rol!=="voluntario")){ msg.textContent="Hay un cruce con otra función esa noche. Elige otra noche."; return; }
+  await gnTransferirDesdeVoluntario(x.p,x.who,noches);
+  await gnGuardarRolSemanal("obac",x.p,x.who,noches,{fuente:"precedencia",estado:"confirmado"});
+  x.meta.decisiones=x.meta.decisiones||{}; x.meta.decisiones[x.who]={estado:"confirmado",noches,respondidoEn:new Date().toISOString()};
+  await gnObacGuardarMeta(x.p,x.meta); GN_INS_CACHE=null;
+  msg.textContent="OBAC confirmado y guardado en la semana central.";
+  setTimeout(()=>renderGnObac().catch(()=>{}),400);
+});
+on("miVoluntario","change",()=>renderGnObac().catch(()=>{}));
+async function renderGnMandoResumen(){
+  const box=document.getElementById("gnMandoResumen"), who=document.getElementById("miVoluntario")?.value;
+  if(!box||!who){ if(box) box.style.display="none"; return; }
+  const yo=ROSTER.find(x=>String(x.id)===String(who)), cargo=precN(yo?.cargo||"");
+  const mando=cargo.includes("capitan")||cargo.includes("teniente tercero")||cargo.includes("teniente 3");
+  if(!mando){ box.style.display="none"; return; }
+  const planes=await gnPlanes(), hoy=todayISO();
+  const p=planes.filter(x=>x.estado==="abierta"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
+  if(!p){ box.style.display="none"; return; }
+  const [conteos,maq,ofi,obac,meta]=await Promise.all([
+    gnConteosSemana(p),
+    sGet(gnRolSemanalKey("maquinista",p.inicio),null),
+    sGet(gnRolSemanalKey("oficial",p.inicio),null),
+    sGet(gnRolSemanalKey("obac",p.inicio),null),
+    gnObacMeta(p)
+  ]);
+  const porNoche=(doc,f)=>Object.values(doc?.personas||{}).filter(x=>(x.noches||[]).includes(f)).length;
+  const decisiones=Object.values(meta.decisiones||{}), confirmados=decisiones.filter(x=>x.estado==="confirmado").length;
+  const rechazados=decisiones.filter(x=>x.estado==="no_puede").length, objetivo=Number(meta.objetivo||6);
+  const dias=gnWeek(p.inicio);
+  const filas=dias.map(f=>{
+    const v=conteos[f]||0, extra=Math.max(0,v-4);
+    return '<div class="gn-vol-day" style="min-width:0"><b>'+esc(gnFmt(f))+'</b><br><small>'+v+' voluntarios'+(extra?' · REFORZADA +'+extra:'')+'<br>'+porNoche(maq,f)+' MAQ · '+porNoche(ofi,f)+' oficial · '+porNoche(obac,f)+' OBAC</small></div>';
+  }).join("");
+  box.style.display="block";
+  document.getElementById("gnMandoResumenBody").innerHTML='<div class="gn-refuerzo"><b>OBAC por precedencia: '+confirmados+' / '+objetivo+'</b> · faltan '+Math.max(0,objetivo-confirmados)+' · no pueden '+rechazados+'</div><div class="gn-vol-week">'+filas+'</div><p class="sub" style="margin-top:10px">Este resumen se reconstruye desde la información central de la semana y queda disponible para la revisión previa de la ODD.</p><div class="gn-actions"><button type="button" class="btn" id="gnGuardarRevision">Guardar revisión para ODD</button></div>';
+  const btn=document.getElementById("gnGuardarRevision");
+  if(btn) btn.onclick=async()=>{ const msg=document.getElementById("gnMandoMsg"); btn.disabled=true; try{ const s=await gnGuardarRevisionSemanal(p); msg.textContent="Revisión ODD guardada · versión "+s.version+" · "+new Date(s.generadoEn).toLocaleString("es-CL"); }catch(e){ msg.textContent="No se pudo guardar la revisión ODD."; } finally{ btn.disabled=false; } };
+}
+on("miVoluntario","change",()=>renderGnMandoResumen().catch(()=>{}));
 /* ============ GUARDIA NOCTURNA ============ */
 const GUARDIA_IDX="guardias:index";
 
