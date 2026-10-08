@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GERMANIA · Disponibles</title>
+<meta name="theme-color" content="#07090b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Disponibles">
+<link rel="icon" type="image/png" sizes="64x64" href="/legacy/favicon-64.png?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/legacy/apple-touch-icon.png?v=3">
+<style>
+:root{--bg:#07090b;--card:#12171c;--line:#2a323a;--rojo:#dd0000;--oro:#ffce00;--txt:#fff;--mut:#9aa5ae;}
+*{box-sizing:border-box;margin:0;}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:'Source Sans 3',system-ui,sans-serif;}
+body{display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));gap:12px;}
+.w-top{display:flex;align-items:center;gap:10px;min-height:44px;}
+.w-top img{height:44px;width:auto;}
+.w-top b{font:700 20px/1 'Oswald',system-ui,sans-serif;letter-spacing:.08em;}
+.w-top small{margin-left:auto;color:var(--mut);font-size:14px;}
+.w-grid{flex:1;display:grid;grid-template-rows:repeat(3,1fr);gap:12px;min-height:0;}
+.w-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px;background:var(--card);border:1.5px solid var(--line);border-left:8px solid var(--rojo);border-radius:14px;}
+.w-card.dis{border-left-color:var(--oro);}
+.w-card.con{border-left-color:#fff;}
+.w-lbl{font:600 clamp(20px,6vw,34px)/1.1 'Oswald',system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;}
+.w-num{font:700 clamp(72px,26vw,200px)/1 'Oswald',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--oro);}
+.w-card.cua .w-num{color:#fff;}
+.w-err{color:#ff8c93;font-size:16px;text-align:center;min-height:20px;}
+@media (min-width:700px){.w-grid{grid-template-rows:none;grid-template-columns:repeat(3,1fr);}.w-card{flex-direction:column;justify-content:center;padding:20px;border-left-width:1.5px;border-top:8px solid var(--rojo);}.w-card.dis{border-top-color:var(--oro);}.w-card.con{border-top-color:#fff;}}
+</style>
+</head>
+<body>
+<div class="w-top"><img src="/legacy/escudo-5ta-germania.png" alt=""><b>GERMANIA</b><small id="wHora">—</small></div>
+<div class="w-grid" aria-live="polite">
+  <div class="w-card cua"><span class="w-lbl">En cuartel</span><span class="w-num" id="wCuartel">–</span></div>
+  <div class="w-card dis"><span class="w-lbl">Disponibles</span><span class="w-num" id="wDisp">–</span></div>
+  <div class="w-card con"><span class="w-lbl">Conductores</span><span class="w-num" id="wCond">–</span></div>
+</div>
+<div class="w-err" id="wErr"></div>
+<script>
+/* Mismo cálculo que la minuta de disponibilidad: el último estado de cada voluntario activo.
+   Conductores = en cuartel o disponibles que son maquinistas. */
+function hoyISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+async function leer(k){ var r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"}); if(!r.ok) throw new Error(k); var j=await r.json(); return j.value; }
+function diaAtras(n){ var d=new Date(); d.setDate(d.getDate()-n); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+async function actualizar(){
+  try{
+    var claves=["disponibilidad:vigente"]; for(var i=0;i<15;i++) claves.push("disponibilidad:"+diaAtras(i));
+    var rs=await Promise.all([leer("roster:v8")].concat(claves.map(function(k){ return leer(k).catch(function(){ return {}; }); })));
+    var roster=Array.isArray(rs[0])?rs[0]:[], ult={};
+    function poner(id,r){ if(!r||!r.estado) return; var a=ult[id]; if(!a||(Date.parse(r.desde)||0)>=(Date.parse(a.desde)||0)) ult[id]=r; }
+    rs.slice(1).forEach(function(v){ if(!v||typeof v!=="object") return; Object.keys(v).forEach(function(id){ poner(id,v[id]); }); });
+    var c=0,d=0,k=0;
+    roster.filter(function(m){ return m.activo!==false; }).forEach(function(m){ var e=ult[m.id]&&ult[m.id].estado; if(e==="cuartel") c++; if(e==="disponible") d++; if((e==="cuartel"||e==="disponible")&&m.conductor===true) k++; });
+    document.getElementById("wCuartel").textContent=c; document.getElementById("wDisp").textContent=d; document.getElementById("wCond").textContent=k;
+    document.getElementById("wHora").textContent=new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit",hour12:false});
+    document.getElementById("wErr").textContent="";
+  }catch(e){ document.getElementById("wErr").textContent="Sin conexión · reintentando…"; }
+}
+actualizar(); setInterval(actualizar,30000);
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") actualizar(); });
+</script>
+</body>
+</html>
