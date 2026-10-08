@@ -63,3 +63,11 @@ test("guardia: empty operational assignment is rejected before any write", () =>
   assert.ok(emptyGuard >= 0 && save > emptyGuard);
   assert.ok(section.includes("Selecciona al menos una noche"));
 });
+
+test("guardia: dates outside the selected weekly period are rejected", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const dateGuard = section.indexOf("n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin");
+  const save = section.indexOf("await gnGuardarRolSemanal(");
+  assert.ok(dateGuard >= 0 && save > dateGuard);
+  assert.ok(section.includes("Hay fechas fuera de la semana de guardia"));
+});
