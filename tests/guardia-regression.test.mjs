@@ -127,7 +127,7 @@ test("guardia: failed pre-save checks report an error and restore save button", 
 test("guardia: async save uses a snapshot of selected role and period", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
   assert.ok(section.includes("const rolSolicitado=GN_ROL_ACTIVO"));
-  assert.ok(section.includes("const planSolicitado=GN_ROL_PLAN"));
+  assert.ok(section.includes("const planSolicitado={...GN_ROL_PLAN}"));
   assert.ok(section.includes("await gnGuardarRolSemanal(rolSolicitado,planSolicitado,who,noches)"));
   assert.ok(section.includes("await gnTransferirDesdeVoluntario(planSolicitado,who,noches)"));
 });
