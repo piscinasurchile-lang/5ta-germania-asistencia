@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import {
-  ensureSchema, resetSchemaCache, readState, writeState, addToList, listHistory, listByPrefix
+  ensureSchema, resetSchemaCache, readState, writeState, addToList, listHistory, listByPrefix, voluntariosQuitados
 } from "../lib/state-store.js";
 
 /* Adaptador: PGlite como si fuera la función `sql` de Neon (plantilla etiquetada → filas). */
@@ -171,4 +171,13 @@ test("listByPrefix: permite guardias por mes y avisos, y sigue rechazando el res
   await writeState(sql, "guardia-revision:2026-10-14", { estado: "aprobada" });
   assert.equal((await listByPrefix(sql, "guardia-revision:")).length, 1);
   await assert.rejects(() => listByPrefix(sql, "precedencia:"), /invalid_prefix/);
+});
+
+test("regla de la nómina: no se pierde un voluntario sin autorización expresa", () => {
+  const actual = [{ id: "a", clave: "1", nombre: "Ana", apellidoPaterno: "Soto" }, { id: "b", clave: "2", nombre: "Beto" }];
+  assert.deepEqual(voluntariosQuitados(actual, actual), []);
+  assert.deepEqual(voluntariosQuitados(actual, [actual[0], { id: "c" }]).map((x) => x.id), ["b"]);
+  assert.deepEqual(voluntariosQuitados(actual, [actual[0]], ["b"]), []);
+  assert.deepEqual(voluntariosQuitados(actual, []).map((x) => x.id), ["a", "b"]);
+  assert.deepEqual(voluntariosQuitados(null, actual), []);
 });

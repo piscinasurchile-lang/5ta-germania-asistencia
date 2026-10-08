@@ -986,6 +986,17 @@
         </div>
         <div class="foot-note">El N° se calcula solo, por antigüedad. Si alguien se retira, la lista se corre y los que siguen suben un lugar. Desliza la tabla hacia el lado para ver todas las columnas.</div>
       </div>
+
+      <div class="card" id="cmpListaCard">
+        <h2>Comparar lista nueva con la nómina</h2>
+        <p class="sub"><b>Solo compara: no agrega, no da de baja y no borra a nadie.</b> Pega la lista (una persona por línea: RUT, clave o nombre) o sube un archivo CSV/TXT. Te muestra quién coincide, quién viene en la lista y no está en la app, y quién <b>falta</b> en la lista nueva, con lo que tiene en su hoja de vida.</p>
+        <div class="field"><label for="cmpTexto">Lista nueva</label><textarea id="cmpTexto" rows="6" placeholder="10.566.726-4 Christian Vergara Sandoval&#10;517 Christian Vergara&#10;…"></textarea></div>
+        <div class="field-row" style="margin-bottom:0;align-items:flex-end;">
+          <div class="field" style="flex:1 1 240px;"><label for="cmpArchivo">…o archivo (CSV o TXT)</label><input type="file" id="cmpArchivo" accept=".csv,.txt,text/csv,text/plain"></div>
+          <div class="field" style="flex:0 0 auto;"><button class="btn" id="cmpBtn" type="button">Comparar</button></div>
+        </div>
+        <div id="cmpResultado" style="margin-top:12px;"></div>
+      </div>
     </div>
 
     <!-- HOJA DE VIDA -->
@@ -1380,5 +1391,6 @@
 <script src="/legacy/germania-fixes-20261002.js?v=20261002"></script>
 <script src="./germania-ui.js?v=20261008d"></script>
 <script src="./germania-roles.js?v=20261008d"></script>
+<script src="./germania-nomina.js?v=20261008d"></script>
 </body>
 </html>

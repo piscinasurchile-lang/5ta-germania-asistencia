@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { ensureSchema, readState, writeState, addToList } from "../../../../lib/state-store.js";
+import { ensureSchema, readState, writeState, addToList, voluntariosQuitados } from "../../../../lib/state-store.js";
 
 export const runtime = "nodejs";
 
@@ -53,6 +53,13 @@ export async function PUT(request, { params }) {
 
   try {
     await ensureSchema(sql);
+    if (key === "roster:v8") {
+      const actual = await readState(sql, key);
+      const faltan = voluntariosQuitados(actual.value, body.value, body.permitirQuitar);
+      if (faltan.length) {
+        return Response.json({ error: "roster_quita_voluntarios", faltan }, { status: 409, headers: { "Cache-Control": "no-store" } });
+      }
+    }
     const r = await writeState(sql, key, body.value, { ifVersion });
     if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
     return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
