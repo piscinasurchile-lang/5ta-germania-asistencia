@@ -2018,7 +2018,7 @@ on("gnRolGuardar","click",async()=>{
   try {
   const noches=[...GN_ROL_SEL].sort();
   const rolSolicitado=GN_ROL_ACTIVO;
-  const planSolicitado=GN_ROL_PLAN;
+  const planSolicitado={...GN_ROL_PLAN};
   if(!ROSTER.some(x=>String(x.id)===String(who))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
   }
