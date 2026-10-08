@@ -2028,7 +2028,7 @@ on("gnRolGuardar","click",async()=>{
     msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
   }
   const planesVigentes=await gnPlanes();
-  if(!planesVigentes.some(p=>p.inicio===GN_ROL_PLAN.inicio&&p.estado==="abierta"&&p.fin>=todayISO())){
+  if(!planesVigentes.some(p=>p.inicio===GN_ROL_PLAN.inicio&&p.fin===GN_ROL_PLAN.fin&&p.estado==="abierta"&&p.fin>=todayISO())){
     msg.textContent="La semana fue cerrada o modificada. Actualiza la planificación."; return;
   }
   const conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
