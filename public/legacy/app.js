@@ -1985,7 +1985,7 @@ async function gnConflictosSemana(p,who,noches,rol){
 }
 async function gnTransferirDesdeVoluntario(p,who,noches){
   const key="guardia-inscripcion:"+p.inicio+":"+who, vol=await sGet(key,[]);
-  if(!Array.isArray(vol)) return;
+  if(!Array.isArray(vol)) throw new Error("Guardia: inscripción de voluntario inválida; se requiere conciliación.");
   const queda=vol.filter(n=>!noches.includes(n));
   if(queda.length!==vol.length){
     const guardado=await sSet(key,queda);
