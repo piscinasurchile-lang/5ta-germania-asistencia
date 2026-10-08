@@ -36,6 +36,10 @@ async function cargarPrec(){
   lista.forEach(function(x){ if(n>=OBAC_TOTAL) return; if(/^(voluntari)/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
 }
 var OBAC=null, OBAC_TOTAL=6;
+/* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
+   correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
+var VISTA_PRUEBA=["517"];
+function vistaPrueba(m,kind){ return !!m&&VISTA_PRUEBA.indexOf(String(m.clave))>=0&&!(kind==="maq"?esMaquinista(m):rangoObac(m)!=null); }
 function rangoObac(m){ return m&&PREC&&OBAC&&OBAC[String(m.id)]&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function corto(m){ return m?[m.nombre,m.apellidoPaterno].filter(Boolean).join(" "):"—"; }
 function porId(id){ return ROSTER.find(function(x){ return String(x.id)===String(id); })||null; }
@@ -204,8 +208,8 @@ function pintarInicioRoles(){
   var D=GR.Dmi, m=miembro();
   if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; return; }
   var cards=[["vol","Voluntario","🙋"]];
-  if(esMaquinista(m)) cards.push(["maq","Maquinista","🚒"]);
-  if(rangoObac(m)!=null) cards.push(["obac","OBAC","🎧"]);
+  if(esMaquinista(m)||vistaPrueba(m,"maq")) cards.push(["maq","Maquinista","🚒"]);
+  if(rangoObac(m)!=null||vistaPrueba(m,"obac")) cards.push(["obac","OBAC","🎧"]);
   if(esMando(m)) cards.push(["info","Información","📋"]);
   var hasta=new Date(gnInsCierreMs(D.p)).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   box.innerHTML=cards.map(function(c){
@@ -256,7 +260,8 @@ function panelVol(pn,D){
   var cierreTxt=new Date(cierre).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   var sel=GN_INS_SEL, n=sel.size;
   var h='<h3 class="gr-t">Elige tus noches</h3>';
-  h+=D.abierto?'<p class="sub">Cierra el <b>'+E(cierreTxt)+'</b> · faltan '+E(avisoRestante(cierre,Date.now()))+'. Mínimo sugerido: '+GN_NOCHES_MIN+' noches.</p>':'<p class="sub">La inscripción de esta semana está cerrada.</p>';
+  h+='<p class="sub gr-como">Toca cada noche en que puedes venir y al final presiona <b>Confirmar</b>.</p>';
+  h+=D.abierto?'<p class="sub">Cierra el <b>'+E(cierreTxt)+'</b> · faltan '+E(avisoRestante(cierre,Date.now()))+'. Elige <b>como mínimo '+GN_NOCHES_MIN+' noches</b>; puedes marcar todas las que quieras.</p>':'<p class="sub">La inscripción de esta semana está cerrada.</p>';
   if(confirmada) h+='<p class="gr-ok">✔ Inscripción confirmada: '+saved.length+' noche(s).</p>';
   h+='<div class="gr-noches">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mia=confirmada?saved.indexOf(c.f)>=0:sel.has(c.f);
@@ -278,26 +283,28 @@ function panelVol(pn,D){
 function panelRol(pn,D,kind){
   var who=D.who, esM=kind==="maq", sel=GR.sel[kind]||new Set(), otroK=esM?"obac":"maq";
   var DOT=GN_DOTACION_MIN;
-  var rango=rangoObac(D.m);
-  var h='<h3 class="gr-t">Mis noches como '+(esM?"maquinista":"OBAC")+'</h3>';
+  var rango=rangoObac(D.m), prev=vistaPrueba(D.m,kind);
+  var h=prev?'<div class="gr-nota info"><span aria-hidden="true">👁</span><p><b>Vista de prueba.</b> Solo para ver cómo se ve esta tarjeta en el teléfono. No inscribe nada.</p></div>':'';
+  h+='<h3 class="gr-t">Mis noches como '+(esM?"maquinista":"OBAC")+'</h3>';
   h+='<div class="gr-nota '+(esM?"maq":"obac")+'"><span aria-hidden="true">'+(esM?"🚒":"🎧")+'</span><p>Solo deben inscribirse '+(esM?"los maquinistas":"los OBAC según la precedencia")+' y su disponibilidad. Se requiere '+(esM?DOT.conductor+" maquinista":DOT.obac+" OBAC")+' por noche.'+(!esM&&rango!=null?' <b>Tu lugar en la precedencia: N° '+rango+'.</b>':'')+'</p></div>';
   h+='<div class="gr-tabla" role="table"><div class="gr-tr gr-th" role="row"><span>Día</span><span>Mi disponibilidad</span><span>'+(esM?"Maquinista":"OBAC")+'</span></div>'
   +D.cov.map(function(c){
     var nn=nombreNoche(c.f), lista=esM?c.maq:c.obac, tit=lista[0]||null, soyTit=!!tit&&tit.id===who, enLista=lista.some(function(x){ return x.id===who; });
     var comoVol=tiene(D.S.vol[who],c.f), comoOtro=tiene(D.S[otroK][who],c.f);
-    var marcada=sel.has(c.f), bloq=!D.abierto||comoVol||comoOtro;
+    var marcada=sel.has(c.f), bloq=prev||!D.abierto||comoVol||comoOtro;
     var chip=comoVol?'<span class="gr-chip gris">Ya voluntario</span>':comoOtro?'<span class="gr-chip gris">Ya '+(esM?"OBAC":"maquinista")+'</span>':marcada?'<span class="gr-chip azul">Seleccionado</span>':'<span class="gr-chip verde">Disponible</span>';
     var cupo=tit?('<b>1 / 1</b> <small>(completo)</small><small class="gr-tit">'+(soyTit?"Titular: tú":"Titular: "+E(corto(porId(tit.id))))+(enLista&&!soyTit?" · tú: reserva":"")+'</small>'):'<b>0 / 1</b><small class="gr-tit falta">Falta '+(esM?"maquinista":"OBAC")+'</small>';
     return '<label class="gr-tr'+(marcada?" on":"")+'" role="row"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><span class="gr-chk"><input type="checkbox" data-gr-rol="'+c.f+'"'+(marcada?" checked":"")+(bloq?" disabled":"")+' aria-label="'+E(nn.w+" "+nn.d)+'">'+chip+'</span><span class="gr-cupo-c">'+cupo+'</span></label>';
   }).join("")+'</div>';
   var n=sel.size;
   h+='<p class="gr-aviso-n">Tienes '+n+' noche'+(n===1?"":"s")+' seleccionada'+(n===1?"":"s")+'.</p>';
-  if(D.abierto) h+='<button type="button" class="btn gr-grande" id="grGuardar-'+kind+'">Guardar selección</button><div class="status-msg" id="grMsg-'+kind+'"></div>';
+  if(D.abierto&&!prev) h+='<button type="button" class="btn gr-grande" id="grGuardar-'+kind+'">Guardar selección</button><div class="status-msg" id="grMsg-'+kind+'"></div>';
   pn.innerHTML=h;
   pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
   var g=$("grGuardar-"+kind); if(g) g.onclick=function(){ guardarRol(D,kind); };
 }
 async function guardarRol(D,kind){
+  if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
   var otroK=kind==="maq"?"obac":"maq";
@@ -448,7 +455,7 @@ async function panelRev(pn,D){
   }).join("")+'</div>';
   /* Resultado (así quedará, en el orden de la ODD) */
   h+='<h3 class="gr-t">Resultado</h3><div class="rv-res" role="table"><div class="rv-r rv-h" role="row"><span>Día</span><span>Nombre</span><span>Cargo</span></div>'
-   +cov.map(function(c){ var nn=nombreNoche(c.f), filas=[]; if(c.n.maq) filas.push([c.n.maq,"Conductor"]); if(c.n.obac) filas.push([c.n.obac,"OBAC"]); c.n.vol.forEach(function(id){ filas.push([id,"Voluntario"]); });
+   +cov.map(function(c){ var nn=nombreNoche(c.f), filas=[]; if(c.n.maq) filas.push([c.n.maq,"Maquinista"]); if(c.n.obac) filas.push([c.n.obac,"OBAC"]); c.n.vol.forEach(function(id){ filas.push([id,"Voluntario"]); });
      if(!filas.length) filas.push([null,""]);
      return filas.map(function(f,i){ return '<div class="rv-r" role="row"><span>'+(i===0?E(nn.w+" "+nn.d):"")+'</span><span>'+(f[0]?E(nom(f[0])):'<small class="falta">sin asignar</small>')+'</span><span>'+E(f[1])+'</span></div>'; }).join(""); }).join("")+'</div>';
   /* Cambios */

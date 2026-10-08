@@ -291,7 +291,7 @@ function cargoPriority(c){
 function cargoNumero(c){ const m=(c||"").match(/(\d+)/); return m?parseInt(m[1],10):9999; }
 
 /* Acrónimo del cargo para identificar oficiales en la lista */
-const ACRONIMOS=[["director","DIR"],["secretari","SEC"],["tesorer","TES"],["capit","CAP"],["ayudante","AYU"],["conductor","COND"]];
+const ACRONIMOS=[["director","DIR"],["secretari","SEC"],["tesorer","TES"],["capit","CAP"],["ayudante","AYU"],["conductor","MAQ"]];
 function acronimoCargo(p){
   const c=(p.cargo||"").toLowerCase();
   if(c.includes("tesorer")) return (c.includes("general")||c.includes("gral")) ? "TES GRAL" : "TES";
@@ -1204,7 +1204,7 @@ function renderListaRows(){
     const tr=document.createElement("tr");
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="cargo-col">${esc(p.cargo)}</td>
-      <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">COND</span> `:""}${esc(nombreCompleto(p))}</td>
+      <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">MAQ</span> `:""}${esc(nombreCompleto(p))}</td>
       <td><div class="seg" data-id="${p.id}">
         <button class="on-presente ${st==='presente'?'active':''}" data-status="presente" ${parteBloqueado?"disabled":""}>Presente</button>
         <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente" ${parteBloqueado?"disabled":""}>Ausente</button>
@@ -1743,7 +1743,7 @@ function buildServicioPdf(){
 
   doc.autoTable({startY:doc.lastAutoTable.finalY+4,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
     head:[["Mando",""]],
-    body:[["Unidad a cargo",g("svUnidadCargo")],["Conductor",g("svConductor")],
+    body:[["Unidad a cargo",g("svUnidadCargo")],["Maquinista",g("svConductor")],
           ["Cuerpo a cargo",g("svCuerpoCargo")],["Puesto de mando",g("svPuestoMando")],
           ["A cargo Quinta",g("svCargoQuinta")],["Oficial de contabilidad",g("svOfContabilidad")],
           ["Oficial de seguridad",g("svOfSeguridad")]]});
@@ -1774,7 +1774,7 @@ function buildServicioPdf(){
   if(document.getElementById("svTipoAct").value==="Carga de combustible"){
     doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
       head:[["Ficha de carga de combustible",""]],
-      body:[["Conductor",g("svCombConductor")],["Kilometraje actual",g("svCombKm")],
+      body:[["Maquinista",g("svCombConductor")],["Kilometraje actual",g("svCombKm")],
             ["Fecha",g("svCombFecha")],["Servicentro",g("svCombServicentro")],
             ["RUT del servicentro",g("svCombRut")],["Cantidad cargada (L)",g("svCombLitros")],
             ["Valor del petróleo ($)",g("svCombValor")]]});
@@ -1783,7 +1783,7 @@ function buildServicioPdf(){
   let fy=doc.lastAutoTable.finalY+20;
   if(fy>250){ doc.addPage(); fy=40; }
   doc.setFontSize(9);
-  doc.line(20,fy,85,fy); doc.text("Conductor",20,fy+5);
+  doc.line(20,fy,85,fy); doc.text("Maquinista",20,fy+5);
   doc.line(115,fy,180,fy); doc.text("Oficial a cargo",115,fy+5);
   doc.text(`Generado el ${new Date().toLocaleString("es-CL")}`,14,fy+18);
   return doc;
@@ -5044,7 +5044,7 @@ async function renderDisponibilidad(){
     <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de zona</div></div>
     <div class="summary-item"><div class="big">${cuenta.sin||0}</div><div class="lbl">Sin marcar</div></div>
-    <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>`;
+    <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Maquinistas disponibles</div></div>`;
   if(resumen.innerHTML!==resumenHtml) resumen.innerHTML=resumenHtml;
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
