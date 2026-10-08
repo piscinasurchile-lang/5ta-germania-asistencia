@@ -2019,28 +2019,29 @@ on("gnRolGuardar","click",async()=>{
   const noches=[...GN_ROL_SEL].sort();
   const rolSolicitado=GN_ROL_ACTIVO;
   const planSolicitado={...GN_ROL_PLAN};
+  const identidadSolicitada=String(who);
   if(!ROSTER.some(x=>String(x.id)===String(who))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
   }
   const actual=ROSTER.find(x=>String(x.id)===String(who));
-  if((GN_ROL_ACTIVO==="oficial"&&!gnEsOficial(actual))||(GN_ROL_ACTIVO==="maquinista"&&!gnEsMaquinista(actual))){
+  if((rolSolicitado==="oficial"&&!gnEsOficial(actual))||(rolSolicitado==="maquinista"&&!gnEsMaquinista(actual))){
     msg.textContent="La función seleccionada no corresponde a tu registro de nómina."; return;
   }
-  if(GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()){
+  if(planSolicitado.estado!=="abierta"||planSolicitado.fin<todayISO()){
     msg.textContent="La semana de guardia ya no está abierta. Actualiza la planificación."; return;
   }
   if(!noches.length){ msg.textContent="Selecciona al menos una noche para asignar la función."; return; }
-  if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin)){
+  if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<planSolicitado.inicio||n>planSolicitado.fin)){
     msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
   }
   const planesVigentes=await gnPlanes();
-  if(!planesVigentes.some(p=>p.inicio===GN_ROL_PLAN.inicio&&p.fin===GN_ROL_PLAN.fin&&p.estado==="abierta"&&p.fin>=todayISO())){
+  if(!planesVigentes.some(p=>p.inicio===planSolicitado.inicio&&p.fin===planSolicitado.fin&&p.estado==="abierta"&&p.fin>=todayISO())){
     msg.textContent="La semana fue cerrada o modificada. Actualiza la planificación."; return;
   }
-  const conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
+  const conflictos=await gnConflictosSemana(planSolicitado,who,noches,rolSolicitado);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
   // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
-  const conflictosActuales=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
+  const conflictosActuales=await gnConflictosSemana(planSolicitado,who,noches,rolSolicitado);
   if(conflictosActuales.some(x=>x.rol!=="voluntario")){ msg.textContent="La asignación cambió mientras editabas. Actualiza y vuelve a intentarlo."; return; }
   try {
     // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
