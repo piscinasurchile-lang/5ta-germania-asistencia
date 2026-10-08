@@ -115,3 +115,35 @@ Compatibilidad: si el cliente no envía `ifVersion`, el servidor se comporta com
 - Toda sobrescritura deja copia en `app_state_history`.
 - `npm run build` pasa; la matriz de `docs/REGRESION.md` sin regresiones.
 - No se despliega a producción hasta pasar pruebas (PDF «Criterio final»).
+
+## 9. Inicio y Guardia por rol (09-2026, rama `feat/inicio-tarjetas-por-rol`)
+
+Decisiones del usuario (08-10-2026): todos son voluntarios; los oficiales tienen recursos propios y solo ellos los ven; «Sin emergencias» sirve para novedades; las ODD no se tocan todavía.
+
+**Inicio** (orden): foto + nombre + rol → «Sin emergencias» con novedades (las publican oficiales y mando; clave `novedades:v1`) → Mi estado → recordatorio de guardia → Mis accesos → minuta/tabla siempre visible (orden PDF: En cuartel, Disponibles, No disponibles, Fuera de zona, Sin marcar).
+
+**Guardia → tarjeta «Mi guardia nocturna»** con pestañas según quién eres:
+| Pestaña | Quién la ve | Qué hace |
+|---|---|---|
+| Voluntario | todos | elige noches (mín. 2), ve cupos x/3 y refuerzos, confirma o justifica |
+| Maquinista | `conductor: true` en la nómina | elige noches como maquinista (1 por noche); titular = quien eligió primero |
+| OBAC | quien figura en la precedencia vigente | elige noches como OBAC (1 por noche); titular = mejor lugar en la precedencia, los demás quedan de reserva |
+| Información | Capitán, Teniente 3° y administradores (`ADMINISTRADORES` en `germania-roles.js`, hoy clave 517) | cobertura por noche 3+1+1, faltantes, voluntarios sin elegir |
+
+Reglas: un voluntario ocupa un solo rol por noche; datos en `guardia-inscripcion:`, `guardia-maq:`, `guardia-obac:` y `guardia-confirmacion:` (+ `<inicio>:<id>`); lectura por lote `GET /api/state?prefix=`.
+Visibilidad: Programación, «Quiénes están de guardia», Informes y el acceso Oficiales solo aparecen para oficiales/mando (clase `solo-oficiales`). Es orden visual: el PIN de Oficialidad sigue siendo la protección real cuando se desactive el modo prueba.
+Pendiente: ODD con el formato de la imagen (a pedido, después), ícono/splash/Despacho B-5.
+
+### 9.1 Revisión de la dotación antes de la ODD
+Pestaña **Revisión** (solo Capitán, Teniente 3° y administrador). Flujo: inscripciones → borrador (`guardia-revision:<inicio>`) → el mando agrega/quita/cambia voluntarios, maquinista y OBAC → ve el **Resultado** (orden de la ODD: Día, Nombre, Cargo) y la lista de **Cambios** (quién, cuándo, qué; más el conteo de diferencias contra lo inscrito) → **Aprobar**.
+- Aprobar actualiza las guardias de la semana (`guardia:<fecha>__2300`, las que leen informes y ODD), conserva novedades y estados ya registrados y deja historial de lo anterior. Si hay noches incompletas solo avisa (decisión del 08-10-2026).
+- Dos editores a la vez: el segundo recibe aviso (control de versiones) y no pisa al primero.
+- «Reabrir revisión» y «Rehacer desde las inscripciones» quedan anotados en los cambios.
+- La ODD no se modificó: queda por conectar su generador a la dotación aprobada.
+
+### 9.2 Ciclo de la guardia (horario permanente, Mis noches, reemplazos)
+- **Horario permanente**: todas las noches terminan a las 08:00; parten a las 23:00 y el domingo a las 19:00 (clave de guardia `…__1900`). Es modificable: en Gestión → 2 Inscripciones → «Horario de las noches» el mando cambia la hora de cualquier noche de la semana (`guardia-horarios:<inicio>`) y, si marca la casilla, la deja como habitual (`guardia-horarios:v1`).
+- **Guardia tiene dos vistas** (solo oficiales ven el selector): *Mi guardia* (Mis noches; Voluntario/Maquinista/OBAC únicamente mientras la elección está abierta, después desaparecen) y *Gestión de guardia* en pasos: 1 Programación (calendario y botón que dispara las tarjetas), 2 Inscripciones (avance de la elección), 3 Revisión (corregir y aprobar), 4 Reemplazos. ODD: pendiente, no se toca.
+- **Mis noches**: salen de la dotación aprobada (`guardia-revision:<inicio>`), se ven en Inicio y Guardia y desaparecen cuando la noche termina (08:00). Las terminadas pasan a «Noches cumplidas» en Mi estado.
+- **No puedo esta noche**: crea `guardia-aviso:<fecha>:<id>` (solo creación, `ifVersion:0`). El mando asigna reemplazo (o «sin reemplazo»): actualiza la revisión, la guardia ya aprobada (`conductor`/`oficial`/`reemplazo` + registro `reemplazos`) y el aviso. Estadística: la noche **no cuenta** a quien avisó y **se acredita** a quien la cubrió.
+- Pendiente: conectar la ODD a la dotación aprobada (con autorización).

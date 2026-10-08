@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import {
-  ensureSchema, resetSchemaCache, readState, writeState, addToList, listHistory
+  ensureSchema, resetSchemaCache, readState, writeState, addToList, listHistory, listByPrefix
 } from "../lib/state-store.js";
 
 /* Adaptador: PGlite como si fuera la función `sql` de Neon (plantilla etiquetada → filas). */
@@ -146,4 +146,29 @@ test("P1: con 20 guardados en paralelo no se pierde ningún valor intermedio del
   const h = (await listHistory(sql, "guardia:carrera", 100)).map((r) => r.value.n);
   assert.equal(h.length, 20);                       // 21 valores en total: 20 en historial + el vigente
   assert.equal(new Set([...h, finalVal]).size, 21); // ninguno repetido ni perdido
+});
+
+test("listByPrefix: lee solo las claves de la semana pedida y rechaza prefijos no permitidos", async () => {
+  const { sql } = await nuevaBase();
+  await writeState(sql, "guardia-inscripcion:2026-10-14:517", ["2026-10-14", "2026-10-15"]);
+  await writeState(sql, "guardia-inscripcion:2026-10-14:518", ["2026-10-16"]);
+  await writeState(sql, "guardia-inscripcion:2026-10-21:517", ["2026-10-21"]);
+  await writeState(sql, "roster:v8", [{ n: 1 }]);
+  const r = await listByPrefix(sql, "guardia-inscripcion:2026-10-14:");
+  assert.deepEqual(r.map((x) => x.key), ["guardia-inscripcion:2026-10-14:517", "guardia-inscripcion:2026-10-14:518"]);
+  await assert.rejects(() => listByPrefix(sql, "roster:"), /invalid_prefix/);
+  await assert.rejects(() => listByPrefix(sql, "security:"), /invalid_prefix/);
+  await assert.rejects(() => listByPrefix(sql, "guardia-inscripcion:%"), /invalid_prefix/);
+});
+
+test("listByPrefix: permite guardias por mes y avisos, y sigue rechazando el resto", async () => {
+  const { sql } = await nuevaBase();
+  await writeState(sql, "guardia:2026-10-14__2300", { oficial: "1" });
+  await writeState(sql, "guardia:2026-11-02__2300", { oficial: "2" });
+  await writeState(sql, "guardia-aviso:2026-10-14:517", { estado: "pendiente" });
+  assert.deepEqual((await listByPrefix(sql, "guardia:2026-10")).map((x) => x.key), ["guardia:2026-10-14__2300"]);
+  assert.equal((await listByPrefix(sql, "guardia-aviso:")).length, 1);
+  await writeState(sql, "guardia-revision:2026-10-14", { estado: "aprobada" });
+  assert.equal((await listByPrefix(sql, "guardia-revision:")).length, 1);
+  await assert.rejects(() => listByPrefix(sql, "precedencia:"), /invalid_prefix/);
 });
