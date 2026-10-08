@@ -1856,8 +1856,10 @@ async function gnInsDatos(who,forzar){
   const ahora=Date.now();
   if(!forzar&&GN_INS_CACHE&&GN_INS_CACHE.who===who&&ahora<GN_INS_CACHE.hasta) return GN_INS_CACHE;
   const planes=await gnPlanes();
-  const p=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||null;
-  let saved=[],conf=null;
+  const abiertos=planes.filter(x=>x.estado==="abierta"&&x.confirmado!==false&&ahora<gnInsCierreMs(x)).sort((a,b)=>a.inicio.localeCompare(b.inicio));
+  /* Si hay varias semanas abiertas, se muestra la primera que este voluntario aún no confirmó (si ya confirmó todas, la primera) */
+  let p=abiertos[0]||null, saved=[], conf=null;
+  for(const x of abiertos){ const c=await sGet("guardia-confirmacion:"+x.inicio+":"+who,null); if(!(c&&(c.cumple||c.justificacion))){ p=x; break; } }
   if(p){ [saved,conf]=await Promise.all([sGet("guardia-inscripcion:"+p.inicio+":"+who,[]),sGet("guardia-confirmacion:"+p.inicio+":"+who,null)]); }
   GN_INS_CACHE={who,p,saved:Array.isArray(saved)?saved:[],conf,hasta:ahora+60000}; return GN_INS_CACHE;
 }

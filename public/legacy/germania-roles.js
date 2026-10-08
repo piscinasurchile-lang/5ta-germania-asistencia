@@ -95,12 +95,14 @@ async function leerPrefijo(pref){
   if(!r.ok) throw new Error("lectura");
   var j=await r.json(); return Array.isArray(j.items)?j.items:[];
 }
-async function planActivo(){
+async function planActivo(who){
   var planes=await gnPlanes(), ahora=Date.now(), hoy=todayISO();
   var ab=planes.filter(function(x){ return x.estado==="abierta"&&x.confirmado!==false; }).sort(function(a,b){ return a.inicio.localeCompare(b.inicio); });
-  var abierto=ab.filter(function(x){ return ahora<gnInsCierreMs(x); })[0]||null;
+  var abiertos=ab.filter(function(x){ return ahora<gnInsCierreMs(x); }), abierto=abiertos[0]||null;
+  /* con varias semanas abiertas: la primera que este voluntario aún no confirmó (igual que el aviso de Inicio) */
+  if(who) for(var i=0;i<abiertos.length;i++){ var c=null; try{ c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); }catch(e){} if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
   var p=abierto||ab.filter(function(x){ return x.fin>=hoy; })[0]||null;
-  return {p:p,abierto:!!abierto};
+  return {p:p,abierto:!!abierto,lista:ab.filter(function(x){ return x.fin>=hoy; }),ahora:ahora};
 }
 async function cargarSemana(p){
   var pref=["guardia-inscripcion:","guardia-maq:","guardia-obac:","guardia-confirmacion:"];
@@ -136,7 +138,7 @@ function faltan(c){
 }
 
 /* ---------- Estado de la tarjeta ---------- */
-var GR={vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",cargando:false};
+var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",cargando:false};
 var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["2 · Inscripciones","📋"],rev:["3 · Revisión","🛠"],rep:["4 · Reemplazos","🔁"]};
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
@@ -157,12 +159,17 @@ async function grRender(forzar){
   try{
     if(!PREC) await cargarPrec();
     await cargarHorarios();
-    var pa=await planActivo(), who=String(m.id), D={m:m,who:who,p:pa.p,abierto:pa.abierto,S:null,noches:[],cov:[],error:false};
+    var pa=await planActivo(String(m.id)), who=String(m.id), D={m:m,who:who,p:pa.p,abierto:pa.abierto,S:null,noches:[],cov:[],error:false};
+    if(GR.vista==="gestion"&&pa.lista&&pa.lista.length){
+      var elegida=pa.lista.filter(function(x){ return x.inicio===GR.semana; })[0]||pa.lista[0];
+      D.p=pa.p=elegida; D.abierto=pa.abierto=Date.now()<gnInsCierreMs(elegida); GR.semana=elegida.inicio;
+    }
     if(pa.p){
       try{ D.S=await cargarSemana(pa.p); D.noches=gnWeek(pa.p.inicio); D.cov=cobertura({vol:D.S[0],maq:D.S[1],obac:D.S[2]},D.noches); D.S={vol:D.S[0],maq:D.S[1],obac:D.S[2],conf:D.S[3]}; }
       catch(e){ D.error=true; }
     }
     GR.D=D;
+    D.lista=pa.lista||[];
     var clave=(pa.p?pa.p.inicio:"")+":"+who;
     if(GR.selClave!==clave){ GR.selClave=clave; GR.sel.maq=null; GR.sel.obac=null; }
     if(D.S){ ["maq","obac"].forEach(function(k){ if(GR.sel[k]===null) GR.sel[k]=new Set(regs(D.S[k][who]).map(function(x){ return x.f; })); }); }
@@ -171,10 +178,14 @@ async function grRender(forzar){
   }finally{ GR.cargando=false; }
 }
 
+function selectorSemana(D){
+  if(GR.vista!=="gestion"||!D.lista||D.lista.length<2) return "";
+  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+D.lista.map(function(x){ return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+(Date.now()<gnInsCierreMs(x)?" · elección abierta":" · elección cerrada")+'</option>'; }).join("")+'</select>';
+}
 function cabecera(D){
   var m=D.m, p=D.p;
   var sem=p?('Semana '+E(gnFmt(p.inicio))+' → '+E(gnFmt(gnAdd(p.inicio,7)))+' · '+HORARIOS.def+' (domingo '+HORARIOS.dom+') a '+HORARIOS.fin):'';
-  return '<div class="gr-quien"><img class="gr-foto" src="'+E(fotoVoluntario(m))+'" alt=""><div><strong>'+E(nombreCompleto(m))+'</strong><span>'+E(sem||"Sin semana abierta")+' · solo presencial</span></div></div>';
+  return '<div class="gr-quien"><img class="gr-foto" src="'+E(fotoVoluntario(m))+'" alt=""><div><strong>'+E(nombreCompleto(m))+'</strong><span>'+E(sem||"Sin semana abierta")+' · solo presencial</span></div></div>'+selectorSemana(D);
 }
 function pintarTarjeta(){
   var box=$("gnRolCard"), D=GR.D; if(!box||!D) return;
@@ -641,10 +652,30 @@ if(typeof window.marcarMiEstado==="function"){
   var _marcar=window.marcarMiEstado;
   window.marcarMiEstado=async function(){ var r=await _marcar.apply(this,arguments); pintarChipEstado(); return r; };
 }
+/* Al entrar a una pantalla (por pestaña, barra inferior o atajo) se refresca lo que muestra: así Inicio y Guardia
+   siempre reflejan la semana recién creada, sin esperar al refresco de 60 s. */
+function alActivarPanel(id){
+  if(id==="panel-germania"){ MN.cache=null; renderNovedades(); pintarChipEstado(); inicioInscripcion(true).catch(function(){}); misNochesInicio(true); }
+  else if(id==="panel-guardia"){ grRender(true).catch(function(){}); }
+  else if(id==="panel-estado"){ misNochesCumplidas(true); }
+}
+document.querySelectorAll(".panel").forEach(function(pn){
+  var antes=pn.classList.contains("active");
+  new MutationObserver(function(){ var ahora=pn.classList.contains("active"); if(ahora&&!antes) alActivarPanel(pn.id); antes=ahora; }).observe(pn,{attributes:true,attributeFilter:["class"]});
+});
+document.addEventListener("change",function(ev){ if(ev.target&&ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); } });
 var ultimo="__";
+/* El nombre ya sale arriba: el selector se esconde una vez elegido (se vuelve a abrir con «No soy yo») */
+function ocultarSelector(abrir){
+  var v=$("miVoluntario"), b=$("cambiarVolBtn"); if(!v) return;
+  var elegido=!!v.value; v.classList.toggle("sel-oculto",elegido&&!abrir);
+  if(b) b.hidden=!elegido||!!abrir;
+}
+if($("cambiarVolBtn")) $("cambiarVolBtn").addEventListener("click",function(){ ocultarSelector(true); var v=$("miVoluntario"); if(v) v.focus(); });
 function vigilarIdentidad(){
   var v=$("miVoluntario"); var id=v?v.value:"";
   if(id===ultimo) return; ultimo=id;
+  ocultarSelector(false);
   aplicarRol(); renderNovedades(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
   if(guardiaActiva()) grRender(true).catch(function(){});
 }

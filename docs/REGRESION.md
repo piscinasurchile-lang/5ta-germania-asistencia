@@ -40,3 +40,5 @@ No fusionar si:
 | Inicio y Guardia por rol | Identidad → novedades, tarjetas, minuta en orden PDF; pestañas Voluntario/Maquinista/OBAC/Información según rol; Oficiales oculto a no oficiales; sin desbordes | 320/390/768/1280 |
 | Revisión de dotación | Crear borrador, quitar/agregar/cambiar, resultado y cambios, aprobar → guardias de la semana; reabrir; sin desbordes | 320/390/1280 |
 | Ciclo de guardia | Vista Mi guardia/Gestión; tabs de elección solo con elección abierta; aprobación crea guardia dom 19:00; No puedo → aviso → reemplazo actualiza revisión/guardia/aviso; cumplidas y «no cuenta» | 320/390/768/1280 |
+| Inicio sin repetidos | Selector de nombre oculto tras elegir («No soy yo» lo abre); atajos no repetidos (escritorio: Guardia, Estadística; móvil: Asistencia, Estadística, Oficiales); Oficiales en 4 grupos; aviso de prueba no tapa contenido ni la barra inferior | 390/1280 |
+| Varias semanas abiertas / volver a Inicio | Inicio y Guardia se refrescan al entrar; aviso muestra la primera semana sin confirmar; Gestión con selector de semana | 390/1280 |

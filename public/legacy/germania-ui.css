@@ -377,3 +377,20 @@ body[data-oficial="1"] .gr-vista{display:flex;}
 .hr-fila input{min-height:var(--g-tap);font-size:18px;background:#0b0f13;color:#fff;border:1.5px solid var(--g-line);border-radius:var(--g-radius-sm);padding:0 var(--sp-3);}
 .hr-perm{display:flex;gap:var(--sp-2);align-items:flex-start;margin:var(--sp-3) 0;font-size:15px;}
 .hr-perm input{margin-top:4px;}
+
+/* ===== Sin información repetida ===== */
+/* Atajos que ya existen como pestañas (escritorio) o barra inferior (móvil) no se repiten en Inicio */
+@media (min-width:701px){ .tile.t-movil{display:none!important;} }
+@media (max-width:700px){ .tile.t-desk{display:none!important;} }
+.home-hero select.sel-oculto{display:none;}
+#cambiarVolBtn[hidden]{display:none;}
+/* Aviso de modo prueba: una etiqueta pequeña que no tapa el contenido */
+#testModeBanner{left:auto!important;right:10px!important;bottom:10px!important;width:auto!important;max-width:calc(100% - 20px);padding:5px 12px!important;font-size:12px!important;opacity:.92;}
+#testModeBanner .tm-det,#testModeBanner #testCleanBtn{display:none!important;}
+@media (min-width:701px){ body{padding-bottom:56px;} }
+/* Oficiales: grupos con título para no ver 18 botones iguales */
+.subtab-grupo{grid-column:1 / -1;flex:0 0 100%;margin-top:var(--sp-3);font:600 14px/1 'Oswald',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--g-gold,#ffce00);}
+.subtab-grupo:first-child{margin-top:0;}
+.subtab[data-sub="bajas"]{border-color:#a8323a;color:#ff8c93;}
+#cambiarVolBtn{margin-left:var(--sp-4);}
+@media (max-width:700px){ #testModeBanner{bottom:calc(76px + env(safe-area-inset-bottom))!important;} }
