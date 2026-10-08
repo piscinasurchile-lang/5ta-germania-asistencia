@@ -2012,6 +2012,10 @@ on("gnRolLimpiar","click",()=>{ GN_ROL_SEL.clear(); document.querySelectorAll("[
 on("gnRolGuardar","click",async()=>{
   const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
+  const botonGuardar=document.getElementById("gnRolGuardar");
+  if(botonGuardar?.disabled) return;
+  if(botonGuardar) botonGuardar.disabled=true;
+  try {
   const noches=[...GN_ROL_SEL].sort();
   if(!ROSTER.some(x=>String(x.id)===String(who))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
@@ -2053,6 +2057,7 @@ on("gnRolGuardar","click",async()=>{
     console.error("No se pudo guardar la función de Guardia",error);
     msg.textContent="No se completó la asignación. Comprueba permisos y conexión; la inscripción original no se elimina antes de guardar el rol.";
   }
+  } finally { if(botonGuardar) botonGuardar.disabled=false; }
 });
 on("miVoluntario","change",()=>renderGnRolSemanal().catch(()=>{}));
 /* OBAC semanal: convocatoria privada y secuencial según precedencia vigente. */
