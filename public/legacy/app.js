@@ -2013,6 +2013,9 @@ on("gnRolGuardar","click",async()=>{
   const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort();
+  if(!ROSTER.some(x=>String(x.id)===String(who))){
+    msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
+  }
   if(GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()){
     msg.textContent="La semana de guardia ya no está abierta. Actualiza la planificación."; return;
   }
