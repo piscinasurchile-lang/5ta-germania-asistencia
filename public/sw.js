@@ -1,4 +1,4 @@
-const CACHE='germania-static-v4';
+const CACHE='germania-static-v5';
 const ASSETS=['/manifest.webmanifest','/legacy/germania-icon.svg','/legacy/germania-192.png','/legacy/germania-512.png','/legacy/apple-touch-icon.png'];
 
 self.addEventListener('install',event=>{
@@ -24,6 +24,7 @@ self.addEventListener('fetch',event=>{
     event.request.mode==='navigate' ||
     url.pathname.endsWith('.html') ||
     url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
     url.pathname==='/' ;
 
   if(dynamic){

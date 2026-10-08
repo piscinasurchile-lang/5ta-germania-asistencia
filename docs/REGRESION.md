@@ -42,3 +42,4 @@ No fusionar si:
 | Ciclo de guardia | Vista Mi guardia/Gestión; tabs de elección solo con elección abierta; aprobación crea guardia dom 19:00; No puedo → aviso → reemplazo actualiza revisión/guardia/aviso; cumplidas y «no cuenta» | 320/390/768/1280 |
 | Inicio sin repetidos | Selector de nombre oculto tras elegir («No soy yo» lo abre); atajos no repetidos (escritorio: Guardia, Estadística; móvil: Asistencia, Estadística, Oficiales); Oficiales en 4 grupos; aviso de prueba no tapa contenido ni la barra inferior | 390/1280 |
 | Varias semanas abiertas / volver a Inicio | Inicio y Guardia se refrescan al entrar; aviso muestra la primera semana sin confirmar; Gestión con selector de semana | 390/1280 |
+| Programación de semanas | Borrar semana guardada, Cerrar inscripción, Suspender; cierre en el pasado se rechaza y el cierre se ve prellenado; CSS siempre fresco en el móvil | 390/1280 |
