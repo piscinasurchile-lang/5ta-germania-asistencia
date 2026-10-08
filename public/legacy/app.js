@@ -1822,9 +1822,20 @@ async function renderGnInscripcionCard(forzar){
   document.getElementById("giJustificar").onclick=e=>{ e.preventDefault(); gnInsJustificar(p,who); };
 }
 async function gnInsGuardar(p,who,noches,justificacion){
-  const ok1=await sSet("guardia-inscripcion:"+p.inicio+":"+who,noches);
-  const ok2=await sSet("guardia-confirmacion:"+p.inicio+":"+who,{confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=2,justificacion:justificacion||null});
-  if(!ok1||!ok2) throw new Error("No se pudo guardar. Inténtalo de nuevo.");
+  const suffix=p.inicio+":"+who;
+  const kNoches="guardia-inscripcion:"+suffix;
+  const kConfirm="guardia-confirmacion:"+suffix;
+  const anteriores=await Promise.all([sGet(kNoches,null),sGet(kConfirm,null)]);
+  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=2,justificacion:justificacion||null};
+  const okNoches=await sSet(kNoches,noches);
+  if(!okNoches) throw new Error("No se pudieron guardar las noches. Intentá nuevamente.");
+  const okConfirm=await sSet(kConfirm,confirmacion);
+  if(!okConfirm){
+    const restaurado=await sSet(kNoches,anteriores[0]);
+    GN_INS_CACHE=null;
+    if(!restaurado) throw new Error("Inscripción incompleta: avisá al Teniente 3° antes de reintentar.");
+    throw new Error("No se pudo confirmar la inscripción. Intentá nuevamente.");
+  }
   GN_INS_CACHE=null;
 }
 function gnInsAviso(t){ const a=document.getElementById("giAviso"); if(a) a.textContent=t||""; }
