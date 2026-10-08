@@ -147,3 +147,11 @@ Pestaña **Revisión** (solo Capitán, Teniente 3° y administrador). Flujo: ins
 - **Mis noches**: salen de la dotación aprobada (`guardia-revision:<inicio>`), se ven en Inicio y Guardia y desaparecen cuando la noche termina (08:00). Las terminadas pasan a «Noches cumplidas» en Mi estado.
 - **No puedo esta noche**: crea `guardia-aviso:<fecha>:<id>` (solo creación, `ifVersion:0`). El mando asigna reemplazo (o «sin reemplazo»): actualiza la revisión, la guardia ya aprobada (`conductor`/`oficial`/`reemplazo` + registro `reemplazos`) y el aviso. Estadística: la noche **no cuenta** a quien avisó y **se acredita** a quien la cubrió.
 - Pendiente: conectar la ODD a la dotación aprobada (con autorización).
+
+## 9.3 Reglas de la Oficialidad (2026-10-08)
+
+**OBAC.** Son obligatorios: Capitán, Teniente 1°, 2° y 3°, completados con los siguientes voluntarios del orden de precedencia (ODD 037/2026) hasta 6 personas (hoy: Pablo Arellano y Ludwig von Plessing). Solo ellos ven la tarjeta OBAC. El total está en `OBAC_TOTAL` (germania-roles.js).
+
+**Nómina: nunca se pierde un voluntario.** Ninguna lista nueva borra ni da de baja a nadie. El servidor rechaza guardar `roster:v8` si quita voluntarios, salvo eliminación con triple validación (`permitirQuitar`). Restaurar un respaldo conserva a los voluntarios actuales. «Comparar lista nueva» (Oficiales → Nómina) solo lee e informa quién falta, con su hoja de vida.
+
+**Estadística de la guardia nocturna (por implementar).** La guardia se mide por separado. Quien no va, pierde lista; quien va, gana lista. Si en la noche hay un llamado y no fue, pierde también el llamado. Si no hay llamado y solo asiste, cuenta como «asistencia a guardia». Por reglamento el porcentaje de asistencia se mide sobre llamados de emergencia, llamados de comandancia y reuniones (los que llegan en la ODD); la guardia no se mezcla con ese porcentaje.
