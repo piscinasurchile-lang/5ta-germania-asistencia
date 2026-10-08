@@ -71,3 +71,12 @@ test("guardia: dates outside the selected weekly period are rejected", () => {
   assert.ok(dateGuard >= 0 && save > dateGuard);
   assert.ok(section.includes("Hay fechas fuera de la semana de guardia"));
 });
+
+test("guardia: ISO date validator accepts real nights and rejects malformed dates", () => {
+  const match = app.match(/if\(noches\.some\(n=>!\/(.+?)\/\.test\(n\)/);
+  assert.ok(match, "weekly date regex exists");
+  const validator = new RegExp(match[1]);
+  assert.equal(validator.test("2026-10-07"), true);
+  assert.equal(validator.test("07-10-2026"), false);
+  assert.equal(validator.test("2026-10-7"), false);
+});
