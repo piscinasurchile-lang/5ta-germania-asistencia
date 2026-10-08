@@ -1967,7 +1967,9 @@ async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
   actual.personas[who]={id:who,noches:[...new Set(noches)].sort(),actualizadoEn:ahora,...extra};
   actual.actualizadoEn=ahora;
   if(actual.historial.length>300) actual.historial=actual.historial.slice(-300);
-  return await sSet(key,actual);
+  const guardado=await sSet(key,actual);
+  if(guardado!==true) throw new Error("Guardia: la asignación de función no fue confirmada por la base central.");
+  return true;
 }
 async function gnConflictosSemana(p,who,noches,rol){
   const roles=["maquinista","oficial","obac"], conflictos=[];
@@ -1985,7 +1987,10 @@ async function gnTransferirDesdeVoluntario(p,who,noches){
   const key="guardia-inscripcion:"+p.inicio+":"+who, vol=await sGet(key,[]);
   if(!Array.isArray(vol)) return;
   const queda=vol.filter(n=>!noches.includes(n));
-  if(queda.length!==vol.length) await sSet(key,queda);
+  if(queda.length!==vol.length){
+    const guardado=await sSet(key,queda);
+    if(guardado!==true) throw new Error("Guardia: la transferencia de noches no fue confirmada por la base central.");
+  }
 }
 let GN_ROL_SEL=new Set(), GN_ROL_ACTIVO="", GN_ROL_PLAN=null;
 async function renderGnRolSemanal(){
