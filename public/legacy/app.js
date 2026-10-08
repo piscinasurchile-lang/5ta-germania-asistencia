@@ -2016,6 +2016,10 @@ on("gnRolGuardar","click",async()=>{
   if(!ROSTER.some(x=>String(x.id)===String(who))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
   }
+  const actual=ROSTER.find(x=>String(x.id)===String(who));
+  if((GN_ROL_ACTIVO==="oficial"&&!gnEsOficial(actual))||(GN_ROL_ACTIVO==="maquinista"&&!gnEsMaquinista(actual))){
+    msg.textContent="La función seleccionada no corresponde a tu registro de nómina."; return;
+  }
   if(GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()){
     msg.textContent="La semana de guardia ya no está abierta. Actualiza la planificación."; return;
   }
