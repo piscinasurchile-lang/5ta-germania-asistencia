@@ -2057,6 +2057,9 @@ on("gnRolGuardar","click",async()=>{
     console.error("No se pudo guardar la función de Guardia",error);
     msg.textContent="No se completó la asignación. Comprueba permisos y conexión; la inscripción original no se elimina antes de guardar el rol.";
   }
+  } catch (error) {
+    console.error("Guardia: error de validación o conexión",error);
+    msg.textContent="No se pudo validar la asignación con el servidor. Revisa la conexión y vuelve a intentarlo.";
   } finally { if(botonGuardar) botonGuardar.disabled=false; }
 });
 on("miVoluntario","change",()=>renderGnRolSemanal().catch(()=>{}));
