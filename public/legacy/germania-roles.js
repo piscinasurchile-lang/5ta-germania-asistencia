@@ -266,7 +266,12 @@ function panelVol(pn,D){
   h+=D.abierto?'<p class="sub">Cierra el <b>'+E(cierreTxt)+'</b> · faltan '+E(avisoRestante(cierre,Date.now()))+'. Elige <b>como mínimo '+GN_NOCHES_MIN+' noches</b>; puedes marcar todas las que quieras.</p>':'<p class="sub">La inscripción de esta semana está cerrada.</p>';
   var rolSet={}; regs(D.S.maq[who]).concat(regs(D.S.obac[who])).forEach(function(x){ rolSet[x.f]=1; });
   var nRol=Object.keys(rolSet).length, unionN=Object.keys(Object.assign({},rolSet,(function(){ var o={}; sel.forEach(function(f){ o[f]=1; }); return o; })())).length;
-  if(nRol) h+='<p class="sub"><b>Tu semana:</b> '+nRol+' noche'+(nRol===1?"":"s")+' como '+(rangoObac(D.m)!=null?"OBAC":"maquinista")+' (obligatoria'+(nRol===1?"":"s")+') + '+n+' como voluntario = <b>'+unionN+' noche'+(unionN===1?"":"s")+'</b> '+(unionN>=GN_NOCHES_MIN?'✔':'· te falta '+(GN_NOCHES_MIN-unionN)+' para el mínimo')+'.</p>';
+  if(nRol){
+    var nomsRol=Object.keys(rolSet).sort().map(function(f){ var q=nombreNoche(f); return q.w+" "+q.d; }).join(", ");
+    var falta=Math.max(0,GN_NOCHES_MIN-unionN);
+    h+='<div class="gr-semana"><div class="gr-sem-fila ok">✔ <b>Tu noche como '+(rangoObac(D.m)!=null?"OBAC":"maquinista")+'</b> (obligatoria): '+E(nomsRol)+'</div>'
+      +(falta?'<div class="gr-sem-fila falta">➕ Te falta <b>'+falta+' noche'+(falta===1?"":"s")+' como voluntario</b> para llegar al mínimo de '+GN_NOCHES_MIN+'. Elígela abajo.</div>':'<div class="gr-sem-fila ok">✔ Ya cumples el mínimo de '+GN_NOCHES_MIN+' noches. Puedes sumar más si quieres.</div>')+'</div>';
+  }
   if(confirmada) h+='<p class="gr-ok">✔ Confirmadas: '+saved.length+' noche(s) como voluntario. Puedes <b>agregar más</b> mientras la elección esté abierta.</p>';
   h+='<div class="gr-noches">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mia=sel.has(c.f), fija=saved.indexOf(c.f)>=0;

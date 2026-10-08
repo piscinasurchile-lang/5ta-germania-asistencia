@@ -413,3 +413,8 @@ body[data-oficial="1"] .gr-vista{display:flex;}
 .ayuda-box b{display:block;font:600 18px/1.2 'Oswald',sans-serif;text-transform:uppercase;color:var(--g-yellow,#f5c518);}
 .ayuda-box p{margin:8px 0 14px;font-size:17px;line-height:1.4;color:#fff;}
 .ayuda-x{width:100%;min-height:48px;border:0;border-radius:10px;background:var(--g-red,#d62828);color:#fff;font:600 17px 'Oswald',sans-serif;cursor:pointer;}
+
+.gr-semana{display:grid;gap:6px;margin:10px 0;}
+.gr-sem-fila{padding:10px 12px;border-radius:10px;font-size:16px;line-height:1.35;background:rgba(255,255,255,.06);border-left:5px solid var(--g-line,#444);}
+.gr-sem-fila.ok{border-left-color:#2f9e5b;}
+.gr-sem-fila.falta{border-left-color:#e0b324;background:rgba(224,179,36,.10);}
