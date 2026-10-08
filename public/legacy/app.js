@@ -1962,6 +1962,9 @@ async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
   if(!["maquinista","oficial","obac"].includes(rol)||!p||typeof p.inicio!=="string"||typeof p.fin!=="string"||!String(who||"").trim()){
     throw new Error("Guardia: función, período o voluntario inválido.");
   }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(p.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(p.fin)||p.inicio>p.fin){
+    throw new Error("Guardia: límites de semana inválidos.");
+  }
   if(!Array.isArray(noches)||!noches.length||noches.some(n=>typeof n!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<p.inicio||n>p.fin)){
     throw new Error("Guardia: fechas de asignación inválidas o fuera de la semana.");
   }
