@@ -212,3 +212,9 @@ test("guardia: invalid weekly date boundaries cannot be saved", () => {
   assert.ok(save.includes("límites de semana inválidos"));
   assert.ok(save.indexOf("límites de semana inválidos")<save.indexOf("const key="));
 });
+
+test("guardia: metadata cannot override volunteer identity or assigned nights", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes('["id","noches","actualizadoEn","__proto__","constructor","prototype"]'));
+  assert.ok(save.indexOf("metadatos de función inválidos")<save.indexOf("const key="));
+});
