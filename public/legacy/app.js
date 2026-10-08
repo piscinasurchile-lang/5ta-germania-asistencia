@@ -1978,7 +1978,7 @@ async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
   if(previo) actual.historial.push({id:who,previo,cambiadoEn:ahora});
   actual.personas[who]={id:who,noches:[...new Set(noches)].sort(),actualizadoEn:ahora,...extra};
   actual.actualizadoEn=ahora;
-  if(actual.historial.length>300) actual.historial=actual.historial.slice(-300);
+  // Conservar el historial completo: el truncamiento automático puede borrar auditoría de guardias.
   const guardado=await sSet(key,actual);
   if(guardado!==true) throw new Error("Guardia: la asignación de función no fue confirmada por la base central.");
   return true;
