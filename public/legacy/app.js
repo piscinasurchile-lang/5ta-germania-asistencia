@@ -1960,6 +1960,9 @@ function gnEsOficial(m){
 }
 async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
   const key=gnRolSemanalKey(rol,p.inicio), actual=await sGet(key,{inicio:p.inicio,fin:p.fin,rol,personas:{},historial:[]});
+  if(!actual||typeof actual!=="object"||Array.isArray(actual)||!actual.personas||typeof actual.personas!=="object"||Array.isArray(actual.personas)||!Array.isArray(actual.historial)){
+    throw new Error("Guardia: registro semanal inválido; se requiere conciliación antes de guardar.");
+  }
   const previo=actual.personas?.[who]||null, ahora=new Date().toISOString();
   actual.personas=actual.personas||{};
   actual.historial=actual.historial||[];
