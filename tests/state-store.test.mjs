@@ -160,3 +160,15 @@ test("listByPrefix: lee solo las claves de la semana pedida y rechaza prefijos n
   await assert.rejects(() => listByPrefix(sql, "security:"), /invalid_prefix/);
   await assert.rejects(() => listByPrefix(sql, "guardia-inscripcion:%"), /invalid_prefix/);
 });
+
+test("listByPrefix: permite guardias por mes y avisos, y sigue rechazando el resto", async () => {
+  const { sql } = await nuevaBase();
+  await writeState(sql, "guardia:2026-10-14__2300", { oficial: "1" });
+  await writeState(sql, "guardia:2026-11-02__2300", { oficial: "2" });
+  await writeState(sql, "guardia-aviso:2026-10-14:517", { estado: "pendiente" });
+  assert.deepEqual((await listByPrefix(sql, "guardia:2026-10")).map((x) => x.key), ["guardia:2026-10-14__2300"]);
+  assert.equal((await listByPrefix(sql, "guardia-aviso:")).length, 1);
+  await writeState(sql, "guardia-revision:2026-10-14", { estado: "aprobada" });
+  assert.equal((await listByPrefix(sql, "guardia-revision:")).length, 1);
+  await assert.rejects(() => listByPrefix(sql, "precedencia:"), /invalid_prefix/);
+});

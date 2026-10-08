@@ -1832,7 +1832,7 @@ function gnElegirSemana(iso){
 function renderGnPeriodo(){
  const box=document.getElementById("gnPeriodoResumen"); if(!box) return;
  if(!gnPlanDraft){box.textContent="Toca un miércoles para seleccionar la semana.";return;}
- box.innerHTML=`<b>Período seleccionado</b><br>${gnFmt(gnPlanDraft.inicio)} 23:00 → ${gnFmt(gnPlanDraft.fin)} 07:00<br><small>7 turnos de Guardia Nocturna${gnPlanDraft.domingoDiurno?" + Guardia Diurna domingo":""}</small>`;
+ box.innerHTML=`<b>Período seleccionado</b><br>${gnFmt(gnPlanDraft.inicio)} 23:00 → ${gnFmt(gnPlanDraft.fin)} 08:00<br><small>7 turnos de Guardia Nocturna${gnPlanDraft.domingoDiurno?" + Guardia Diurna domingo":""}</small>`;
 }
 on("gnPrevMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()-1,1);renderGnPlanner();});
 on("gnNextMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()+1,1);renderGnPlanner();});

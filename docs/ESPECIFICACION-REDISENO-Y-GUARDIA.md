@@ -140,3 +140,10 @@ Pestaña **Revisión** (solo Capitán, Teniente 3° y administrador). Flujo: ins
 - Dos editores a la vez: el segundo recibe aviso (control de versiones) y no pisa al primero.
 - «Reabrir revisión» y «Rehacer desde las inscripciones» quedan anotados en los cambios.
 - La ODD no se modificó: queda por conectar su generador a la dotación aprobada.
+
+### 9.2 Ciclo de la guardia (horario permanente, Mis noches, reemplazos)
+- **Horario permanente**: todas las noches terminan a las 08:00; parten a las 23:00 y el domingo a las 19:00 (clave de guardia `…__1900`). Se puede cambiar para todas las semanas con `guardia-horarios:v1` (`{def,dom,fin}`); sin cambio, queda así.
+- **Guardia tiene dos vistas** (solo oficiales ven el selector): *Mi guardia* (Mis noches; Voluntario/Maquinista/OBAC únicamente mientras la elección está abierta, después desaparecen) y *Gestión de guardia* en pasos: 1 Programación (calendario y botón que dispara las tarjetas), 2 Inscripciones (avance de la elección), 3 Revisión (corregir y aprobar), 4 Reemplazos. ODD: pendiente, no se toca.
+- **Mis noches**: salen de la dotación aprobada (`guardia-revision:<inicio>`), se ven en Inicio y Guardia y desaparecen cuando la noche termina (08:00). Las terminadas pasan a «Noches cumplidas» en Mi estado.
+- **No puedo esta noche**: crea `guardia-aviso:<fecha>:<id>` (solo creación, `ifVersion:0`). El mando asigna reemplazo (o «sin reemplazo»): actualiza la revisión, la guardia ya aprobada (`conductor`/`oficial`/`reemplazo` + registro `reemplazos`) y el aviso. Estadística: la noche **no cuenta** a quien avisó y **se acredita** a quien la cubrió.
+- Pendiente: conectar la ODD a la dotación aprobada (con autorización); editor de horarios en pantalla.

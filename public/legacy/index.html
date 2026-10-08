@@ -374,6 +374,7 @@
       </section>
 
       <div id="gnInscripcionCard" style="grid-column:1 / -1;min-width:0;"></div>
+      <div id="misNochesInicio" style="grid-column:1 / -1;min-width:0;"></div>
 
       <div class="home-tiles" style="grid-column:1 / -1;">
         <button class="tile" type="button" data-go="estado"><span class="tile-ico" aria-hidden="true">🟢</span>Mi estado</button>
@@ -420,6 +421,7 @@
         <button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Mi historial</button>
       </div>
     </div>
+    <div class="card" id="misNochesCumplidas"></div>
   </div>
 
   <!-- PASAR LISTA -->
@@ -596,10 +598,10 @@
   </div>
 
   <!-- GUARDIA NOCTURNA -->
-  <div class="panel" id="panel-guardia">
-    <div class="card" id="gnRolCard" aria-live="polite"></div>
-    <div class="card gn-planner-card solo-oficiales">
-      <div class="gn-head"><div><h2>Programación de Guardia</h2><p class="sub">Semana normal: miércoles 23:00 → miércoles siguiente 07:00 · 7 turnos nocturnos.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
+  <div class="panel" id="panel-guardia" data-vista="mi">
+    <div class="gr-vista" id="gnVistaSel" role="tablist" aria-label="Vista de guardia"><button type="button" role="tab" class="on" data-gv="mi">Mi guardia</button><button type="button" role="tab" data-gv="gestion">Gestión de guardia</button></div>
+    <div class="card gn-planner-card solo-oficiales solo-gestion">
+      <div class="gn-head"><div><h2>1 · Programación de Guardia</h2><p class="sub">Cada noche termina a las 08:00. Parte a las 23:00 (domingo 19:00). 7 turnos por semana.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
       <div class="gn-layout">
         <section>
           <div class="gn-cal-head"><button class="btn small secondary" id="gnPrevMes">‹</button><strong id="gnMesTitulo"></strong><button class="btn small secondary" id="gnNextMes">›</button></div>
@@ -629,7 +631,8 @@
       </div>
     </div>
 
-    <div class="card solo-oficiales">
+    <div class="card" id="gnRolCard" aria-live="polite"></div>
+    <div class="card solo-oficiales solo-gestion">
       <h2>Quiénes están de guardia</h2>
       <p class="sub">Para oficiales. Anota quién es el Oficial a cargo (OBAC), quién conduce y quiénes son los guardianes de la noche. Cada turno queda guardado con su historial.</p>
       <div class="field-row">
@@ -647,7 +650,7 @@
       <div class="status-msg" id="gnMsg"></div>
     </div>
 
-    <div class="card solo-oficiales">
+    <div class="card solo-oficiales solo-gestion">
       <h2>Informes de guardia</h2>
       <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
       <div class="gn-actions"><button class="btn gold" id="gnPdfSemanal">Informe del período</button><button class="btn gold" id="gnPdfEstad">Informe estadístico</button><button class="btn" id="gnInfo">Infografía de guardias</button></div>
