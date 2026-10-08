@@ -77,7 +77,7 @@ Fuera de alcance (según PDF §7): permisos avanzados de Oficiales, Inventario, 
 - Reemplazo: resta al titular, suma al reemplazante, queda registrado quién, cuándo y por qué.
 - Un oficial que conduce cuenta solo como conductor esa noche.
 - Noche completa = 3 voluntarios + 1 conductor + 1 OBAC, definido en **una sola constante** (`GN_DOTACION_MIN`); los voluntarios adicionales son refuerzos.
-- ODD no se emite como válida con dotación incompleta.
+- Dotación incompleta: la ODD se puede emitir, pero con aviso visible (decisión del 08-10-2026, ver §7).
 
 ### 5.2 Protección de datos (todas retrocompatibles)
 
@@ -104,7 +104,7 @@ Compatibilidad: si el cliente no envía `ifVersion`, el servidor se comporta com
 
 **Resuelta (08-10-2026):** dotación mínima por noche = **3 voluntarios + 1 conductor + 1 OBAC**. Los voluntarios que se sumen sobre esos 3 son **refuerzos**. Cada voluntario se inscribe en **al menos 2 noches**. En el código: `GN_DOTACION_MIN` y `GN_NOCHES_MIN` (`public/legacy/app.js`). El formulario del turno muestra «mínimo de 3 completo / faltan N / N refuerzos».
 
-**Pendiente:** si una noche incompleta **bloquea** el cierre de la ODD (PDF) o solo **avisa** (lo conversado antes). Hoy solo avisa.
+**Resuelta (08-10-2026):** una noche incompleta **solo avisa**, no bloquea la emisión de la ODD. El aviso debe quedar visible y en lenguaje simple (ya es el comportamiento actual). Esto se aparta del PDF §3 («ODD no se emite como válida con dotación incompleta») por decisión del usuario.
 
 ## 8. Criterios de aceptación
 
