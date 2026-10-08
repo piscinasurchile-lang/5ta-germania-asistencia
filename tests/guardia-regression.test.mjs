@@ -116,3 +116,10 @@ test("guardia: repeated save taps are blocked while request is pending", () => {
   assert.ok(section.includes("if(botonGuardar) botonGuardar.disabled=true"));
   assert.ok(section.includes("finally { if(botonGuardar) botonGuardar.disabled=false; }"));
 });
+
+test("guardia: failed pre-save checks report an error and restore save button", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  assert.ok(section.includes('catch (error) {\n    console.error("Guardia: error de validación o conexión"'));
+  assert.ok(section.includes("No se pudo validar la asignación con el servidor"));
+  assert.ok(section.includes("finally { if(botonGuardar) botonGuardar.disabled=false; }"));
+});
