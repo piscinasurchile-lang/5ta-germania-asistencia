@@ -179,3 +179,9 @@ test("guardia: malformed prior volunteer role assignment is rejected before over
   assert.ok(save.includes("!Array.isArray(actual.personas[who].noches)"));
   assert.ok(save.indexOf("asignación previa inválida")<save.indexOf("const guardado=await sSet(key,actual)"));
 });
+
+test("guardia: malformed historical entries stop role updates", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes('actual.historial.some(h=>!h||typeof h!=="object"||Array.isArray(h))'));
+  assert.ok(save.indexOf("historial semanal inválido")<save.indexOf("const guardado=await sSet(key,actual)"));
+});
