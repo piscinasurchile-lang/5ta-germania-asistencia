@@ -3504,6 +3504,13 @@ on("registrarIngresoBtn","click",async()=>{
   const msg=document.getElementById("fiMsg");
   if(!g("fiNombre")||!g("fiApPat")){ msg.textContent="Nombre y apellido paterno son obligatorios."; msg.classList.add("err"); return; }
   const cat=document.getElementById("fiCategoria").value;
+  /* Evita duplicar a alguien que ya existe (activo o dado de baja): mismo RUT. */
+  const rutNuevo=rutLimpio(g("fiRut"));
+  const yaExiste=rutNuevo?ROSTER.find(m=>rutLimpio(m.rut)===rutNuevo):null;
+  if(yaExiste){
+    msg.textContent=`${nombreCompleto(yaExiste)} ya está en la nómina${yaExiste.activo===false?" como dado de baja. Usa «Buscar persona» y luego «Reactivar» para conservar su hoja de vida":` (N° ${yaExiste.n||"—"})`}. No se registró de nuevo.`;
+    msg.classList.add("err"); return;
+  }
   ROSTER.push({
     id:uid(), n:null,
     nombre:g("fiNombre"), apellidoPaterno:g("fiApPat"), apellidoMaterno:g("fiApMat"),
@@ -3519,6 +3526,127 @@ on("registrarIngresoBtn","click",async()=>{
   msg.textContent=`${g("fiNombre")} ${g("fiApPat")} fue registrado con el N° ${nuevo?nuevo.n:""}.`;
   ["fiNombre","fiApPat","fiApMat","fiRut","fiNac","fiIngreso","fiOrigen","fiEspecialidad","fiCargo","fiTelefono"].forEach(i=>document.getElementById(i).value=""); document.getElementById("fiCargo").value="Voluntario";
   refrescarTodo();
+});
+
+/* ============ BUSCAR PERSONA / RESCATE ============
+   Solo lee. Revisa: nómina (activos y bajas), copias de la nómina guardadas en MODO PRUEBA,
+   lista de precedencia (vigente e historial) y archivo de Órdenes del Día.
+   Las acciones (reactivar, restaurar ficha, cargar en la ficha de ingreso) piden confirmación. */
+function rutLimpio(r){ return String(r||"").replace(/[^0-9kK]/g,"").toLowerCase(); }
+const RESCATE_PENDIENTES=[
+  {nombre:"Saida",apellidoPaterno:"Pollak",apellidoMaterno:"Donoso",rut:"13.920.202-3"},
+  {nombre:"Felipe",apellidoPaterno:"Carrillo",apellidoMaterno:"Ahumada",rut:"10.790.336-4"}
+];
+async function rescateLeer(k){
+  const r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
+  if(!r.ok) throw new Error("No se pudo leer "+k);
+  const j=await r.json(); return j&&j.value!==undefined?j.value:null;
+}
+function rescateCoincide(p,m){
+  const rp=rutLimpio(p.rut), rm=rutLimpio(m&&m.rut);
+  if(rp&&rm&&rp===rm) return "RUT";
+  const a=precTokens([p.nombre,p.apellidoPaterno].filter(Boolean).join(" "));
+  const b=precTokens([m&&m.nombre,m&&m.apellidoPaterno,m&&m.apellidoMaterno].filter(Boolean).join(" "));
+  return a.length>=2&&a.every(x=>b.includes(x))?"nombre":"";
+}
+function rescateEnTexto(p,valor){
+  if(valor==null) return false;
+  const t=precN(JSON.stringify(valor)), rp=rutLimpio(p.rut);
+  if(rp&&t.replace(/[^0-9k ]/g,"").includes(rp)) return true;
+  return precTokens([p.nombre,p.apellidoPaterno].join(" ")).every(x=>t.includes(x));
+}
+async function rescateBuscar(p){
+  const out={roster:[],copias:[],prec:[],precHist:[],odd:[],avisos:[],errores:[]};
+  ROSTER.forEach(m=>{ const c=rescateCoincide(p,m); if(c) out.roster.push({m,por:c}); });
+  try{
+    const base=await rescateLeer(TEST_BASELINE_KEY);
+    const copia=base&&base[ROSTER_KEY];
+    if(Array.isArray(copia)) copia.forEach(m=>{ const c=rescateCoincide(p,m); if(c&&!ROSTER.some(x=>x.id===m.id)) out.copias.push({m,por:c}); });
+  }catch(e){ out.errores.push("copias de respaldo"); }
+  try{
+    const pr=await rescateLeer(PRECEDENCIA_KEY);
+    if(pr){
+      (pr.lista||[]).forEach(x=>{ if(rescateCoincide(p,{nombre:x.nombre})) out.prec.push(x); });
+      (pr.historial||[]).forEach(h=>{ if(rescateEnTexto(p,h)) out.precHist.push(h); });
+    }
+  }catch(e){ out.errores.push("lista de precedencia"); }
+  try{ const o=await rescateLeer(ODD_KEY); if(rescateEnTexto(p,o)) out.odd.push("Archivo de Órdenes del Día"); }catch(e){ out.errores.push("Órdenes del Día"); }
+  try{ const o=await rescateLeer(AVISOS_ODD_KEY); if(rescateEnTexto(p,o)) out.avisos.push("Avisos de Órdenes del Día"); }catch(e){ out.errores.push("avisos de Órdenes del Día"); }
+  return out;
+}
+function rescateHtml(p,r,i){
+  const nom=[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" ");
+  const li=[]; let accion="";
+  r.roster.forEach(({m,por})=>{
+    if(m.activo===false){
+      li.push(`<li>✔ <b>Está en la nómina, dado de baja</b> (${esc(m.motivoBaja||"sin motivo")}${m.fechaBaja?" · "+esc(m.fechaBaja):""}). Su hoja de vida se conserva: ${(m.anotaciones||[]).length} anotaciones, ${Object.keys(m.cursos||{}).length} cursos. Coincidió por ${por}.</li>`);
+      accion+=`<button class="btn small" data-rescate="reactivar" data-id="${esc(m.id)}">Reactivar a ${esc(nombreCompleto(m))}</button> `;
+    }else li.push(`<li>✔ <b>Ya está activo en la nómina</b> con N° ${esc(m.n||"—")}${m.clave?" · clave "+esc(m.clave):""}. Coincidió por ${por}. Si no sale al pasar lista o en el selector, avísame para revisar su cargo/categoría.</li>`);
+  });
+  r.copias.forEach(({m})=>{
+    li.push(`<li>✔ <b>Está en una copia de respaldo de la nómina</b> (modo prueba) con su ficha: ${(m.anotaciones||[]).length} anotaciones, ${Object.keys(m.cursos||{}).length} cursos.</li>`);
+    accion+=`<button class="btn small" data-rescate="restaurar" data-i="${i}" data-id="${esc(m.id)}">Restaurar su ficha desde la copia</button> `;
+  });
+  if(r.prec.length) li.push(`<li>✔ <b>Aparece en la lista de precedencia vigente</b> (lugar ${r.prec.map(x=>esc(x.n)).join(", ")}).</li>`);
+  else li.push(`<li>✖ No aparece en la lista de precedencia vigente. Para el mando operativo solo se usa si figura en la ODD; si corresponde, se agrega desde Precedencia.</li>`);
+  if(r.precHist.length) li.push(`<li>✔ Aparece en ${r.precHist.length} versión(es) anterior(es) de la precedencia.</li>`);
+  li.push(r.odd.length?`<li>✔ Aparece en el archivo de Órdenes del Día.</li>`:`<li>✖ No aparece en el archivo de Órdenes del Día.</li>`);
+  if(r.avisos.length) li.push(`<li>✔ Aparece en los avisos de Órdenes del Día.</li>`);
+  if(!r.roster.length&&!r.copias.length){
+    li.unshift(`<li>✖ <b>No está en la nómina ni en copias de respaldo.</b> No hay hoja de vida que rescatar: hay que registrarlo.</li>`);
+    accion+=`<button class="btn small gold" data-rescate="cargar" data-i="${i}">Cargar en la ficha de ingreso</button>`;
+  }
+  if(r.errores.length) li.push(`<li>⚠ No se pudo revisar: ${esc(r.errores.join(", "))}. Reintenta antes de concluir que no existe.</li>`);
+  return `<div class="card" style="margin-top:12px;"><h3>${esc(nom)}${p.rut?" · "+esc(p.rut):""}</h3><ul style="padding-left:18px;line-height:1.5;">${li.join("")}</ul><div style="display:flex;gap:8px;flex-wrap:wrap;">${accion}</div></div>`;
+}
+let RESCATE_ULT=[];
+async function rescateEjecutar(personas){
+  const msg=document.getElementById("rescateMsg"), res=document.getElementById("rescateRes");
+  msg.classList.remove("err"); msg.textContent="Buscando…"; res.innerHTML="";
+  try{
+    RESCATE_ULT=[];
+    for(const p of personas){ const r=await rescateBuscar(p); RESCATE_ULT.push({p,r}); }
+    res.innerHTML=RESCATE_ULT.map(({p,r},i)=>rescateHtml(p,r,i)).join("");
+    msg.textContent="Listo. No se cambió nada.";
+  }catch(e){ msg.textContent="No se pudo buscar: "+e.message; msg.classList.add("err"); }
+}
+on("rescateBuscarBtn","click",()=>{
+  const q=document.getElementById("rescateQ").value.trim();
+  if(!q){ const m=document.getElementById("rescateMsg"); m.textContent="Escribe un nombre o un RUT."; m.classList.add("err"); return; }
+  const esRut=/^[0-9.\-kK\s]+$/.test(q)&&rutLimpio(q).length>=7;
+  const partes=q.split(/\s+/);
+  rescateEjecutar([esRut?{rut:q}:{nombre:partes[0],apellidoPaterno:partes.slice(1).join(" ")||partes[0]}]);
+});
+on("rescatePendientesBtn","click",()=>rescateEjecutar(RESCATE_PENDIENTES));
+document.getElementById("rescateRes")?.addEventListener("click",async ev=>{
+  const b=ev.target.closest("[data-rescate]"); if(!b) return;
+  const msg=document.getElementById("rescateMsg"), tipo=b.dataset.rescate;
+  try{
+    if(tipo==="reactivar"){
+      const m=ROSTER.find(x=>x.id===b.dataset.id); if(!m) return;
+      if(!confirm(`¿Reactivar a ${nombreCompleto(m)}? Volverá a la lista y al selector. Su hoja de vida se conserva y queda anotada la reincorporación.`)) return;
+      m.activo=true; (m.anotaciones=m.anotaciones||[]).push({id:uid(),tipo:"Reincorporación",fecha:todayISO(),institucion:"5ª Compañía Germania",detalle:"Reincorporación (rescate desde Buscar persona)",registradoEn:new Date().toISOString()});
+      delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
+      await renumerarYGuardar(); refrescarTodo();
+      msg.classList.remove("err"); msg.textContent=`${nombreCompleto(m)} fue reactivado.`;
+    }else if(tipo==="restaurar"){
+      const base=await rescateLeer(TEST_BASELINE_KEY), orig=(base&&base[ROSTER_KEY]||[]).find(x=>String(x.id)===b.dataset.id);
+      if(!orig) throw new Error("La copia ya no está disponible.");
+      if(rutLimpio(orig.rut)&&ROSTER.some(x=>rutLimpio(x.rut)===rutLimpio(orig.rut))) throw new Error("Ya existe en la nómina; no se duplicó.");
+      if(!confirm(`¿Restaurar la ficha de ${nombreCompleto(orig)} tal como estaba en la copia (con sus cursos y anotaciones) y dejarla activa?`)) return;
+      const copia=JSON.parse(JSON.stringify(orig)); copia.activo=true; delete copia.motivoBaja; delete copia.fechaBaja; delete copia.obsBaja;
+      ROSTER.push(copia); await renumerarYGuardar(); refrescarTodo();
+      msg.classList.remove("err"); msg.textContent=`${nombreCompleto(copia)} fue restaurado desde la copia.`;
+    }else if(tipo==="cargar"){
+      const p=RESCATE_ULT[Number(b.dataset.i)]?.p; if(!p) return;
+      const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||""; };
+      set("fiNombre",p.nombre); set("fiApPat",p.apellidoPaterno); set("fiApMat",p.apellidoMaterno); set("fiRut",p.rut);
+      document.getElementById("fiCategoria").value="Operativo";
+      const fi=document.getElementById("fiMsg"); fi.classList.remove("err");
+      fi.textContent="Datos cargados. Completa la fecha de ingreso (define el N° de lista) y el teléfono, revisa la calidad y toca «Registrar ingreso».";
+      document.getElementById("fiIngreso").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("fiIngreso").focus();
+    }
+  }catch(e){ msg.textContent=e.message; msg.classList.add("err"); }
 });
 
 /* ============ NÓMINA ============ */

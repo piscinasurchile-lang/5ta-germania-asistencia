@@ -36,3 +36,4 @@ No fusionar si:
 - una sincronización fuerza navegación a Inicio;
 - se elimina una API/dato heredado sin auditoría de consumidores;
 - ODD Maestras o Inventario cambian accidentalmente durante esta fase.
+| Ingreso → Buscar persona | Buscar por RUT/nombre revisa nómina, bajas, copias, precedencia y ODD sin escribir; Reactivar conserva anotaciones; ficha de ingreso rechaza RUT repetido | 320/390/1280 |

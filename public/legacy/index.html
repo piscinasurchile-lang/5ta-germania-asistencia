@@ -878,6 +878,17 @@
     </div>
 
     <div class="subpanel" id="sub-ingreso">
+      <div class="card" id="rescateCard">
+        <h2>¿Falta alguien en la lista? Buscar persona</h2>
+        <p class="sub">Antes de registrar de nuevo a alguien, búscalo aquí por nombre o RUT. Se revisa la nómina (activos y dados de baja), las copias de respaldo, la lista de precedencia y las Órdenes del Día. No se borra ni se cambia nada al buscar.</p>
+        <div class="field-row">
+          <div class="field"><label for="rescateQ">Nombre o RUT</label><input type="text" id="rescateQ" placeholder="Ej: Pollak o 13.920.202-3"></div>
+        </div>
+        <button class="btn" id="rescateBuscarBtn">Buscar</button>
+        <button class="btn secondary" id="rescatePendientesBtn">Buscar a Saida Pollak y Felipe Carrillo</button>
+        <div class="status-msg" id="rescateMsg"></div>
+        <div id="rescateRes"></div>
+      </div>
       <div class="card">
         <h2>Ficha de ingreso</h2>
         <p class="sub">Registra a un nuevo integrante. El N° de lista se asigna solo, según la fecha de ingreso. Si un voluntario se retira, la lista se corre y los siguientes suben un lugar.</p>
