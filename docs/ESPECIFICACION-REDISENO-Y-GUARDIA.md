@@ -76,7 +76,7 @@ Fuera de alcance (según PDF §7): permisos avanzados de Oficiales, Inventario, 
 - Cada inscripción = persona + noche + rol + estado. Sin doble conteo.
 - Reemplazo: resta al titular, suma al reemplazante, queda registrado quién, cuándo y por qué.
 - Un oficial que conduce cuenta solo como conductor esa noche.
-- Noche completa = dotación mínima configurable en **una sola constante** (`GN_DOTACION_MIN`).
+- Noche completa = 3 voluntarios + 1 conductor + 1 OBAC, definido en **una sola constante** (`GN_DOTACION_MIN`); los voluntarios adicionales son refuerzos.
 - ODD no se emite como válida con dotación incompleta.
 
 ### 5.2 Protección de datos (todas retrocompatibles)
@@ -100,10 +100,11 @@ Compatibilidad: si el cliente no envía `ifVersion`, el servidor se comporta com
 4. Respaldo diario descargable (JSON) de las claves `guardia*`.
 5. Pruebas end-to-end automatizadas del flujo inscripción → roles → cierre → ODD → reemplazo.
 
-## 7. Decisiones pendientes del usuario
+## 7. Decisiones
 
-1. **Dotación mínima.** El PDF dice **3 voluntarios + 1 conductor + 1 OBAC**; lo hablado antes en este proyecto era **4 guardianes + 1 conductor + 1 OBAC (6 personas)**. Se deja `GN_DOTACION_MIN` como constante única; falta confirmar el valor.
-2. **Bloquear o avisar.** El PDF pide «no se cierra como válida» (bloquear); lo anterior pedía «avisa pero no bloquea». Se mantiene el comportamiento actual hasta confirmar.
+**Resuelta (08-10-2026):** dotación mínima por noche = **3 voluntarios + 1 conductor + 1 OBAC**. Los voluntarios que se sumen sobre esos 3 son **refuerzos**. Cada voluntario se inscribe en **al menos 2 noches**. En el código: `GN_DOTACION_MIN` y `GN_NOCHES_MIN` (`public/legacy/app.js`). El formulario del turno muestra «mínimo de 3 completo / faltan N / N refuerzos».
+
+**Pendiente:** si una noche incompleta **bloquea** el cierre de la ODD (PDF) o solo **avisa** (lo conversado antes). Hoy solo avisa.
 
 ## 8. Criterios de aceptación
 

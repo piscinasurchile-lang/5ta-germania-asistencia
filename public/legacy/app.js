@@ -307,6 +307,11 @@ function acronimoCargo(p){
 }
 function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "); }
 
+/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 3 voluntarios + 1 conductor + 1 OBAC.
+   Los voluntarios que se sumen sobre el mínimo son refuerzos. Cada voluntario se inscribe en al menos 2 noches. */
+const GN_DOTACION_MIN={voluntarios:3,conductor:1,obac:1};
+const GN_NOCHES_MIN=2;
+
 /* Persistencia institucional: el servidor/Neon es la única fuente de verdad.
    Nunca se recuperan datos operativos desde localStorage, sessionStorage o memoria local. */
 let STORAGE_MODE="pendiente";
@@ -1891,7 +1896,7 @@ async function gnInsGuardar(p,who,noches,justificacion){
   const kNoches="guardia-inscripcion:"+suffix;
   const kConfirm="guardia-confirmacion:"+suffix;
   const anteriores=await Promise.all([sGet(kNoches,null),sGet(kConfirm,null)]);
-  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=2,justificacion:justificacion||null};
+  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=GN_NOCHES_MIN,justificacion:justificacion||null};
   const okNoches=await sSet(kNoches,noches);
   if(!okNoches) throw new Error("No se pudieron guardar las noches. Intentá nuevamente.");
   const okConfirm=await sSet(kConfirm,confirmacion);
@@ -2006,7 +2011,7 @@ async function renderGnVoluntario(){
 on("gnVolLimpiar","click",()=>{gnVolSel.clear();document.querySelectorAll("[data-gn-vol]").forEach(x=>x.classList.remove("selected"));});
 on("gnVolConfirmar","click",async()=>{
  const msg=document.getElementById("gnVolMsg"),who=document.getElementById("miVoluntario")?.value,ini=document.getElementById("gnVolSemana")?.dataset.inicio;
- if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<2){msg.textContent="Debes seleccionar al menos 2 noches.";return;}
+ if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<GN_NOCHES_MIN){msg.textContent="Debes seleccionar al menos "+GN_NOCHES_MIN+" noches.";return;}
  try { await gnInsGuardar({inicio:ini},who,[...gnVolSel].sort(),null); msg.textContent="Inscripción confirmada en GERMANIA."; await renderGnInscripcionCard(); } catch(e) { msg.textContent=e.message||"No se pudo confirmar la inscripción."; } 
 });
 
@@ -2096,7 +2101,7 @@ async function validarMatrizGuardiaPrueba(){
   const errores=[], activos=ROSTER.filter(x=>x.activo!==false);
   const stats=await guardiasEnRangoPanel("2026-02-04","2026-02-15",activos);
   if(stats.turnos!==12) errores.push("Matriz: se esperaban 12 turnos y hay "+stats.turnos);
-  if(stats.incompletas!==2) errores.push("Matriz: se esperaban 2 noches bajo mínimo y hay "+stats.incompletas);
+  if(stats.incompletas!==0) errores.push("Matriz: con mínimo de "+GN_DOTACION_MIN.voluntarios+" voluntarios se esperaban 0 noches bajo mínimo y hay "+stats.incompletas);
   if(stats.cedidas!==2) errores.push("Matriz: se esperaban 2 guardias cedidas y hay "+stats.cedidas);
   const christian=stats.por[idPorClaveGuardia("517")], moller=stats.por[idPorClaveGuardia("522")];
   if(!christian||christian.reemplazos!==2) errores.push("Matriz: Christian debe registrar 2 reemplazos");
@@ -2282,9 +2287,11 @@ function contarGuardianes(){
   const faltan=gnTurno.filter(g=>g.estado==="no" && !g.reemplazo).length;
   const msg=document.getElementById("gnMsg");
   if(msg && !msg.classList.contains("err")){
+    const min=GN_DOTACION_MIN.voluntarios;
+    const estadoDot=cubren<min?` · faltan ${min-cubren} para el mínimo de ${min}`:cubren>min?` · ${cubren-min} refuerzo${cubren-min===1?"":"s"} sobre el mínimo de ${min}`:` · mínimo de ${min} completo`;
     msg.textContent = gnTurno.length
       ? `${gnTurno.length} designado${gnTurno.length===1?"":"s"} · ${cubren} cubre${cubren===1?"":"n"} la guardia`
-        + (faltan?` · ${faltan} sin reemplazo`:"")
+        + estadoDot + (faltan?` · ${faltan} sin reemplazo`:"")
       : "";
   }
 }
@@ -2957,7 +2964,7 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
       if(por[x.id]){por[x.id].asignadas++;if(x.estado!=="no"){por[x.id].propias++;hechos.add(x.id);cobertura++;}else if(x.reemplazo)por[x.id].cedidas++;else por[x.id].ausenciasSinReemplazo++;}
       if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;hechos.add(x.reemplazo);cobertura++;}
     });
-    if(cobertura<4)incompletas++; if(cobertura>4)sobreDotacion++;
+    if(cobertura<GN_DOTACION_MIN.voluntarios)incompletas++; if(cobertura>GN_DOTACION_MIN.voluntarios)sobreDotacion++;
     if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}else sinObac++;
     if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}else sinConductor++;
     hechos.forEach(id=>{if(por[id])por[id].total++;});
