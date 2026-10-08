@@ -1966,6 +1966,9 @@ async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
   if(actual.inicio!==p.inicio||actual.fin!==p.fin||actual.rol!==rol){
     throw new Error("Guardia: registro semanal corresponde a otra semana o función.");
   }
+  if(Object.prototype.hasOwnProperty.call(actual.personas,who)&&(!actual.personas[who]||typeof actual.personas[who]!=="object"||Array.isArray(actual.personas[who])||!Array.isArray(actual.personas[who].noches))){
+    throw new Error("Guardia: asignación previa inválida; se requiere conciliación antes de guardar.");
+  }
   const previo=actual.personas?.[who]||null, ahora=new Date().toISOString();
   actual.personas=actual.personas||{};
   actual.historial=actual.historial||[];
