@@ -159,3 +159,10 @@ test("guardia: malformed volunteer registration is not silently treated as trans
   const transfer=app.split("async function gnTransferirDesdeVoluntario(")[1].split("let GN_ROL_SEL")[0];
   assert.ok(transfer.includes('if(!Array.isArray(vol)) throw new Error("Guardia: inscripción de voluntario inválida'));
 });
+
+test("guardia: malformed weekly role documents are rejected before overwriting", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes('!Array.isArray(actual.historial)'));
+  assert.ok(save.includes('Array.isArray(actual.personas)'));
+  assert.ok(save.indexOf("registro semanal inválido")<save.indexOf("const guardado=await sSet(key,actual)"));
+});
