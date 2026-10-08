@@ -90,7 +90,7 @@ test("guardia: closed or expired weekly plans are rejected before saving", () =>
 
 test("guardia: unknown roster identities are rejected before saving", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
-  const guard = section.indexOf('!ROSTER.some(x=>String(x.id)===String(who))');
+  const guard = section.indexOf('!ROSTER.some(x=>String(x.id)===identidadSolicitada)');
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(guard >= 0 && save > guard);
 });
