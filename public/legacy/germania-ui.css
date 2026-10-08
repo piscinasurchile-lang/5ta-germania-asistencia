@@ -394,3 +394,15 @@ body[data-oficial="1"] .gr-vista{display:flex;}
 .subtab[data-sub="bajas"]{border-color:#a8323a;color:#ff8c93;}
 #cambiarVolBtn{margin-left:var(--sp-4);}
 @media (max-width:700px){ #testModeBanner{bottom:calc(76px + env(safe-area-inset-bottom))!important;} }
+
+/* ===== Tarjetas por cargo en Inicio ===== */
+.gr-roles{display:grid;gap:var(--sp-3);}
+.gr-rol-card{padding:0;overflow:hidden;border-left:6px solid var(--g-red);}
+.gr-rol-card > summary{list-style:none;display:flex;align-items:center;gap:var(--sp-3);min-height:64px;padding:var(--sp-3) var(--sp-4);cursor:pointer;}
+.gr-rol-card > summary::-webkit-details-marker{display:none;}
+.gr-rol-card > summary::after{content:"▾";margin-left:auto;font-size:22px;color:var(--g-muted);transition:transform .15s;}
+.gr-rol-card[open] > summary::after{transform:rotate(180deg);}
+.gr-rol-ico{font-size:30px;line-height:1;}
+.gr-rol-tit{display:flex;flex-direction:column;gap:2px;font:600 20px/1.15 'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.03em;}
+.gr-rol-tit small{font:400 15px/1.2 'Source Sans 3',sans-serif;text-transform:none;letter-spacing:0;color:var(--g-muted);}
+.gr-rol-body{padding:0 var(--sp-4) var(--sp-4);}
