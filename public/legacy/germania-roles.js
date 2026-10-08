@@ -285,13 +285,27 @@ document.addEventListener("click",function(ev){
 });
 if(typeof window.__mostrarPestana==="function"){
   var base=window.__mostrarPestana;
-  window.__mostrarPestana=function(nombre){ var r=base.apply(this,arguments); if(nombre==="guardia") grRender(true).catch(function(){}); if(nombre==="germania") renderNovedades(); return r; };
+  window.__mostrarPestana=function(nombre){ var r=base.apply(this,arguments); if(nombre==="guardia") grRender(true).catch(function(){}); if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); } return r; };
+}
+/* ---------- Estado actual en la tarjeta de identidad ---------- */
+async function pintarChipEstado(){
+  var c=$("miEstadoChip"); if(!c) return;
+  var v=$("miVoluntario"), who=v?v.value:"";
+  if(!who){ c.hidden=true; return; }
+  var d={}; try{ d=await getDisponibilidadVigente(); }catch(e){}
+  var e=d&&d[who]&&d[who].estado;
+  c.hidden=false;
+  c.innerHTML=e?'<span class="dot '+E(e)+'"></span>'+E(DISP_LABELS[e]):'<span class="dot sin"></span>Marca tu estado';
+}
+if(typeof window.marcarMiEstado==="function"){
+  var _marcar=window.marcarMiEstado;
+  window.marcarMiEstado=async function(){ var r=await _marcar.apply(this,arguments); pintarChipEstado(); return r; };
 }
 var ultimo="__";
 function vigilarIdentidad(){
   var v=$("miVoluntario"); var id=v?v.value:"";
   if(id===ultimo) return; ultimo=id;
-  aplicarRol(); renderNovedades();
+  aplicarRol(); renderNovedades(); pintarChipEstado();
   if(guardiaActiva()) grRender(true).catch(function(){});
 }
 setInterval(vigilarIdentidad,700);

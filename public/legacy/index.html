@@ -324,11 +324,12 @@
 
   <div class="mobile-menu" id="mobileMenu">
     <button type="button" data-go="germania">Inicio GERMANIA</button>
+    <button type="button" data-go="estado">Mi estado</button>
     <button type="button" data-go="lista">Asistencia</button>
     <button type="button" data-go="servicio">Emergencia · B-5</button>
     <button type="button" data-go="guardia">Guardias</button>
     <button type="button" data-go="historial">Historial</button>
-    <button type="button" data-go="panel">Informes</button>
+    <button type="button" data-go="panel">Estadística</button>
     <button type="button" data-go="config">Oficiales / Administración</button>
   </div>
 
@@ -351,64 +352,42 @@
           <img id="miFoto" class="volunteer-avatar loading" src="/legacy/germania-icon.png" alt="" aria-label="Foto del voluntario">
           <div class="volunteer-who">
             <strong id="miNombre">Voluntario</strong>
-            <span id="miCargo">Selecciona tu nombre</span>
+            <span id="miCargo">Elige tu nombre</span>
+            <button type="button" class="chip-estado" id="miEstadoChip" data-go="estado" hidden></button>
             <button type="button" class="photo-action" id="cambiarFotoBtn">Cambiar foto</button>
             <input type="file" id="miFotoInput" accept="image/*" style="display:none">
-            <small class="photo-hint">Foto: se ajusta sola a 200 × 200 px (máx. 15 KB)</small>
           </div>
         </div>
-        <div class="field">
-          <label for="miVoluntario">Voluntario que está usando este dispositivo</label>
-          <select id="miVoluntario"></select>
-        </div>
+        <select id="miVoluntario" aria-label="Elige tu nombre"></select>
       </div>
 
       <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
         <div class="ha-main">
           <span class="ha-ico" aria-hidden="true">✔</span>
-          <div><strong>SIN EMERGENCIAS</strong><span>Novedades de la Compañía. Informativo: una emergencia se despacha por el canal oficial B-5.</span></div>
+          <div><strong>SIN EMERGENCIAS</strong><span>Novedades de la Compañía</span></div>
         </div>
         <div id="novedadesLista" class="ha-lista"></div>
         <div id="novedadesAdmin" class="ha-admin" hidden>
-          <label for="novedadTexto">Nueva novedad para la Compañía</label>
-          <div class="ha-fila"><input type="text" id="novedadTexto" maxlength="280" placeholder="Ej: Ejercicio de compañía el sábado 10:00"><button type="button" class="btn small" id="novedadAgregar">Publicar</button></div>
+          <div class="ha-fila"><input type="text" id="novedadTexto" maxlength="280" placeholder="Escribir una novedad…" aria-label="Nueva novedad para la Compañía"><button type="button" class="btn small" id="novedadAgregar">Publicar</button></div>
           <div class="status-msg" id="novedadMsg"></div>
         </div>
       </section>
 
-      <div class="card" id="miEstadoCard" style="grid-column:1 / -1;">
-        <h2>Mi estado</h2>
-        <p class="sub">¿Dónde estás ahora? Se mantiene hasta que lo cambies.</p>
-        <div class="status-actions">
-          <button class="status-choice" data-estado="cuartel"><span class="dot cuartel"></span>En cuartel</button>
-          <button class="status-choice" data-estado="disponible"><span class="dot disponible"></span>Disponible</button>
-          <button class="status-choice" data-estado="fuera"><span class="dot fuera"></span>Fuera de Villarrica</button>
-          <button class="status-choice" data-estado="no"><span class="dot no"></span>No disponible</button>
-        </div>
-        <div class="status-msg" id="miEstadoMsg"></div>
-      </div>
-
       <div id="gnInscripcionCard" style="grid-column:1 / -1;min-width:0;"></div>
 
-      <div class="card" style="grid-column:1 / -1;">
-        <h2>Mis accesos</h2>
-        <div class="home-tiles quick-actions">
-          <button class="tile" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
-          <button class="tile" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true">🚒</span>Emergencia · B-5</button>
-          <button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Mi historial</button>
-          <button class="tile" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
-          <button class="tile" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true">📊</span>Informes</button>
-          <button class="tile solo-oficiales" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
-        </div>
-        <div class="test-mode">Modo de prueba: funciones abiertas para evaluación.</div>
+      <div class="home-tiles" style="grid-column:1 / -1;">
+        <button class="tile" type="button" data-go="estado"><span class="tile-ico" aria-hidden="true">🟢</span>Mi estado</button>
+        <button class="tile" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
+        <button class="tile" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true">🚒</span>Emergencia</button>
+        <button class="tile" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true">📊</span>Estadística</button>
+        <button class="tile solo-oficiales" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
       </div>
     </div>
 
     <div class="card">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
         <div>
-          <h2>Quién está hoy · minuta de disponibilidad</h2>
-          <p class="sub">Siempre a la vista: quién está en el cuartel, quién está disponible y quién no. Se ordena: En cuartel, Disponibles, No disponibles, Fuera de zona y Sin marcar.</p>
+          <h2>Quién está hoy</h2>
         </div>
         <button class="btn small secondary" id="actualizarMinuta" type="button">Actualizar</button>
       </div>
@@ -419,7 +398,27 @@
           <tbody id="dispBody"></tbody>
         </table>
       </div>
-      <div class="foot-note">La minuta muestra declaraciones del día actual. No utiliza ubicación GPS permanente.</div>
+    </div>
+  </div>
+
+  <!-- MI ESTADO -->
+  <div class="panel" id="panel-estado">
+    <div class="card" id="miEstadoCard">
+      <h2>¿Cuál es tu estado?</h2>
+      <div class="status-actions">
+        <button class="status-choice" data-estado="cuartel"><span class="dot cuartel"></span>En cuartel</button>
+        <button class="status-choice" data-estado="disponible"><span class="dot disponible"></span>Disponible</button>
+        <button class="status-choice" data-estado="fuera"><span class="dot fuera"></span>Fuera de Villarrica</button>
+        <button class="status-choice" data-estado="no"><span class="dot no"></span>No disponible</button>
+      </div>
+      <div class="status-msg" id="miEstadoMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Mi guardia y mi historial</h2>
+      <div class="home-tiles">
+        <button class="tile" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
+        <button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Mi historial</button>
+      </div>
     </div>
   </div>
 
@@ -1357,6 +1356,7 @@
 
 <nav class="g-bottomnav" id="gBottomNav" aria-label="Navegación principal">
   <button type="button" data-go="germania" data-nav="germania" aria-current="page"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Inicio</span></button>
+  <button type="button" data-go="estado" data-nav="estado"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg><span>Mi estado</span></button>
   <button type="button" data-go="guardia" data-nav="guardia"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 13.5A8.5 8.5 0 1 1 10.5 3a7 7 0 0 0 10.5 10.5z"/></svg><span>Guardia</span></button>
   <button type="button" data-go="servicio" data-nav="servicio"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Emergencia</span></button>
   <button type="button" id="gNavMas" data-nav="mas" aria-haspopup="true"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Más</span></button>

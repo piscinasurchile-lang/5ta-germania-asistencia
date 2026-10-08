@@ -4572,9 +4572,9 @@ async function refrescarIdentidadVoluntario(){
   const nom=document.getElementById("miNombre"), cargo=document.getElementById("miCargo");
   if(!sel||!img||!nom||!cargo) return;
   const p=ROSTER.find(x=>String(x.id)===String(sel.value));
-  if(!p){ nom.textContent="Voluntario"; cargo.textContent="Selecciona tu nombre"; img.src=fotoPlaceholder(); return; }
+  if(!p){ nom.textContent="Voluntario"; cargo.textContent="Elige tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
-  cargo.textContent=(p.cargo&&p.cargo!=="Voluntario"?p.cargo+" · ":"")+"Voluntario activo";
+  cargo.textContent=p.cargo||"Voluntario";
   if(!p.foto){
     const anterior=await sGet(fotoKey(p.id),null);
     if(anterior){ p.foto=anterior; await saveRoster(); }

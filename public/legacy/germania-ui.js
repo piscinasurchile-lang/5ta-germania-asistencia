@@ -3,7 +3,7 @@
 (function(){
   var nav=document.getElementById("gBottomNav");
   if(!nav) return;
-  var PRINCIPALES={germania:1,guardia:1,servicio:1};
+  var PRINCIPALES={germania:1,estado:1,guardia:1,servicio:1};
   function marcar(nombre){
     nav.querySelectorAll("button[data-nav]").forEach(function(b){
       var activo=b.dataset.nav===nombre || (b.dataset.nav==="mas" && !PRINCIPALES[nombre]);

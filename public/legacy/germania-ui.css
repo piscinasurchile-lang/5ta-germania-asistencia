@@ -197,10 +197,10 @@ body:has(#oddToast) #giToast{top:calc(8px + 52px)!important;}
   .seg button{min-height:44px;font-size:14px;padding:var(--sp-2) var(--sp-3);}
   .cargo-col,.ingreso-col{display:none;}
 
-  .g-bottomnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:900;
+  .g-bottomnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:900;
     height:calc(68px + env(safe-area-inset-bottom));padding:0 0 env(safe-area-inset-bottom);background:#0b0f13;border-top:1px solid var(--g-line);}
   .g-bottomnav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-1);min-height:var(--g-tap);border:0;background:transparent;color:var(--g-muted);
-    font:600 12px/1.1 'Source Sans 3',sans-serif;cursor:pointer;position:relative;}
+    font:600 13px/1.1 'Source Sans 3',sans-serif;cursor:pointer;position:relative;padding:0 2px;}
   .g-bottomnav button .ico{font-size:22px;line-height:1;}
   .g-bottomnav button[aria-current="page"]{color:var(--g-gold);}
   .g-bottomnav button[aria-current="page"]::before{content:"";position:absolute;top:0;left:25%;right:25%;height:3px;border-radius:0 0 3px 3px;background:var(--g-red);}
@@ -330,3 +330,19 @@ body:not([data-oficial="1"]) .tab[data-tab="config"]{display:none !important;}
 .gr-nota-pie{color:var(--g-muted);font-size:13px;margin:var(--sp-2) 0 0;}
 }
 .dot.sin{background:#6b747c;}
+
+/* ===== Inicio limpio: sin letras chicas ===== */
+.home-hero .volunteer-who strong{font:600 24px/1.15 'Oswald',sans-serif;overflow-wrap:anywhere;}
+.home-hero .volunteer-who>span{font-size:17px;color:var(--g-muted);}
+.home-hero select{margin-top:var(--sp-3);width:100%;min-height:var(--g-tap);padding:var(--sp-3) var(--sp-4);font-size:16px;border:1.5px solid var(--g-line);border-radius:var(--g-radius-sm);background:#0b0f13;color:#fff;}
+.chip-estado{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:44px;margin:var(--sp-2) var(--sp-2) 0 0;padding:var(--sp-1) var(--sp-4);border-radius:999px;border:1.5px solid var(--g-line);background:var(--g-card-2);color:#fff;font:600 16px/1 'Source Sans 3',sans-serif;cursor:pointer;}
+.chip-estado[hidden]{display:none;}
+.chip-estado .dot{width:14px;height:14px;margin:0;}
+.tile.solo-oficiales{grid-column:1 / -1;}
+.tile{min-height:104px;font-size:18px;}
+.sub,.foot-note{font-size:16px;}
+.gr-mini,.gr-cupo-c small,.gr-falta,.ha-item small,.gr-nota-pie{font-size:14px;}
+.gr-chip{font-size:14px;}
+.gr-tr.gr-th{font-size:14px;}
+.ha-main strong{font-size:24px;}
+.ha-main span:not(.ha-ico){font-size:16px;}
