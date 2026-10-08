@@ -2020,10 +2020,10 @@ on("gnRolGuardar","click",async()=>{
   const rolSolicitado=GN_ROL_ACTIVO;
   const planSolicitado={...GN_ROL_PLAN};
   const identidadSolicitada=String(who);
-  if(!ROSTER.some(x=>String(x.id)===String(who))){
+  if(!ROSTER.some(x=>String(x.id)===identidadSolicitada))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
   }
-  const actual=ROSTER.find(x=>String(x.id)===String(who));
+  const actual=ROSTER.find(x=>String(x.id)===identidadSolicitada);
   if((rolSolicitado==="oficial"&&!gnEsOficial(actual))||(rolSolicitado==="maquinista"&&!gnEsMaquinista(actual))){
     msg.textContent="La función seleccionada no corresponde a tu registro de nómina."; return;
   }
@@ -2038,16 +2038,16 @@ on("gnRolGuardar","click",async()=>{
   if(!planesVigentes.some(p=>p.inicio===planSolicitado.inicio&&p.fin===planSolicitado.fin&&p.estado==="abierta"&&p.fin>=todayISO())){
     msg.textContent="La semana fue cerrada o modificada. Actualiza la planificación."; return;
   }
-  const conflictos=await gnConflictosSemana(planSolicitado,who,noches,rolSolicitado);
+  const conflictos=await gnConflictosSemana(planSolicitado,identidadSolicitada,noches,rolSolicitado);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
   // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
-  const conflictosActuales=await gnConflictosSemana(planSolicitado,who,noches,rolSolicitado);
+  const conflictosActuales=await gnConflictosSemana(planSolicitado,identidadSolicitada,noches,rolSolicitado);
   if(conflictosActuales.some(x=>x.rol!=="voluntario")){ msg.textContent="La asignación cambió mientras editabas. Actualiza y vuelve a intentarlo."; return; }
   try {
     // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
-    await gnGuardarRolSemanal(rolSolicitado,planSolicitado,who,noches);
+    await gnGuardarRolSemanal(rolSolicitado,planSolicitado,identidadSolicitada,noches);
     try {
-      await gnTransferirDesdeVoluntario(planSolicitado,who,noches);
+      await gnTransferirDesdeVoluntario(planSolicitado,identidadSolicitada,noches);
     } catch (transferError) {
       // El rol se guardó; no afirmar éxito total si la baja del rol anterior falló.
       console.error("Guardia: transferencia parcial",transferError);
