@@ -1802,7 +1802,12 @@ async function renderGnInscripcionCard(forzar){
   if(!who){ box.innerHTML=""; return; }
   let d; try{ d=await gnInsDatos(who,forzar); }catch(e){ return; }
   const {p,saved,conf}=d;
-  if(!p||Date.now()>=gnInsCierreMs(p)||(conf&&(conf.cumple||conf.justificacion))){ if(box.innerHTML) box.innerHTML=""; return; }
+  if(p&&conf&&(conf.cumple||conf.justificacion)){
+    const dias=Array.isArray(saved)?saved:[];
+    box.innerHTML=`<div class="card" style="min-width:0;margin-bottom:12px;"><h2 style="margin:0;">Guardia nocturna · inscripción confirmada</h2><p class="sub">Semana ${esc(gnFmt(p.inicio))} · ${dias.length} noche(s) registrada(s).</p><p>${esc(dias.join(" · ")||"Justificación registrada")}</p><small>Tu inscripción está guardada. Si necesitas modificarla, contacta al Teniente 3°.</small></div>`;
+    return;
+  }
+  if(!p||Date.now()>=gnInsCierreMs(p)){ if(box.innerHTML) box.innerHTML=""; return; }
   const clave=p.inicio+":"+who; if(GN_INS_CLAVE!==clave){ GN_INS_CLAVE=clave; GN_INS_SEL=new Set(saved); }
   const dias=gnWeek(p.inicio), hasta=gnInsCierreMs(p);
   const cierreTxt=new Date(hasta).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
