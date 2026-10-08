@@ -48,3 +48,4 @@ No fusionar si:
 | Maquinista / vista de prueba | En toda la app dice «Maquinista» (no «Conductor»); 517 ve tarjetas Maquinista y OBAC solo lectura; voluntario marca todas las noches que quiera (mín. 2); OBAC puede sumar noches como voluntario | 390 |
 | Ayuda «?» | Cada botón conocido lleva «?» en la esquina; al tocarla explica qué hace sin ejecutarlo; no tapa el icono ni desborda | 390/1280 |
 | Guardia acumulada (Informes / Dashboard V2) | Tabla por voluntario: Faltó, Cedidas, Cumplidas, Asignadas, Cubrió, OBAC, Maquinista; ordenada por quién más falta; aparte del % reglamentario | 390 |
+| Noches extra y OBAC | El mínimo de 2 noches cuenta OBAC + maquinista + voluntario; tarjeta Voluntario permite SUMAR noches mientras la elección esté abierta; OBAC debe elegir su noche; tras el cierre nadie se inscribe (acomodos con el Teniente 3° en Revisión) | 390 |

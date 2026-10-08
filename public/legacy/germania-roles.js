@@ -30,12 +30,12 @@ async function cargarPrec(){
   PREC={};
   lista.forEach(function(x){ var m=precBuscar(x.nombre); if(m&&PREC[String(m.id)]==null) PREC[String(m.id)]=x.n; });
   /* OBAC (obligatorios): Capitán y Tenientes 1°, 2° y 3°, y se completan con los siguientes
-     voluntarios del orden de precedencia hasta OBAC_TOTAL. */
+     voluntarios del orden de precedencia hasta completar OBAC_TOTAL (uno por cada noche de la semana). */
   OBAC={}; var n=0, ya=function(x){ var m=precBuscar(x.nombre); return m?String(m.id):null; };
   lista.forEach(function(x){ if(/^(capit|teniente (primero|segundo|tercero))/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
   lista.forEach(function(x){ if(n>=OBAC_TOTAL) return; if(/^(voluntari)/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
 }
-var OBAC=null, OBAC_TOTAL=6;
+var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
 /* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
 var VISTA_PRUEBA=["517"];
@@ -255,27 +255,37 @@ function filaCupos(c){
 }
 function panelVol(pn,D){
   var who=D.who, saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[], conf=D.S.conf[who];
-  var confirmada=!!conf&&(conf.cumple||conf.justificacion), editable=D.abierto&&!confirmada;
+  var confirmada=!!conf&&!!(conf.cumple||conf.justificacion||conf.confirmadaEn), editable=D.abierto;
+  /* mientras la elección esté abierta se pueden SUMAR noches (nunca quitar las ya confirmadas) */
+  var ck=D.p.inicio+":"+who; if(GN_INS_CLAVE!==ck){ GN_INS_CLAVE=ck; GN_INS_SEL=new Set(saved); }
   var cierre=gnInsCierreMs(D.p);
   var cierreTxt=new Date(cierre).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   var sel=GN_INS_SEL, n=sel.size;
   var h='<h3 class="gr-t">Elige tus noches</h3>';
   h+='<p class="sub gr-como">Toca cada noche en que puedes venir y al final presiona <b>Confirmar</b>.</p>';
   h+=D.abierto?'<p class="sub">Cierra el <b>'+E(cierreTxt)+'</b> · faltan '+E(avisoRestante(cierre,Date.now()))+'. Elige <b>como mínimo '+GN_NOCHES_MIN+' noches</b>; puedes marcar todas las que quieras.</p>':'<p class="sub">La inscripción de esta semana está cerrada.</p>';
-  if(confirmada) h+='<p class="gr-ok">✔ Inscripción confirmada: '+saved.length+' noche(s).</p>';
+  var rolSet={}; regs(D.S.maq[who]).concat(regs(D.S.obac[who])).forEach(function(x){ rolSet[x.f]=1; });
+  var nRol=Object.keys(rolSet).length, unionN=Object.keys(Object.assign({},rolSet,(function(){ var o={}; sel.forEach(function(f){ o[f]=1; }); return o; })())).length;
+  if(nRol){
+    var nomsRol=Object.keys(rolSet).sort().map(function(f){ var q=nombreNoche(f); return q.w+" "+q.d; }).join(", ");
+    var falta=Math.max(0,GN_NOCHES_MIN-unionN);
+    h+='<div class="gr-semana"><div class="gr-sem-fila ok">✔ <b>Tu noche como '+(rangoObac(D.m)!=null?"OBAC":"maquinista")+'</b> (obligatoria): '+E(nomsRol)+'</div>'
+      +(falta?'<div class="gr-sem-fila falta">➕ Te falta <b>'+falta+' noche'+(falta===1?"":"s")+' como voluntario</b> para llegar al mínimo de '+GN_NOCHES_MIN+'. Elígela abajo.</div>':'<div class="gr-sem-fila ok">✔ Ya cumples el mínimo de '+GN_NOCHES_MIN+' noches. Puedes sumar más si quieres.</div>')+'</div>';
+  }
+  if(confirmada) h+='<p class="gr-ok">✔ Confirmadas: '+saved.length+' noche(s) como voluntario. Puedes <b>agregar más</b> mientras la elección esté abierta.</p>';
   h+='<div class="gr-noches">'+D.cov.map(function(c){
-    var nn=nombreNoche(c.f), mia=confirmada?saved.indexOf(c.f)>=0:sel.has(c.f);
+    var nn=nombreNoche(c.f), mia=sel.has(c.f), fija=saved.indexOf(c.f)>=0;
     var otro=tiene(D.S.maq[who],c.f)?"maquinista":tiene(D.S.obac[who],c.f)?"OBAC":"";
-    var dis=!editable||!!otro;
+    var dis=!editable||!!otro||fija;
     return '<button type="button" class="gr-noche'+(mia?" on":"")+(c.completa?" full":"")+'" data-gr-vol="'+c.f+'"'+(dis?" disabled":"")+' aria-pressed="'+mia+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><span class="gr-info"><span class="gr-hora">'+E(horaNoche(c.f))+' → '+E(HORARIOS.fin)+'</span>'+(otro?'<span class="gr-cupo">Ya la elegiste como '+otro+'</span>':filaCupos(c))+'</span><span class="gr-marca" aria-hidden="true">'+(mia?"✔":"")+'</span></button>';
   }).join("")+'</div>';
   if(editable){
-    h+='<div id="giAviso" class="gr-aviso"></div><button type="button" class="btn gr-grande" id="giConfirmar">Confirmar mis noches'+(n?' ('+n+' seleccionada'+(n===1?"":"s")+')':'')+'</button>'
-      +'<p class="gr-link"><a href="#" id="giJustificar">No puedo cumplir: justificar por correo</a></p>';
+    h+='<div id="giAviso" class="gr-aviso"></div><button type="button" class="btn gr-grande" id="giConfirmar">'+(confirmada?'Agregar estas noches':'Confirmar mis noches')+(n?' ('+n+' seleccionada'+(n===1?"":"s")+')':'')+'</button>'
+      +(confirmada?'':'<p class="gr-link"><a href="#" id="giJustificar">No puedo cumplir: justificar por correo</a></p>');
   }
   pn.innerHTML=h;
   pn.querySelectorAll("[data-gr-vol]").forEach(function(b){ b.onclick=function(){ var f=b.dataset.grVol; if(sel.has(f)) sel.delete(f); else sel.add(f); panelVol(pn,D); }; });
-  var c=$("giConfirmar"); if(c) c.onclick=function(){ gnInsConfirmar(D.p,who); };
+  var c=$("giConfirmar"); if(c) c.onclick=function(){ if(confirmada&&sel.size<=saved.length){ var a=$("giAviso"); if(a) a.textContent="Marca al menos una noche nueva para agregar."; return; } gnInsConfirmar(D.p,who); };
   var j=$("giJustificar"); if(j) j.onclick=function(e){ e.preventDefault(); gnInsJustificar(D.p,who); };
 }
 
@@ -286,7 +296,7 @@ function panelRol(pn,D,kind){
   var rango=rangoObac(D.m), prev=vistaPrueba(D.m,kind);
   var h=prev?'<div class="gr-nota info"><span aria-hidden="true">👁</span><p><b>Vista de prueba.</b> Solo para ver cómo se ve esta tarjeta en el teléfono. No inscribe nada.</p></div>':'';
   h+='<h3 class="gr-t">Mis noches como '+(esM?"maquinista":"OBAC")+'</h3>';
-  h+='<div class="gr-nota '+(esM?"maq":"obac")+'"><span aria-hidden="true">'+(esM?"🚒":"🎧")+'</span><p>Solo deben inscribirse '+(esM?"los maquinistas":"los OBAC según la precedencia")+' y su disponibilidad. Se requiere '+(esM?DOT.conductor+" maquinista":DOT.obac+" OBAC")+' por noche.'+(!esM&&rango!=null?' <b>Tu lugar en la precedencia: N° '+rango+'.</b>':'')+'</p></div>';
+  h+='<div class="gr-nota '+(esM?"maq":"obac")+'"><span aria-hidden="true">'+(esM?"🚒":"🎧")+'</span><p>Solo deben inscribirse '+(esM?"los maquinistas":"los OBAC según la precedencia")+' y su disponibilidad. Se requiere '+(esM?DOT.conductor+" maquinista":DOT.obac+" OBAC")+' por noche.'+(!esM?' <b>Eliges UNA noche como OBAC (obligatoria); las demás las tomas como voluntario.</b>':'')+(!esM&&rango!=null?' <b>Tu lugar en la precedencia: N° '+rango+'.</b>':'')+'</p></div>';
   h+='<div class="gr-tabla" role="table"><div class="gr-tr gr-th" role="row"><span>Día</span><span>Mi disponibilidad</span><span>'+(esM?"Maquinista":"OBAC")+'</span></div>'
   +D.cov.map(function(c){
     var nn=nombreNoche(c.f), lista=esM?c.maq:c.obac, tit=lista[0]||null, soyTit=!!tit&&tit.id===who, enLista=lista.some(function(x){ return x.id===who; });
@@ -300,19 +310,27 @@ function panelRol(pn,D,kind){
   h+='<p class="gr-aviso-n">Tienes '+n+' noche'+(n===1?"":"s")+' seleccionada'+(n===1?"":"s")+'.</p>';
   if(D.abierto&&!prev) h+='<button type="button" class="btn gr-grande" id="grGuardar-'+kind+'">Guardar selección</button><div class="status-msg" id="grMsg-'+kind+'"></div>';
   pn.innerHTML=h;
-  pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
+  pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(kind==="obac"){ sel.clear(); if(i.checked) sel.add(i.dataset.grRol); } else if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
   var g=$("grGuardar-"+kind); if(g) g.onclick=function(){ guardarRol(D,kind); };
 }
 async function guardarRol(D,kind){
   if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
+  if(kind==="obac"&&recs.length>1){ msg.textContent="Como OBAC es una sola noche por persona; las demás noches las tomas como voluntario."; msg.classList.add("err"); return; }
+  if(kind==="obac"&&rangoObac(D.m)!=null&&!recs.length){ msg.textContent="Tu noche como OBAC es obligatoria: elige al menos una."; msg.classList.add("err"); return; }
   var otroK=kind==="maq"?"obac":"maq";
   var choca=recs.filter(function(r){ return tiene(D.S.vol[D.who],r.f)||tiene(D.S[otroK][D.who],r.f); });
   if(choca.length){ msg.textContent="Una noche solo puede tener un rol por persona."; msg.classList.add("err"); return; }
   msg.classList.remove("err"); msg.textContent="Guardando…";
   try{
     await sSet("guardia-"+kind+":"+D.p.inicio+":"+D.who,recs);
+    var conf=D.S.conf[D.who];
+    if(conf&&!conf.justificacion){
+      var u={}; regs(D.S.vol[D.who]).concat(regs(D.S[otroK][D.who])).concat(recs).forEach(function(x){ u[x.f]=1; });
+      var cumple=Object.keys(u).length>=GN_NOCHES_MIN;
+      if(cumple!==!!conf.cumple) await sSet("guardia-confirmacion:"+D.p.inicio+":"+D.who,Object.assign({},conf,{cumple:cumple}));
+    }
     msg.textContent="Guardado ✓ "+(typeof horaCorta==="function"?horaCorta():"");
     if(typeof gnInsToast==="function") gnInsToast("Selección guardada: "+recs.length+" noche(s)");
     GR.sel[kind]=null; await grRender(true);
@@ -333,6 +351,8 @@ function panelInfo(pn,D){
       +'<div class="gr-nc-fila"><span aria-hidden="true">🎧</span> OBAC: '+(ot?'<b>'+E(ot)+'</b>':'<span class="falta">falta</span>')+'</div>'
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
+  var obacSin=activos.filter(function(x){ return rangoObac(x)!=null&&!regs(D.S.obac[String(x.id)]).length; });
+  h+='<details class="gr-det"'+(obacSin.length?' open':'')+'><summary>OBAC sin su noche (obligatoria): '+obacSin.length+'</summary><p>'+(obacSin.length?obacSin.map(function(x){ return E(corto(x)); }).join(" · "):"Todos los OBAC ya eligieron su noche.")+'</p></details>';
   h+='<details class="gr-det"><summary>Sin elegir noches: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><p>'+(sinConf.length?sinConf.map(function(x){ return E(corto(x)); }).join(" · "):"Todos eligieron sus noches.")+'</p></details>';
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';

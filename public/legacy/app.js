@@ -1939,12 +1939,19 @@ async function renderGnInscripcionCard(forzar){
   document.getElementById("giConfirmar").onclick=()=>gnInsConfirmar(p,who);
   document.getElementById("giJustificar").onclick=e=>{ e.preventDefault(); gnInsJustificar(p,who); };
 }
+/* Noches de la semana como OBAC o maquinista: cuentan para el mínimo de 2 noches (decisión de la Oficialidad). */
+async function gnNochesRol(p,who){
+  const out=new Set();
+  for(const k of ["guardia-obac:","guardia-maq:"]){ let v=null; try{ v=await sGet(k+p.inicio+":"+who,null); }catch(e){} (Array.isArray(v)?v:[]).forEach(x=>{ const f=typeof x==="string"?x:x&&x.f; if(f) out.add(f); }); }
+  return out;
+}
 async function gnInsGuardar(p,who,noches,justificacion){
   const suffix=p.inicio+":"+who;
   const kNoches="guardia-inscripcion:"+suffix;
   const kConfirm="guardia-confirmacion:"+suffix;
   const anteriores=await Promise.all([sGet(kNoches,null),sGet(kConfirm,null)]);
-  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=GN_NOCHES_MIN,justificacion:justificacion||null};
+  const rol=await gnNochesRol(p,who), total=new Set([...noches,...rol]).size;
+  const confirmacion={confirmadaEn:(anteriores[1]&&anteriores[1].confirmadaEn)||new Date().toISOString(),noches:noches.length,cumple:total>=GN_NOCHES_MIN,justificacion:justificacion||null};
   const okNoches=await sSet(kNoches,noches);
   if(!okNoches) throw new Error("No se pudieron guardar las noches. Intentá nuevamente.");
   const okConfirm=await sSet(kConfirm,confirmacion);
@@ -1959,12 +1966,13 @@ async function gnInsGuardar(p,who,noches,justificacion){
 function gnInsAviso(t){ const a=document.getElementById("giAviso"); if(a) a.textContent=t||""; }
 function gnInsToast(t){ const x=document.createElement("div"); x.id="giToast"; x.style.cssText="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100001;background:#116b2e;color:#fff;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px;max-width:92vw;text-align:center;"; x.textContent=t; document.body.appendChild(x); setTimeout(()=>x.remove(),10000); }
 async function gnInsConfirmar(p,who){
-  const sel=[...GN_INS_SEL].sort(), n=sel.length, nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","")+" "+iso.slice(8);
-  if(!n){ gnInsAviso("Elige al menos una noche, o justifica por correo."); return; }
+  const sel=[...GN_INS_SEL].sort(), nVol=sel.length, nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","")+" "+iso.slice(8);
+  if(!nVol){ gnInsAviso("Elige al menos una noche, o justifica por correo."); return; }
+  const rolN=await gnNochesRol(p,who), n=new Set([...sel,...rolN]).size;
   const confirmar=async(just)=>{ try{ await gnInsGuardar(p,who,sel,just); cerrarModalOdd(); gnInsToast("Noches confirmadas: "+sel.map(nom).join(" · ")); await renderGnInscripcionCard(true); }catch(e){ cerrarModalOdd(); gnInsAviso((e&&e.message)||"No se pudo guardar."); } };
   const c=modalOdd(n===1
     ?`<h2 style="margin:0 0 8px;">Marcaste solo 1 noche</h2><p>El mínimo sugerido es 2 noches. Puedes agregar otra, confirmar así o justificar por correo.</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button type="button" class="btn" id="giOtra">Agregar otra noche</button><button type="button" class="btn secondary" id="giSolo">Confirmar solo 1</button><button type="button" class="btn secondary" id="giJust">Justificar por correo</button></div>`
-    :`<h2 style="margin:0 0 8px;">¿Estás seguro?</h2><p>Vas a confirmar estas noches de guardia:</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><p style="color:#9aa0a8;font-size:14px;">Después no podrás cambiarlas desde aquí: los cambios se piden al Teniente Tercero.</p><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn" id="giSi">Sí, confirmar</button><button type="button" class="btn secondary" id="giVolver">Volver</button></div>`);
+    :`<h2 style="margin:0 0 8px;">¿Estás seguro?</h2><p>Vas a confirmar estas noches de guardia:</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><p style="color:#9aa0a8;font-size:14px;">Podrás agregar más noches mientras la elección siga abierta. Para dejar una noche ya confirmada, avisa que no puedes.</p><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn" id="giSi">Sí, confirmar</button><button type="button" class="btn secondary" id="giVolver">Volver</button></div>`);
   const q=id=>c.querySelector("#"+id);
   if(n===1){ q("giOtra").onclick=cerrarModalOdd; q("giSolo").onclick=()=>confirmar(null); q("giJust").onclick=()=>{ cerrarModalOdd(); gnInsJustificar(p,who); }; }
   else { q("giSi").onclick=()=>confirmar(null); q("giVolver").onclick=cerrarModalOdd; }
