@@ -311,7 +311,11 @@ function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno
    Nunca se recuperan datos operativos desde localStorage, sessionStorage o memoria local. */
 let STORAGE_MODE="pendiente";
 function lsAvailable(){ return false; }
-async function sGet(k,f){
+/* Versión de cada clave tal como llegó del servidor (0 = aún no existe). Sirve para no pisar
+   lo que otra persona guardó mientras tú editabas (docs/ESPECIFICACION-REDISENO-Y-GUARDIA.md §5.2). */
+const SVER=new Map();
+async function sGet(k,f){ return (await sGetV(k,f)).value; }
+async function sGetV(k,f){
   let r;
   try{
     r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
@@ -328,28 +332,84 @@ async function sGet(k,f){
   const data=await r.json();
   STORAGE_MODE="servidor";
   actualizarAvisoAlmacenamiento();
-  return data.value!==null && data.value!==undefined ? data.value : f;
+  const version=Number.isInteger(data.version)?data.version:undefined;
+  if(version!==undefined) SVER.set(k,version);
+  return {value:data.value!==null && data.value!==undefined ? data.value : f, version};
 }
 const TEST_MODE_KEY="germania:test-mode:v1";
 const TEST_BASELINE_KEY="germania:test-baseline:v1";
 const TEST_AUDIT_KEY="germania:test-audit:v1";
 let TEST_INTERNAL_WRITE=false;
-async function rawSet(k,v){
+const CLAVES_SILENCIOSAS=new Set(["germania:test-mode:v1","germania:test-baseline:v1","germania:test-audit:v1"]);
+/* Aviso de guardado en lenguaje simple: «Guardando…», «Guardado ✓ 08:41» o qué hacer si falló. */
+let AVISO_TIMER=null;
+function avisoGuardado(estado,texto,ms){
+  let el=document.getElementById("avisoGuardado");
+  if(!el){
+    el=document.createElement("div"); el.id="avisoGuardado"; el.setAttribute("role","status"); el.setAttribute("aria-live","polite");
+    document.body.appendChild(el);
+  }
+  el.className="aviso-guardado "+estado; el.textContent=texto; el.hidden=false;
+  clearTimeout(AVISO_TIMER);
+  if(ms) AVISO_TIMER=setTimeout(()=>{ el.hidden=true; },ms);
+}
+function horaCorta(){ return new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}); }
+async function rawSet(k,v,opts){
+  const silencioso=CLAVES_SILENCIOSAS.has(k);
+  const ifVersion=opts&&Number.isInteger(opts.ifVersion)?opts.ifVersion:undefined;
+  const cuerpo={value:v}; if(ifVersion!==undefined) cuerpo.ifVersion=ifVersion;
+  if(!silencioso) avisoGuardado("guardando","Guardando…");
   let r;
   try{
-    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})});
+    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(cuerpo)});
   }catch(error){
     STORAGE_MODE="sin-conexion";
     actualizarAvisoAlmacenamiento();
+    if(!silencioso) avisoGuardado("error","No se pudo guardar. Revisa tu internet y vuelve a tocar el botón. No se perdió nada de lo que ya estaba guardado.",9000);
     throw new Error("GERMANIA no pudo guardar en la base central.");
+  }
+  if(r.status===409){
+    const e=new Error("Otra persona guardó este mismo dato mientras tú lo editabas. Para no borrar su trabajo, no se guardó nada. Toca «Ver lo último guardado» y vuelve a hacer tus cambios.");
+    e.conflicto=true;
+    if(!silencioso) avisoGuardado("error","Otra persona cambió esto antes que tú. No se guardó nada para no borrar su trabajo.",9000);
+    throw e;
   }
   if(!r.ok){
     STORAGE_MODE="sin-conexion";
     actualizarAvisoAlmacenamiento();
+    if(!silencioso) avisoGuardado("error","No se pudo guardar (error "+r.status+"). Vuelve a intentarlo en un momento.",9000);
     throw new Error("GERMANIA no pudo guardar en la base central ("+r.status+").");
   }
   STORAGE_MODE="servidor";
   actualizarAvisoAlmacenamiento();
+  try{ const j=await r.json(); if(Number.isInteger(j.version)) SVER.set(k,j.version); }catch(e){}
+  if(!silencioso) avisoGuardado("ok","Guardado ✓ "+horaCorta(),3500);
+  return true;
+}
+/* Agrega un elemento a una lista guardada sin leerla antes (no pierde elementos si dos personas
+   guardan a la vez). Respeta el modo prueba igual que sSet. */
+async function sAddToList(k,item,opts){
+  if(!TEST_INTERNAL_WRITE && await testModeActivo()){
+    TEST_INTERNAL_WRITE=true;
+    try{
+      const base=await sGet(TEST_BASELINE_KEY,{});
+      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); await rawSet(TEST_BASELINE_KEY,base); }
+    }finally{ TEST_INTERNAL_WRITE=false; }
+  }
+  avisoGuardado("guardando","Guardando…");
+  let r;
+  try{
+    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"addToList",item,uniqueBy:(opts&&opts.uniqueBy)||undefined,sort:(opts&&opts.sort)||undefined})});
+  }catch(error){
+    avisoGuardado("error","No se pudo guardar. Revisa tu internet y vuelve a intentarlo.",9000);
+    throw new Error("GERMANIA no pudo guardar en la base central.");
+  }
+  if(!r.ok){
+    avisoGuardado("error","No se pudo guardar (error "+r.status+"). Vuelve a intentarlo en un momento.",9000);
+    throw new Error("GERMANIA no pudo agregar a la lista ("+r.status+").");
+  }
+  try{ const j=await r.json(); if(Number.isInteger(j.version)) SVER.set(k,j.version); }catch(e){}
+  avisoGuardado("ok","Guardado ✓ "+horaCorta(),3500);
   return true;
 }
 /* El estado del modo prueba casi nunca cambia: se consulta a lo más una vez por
@@ -392,7 +452,7 @@ async function vaciarAuditoria(){
   }
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") vaciarAuditoria(); });
-async function sSet(k,v){
+async function sSet(k,v,opts){
   if(!TEST_INTERNAL_WRITE && await testModeActivo() && ![TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY].includes(k)){
     TEST_INTERNAL_WRITE=true;
     try{
@@ -405,7 +465,7 @@ async function sSet(k,v){
       }
     }finally{ TEST_INTERNAL_WRITE=false; }
   }
-  return rawSet(k,v);
+  return rawSet(k,v,opts);
 }
 /* ---- Qué se considera «dato de prueba» (solo lectura) ---- */
 const PRUEBA_NOMBRES={parte:"Partes (asistencia y emergencias)",partes:"Índice de partes",guardia:"Guardias registradas",guardias:"Índice de guardias","guardia-inscripcion":"Inscripciones de guardia","guardia-confirmacion":"Confirmaciones de guardia","guardia-plan":"Períodos de guardia",disponibilidad:"Estados de los voluntarios",roster:"Nómina de voluntarios","odd-avisos":"ODD informadas","odd-pdf":"PDF de ODD",oficialidad:"Oficialidad por año","oficialidad-meta":"Oficialidad (detalle)",hoja:"Hojas de servicio",fotos:"Respaldo de fotos"};
@@ -1735,7 +1795,7 @@ function gnISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezon
 function gnAdd(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return gnISO(d); }
 function gnPlanKey(ini){ return "guardia-plan:"+ini; }
 async function gnPlanes(){ const idx=await sGet(GN_PLAN_INDEX,[]), out=[]; for(const x of idx){ const p=await sGet(gnPlanKey(x),null); if(p) out.push(p); } return out; }
-async function gnSavePlan(p){ await sSet(gnPlanKey(p.inicio),p); const idx=await sGet(GN_PLAN_INDEX,[]); if(!idx.includes(p.inicio)){ idx.push(p.inicio); idx.sort(); await sSet(GN_PLAN_INDEX,idx); } }
+async function gnSavePlan(p){ await sSet(gnPlanKey(p.inicio),p); await sAddToList(GN_PLAN_INDEX,p.inicio,{sort:"asc"}); }
 function gnWeek(ini){ return Array.from({length:7},(_,i)=>gnAdd(ini,i)); }
 function gnFmt(iso){ return new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"}); }
 
@@ -1955,10 +2015,10 @@ const GUARDIA_IDX="guardias:index";
 
 async function idxGuardias(){ return await sGet(GUARDIA_IDX,[]); }
 async function getGuardia(c){ return await sGet("guardia:"+c,null); }
-async function setGuardia(c,d){
-  await sSet("guardia:"+c,d);
-  const idx=await idxGuardias();
-  if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,fecha:d.fechaIng}); await sSet(GUARDIA_IDX,idx); }
+async function setGuardia(c,d,ifVersion){
+  await sSet("guardia:"+c,d,Number.isInteger(ifVersion)?{ifVersion}:undefined);
+  await sAddToList(GUARDIA_IDX,{clave:c,fecha:d.fechaIng},{uniqueBy:"clave"});
+  return SVER.get("guardia:"+c);
 }
 function claveGuardia(f,h){ return f+"__"+(h||"").replace(":",""); }
 /* Dataset temporal de validación del Dashboard.
@@ -2105,6 +2165,7 @@ const GN_MOTIVOS=["Enfermedad","Licencia médica","Viaje","Otra actividad","Trab
 
 /* Guardianes del turno, en memoria mientras se edita la ficha */
 let gnTurno=[];   // {id, estado, motivo, correo, obs, reemplazo}
+let gnTurnoBase={clave:"",version:undefined};   // versión del registro cuando se abrió el formulario
 
 function normalizaTurno(lista){
   return (lista||[]).map(x=> typeof x==="string"
@@ -2231,7 +2292,10 @@ function contarGuardianes(){
 async function cargarGuardia(){
   const f=document.getElementById("gnFechaIng").value, h=document.getElementById("gnHoraIng").value;
   if(!f) return;
-  const ex=await getGuardia(claveGuardia(f,h));
+  const clave=claveGuardia(f,h);
+  const lectura=await sGetV("guardia:"+clave,null);
+  const ex=lectura.value;
+  gnTurnoBase={clave,version:lectura.version};   /* versión con la que se abrió el formulario */
   const msg=document.getElementById("gnMsg"); msg.classList.remove("err");
   if(ex){
     document.getElementById("gnFechaSal").value=ex.fechaSal||"";
@@ -2268,10 +2332,23 @@ on("gnGuardarBtn","click",async()=>{
     conductor:document.getElementById("gnConductor")?.value||"",
     guardianes:gnTurno, novedades:document.getElementById("gnNovedades").value.trim()
   };
-  await setGuardia(claveGuardia(f,d.horaIng),d);
-  msg.classList.remove("err");
-  msg.textContent=`Guardia registrada: ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
-  renderGnLista();
+  const clave=claveGuardia(f,d.horaIng);
+  const base=gnTurnoBase.clave===clave?gnTurnoBase.version:undefined;
+  const btn=document.getElementById("gnGuardarBtn"); btn.disabled=true;
+  try{
+    const nuevaVersion=await setGuardia(clave,d,base);
+    if(Number.isInteger(nuevaVersion)) gnTurnoBase={clave,version:nuevaVersion};
+    msg.classList.remove("err");
+    msg.textContent=`Guardia guardada: ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
+    renderGnLista();
+  }catch(e){
+    msg.classList.add("err");
+    msg.textContent=(e&&e.message)||"No se pudo guardar la guardia. Vuelve a intentarlo.";
+    if(e&&e.conflicto){
+      const b=document.createElement("button"); b.type="button"; b.className="btn small secondary"; b.style.marginLeft="8px"; b.textContent="Ver lo último guardado";
+      b.onclick=()=>cargarGuardia(); msg.appendChild(document.createElement("br")); msg.appendChild(b);
+    }
+  }finally{ btn.disabled=false; }
 });
 
 function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id); return m?nombreCompleto(m):"—"; }
