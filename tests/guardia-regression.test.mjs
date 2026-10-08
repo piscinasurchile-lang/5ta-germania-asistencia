@@ -166,3 +166,9 @@ test("guardia: malformed weekly role documents are rejected before overwriting",
   assert.ok(save.includes('Array.isArray(actual.personas)'));
   assert.ok(save.indexOf("registro semanal inválido")<save.indexOf("const guardado=await sSet(key,actual)"));
 });
+
+test("guardia: existing role document must match selected week and role", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes("actual.inicio!==p.inicio||actual.fin!==p.fin||actual.rol!==rol"));
+  assert.ok(save.indexOf("registro semanal corresponde a otra semana")<save.indexOf("const guardado=await sSet(key,actual)"));
+});
