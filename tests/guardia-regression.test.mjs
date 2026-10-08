@@ -191,3 +191,10 @@ test("guardia: role change history is not silently truncated", () => {
   assert.ok(save.includes("actual.historial.push("));
   assert.equal(save.includes("actual.historial.slice(-300)"),false);
 });
+
+test("guardia: persistence validates assignment nights independently of UI", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes("!Array.isArray(noches)||!noches.length"));
+  assert.ok(save.includes("n<p.inicio||n>p.fin"));
+  assert.ok(save.indexOf("fechas de asignación inválidas")<save.indexOf("const key="));
+});
