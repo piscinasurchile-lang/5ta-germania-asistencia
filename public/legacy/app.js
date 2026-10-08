@@ -2014,7 +2014,7 @@ on("gnRolGuardar","click",async()=>{
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort();
   if(!noches.length){ msg.textContent="Selecciona al menos una noche para asignar la función."; return; }
-  if(noches.some(n=>!/^\\d{4}-\\d{2}-\\d{2}$/.test(n)||n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin)){
+  if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin)){
     msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
   }
   const conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
