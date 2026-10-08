@@ -150,7 +150,7 @@ Pestaña **Revisión** (solo Capitán, Teniente 3° y administrador). Flujo: ins
 
 ## 9.3 Reglas de la Oficialidad (2026-10-08)
 
-**OBAC.** Son obligatorios: Capitán, Teniente 1°, 2° y 3°, completados con los siguientes voluntarios del orden de precedencia (ODD 037/2026) hasta 6 personas (hoy: Pablo Arellano y Ludwig von Plessing). Solo ellos ven la tarjeta OBAC. El total está en `OBAC_TOTAL` (germania-roles.js).
+**OBAC.** Son obligatorios: Capitán, Teniente 1°, 2° y 3°, completados con los siguientes voluntarios del orden de precedencia (ODD 037/2026) hasta 7 personas, una por noche (hoy: Pablo Arellano, Ludwig von Plessing y Gustavo Jerez). Cada OBAC elige UNA noche como OBAC; las demás las toma como voluntario. Se puede ajustar en Revisión antes de aprobar. Solo ellos ven la tarjeta OBAC. El total está en `OBAC_TOTAL` (7) (germania-roles.js).
 
 **Nómina: nunca se pierde un voluntario.** Ninguna lista nueva borra ni da de baja a nadie. El servidor rechaza guardar `roster:v8` si quita voluntarios, salvo eliminación con triple validación (`permitirQuitar`). Restaurar un respaldo conserva a los voluntarios actuales. «Comparar lista nueva» (Oficiales → Nómina) solo lee e informa quién falta, con su hoja de vida.
 

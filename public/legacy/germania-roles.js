@@ -30,12 +30,12 @@ async function cargarPrec(){
   PREC={};
   lista.forEach(function(x){ var m=precBuscar(x.nombre); if(m&&PREC[String(m.id)]==null) PREC[String(m.id)]=x.n; });
   /* OBAC (obligatorios): Capitán y Tenientes 1°, 2° y 3°, y se completan con los siguientes
-     voluntarios del orden de precedencia hasta OBAC_TOTAL. */
+     voluntarios del orden de precedencia hasta completar OBAC_TOTAL (uno por cada noche de la semana). */
   OBAC={}; var n=0, ya=function(x){ var m=precBuscar(x.nombre); return m?String(m.id):null; };
   lista.forEach(function(x){ if(/^(capit|teniente (primero|segundo|tercero))/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
   lista.forEach(function(x){ if(n>=OBAC_TOTAL) return; if(/^(voluntari)/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
 }
-var OBAC=null, OBAC_TOTAL=6;
+var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
 /* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
 var VISTA_PRUEBA=["517"];
@@ -291,7 +291,7 @@ function panelRol(pn,D,kind){
   var rango=rangoObac(D.m), prev=vistaPrueba(D.m,kind);
   var h=prev?'<div class="gr-nota info"><span aria-hidden="true">👁</span><p><b>Vista de prueba.</b> Solo para ver cómo se ve esta tarjeta en el teléfono. No inscribe nada.</p></div>':'';
   h+='<h3 class="gr-t">Mis noches como '+(esM?"maquinista":"OBAC")+'</h3>';
-  h+='<div class="gr-nota '+(esM?"maq":"obac")+'"><span aria-hidden="true">'+(esM?"🚒":"🎧")+'</span><p>Solo deben inscribirse '+(esM?"los maquinistas":"los OBAC según la precedencia")+' y su disponibilidad. Se requiere '+(esM?DOT.conductor+" maquinista":DOT.obac+" OBAC")+' por noche.'+(!esM&&rango!=null?' <b>Tu lugar en la precedencia: N° '+rango+'.</b>':'')+'</p></div>';
+  h+='<div class="gr-nota '+(esM?"maq":"obac")+'"><span aria-hidden="true">'+(esM?"🚒":"🎧")+'</span><p>Solo deben inscribirse '+(esM?"los maquinistas":"los OBAC según la precedencia")+' y su disponibilidad. Se requiere '+(esM?DOT.conductor+" maquinista":DOT.obac+" OBAC")+' por noche.'+(!esM?' <b>Eliges UNA noche como OBAC (obligatoria); las demás las tomas como voluntario.</b>':'')+(!esM&&rango!=null?' <b>Tu lugar en la precedencia: N° '+rango+'.</b>':'')+'</p></div>';
   h+='<div class="gr-tabla" role="table"><div class="gr-tr gr-th" role="row"><span>Día</span><span>Mi disponibilidad</span><span>'+(esM?"Maquinista":"OBAC")+'</span></div>'
   +D.cov.map(function(c){
     var nn=nombreNoche(c.f), lista=esM?c.maq:c.obac, tit=lista[0]||null, soyTit=!!tit&&tit.id===who, enLista=lista.some(function(x){ return x.id===who; });
@@ -305,13 +305,14 @@ function panelRol(pn,D,kind){
   h+='<p class="gr-aviso-n">Tienes '+n+' noche'+(n===1?"":"s")+' seleccionada'+(n===1?"":"s")+'.</p>';
   if(D.abierto&&!prev) h+='<button type="button" class="btn gr-grande" id="grGuardar-'+kind+'">Guardar selección</button><div class="status-msg" id="grMsg-'+kind+'"></div>';
   pn.innerHTML=h;
-  pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
+  pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(kind==="obac"){ sel.clear(); if(i.checked) sel.add(i.dataset.grRol); } else if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
   var g=$("grGuardar-"+kind); if(g) g.onclick=function(){ guardarRol(D,kind); };
 }
 async function guardarRol(D,kind){
   if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
+  if(kind==="obac"&&recs.length>1){ msg.textContent="Como OBAC es una sola noche por persona; las demás noches las tomas como voluntario."; msg.classList.add("err"); return; }
   if(kind==="obac"&&rangoObac(D.m)!=null&&!recs.length){ msg.textContent="Tu noche como OBAC es obligatoria: elige al menos una."; msg.classList.add("err"); return; }
   var otroK=kind==="maq"?"obac":"maq";
   var choca=recs.filter(function(r){ return tiene(D.S.vol[D.who],r.f)||tiene(D.S[otroK][D.who],r.f); });
