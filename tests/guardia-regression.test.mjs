@@ -97,8 +97,8 @@ test("guardia: unknown roster identities are rejected before saving", () => {
 
 test("guardia: operational role must match roster eligibility", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
-  assert.ok(section.includes('GN_ROL_ACTIVO==="oficial"&&!gnEsOficial(actual)'));
-  assert.ok(section.includes('GN_ROL_ACTIVO==="maquinista"&&!gnEsMaquinista(actual)'));
+  assert.ok(section.includes('rolSolicitado==="oficial"&&!gnEsOficial(actual)'));
+  assert.ok(section.includes('rolSolicitado==="maquinista"&&!gnEsMaquinista(actual)'));
   assert.ok(section.indexOf("La función seleccionada no corresponde") < section.indexOf("await gnGuardarRolSemanal("));
 });
 
@@ -107,7 +107,7 @@ test("guardia: central weekly status is refreshed before assigning a role", () =
   const refresh = section.indexOf("const planesVigentes=await gnPlanes()");
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(refresh >= 0 && refresh < save);
-  assert.ok(section.includes('p.fin===GN_ROL_PLAN.fin&&p.estado==="abierta"&&p.fin>=todayISO()'));
+  assert.ok(section.includes('p.fin===planSolicitado.fin&&p.estado==="abierta"&&p.fin>=todayISO()'));
 });
 
 test("guardia: repeated save taps are blocked while request is pending", () => {
