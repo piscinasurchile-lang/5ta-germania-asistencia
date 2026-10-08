@@ -402,11 +402,13 @@ body[data-oficial="1"] .gr-vista{display:flex;}
 .gr-rol-tit small{font:400 15px/1.2 'Source Sans 3',sans-serif;text-transform:none;letter-spacing:0;color:var(--g-muted);}
 .gr-rol-body{padding:0 var(--sp-4) var(--sp-4);}
 
-/* ===== Ayuda «?» en los botones ===== */
-.ayuda-host{position:relative;}
-.ayuda-q{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);color:#fff;font:700 12px/18px 'Source Sans 3',sans-serif;text-align:center;cursor:help;z-index:2;pointer-events:auto;}
-.tile .ayuda-q{top:6px;right:6px;width:22px;height:22px;line-height:20px;}
-.ayuda-q:hover,.ayuda-q:focus{background:var(--g-yellow,#f5c518);color:#000;outline:none;}
+/* ===== Ayuda «?» en los botones (solo en MODO AYUDA) ===== */
+.ayuda-q{display:none;}
+body.ayuda-on .ayuda-host{position:relative;outline:2px dashed var(--g-yellow,#f5c518);outline-offset:-2px;}
+body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:24px;height:24px;border-radius:50%;background:var(--g-yellow,#f5c518);color:#000;font:700 15px/24px 'Source Sans 3',sans-serif;text-align:center;pointer-events:none;z-index:2;}
+#ayudaBarra{position:fixed;top:0;left:0;right:0;z-index:10001;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--g-yellow,#f5c518);color:#000;font:600 15px/1.25 'Source Sans 3',sans-serif;}
+#ayudaBarra button{flex:0 0 auto;min-width:88px;min-height:48px;border:0;border-radius:10px;background:#000;color:#fff;font:600 17px 'Oswald',sans-serif;cursor:pointer;}
+#ayudaToggle{width:100%;min-height:52px;}
 #ayudaSheet{position:fixed;inset:0;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.55);z-index:10000;padding:16px;}
 #ayudaSheet.on{display:flex;}
 .ayuda-box{width:100%;max-width:460px;background:var(--g-card,#1b1f24);border:1px solid var(--g-line,#333);border-left:6px solid var(--g-yellow,#f5c518);border-radius:12px;padding:16px;margin-bottom:calc(8px + env(safe-area-inset-bottom));}

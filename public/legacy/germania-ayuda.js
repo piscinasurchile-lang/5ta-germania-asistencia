@@ -126,7 +126,7 @@ var TX=[
  [/^(Marcar todos|Limpiar)/i,"Atajo para marcar o limpiar todo de una vez."],
  [/^Pedir esta noche/i,"Pide sumarte a una noche después del cierre; lo decide el mando."]
 ];
-var NO='[data-nav], .mobile-menu *, #gNav *, #gNavMas, .gn-day, #testModeBanner, #testModeBanner *, #testCleanBtn, .tabs .tab';
+var NO='#ayudaToggle, #ayudaBarra *, #testModeBanner, #testModeBanner *, #testCleanBtn';
 function desc(el){
   var d=el.id&&AY["#"+el.id]; if(d) return d;
   var k=el.dataset||{};
@@ -139,6 +139,7 @@ function desc(el){
 }
 function titulo(el){ var c=el.cloneNode(true); var q=c.querySelector(".ayuda-q"); if(q) q.remove(); return (c.textContent||el.getAttribute("aria-label")||"").replace(/\s+/g," ").trim().slice(0,60); }
 function marcar(){
+  if(!document.body.classList.contains("ayuda-on")) return;
   document.querySelectorAll("button, summary, label.btn, .tile").forEach(function(el){
     if(el.querySelector(":scope > .ayuda-q")||el.matches(NO)) return;
     var d=desc(el); if(!d) return;
@@ -155,10 +156,24 @@ function hoja(el,d){
   s.innerHTML='<div class="ayuda-box"><b>'+String(titulo(el)).replace(/[<>&]/g,"")+'</b><p></p><button type="button" class="ayuda-x">Entendido</button></div>';
   s.querySelector("p").textContent=d; s.classList.add("on");
 }
+/* Seguridad operativa: la ayuda NO está siempre activa. Mientras no se active, ningún «?» existe en
+   pantalla, así que nadie la toca por error en una emergencia. En modo ayuda, tocar cualquier botón
+   explica qué hace y NO lo ejecuta. */
+function modo(on){
+  document.body.classList.toggle("ayuda-on",on);
+  var b=document.getElementById("ayudaBarra");
+  if(on&&!b){ b=document.createElement("div"); b.id="ayudaBarra"; b.innerHTML='<span><b>MODO AYUDA</b> · toca cualquier botón para ver qué hace. No se ejecuta nada.</span><button type="button" id="ayudaSalir">Salir</button>'; document.body.appendChild(b); }
+  if(!on&&b) b.remove();
+  if(on) marcar();
+}
 function alTocar(e){
-  var q=e.target.closest&&e.target.closest(".ayuda-q"); if(!q) return;
+  var t=e.target.closest&&e.target.closest("#ayudaToggle,[data-ayuda-toggle]"); if(t){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); if(e.type==="click"||e.key==="Enter"||e.key===" "){ var m=document.getElementById("mobileMenu"); if(m) m.classList.remove("open"); modo(true); } return; }
+  if(e.target.closest&&e.target.closest("#ayudaSalir")){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); if(e.type==="click") modo(false); return; }
+  if(!document.body.classList.contains("ayuda-on")) return;
+  if(e.target.closest&&e.target.closest("#ayudaSheet")) return;
+  var el=e.target.closest&&e.target.closest(".ayuda-host"); if(!el) return;
   e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-  if(e.type==="click"||e.key==="Enter"||e.key===" ") hoja(q.parentElement,q.dataset.d);
+  if(e.type==="click"||e.key==="Enter"||e.key===" ") hoja(el,(el.querySelector(":scope > .ayuda-q")||{dataset:{}}).dataset.d||"");
 }
 document.addEventListener("click",alTocar,true);
 document.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" ") alTocar(e); },true);
