@@ -94,3 +94,10 @@ test("guardia: unknown roster identities are rejected before saving", () => {
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(guard >= 0 && save > guard);
 });
+
+test("guardia: operational role must match roster eligibility", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  assert.ok(section.includes('GN_ROL_ACTIVO==="oficial"&&!gnEsOficial(actual)'));
+  assert.ok(section.includes('GN_ROL_ACTIVO==="maquinista"&&!gnEsMaquinista(actual)'));
+  assert.ok(section.indexOf("La función seleccionada no corresponde") < section.indexOf("await gnGuardarRolSemanal("));
+});
