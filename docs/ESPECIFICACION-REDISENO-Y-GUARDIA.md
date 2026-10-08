@@ -133,3 +133,10 @@ Decisiones del usuario (08-10-2026): todos son voluntarios; los oficiales tienen
 Reglas: un voluntario ocupa un solo rol por noche; datos en `guardia-inscripcion:`, `guardia-maq:`, `guardia-obac:` y `guardia-confirmacion:` (+ `<inicio>:<id>`); lectura por lote `GET /api/state?prefix=`.
 Visibilidad: Programación, «Quiénes están de guardia», Informes y el acceso Oficiales solo aparecen para oficiales/mando (clase `solo-oficiales`). Es orden visual: el PIN de Oficialidad sigue siendo la protección real cuando se desactive el modo prueba.
 Pendiente: ODD con el formato de la imagen (a pedido, después), ícono/splash/Despacho B-5.
+
+### 9.1 Revisión de la dotación antes de la ODD
+Pestaña **Revisión** (solo Capitán, Teniente 3° y administrador). Flujo: inscripciones → borrador (`guardia-revision:<inicio>`) → el mando agrega/quita/cambia voluntarios, maquinista y OBAC → ve el **Resultado** (orden de la ODD: Día, Nombre, Cargo) y la lista de **Cambios** (quién, cuándo, qué; más el conteo de diferencias contra lo inscrito) → **Aprobar**.
+- Aprobar actualiza las guardias de la semana (`guardia:<fecha>__2300`, las que leen informes y ODD), conserva novedades y estados ya registrados y deja historial de lo anterior. Si hay noches incompletas solo avisa (decisión del 08-10-2026).
+- Dos editores a la vez: el segundo recibe aviso (control de versiones) y no pisa al primero.
+- «Reabrir revisión» y «Rehacer desde las inscripciones» quedan anotados en los cambios.
+- La ODD no se modificó: queda por conectar su generador a la dotación aprobada.

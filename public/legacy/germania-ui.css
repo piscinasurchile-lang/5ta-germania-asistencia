@@ -346,3 +346,14 @@ body:not([data-oficial="1"]) .tab[data-tab="config"]{display:none !important;}
 .gr-tr.gr-th{font-size:14px;}
 .ha-main strong{font-size:24px;}
 .ha-main span:not(.ha-ico){font-size:16px;}
+
+/* ===== Revisión de dotación ===== */
+.rv-chips{display:flex;flex-wrap:wrap;gap:var(--sp-2);}
+.rv-chip{display:inline-flex;align-items:center;gap:var(--sp-1);padding:var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);background:#0b0f13;border:1px solid var(--g-line);border-radius:999px;font-size:15px;min-height:40px;}
+.rv-chip button{min-width:40px;min-height:40px;border:0;background:none;color:#ff8c93;font-size:22px;cursor:pointer;border-radius:50%;}
+.rv-sel{width:100%;min-height:var(--g-tap);padding:var(--sp-2) var(--sp-3);font-size:16px;background:#0b0f13;color:#fff;border:1.5px solid var(--g-line);border-radius:var(--g-radius-sm);}
+.rv-lbl{font-weight:600;color:var(--g-muted);font-size:15px;margin-top:var(--sp-1);}
+.rv-res{border:1px solid var(--g-line);border-radius:var(--g-radius-sm);overflow:hidden;margin:var(--sp-2) 0 var(--sp-4);}
+.rv-r{display:grid;grid-template-columns:76px minmax(0,1fr) 96px;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-top:1px solid var(--g-line-soft);font-size:15px;overflow-wrap:anywhere;}
+.rv-h{background:var(--g-red);border-top:0;font:600 14px/1.1 'Oswald',sans-serif;text-transform:uppercase;}
+.rv-cambios{margin:var(--sp-2) 0 0;padding-left:var(--sp-5);display:grid;gap:var(--sp-2);font-size:15px;}
