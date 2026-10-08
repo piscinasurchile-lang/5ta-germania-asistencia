@@ -154,3 +154,8 @@ test("guardia: role and transfer writes require confirmed central persistence", 
   assert.ok(app.includes('if(guardado!==true) throw new Error("Guardia: la asignación de función no fue confirmada'));
   assert.ok(app.includes('if(guardado!==true) throw new Error("Guardia: la transferencia de noches no fue confirmada'));
 });
+
+test("guardia: malformed volunteer registration is not silently treated as transferred", () => {
+  const transfer=app.split("async function gnTransferirDesdeVoluntario(")[1].split("let GN_ROL_SEL")[0];
+  assert.ok(transfer.includes('if(!Array.isArray(vol)) throw new Error("Guardia: inscripción de voluntario inválida'));
+});
