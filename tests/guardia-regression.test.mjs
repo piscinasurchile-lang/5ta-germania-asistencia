@@ -185,3 +185,9 @@ test("guardia: malformed historical entries stop role updates", () => {
   assert.ok(save.includes('actual.historial.some(h=>!h||typeof h!=="object"||Array.isArray(h))'));
   assert.ok(save.indexOf("historial semanal inválido")<save.indexOf("const guardado=await sSet(key,actual)"));
 });
+
+test("guardia: role change history is not silently truncated", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes("actual.historial.push("));
+  assert.equal(save.includes("actual.historial.slice(-300)"),false);
+});
