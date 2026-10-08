@@ -172,3 +172,10 @@ test("guardia: existing role document must match selected week and role", () => 
   assert.ok(save.includes("actual.inicio!==p.inicio||actual.fin!==p.fin||actual.rol!==rol"));
   assert.ok(save.indexOf("registro semanal corresponde a otra semana")<save.indexOf("const guardado=await sSet(key,actual)"));
 });
+
+test("guardia: malformed prior volunteer role assignment is rejected before overwrite", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes("Object.prototype.hasOwnProperty.call(actual.personas,who)"));
+  assert.ok(save.includes("!Array.isArray(actual.personas[who].noches)"));
+  assert.ok(save.indexOf("asignación previa inválida")<save.indexOf("const guardado=await sSet(key,actual)"));
+});
