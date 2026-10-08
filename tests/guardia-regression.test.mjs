@@ -198,3 +198,10 @@ test("guardia: persistence validates assignment nights independently of UI", () 
   assert.ok(save.includes("n<p.inicio||n>p.fin"));
   assert.ok(save.indexOf("fechas de asignación inválidas")<save.indexOf("const key="));
 });
+
+test("guardia: role and period are validated before reading selected dates", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes('["maquinista","oficial","obac"].includes(rol)'));
+  assert.ok(save.includes('!String(who||"").trim()'));
+  assert.ok(save.indexOf("función, período o voluntario inválido")<save.indexOf("n<p.inicio||n>p.fin"));
+});
