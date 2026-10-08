@@ -39,11 +39,13 @@ function porId(id){ return ROSTER.find(function(x){ return String(x.id)===String
    Queda así semana tras semana. Si hiciera falta cambiarlo, se guarda en guardia-horarios:v1
    ({def:"23:00",dom:"19:00"}) y rige para todas las semanas siguientes. */
 var HORARIOS={def:"23:00",dom:"19:00",fin:"08:00"};
+var HOR_NOCHE={};   /* cambios puntuales: {"2026-10-18":"20:00"} (guardia-horarios:<inicio>) */
 async function cargarHorarios(){
   var h=null; try{ h=await sGet("guardia-horarios:v1",null); }catch(e){}
   if(h&&typeof h==="object"){ ["def","dom","fin"].forEach(function(k){ if(/^\d\d:\d\d$/.test(h[k]||"")) HORARIOS[k]=h[k]; }); }
+  try{ var it=await leerPrefijo("guardia-horarios:"), o={}; it.forEach(function(x){ if(/:v1$/.test(x.key)||!x.value||typeof x.value!=="object") return; Object.keys(x.value).forEach(function(f){ if(/^\d\d:\d\d$/.test(x.value[f])) o[f]=x.value[f]; }); }); HOR_NOCHE=o; }catch(e){}
 }
-function horaNoche(f){ return new Date(f+"T12:00").getDay()===0?HORARIOS.dom:HORARIOS.def; }
+function horaNoche(f){ return HOR_NOCHE[f]||(new Date(f+"T12:00").getDay()===0?HORARIOS.dom:HORARIOS.def); }
 function finNoche(f){ return instanteChile(gnAdd(f,1),HORARIOS.fin); }
 
 function aplicarRol(){
@@ -277,8 +279,27 @@ function panelInfo(pn,D){
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
   h+='<details class="gr-det"><summary>Sin elegir noches: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><p>'+(sinConf.length?sinConf.map(function(x){ return E(corto(x)); }).join(" · "):"Todos eligieron sus noches.")+'</p></details>';
+  h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';
   pn.innerHTML=h;
+  var hg=$("hrGuardar"); if(hg) hg.onclick=function(){ guardarHorario(D); };
+}
+async function guardarHorario(D){
+  var msg=$("hrMsg"), mapa={}, base={};
+  document.querySelectorAll("[data-hr]").forEach(function(i){ var f=i.dataset.hr, v=i.value; if(!/^\d\d:\d\d$/.test(v)) return; var dom=new Date(f+"T12:00").getDay()===0; if(v!==(dom?HORARIOS.dom:HORARIOS.def)) mapa[f]=v; base[f]=v; });
+  msg.classList.remove("err"); msg.textContent="Guardando…";
+  try{
+    var k="guardia-horarios:"+D.p.inicio, cur=await sGetV(k,null);
+    await sSet(k,mapa,{ifVersion:Number.isInteger(cur.version)?cur.version:0});
+    if($("hrPerm")&&$("hrPerm").checked){
+      var nv=Object.assign({},HORARIOS), dom=D.noches.filter(function(f){ return new Date(f+"T12:00").getDay()===0; })[0], otra=D.noches.filter(function(f){ return new Date(f+"T12:00").getDay()!==0; })[0];
+      if(dom) nv.dom=base[dom]; if(otra) nv.def=base[otra];
+      var c2=await sGetV("guardia-horarios:v1",null); await sSet("guardia-horarios:v1",nv,{ifVersion:Number.isInteger(c2.version)?c2.version:0});
+    }
+    await cargarHorarios(); MN.cache=null;
+    var ap=RV.doc&&RV.doc.estado==="aprobada";
+    msg.textContent="Horario guardado."+(ap?" La dotación ya estaba aprobada: reábrela y vuelve a aprobar para que la guardia use la hora nueva.":" Rige al aprobar la dotación.");
+  }catch(e){ msg.textContent=e&&e.conflicto?"Otra persona cambió el horario. Recarga e inténtalo de nuevo.":"No se pudo guardar."; msg.classList.add("err"); }
 }
 
 
