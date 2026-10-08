@@ -642,9 +642,17 @@ if(typeof window.marcarMiEstado==="function"){
   window.marcarMiEstado=async function(){ var r=await _marcar.apply(this,arguments); pintarChipEstado(); return r; };
 }
 var ultimo="__";
+/* El nombre ya sale arriba: el selector se esconde una vez elegido (se vuelve a abrir con «No soy yo») */
+function ocultarSelector(abrir){
+  var v=$("miVoluntario"), b=$("cambiarVolBtn"); if(!v) return;
+  var elegido=!!v.value; v.classList.toggle("sel-oculto",elegido&&!abrir);
+  if(b) b.hidden=!elegido||!!abrir;
+}
+if($("cambiarVolBtn")) $("cambiarVolBtn").addEventListener("click",function(){ ocultarSelector(true); var v=$("miVoluntario"); if(v) v.focus(); });
 function vigilarIdentidad(){
   var v=$("miVoluntario"); var id=v?v.value:"";
   if(id===ultimo) return; ultimo=id;
+  ocultarSelector(false);
   aplicarRol(); renderNovedades(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
   if(guardiaActiva()) grRender(true).catch(function(){});
 }

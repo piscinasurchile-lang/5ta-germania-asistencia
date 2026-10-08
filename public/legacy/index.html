@@ -358,6 +358,7 @@
             <span id="miCargo">Elige tu nombre</span>
             <button type="button" class="chip-estado" id="miEstadoChip" data-go="estado" hidden></button>
             <button type="button" class="photo-action" id="cambiarFotoBtn">Cambiar foto</button>
+            <button type="button" class="photo-action" id="cambiarVolBtn" hidden>No soy yo</button>
             <input type="file" id="miFotoInput" accept="image/*" style="display:none">
           </div>
         </div>
@@ -380,11 +381,10 @@
       <div id="misNochesInicio" style="grid-column:1 / -1;min-width:0;"></div>
 
       <div class="home-tiles" style="grid-column:1 / -1;">
-        <button class="tile" type="button" data-go="estado"><span class="tile-ico" aria-hidden="true">🟢</span>Mi estado</button>
-        <button class="tile" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
-        <button class="tile" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true">🚒</span>Emergencia</button>
+        <button class="tile t-desk" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
+        <button class="tile t-movil" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
         <button class="tile" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true">📊</span>Estadística</button>
-        <button class="tile solo-oficiales" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
+        <button class="tile solo-oficiales t-movil" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
       </div>
     </div>
 
@@ -795,20 +795,24 @@
       </div>
     </div>
     <div class="subtabs">
+      <span class="subtab-grupo">Guardia y ODD</span>
       <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
       <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
+      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
+      <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
+      <span class="subtab-grupo">Personas</span>
       <button class="subtab" data-sub="oficialidad">Oficialidad</button>
-    <button class="subtab" data-sub="precedencia">Precedencia</button>
+      <button class="subtab" data-sub="precedencia">Precedencia</button>
       <button class="subtab" data-sub="nomina">Nómina</button>
       <button class="subtab" data-sub="hoja">Hoja de vida</button>
       <button class="subtab" data-sub="ingreso">Ingreso</button>
       <button class="subtab" data-sub="cursos">Cursos</button>
       <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
       <button class="subtab" data-sub="alertas">Alertas</button>
-      <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
-      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
+      <span class="subtab-grupo">Material B-5</span>
       <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
       <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
+      <span class="subtab-grupo">Administración</span>
       <button class="subtab" data-sub="correlativos">Correlativos</button>
       <button class="subtab" data-sub="tipos">Tipos de citación</button>
       <button class="subtab" data-sub="importar">Importar / respaldo</button>
