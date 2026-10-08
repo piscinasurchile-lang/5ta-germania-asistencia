@@ -22,6 +22,7 @@ Esta matriz es obligatoria antes de integrar cambios estructurales a `main`.
 | Administración | Nómina/cargos/cursos/hoja de vida | Datos centrales disponibles |
 | Terminal B-5 | Acceso de prueba administrador | Sin pérdida de acceso por refactor |
 | PDF | Generar documentos existentes | Contenido vigente sin pérdida de campos |
+| Guardia · avisos y desbordes | Elegir un miércoles, activar domingo diurno, confirmar período, inscribirse (1 noche y 2 noches), confirmar y recibir aviso de ODD al mismo tiempo, en 320, 360, 390, 768 y 1280 px | Sin desborde horizontal; avisos apilados sin taparse entre sí ni tapar botones; ventanas de confirmación completas en pantalla |
 | Móvil | Navegación y controles principales | Sin desborde crítico; menú utilizable |
 | PC/tablet | Guardia | Calendario izquierda y configuración derecha cuando hay ancho |
 | Error remoto | Fallo de una consulta secundaria | Aplicación no queda en pantalla de carga permanente |
