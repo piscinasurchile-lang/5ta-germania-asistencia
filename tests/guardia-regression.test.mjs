@@ -205,3 +205,10 @@ test("guardia: role and period are validated before reading selected dates", () 
   assert.ok(save.includes('!String(who||"").trim()'));
   assert.ok(save.indexOf("función, período o voluntario inválido")<save.indexOf("n<p.inicio||n>p.fin"));
 });
+
+test("guardia: invalid weekly date boundaries cannot be saved", () => {
+  const save=app.split("async function gnGuardarRolSemanal(")[1].split("async function gnConflictosSemana")[0];
+  assert.ok(save.includes("p.inicio>p.fin"));
+  assert.ok(save.includes("límites de semana inválidos"));
+  assert.ok(save.indexOf("límites de semana inválidos")<save.indexOf("const key="));
+});
