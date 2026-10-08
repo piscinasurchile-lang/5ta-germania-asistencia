@@ -2017,6 +2017,8 @@ on("gnRolGuardar","click",async()=>{
   if(botonGuardar) botonGuardar.disabled=true;
   try {
   const noches=[...GN_ROL_SEL].sort();
+  const rolSolicitado=GN_ROL_ACTIVO;
+  const planSolicitado=GN_ROL_PLAN;
   if(!ROSTER.some(x=>String(x.id)===String(who))){
     msg.textContent="Voluntario no encontrado en la nómina. Actualiza la información."; return;
   }
@@ -2042,9 +2044,9 @@ on("gnRolGuardar","click",async()=>{
   if(conflictosActuales.some(x=>x.rol!=="voluntario")){ msg.textContent="La asignación cambió mientras editabas. Actualiza y vuelve a intentarlo."; return; }
   try {
     // Nunca retirar la inscripción de voluntario antes de confirmar el guardado del rol.
-    await gnGuardarRolSemanal(GN_ROL_ACTIVO,GN_ROL_PLAN,who,noches);
+    await gnGuardarRolSemanal(rolSolicitado,planSolicitado,who,noches);
     try {
-      await gnTransferirDesdeVoluntario(GN_ROL_PLAN,who,noches);
+      await gnTransferirDesdeVoluntario(planSolicitado,who,noches);
     } catch (transferError) {
       // El rol se guardó; no afirmar éxito total si la baja del rol anterior falló.
       console.error("Guardia: transferencia parcial",transferError);
