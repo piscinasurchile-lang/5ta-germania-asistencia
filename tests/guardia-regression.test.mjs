@@ -66,7 +66,7 @@ test("guardia: empty operational assignment is rejected before any write", () =>
 
 test("guardia: dates outside the selected weekly period are rejected", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
-  const dateGuard = section.indexOf("n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin");
+  const dateGuard = section.indexOf("n<planSolicitado.inicio||n>planSolicitado.fin");
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(dateGuard >= 0 && save > dateGuard);
   assert.ok(section.includes("Hay fechas fuera de la semana de guardia"));
@@ -83,7 +83,7 @@ test("guardia: ISO date validator accepts real nights and rejects malformed date
 
 test("guardia: closed or expired weekly plans are rejected before saving", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
-  const guard = section.indexOf('GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()');
+  const guard = section.indexOf('planSolicitado.estado!=="abierta"||planSolicitado.fin<todayISO()');
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(guard >= 0 && save > guard);
 });
@@ -130,4 +130,13 @@ test("guardia: async save uses a snapshot of selected role and period", () => {
   assert.ok(section.includes("const planSolicitado={...GN_ROL_PLAN}"));
   assert.ok(section.includes("await gnGuardarRolSemanal(rolSolicitado,planSolicitado,who,noches)"));
   assert.ok(section.includes("await gnTransferirDesdeVoluntario(planSolicitado,who,noches)"));
+});
+
+test("guardia: all asynchronous pre-save checks use captured role and period", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const afterSnapshot = section.split("const identidadSolicitada=String(who);")[1];
+  assert.ok(afterSnapshot);
+  assert.equal(afterSnapshot.includes("GN_ROL_PLAN"), false);
+  assert.equal(afterSnapshot.includes("GN_ROL_ACTIVO"), false);
+  assert.ok(afterSnapshot.includes("gnConflictosSemana(planSolicitado,who,noches,rolSolicitado)"));
 });
