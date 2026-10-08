@@ -2027,6 +2027,10 @@ on("gnRolGuardar","click",async()=>{
   if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin)){
     msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
   }
+  const planesVigentes=await gnPlanes();
+  if(!planesVigentes.some(p=>p.inicio===GN_ROL_PLAN.inicio&&p.estado==="abierta"&&p.fin>=todayISO())){
+    msg.textContent="La semana fue cerrada o modificada. Actualiza la planificación."; return;
+  }
   const conflictos=await gnConflictosSemana(GN_ROL_PLAN,who,noches,GN_ROL_ACTIVO);
   if(conflictos.some(x=>x.rol!=="voluntario")){ msg.textContent="No puedes figurar como conductor y oficial/OBAC la misma noche. Corrige la selección."; return; }
   // Volver a verificar antes de escribir: la disponibilidad puede cambiar durante la edición.
