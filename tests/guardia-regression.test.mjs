@@ -149,3 +149,8 @@ test("guardia: save and validation use captured volunteer identity", () => {
   assert.ok(afterSnapshot.includes("gnTransferirDesdeVoluntario(planSolicitado,identidadSolicitada,noches)"));
   assert.ok(!afterSnapshot.includes("planSolicitado,who,noches"));
 });
+
+test("guardia: role and transfer writes require confirmed central persistence", () => {
+  assert.ok(app.includes('if(guardado!==true) throw new Error("Guardia: la asignación de función no fue confirmada'));
+  assert.ok(app.includes('if(guardado!==true) throw new Error("Guardia: la transferencia de noches no fue confirmada'));
+});
