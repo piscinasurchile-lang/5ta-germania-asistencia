@@ -128,8 +128,8 @@ test("guardia: async save uses a snapshot of selected role and period", () => {
   const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
   assert.ok(section.includes("const rolSolicitado=GN_ROL_ACTIVO"));
   assert.ok(section.includes("const planSolicitado={...GN_ROL_PLAN}"));
-  assert.ok(section.includes("await gnGuardarRolSemanal(rolSolicitado,planSolicitado,who,noches)"));
-  assert.ok(section.includes("await gnTransferirDesdeVoluntario(planSolicitado,who,noches)"));
+  assert.ok(section.includes("await gnGuardarRolSemanal(rolSolicitado,planSolicitado,identidadSolicitada,noches)"));
+  assert.ok(section.includes("await gnTransferirDesdeVoluntario(planSolicitado,identidadSolicitada,noches)"));
 });
 
 test("guardia: all asynchronous pre-save checks use captured role and period", () => {
@@ -138,5 +138,14 @@ test("guardia: all asynchronous pre-save checks use captured role and period", (
   assert.ok(afterSnapshot);
   assert.equal(afterSnapshot.includes("GN_ROL_PLAN"), false);
   assert.equal(afterSnapshot.includes("GN_ROL_ACTIVO"), false);
-  assert.ok(afterSnapshot.includes("gnConflictosSemana(planSolicitado,who,noches,rolSolicitado)"));
+  assert.ok(afterSnapshot.includes("gnConflictosSemana(planSolicitado,identidadSolicitada,noches,rolSolicitado)"));
+});
+
+test("guardia: save and validation use captured volunteer identity", () => {
+  const section=app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const afterSnapshot=section.split("const identidadSolicitada=String(who);")[1];
+  assert.ok(afterSnapshot);
+  assert.ok(afterSnapshot.includes("gnGuardarRolSemanal(rolSolicitado,planSolicitado,identidadSolicitada,noches)"));
+  assert.ok(afterSnapshot.includes("gnTransferirDesdeVoluntario(planSolicitado,identidadSolicitada,noches)"));
+  assert.ok(!afterSnapshot.includes("planSolicitado,who,noches"));
 });
