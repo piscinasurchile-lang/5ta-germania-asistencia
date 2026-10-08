@@ -1,5 +1,5 @@
-const CACHE='germania-static-v3';
-const ASSETS=['/manifest.webmanifest','/legacy/germania-icon.svg','/legacy/germania-192.png','/legacy/germania-512.png'];
+const CACHE='germania-static-v4';
+const ASSETS=['/manifest.webmanifest','/legacy/germania-icon.svg','/legacy/germania-192.png','/legacy/germania-512.png','/legacy/apple-touch-icon.png'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));

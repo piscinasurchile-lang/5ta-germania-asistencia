@@ -7,12 +7,14 @@ export const metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/legacy/germania-192.png?v=2", sizes: "192x192", type: "image/png" },
-      { url: "/legacy/germania-512.png?v=2", sizes: "512x512", type: "image/png" }
+      { url: "/legacy/favicon-32.png?v=3", sizes: "32x32", type: "image/png" },
+      { url: "/legacy/favicon-64.png?v=3", sizes: "64x64", type: "image/png" },
+      { url: "/legacy/germania-192.png?v=3", sizes: "192x192", type: "image/png" },
+      { url: "/legacy/germania-512.png?v=3", sizes: "512x512", type: "image/png" }
     ],
-    apple: [{ url: "/legacy/germania-192.png?v=2", sizes: "192x192", type: "image/png" }]
+    apple: [{ url: "/legacy/apple-touch-icon.png?v=3", sizes: "180x180", type: "image/png" }]
   },
-  appleWebApp: { capable: true, title: "GERMANIA", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "GERMANIA", statusBarStyle: "black-translucent", startupImage: ["/legacy/splash-1170x2532.png?v=3"] },
   formatDetection: { telephone: false }
 };
 
