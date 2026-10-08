@@ -2013,6 +2013,9 @@ on("gnRolGuardar","click",async()=>{
   const msg=document.getElementById("gnRolMsg"), who=document.getElementById("miVoluntario")?.value;
   if(!GN_ROL_PLAN||!GN_ROL_ACTIVO||!who) return;
   const noches=[...GN_ROL_SEL].sort();
+  if(GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()){
+    msg.textContent="La semana de guardia ya no está abierta. Actualiza la planificación."; return;
+  }
   if(!noches.length){ msg.textContent="Selecciona al menos una noche para asignar la función."; return; }
   if(noches.some(n=>!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<GN_ROL_PLAN.inicio||n>GN_ROL_PLAN.fin)){
     msg.textContent="Hay fechas fuera de la semana de guardia. Actualiza la planificación."; return;
