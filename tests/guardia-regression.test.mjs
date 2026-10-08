@@ -80,3 +80,10 @@ test("guardia: ISO date validator accepts real nights and rejects malformed date
   assert.equal(validator.test("07-10-2026"), false);
   assert.equal(validator.test("2026-10-7"), false);
 });
+
+test("guardia: closed or expired weekly plans are rejected before saving", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  const guard = section.indexOf('GN_ROL_PLAN.estado!=="abierta"||GN_ROL_PLAN.fin<todayISO()');
+  const save = section.indexOf("await gnGuardarRolSemanal(");
+  assert.ok(guard >= 0 && save > guard);
+});
