@@ -144,38 +144,69 @@ var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinist
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
 function tabsPermitidas(m,abierto){
   if(GR.vista==="gestion") return esMando(m)?["info","rev","rep"]:[];
-  var t=["mis"];
-  if(abierto){ t.push("vol"); if(esMaquinista(m)) t.push("maq"); if(rangoObac(m)!=null) t.push("obac"); }
-  return t;
+  return ["mis"];   /* elegir noches se hace en las tarjetas de Inicio */
 }
 function guardiaActiva(){ var p=$("panel-guardia"); return !!p&&p.classList.contains("active"); }
 
+async function cargarD(m,p,abierto,lista){
+  var who=String(m.id), D={m:m,who:who,p:p,abierto:abierto,S:null,noches:[],cov:[],error:false,lista:lista||[]};
+  if(p){
+    try{ var S=await cargarSemana(p); D.noches=gnWeek(p.inicio); D.cov=cobertura({vol:S[0],maq:S[1],obac:S[2]},D.noches); D.S={vol:S[0],maq:S[1],obac:S[2],conf:S[3]}; }
+    catch(e){ D.error=true; }
+  }
+  return D;
+}
+/* Dmi = la semana de este voluntario (tarjetas de Inicio y «Mis noches»); D = la que se muestra en Guardia
+   (en Gestión puede ser otra semana, elegida con el selector). */
 async function grRender(forzar){
   var box=$("gnRolCard"); if(!box) return;
   var m=miembro();
-  if(!m){ box.innerHTML='<h2>Mi guardia nocturna</h2><p class="sub">Primero elige tu nombre en <b>Inicio</b>.</p>'; return; }
+  if(!m){ box.innerHTML='<h2>Mi guardia nocturna</h2><p class="sub">Primero elige tu nombre en <b>Inicio</b>.</p>'; var ir=$("inicioRoles"); if(ir) ir.innerHTML=""; return; }
   if(GR.cargando&&!forzar) return;
   GR.cargando=true;
   try{
     if(!PREC) await cargarPrec();
     await cargarHorarios();
-    var pa=await planActivo(String(m.id)), who=String(m.id), D={m:m,who:who,p:pa.p,abierto:pa.abierto,S:null,noches:[],cov:[],error:false};
+    var who=String(m.id), pa=await planActivo(who);
+    var Dmi=await cargarD(m,pa.p,pa.abierto,pa.lista), D=Dmi;
     if(GR.vista==="gestion"&&pa.lista&&pa.lista.length){
       var elegida=pa.lista.filter(function(x){ return x.inicio===GR.semana; })[0]||pa.lista[0];
-      D.p=pa.p=elegida; D.abierto=pa.abierto=Date.now()<gnInsCierreMs(elegida); GR.semana=elegida.inicio;
+      GR.semana=elegida.inicio;
+      if(!pa.p||elegida.inicio!==pa.p.inicio) D=await cargarD(m,elegida,Date.now()<gnInsCierreMs(elegida),pa.lista);
     }
-    if(pa.p){
-      try{ D.S=await cargarSemana(pa.p); D.noches=gnWeek(pa.p.inicio); D.cov=cobertura({vol:D.S[0],maq:D.S[1],obac:D.S[2]},D.noches); D.S={vol:D.S[0],maq:D.S[1],obac:D.S[2],conf:D.S[3]}; }
-      catch(e){ D.error=true; }
-    }
-    GR.D=D;
-    D.lista=pa.lista||[];
-    var clave=(pa.p?pa.p.inicio:"")+":"+who;
+    GR.D=D; GR.Dmi=Dmi;
+    var clave=(Dmi.p?Dmi.p.inicio:"")+":"+who;
     if(GR.selClave!==clave){ GR.selClave=clave; GR.sel.maq=null; GR.sel.obac=null; }
-    if(D.S){ ["maq","obac"].forEach(function(k){ if(GR.sel[k]===null) GR.sel[k]=new Set(regs(D.S[k][who]).map(function(x){ return x.f; })); }); }
-    if(pa.p&&D.S){ var propias=D.S.vol[who]||[]; if(GN_INS_CLAVE!==clave){ GN_INS_CLAVE=clave; GN_INS_SEL=new Set(Array.isArray(propias)?propias:[]); } }
-    pintarTarjeta();
+    if(Dmi.S){ ["maq","obac"].forEach(function(k){ if(GR.sel[k]===null) GR.sel[k]=new Set(regs(Dmi.S[k][who]).map(function(x){ return x.f; })); }); }
+    if(Dmi.p&&Dmi.S){ var propias=Dmi.S.vol[who]||[]; if(GN_INS_CLAVE!==clave){ GN_INS_CLAVE=clave; GN_INS_SEL=new Set(Array.isArray(propias)?propias:[]); } }
+    pintarTarjeta(); pintarInicioRoles();
   }finally{ GR.cargando=false; }
+}
+
+/* ---------- Inicio: una tarjeta por cargo, mientras la elección está abierta ----------
+   Voluntario (todos) · Maquinista · OBAC · Información (Capitán, Teniente 3° y administrador).
+   Al cerrar la elección desaparecen y queda «Mis noches». */
+GR.abiertas={vol:true};
+function resumenInfo(pn,D){
+  var DOT=GN_DOTACION_MIN, ok=D.cov.filter(function(c){ return c.completa; }).length;
+  pn.innerHTML='<p class="sub"><b>'+ok+' de '+D.cov.length+' noches completas</b> (cada una: '+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC).</p><div class="gr-lista">'+D.cov.map(function(c){
+    var n=nombreNoche(c.f); return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+'</em>':'')+(c.completa?'<span class="gr-chip verde">Completa</span>':'<span class="gr-chip rojo">Incompleta</span>')+'</div><div class="gr-nc-fila">🚒 '+(c.maq[0]?'<b>'+E(corto(porId(c.maq[0].id)))+'</b>':'<span class="falta">falta</span>')+' · 🎧 '+(c.obac[0]?'<b>'+E(corto(porId(c.obac[0].id)))+'</b>':'<span class="falta">falta</span>')+'</div></div></div>'; }).join("")+'</div><button type="button" class="btn secondary gr-grande" id="irGestionar">Gestionar la guardia</button>';
+  var g=$("irGestionar"); if(g) g.onclick=function(){ ponerVista("gestion"); window.__mostrarPestana("guardia"); };
+}
+function pintarInicioRoles(){
+  var box=$("inicioRoles"); if(!box) return;
+  var D=GR.Dmi, m=miembro();
+  if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; return; }
+  var cards=[["vol","Voluntario","🙋"]];
+  if(esMaquinista(m)) cards.push(["maq","Maquinista","🚒"]);
+  if(rangoObac(m)!=null) cards.push(["obac","OBAC","🎧"]);
+  if(esMando(m)) cards.push(["info","Información","📋"]);
+  var hasta=new Date(gnInsCierreMs(D.p)).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
+  box.innerHTML=cards.map(function(c){
+    return '<details class="card gr-rol-card" data-rol="'+c[0]+'"'+(GR.abiertas[c[0]]?" open":"")+'><summary><span class="gr-rol-ico" aria-hidden="true">'+c[2]+'</span><span class="gr-rol-tit">Guardia nocturna · '+c[1]+'<small>Semana '+E(gnFmt(D.p.inicio))+' · cierra '+E(hasta)+'</small></span></summary><div class="gr-rol-body" id="irp-'+c[0]+'"></div></details>';
+  }).join("");
+  cards.forEach(function(c){ var pn=$("irp-"+c[0]); if(!pn) return; if(c[0]==="vol") panelVol(pn,D); else if(c[0]==="info") resumenInfo(pn,D); else panelRol(pn,D,c[0]); });
+  box.querySelectorAll("details[data-rol]").forEach(function(d){ d.addEventListener("toggle",function(){ GR.abiertas[d.dataset.rol]=d.open; }); });
 }
 
 function selectorSemana(D){
@@ -255,13 +286,13 @@ function panelRol(pn,D,kind){
   }).join("")+'</div>';
   var n=sel.size;
   h+='<p class="gr-aviso-n">Tienes '+n+' noche'+(n===1?"":"s")+' seleccionada'+(n===1?"":"s")+'.</p>';
-  if(D.abierto) h+='<button type="button" class="btn gr-grande" id="grGuardar">Guardar selección</button><div class="status-msg" id="grMsg"></div>';
+  if(D.abierto) h+='<button type="button" class="btn gr-grande" id="grGuardar-'+kind+'">Guardar selección</button><div class="status-msg" id="grMsg-'+kind+'"></div>';
   pn.innerHTML=h;
   pn.querySelectorAll("[data-gr-rol]").forEach(function(i){ i.onchange=function(){ if(i.checked) sel.add(i.dataset.grRol); else sel.delete(i.dataset.grRol); GR.sel[kind]=sel; panelRol(pn,D,kind); }; });
-  var g=$("grGuardar"); if(g) g.onclick=function(){ guardarRol(D,kind); };
+  var g=$("grGuardar-"+kind); if(g) g.onclick=function(){ guardarRol(D,kind); };
 }
 async function guardarRol(D,kind){
-  var msg=$("grMsg"), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
+  var msg=$("grMsg-"+kind), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
   var otroK=kind==="maq"?"obac":"maq";
   var choca=recs.filter(function(r){ return tiene(D.S.vol[D.who],r.f)||tiene(D.S[otroK][D.who],r.f); });
@@ -515,10 +546,12 @@ async function panelMis(pn,D){
   pn.innerHTML='<p class="sub">Cargando…</p>';
   var d; try{ d=await misNochesDatos(D.who,true); }catch(e){ pn.innerHTML='<div class="empty">No se pudieron leer tus noches. <button type="button" class="btn small secondary" id="mnReint">Reintentar</button></div>'; $("mnReint").onclick=function(){ panelMis(pn,D); }; return; }
   var h='<h3 class="gr-t">Mis noches</h3>';
-  if(!d.prox.length) h+='<div class="empty">No tienes noches pendientes.'+(D.abierto?' Elige tus noches en la pestaña <b>Voluntario</b>.':' Cuando la oficialidad apruebe la dotación, tu noche aparecerá aquí.')+'</div>';
+  if(D.abierto&&GR.Dmi&&GR.Dmi.p) h+='<p class="gr-aviso-n">La elección de noches está abierta. <a href="#" id="mnIrInicio">Elegir mis noches en Inicio</a></p>';
+  if(!d.prox.length) h+='<div class="empty">No tienes noches pendientes. Cuando la oficialidad apruebe la dotación, tu noche aparecerá aquí.</div>';
   else h+='<p class="sub">Cada noche desaparece de esta lista cuando termina (a las '+E(HORARIOS.fin)+'). Si ya no puedes, avisa para que la oficialidad busque reemplazo.</p><div class="gr-lista">'+d.prox.map(function(e){ return tarjetaNoche(e,true); }).join("")+'</div>';
   pn.innerHTML=h;
   pn.querySelectorAll("[data-nopuedo]").forEach(function(b){ b.onclick=function(){ abrirAviso(pn,D,b.dataset.nopuedo); }; });
+  var ii=$("mnIrInicio"); if(ii) ii.onclick=function(e){ e.preventDefault(); window.__mostrarPestana("germania"); };
 }
 function abrirAviso(pn,D,v){
   var p=v.split("|"), f=p[0], rol=p[1], box=pn.querySelector('[data-forma="'+f+'"]'); if(!box) return;
@@ -606,7 +639,7 @@ async function resolverAviso(pn,D,k,repId){
 
 /* ---------- Inicio: recordatorio de inscripción (la selección vive en Guardia) ---------- */
 async function inicioInscripcion(forzar){
-  var box=$("gnInscripcionCard"); if(!box) return;
+  var box=$("gnInscripcionCard"); if(box) box.innerHTML=""; return;   /* ahora lo cubren las tarjetas por cargo (pintarInicioRoles) */
   var who=$("miVoluntario")&&$("miVoluntario").value;
   if(!who){ box.innerHTML=""; return; }
   var d; try{ d=await gnInsDatos(who,forzar); }catch(e){ return; }
@@ -623,8 +656,8 @@ async function inicioInscripcion(forzar){
 }
 var _renderOriginal=window.renderGnInscripcionCard;
 window.renderGnInscripcionCard=async function(forzar){
-  await inicioInscripcion(forzar); misNochesInicio(!!forzar);
-  if(forzar||guardiaActiva()) await grRender(!!forzar);
+  misNochesInicio(!!forzar);
+  await grRender(!!forzar);
 };
 
 /* ---------- Eventos ---------- */
@@ -655,7 +688,7 @@ if(typeof window.marcarMiEstado==="function"){
 /* Al entrar a una pantalla (por pestaña, barra inferior o atajo) se refresca lo que muestra: así Inicio y Guardia
    siempre reflejan la semana recién creada, sin esperar al refresco de 60 s. */
 function alActivarPanel(id){
-  if(id==="panel-germania"){ MN.cache=null; renderNovedades(); pintarChipEstado(); inicioInscripcion(true).catch(function(){}); misNochesInicio(true); }
+  if(id==="panel-germania"){ MN.cache=null; renderNovedades(); pintarChipEstado(); grRender(true).catch(function(){}); misNochesInicio(true); }
   else if(id==="panel-guardia"){ grRender(true).catch(function(){}); }
   else if(id==="panel-estado"){ misNochesCumplidas(true); }
 }
@@ -677,10 +710,10 @@ function vigilarIdentidad(){
   if(id===ultimo) return; ultimo=id;
   ocultarSelector(false);
   aplicarRol(); renderNovedades(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
-  if(guardiaActiva()) grRender(true).catch(function(){});
+  grRender(true).catch(function(){});
 }
 setInterval(vigilarIdentidad,700);
-setInterval(function(){ if(guardiaActiva()&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")) grRender(false).catch(function(){}); },60000);
+setInterval(function(){ if((guardiaActiva()||($("panel-germania")&&$("panel-germania").classList.contains("active")))&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")) grRender(false).catch(function(){}); },60000);
 cargarHorarios().then(function(){ misNochesInicio(false); });
 aplicarRol();
 })();
