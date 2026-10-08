@@ -307,11 +307,20 @@ function acronimoCargo(p){
 }
 function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "); }
 
+/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 3 voluntarios + 1 conductor + 1 OBAC.
+   Los voluntarios que se sumen sobre el mínimo son refuerzos. Cada voluntario se inscribe en al menos 2 noches. */
+const GN_DOTACION_MIN={voluntarios:3,conductor:1,obac:1};
+const GN_NOCHES_MIN=2;
+
 /* Persistencia institucional: el servidor/Neon es la única fuente de verdad.
    Nunca se recuperan datos operativos desde localStorage, sessionStorage o memoria local. */
 let STORAGE_MODE="pendiente";
 function lsAvailable(){ return false; }
-async function sGet(k,f){
+/* Versión de cada clave tal como llegó del servidor (0 = aún no existe). Sirve para no pisar
+   lo que otra persona guardó mientras tú editabas (docs/ESPECIFICACION-REDISENO-Y-GUARDIA.md §5.2). */
+const SVER=new Map();
+async function sGet(k,f){ return (await sGetV(k,f)).value; }
+async function sGetV(k,f){
   let r;
   try{
     r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
@@ -328,28 +337,84 @@ async function sGet(k,f){
   const data=await r.json();
   STORAGE_MODE="servidor";
   actualizarAvisoAlmacenamiento();
-  return data.value!==null && data.value!==undefined ? data.value : f;
+  const version=Number.isInteger(data.version)?data.version:undefined;
+  if(version!==undefined) SVER.set(k,version);
+  return {value:data.value!==null && data.value!==undefined ? data.value : f, version};
 }
 const TEST_MODE_KEY="germania:test-mode:v1";
 const TEST_BASELINE_KEY="germania:test-baseline:v1";
 const TEST_AUDIT_KEY="germania:test-audit:v1";
 let TEST_INTERNAL_WRITE=false;
-async function rawSet(k,v){
+const CLAVES_SILENCIOSAS=new Set(["germania:test-mode:v1","germania:test-baseline:v1","germania:test-audit:v1"]);
+/* Aviso de guardado en lenguaje simple: «Guardando…», «Guardado ✓ 08:41» o qué hacer si falló. */
+let AVISO_TIMER=null;
+function avisoGuardado(estado,texto,ms){
+  let el=document.getElementById("avisoGuardado");
+  if(!el){
+    el=document.createElement("div"); el.id="avisoGuardado"; el.setAttribute("role","status"); el.setAttribute("aria-live","polite");
+    document.body.appendChild(el);
+  }
+  el.className="aviso-guardado "+estado; el.textContent=texto; el.hidden=false;
+  clearTimeout(AVISO_TIMER);
+  if(ms) AVISO_TIMER=setTimeout(()=>{ el.hidden=true; },ms);
+}
+function horaCorta(){ return new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}); }
+async function rawSet(k,v,opts){
+  const silencioso=CLAVES_SILENCIOSAS.has(k);
+  const ifVersion=opts&&Number.isInteger(opts.ifVersion)?opts.ifVersion:undefined;
+  const cuerpo={value:v}; if(ifVersion!==undefined) cuerpo.ifVersion=ifVersion;
+  if(!silencioso) avisoGuardado("guardando","Guardando…");
   let r;
   try{
-    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:v})});
+    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(cuerpo)});
   }catch(error){
     STORAGE_MODE="sin-conexion";
     actualizarAvisoAlmacenamiento();
+    if(!silencioso) avisoGuardado("error","No se pudo guardar. Revisa tu internet y vuelve a tocar el botón. No se perdió nada de lo que ya estaba guardado.",9000);
     throw new Error("GERMANIA no pudo guardar en la base central.");
+  }
+  if(r.status===409){
+    const e=new Error("Otra persona guardó este mismo dato mientras tú lo editabas. Para no borrar su trabajo, no se guardó nada. Toca «Ver lo último guardado» y vuelve a hacer tus cambios.");
+    e.conflicto=true;
+    if(!silencioso) avisoGuardado("error","Otra persona cambió esto antes que tú. No se guardó nada para no borrar su trabajo.",9000);
+    throw e;
   }
   if(!r.ok){
     STORAGE_MODE="sin-conexion";
     actualizarAvisoAlmacenamiento();
+    if(!silencioso) avisoGuardado("error","No se pudo guardar (error "+r.status+"). Vuelve a intentarlo en un momento.",9000);
     throw new Error("GERMANIA no pudo guardar en la base central ("+r.status+").");
   }
   STORAGE_MODE="servidor";
   actualizarAvisoAlmacenamiento();
+  try{ const j=await r.json(); if(Number.isInteger(j.version)) SVER.set(k,j.version); }catch(e){}
+  if(!silencioso) avisoGuardado("ok","Guardado ✓ "+horaCorta(),3500);
+  return true;
+}
+/* Agrega un elemento a una lista guardada sin leerla antes (no pierde elementos si dos personas
+   guardan a la vez). Respeta el modo prueba igual que sSet. */
+async function sAddToList(k,item,opts){
+  if(!TEST_INTERNAL_WRITE && await testModeActivo()){
+    TEST_INTERNAL_WRITE=true;
+    try{
+      const base=await sGet(TEST_BASELINE_KEY,{});
+      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); await rawSet(TEST_BASELINE_KEY,base); }
+    }finally{ TEST_INTERNAL_WRITE=false; }
+  }
+  avisoGuardado("guardando","Guardando…");
+  let r;
+  try{
+    r=await fetch("/api/state/"+encodeURIComponent(k),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({op:"addToList",item,uniqueBy:(opts&&opts.uniqueBy)||undefined,sort:(opts&&opts.sort)||undefined})});
+  }catch(error){
+    avisoGuardado("error","No se pudo guardar. Revisa tu internet y vuelve a intentarlo.",9000);
+    throw new Error("GERMANIA no pudo guardar en la base central.");
+  }
+  if(!r.ok){
+    avisoGuardado("error","No se pudo guardar (error "+r.status+"). Vuelve a intentarlo en un momento.",9000);
+    throw new Error("GERMANIA no pudo agregar a la lista ("+r.status+").");
+  }
+  try{ const j=await r.json(); if(Number.isInteger(j.version)) SVER.set(k,j.version); }catch(e){}
+  avisoGuardado("ok","Guardado ✓ "+horaCorta(),3500);
   return true;
 }
 /* El estado del modo prueba casi nunca cambia: se consulta a lo más una vez por
@@ -392,7 +457,7 @@ async function vaciarAuditoria(){
   }
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") vaciarAuditoria(); });
-async function sSet(k,v){
+async function sSet(k,v,opts){
   if(!TEST_INTERNAL_WRITE && await testModeActivo() && ![TEST_MODE_KEY,TEST_BASELINE_KEY,TEST_AUDIT_KEY].includes(k)){
     TEST_INTERNAL_WRITE=true;
     try{
@@ -405,7 +470,7 @@ async function sSet(k,v){
       }
     }finally{ TEST_INTERNAL_WRITE=false; }
   }
-  return rawSet(k,v);
+  return rawSet(k,v,opts);
 }
 /* ---- Qué se considera «dato de prueba» (solo lectura) ---- */
 const PRUEBA_NOMBRES={parte:"Partes (asistencia y emergencias)",partes:"Índice de partes",guardia:"Guardias registradas",guardias:"Índice de guardias","guardia-inscripcion":"Inscripciones de guardia","guardia-confirmacion":"Confirmaciones de guardia","guardia-plan":"Períodos de guardia",disponibilidad:"Estados de los voluntarios",roster:"Nómina de voluntarios","odd-avisos":"ODD informadas","odd-pdf":"PDF de ODD",oficialidad:"Oficialidad por año","oficialidad-meta":"Oficialidad (detalle)",hoja:"Hojas de servicio",fotos:"Respaldo de fotos"};
@@ -1735,7 +1800,7 @@ function gnISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezon
 function gnAdd(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return gnISO(d); }
 function gnPlanKey(ini){ return "guardia-plan:"+ini; }
 async function gnPlanes(){ const idx=await sGet(GN_PLAN_INDEX,[]), out=[]; for(const x of idx){ const p=await sGet(gnPlanKey(x),null); if(p) out.push(p); } return out; }
-async function gnSavePlan(p){ await sSet(gnPlanKey(p.inicio),p); const idx=await sGet(GN_PLAN_INDEX,[]); if(!idx.includes(p.inicio)){ idx.push(p.inicio); idx.sort(); await sSet(GN_PLAN_INDEX,idx); } }
+async function gnSavePlan(p){ await sSet(gnPlanKey(p.inicio),p); await sAddToList(GN_PLAN_INDEX,p.inicio,{sort:"asc"}); }
 function gnWeek(ini){ return Array.from({length:7},(_,i)=>gnAdd(ini,i)); }
 function gnFmt(iso){ return new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"}); }
 
@@ -1831,7 +1896,7 @@ async function gnInsGuardar(p,who,noches,justificacion){
   const kNoches="guardia-inscripcion:"+suffix;
   const kConfirm="guardia-confirmacion:"+suffix;
   const anteriores=await Promise.all([sGet(kNoches,null),sGet(kConfirm,null)]);
-  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=2,justificacion:justificacion||null};
+  const confirmacion={confirmadaEn:new Date().toISOString(),noches:noches.length,cumple:noches.length>=GN_NOCHES_MIN,justificacion:justificacion||null};
   const okNoches=await sSet(kNoches,noches);
   if(!okNoches) throw new Error("No se pudieron guardar las noches. Intentá nuevamente.");
   const okConfirm=await sSet(kConfirm,confirmacion);
@@ -1946,7 +2011,7 @@ async function renderGnVoluntario(){
 on("gnVolLimpiar","click",()=>{gnVolSel.clear();document.querySelectorAll("[data-gn-vol]").forEach(x=>x.classList.remove("selected"));});
 on("gnVolConfirmar","click",async()=>{
  const msg=document.getElementById("gnVolMsg"),who=document.getElementById("miVoluntario")?.value,ini=document.getElementById("gnVolSemana")?.dataset.inicio;
- if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<2){msg.textContent="Debes seleccionar al menos 2 noches.";return;}
+ if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<GN_NOCHES_MIN){msg.textContent="Debes seleccionar al menos "+GN_NOCHES_MIN+" noches.";return;}
  try { await gnInsGuardar({inicio:ini},who,[...gnVolSel].sort(),null); msg.textContent="Inscripción confirmada en GERMANIA."; await renderGnInscripcionCard(); } catch(e) { msg.textContent=e.message||"No se pudo confirmar la inscripción."; } 
 });
 
@@ -1955,10 +2020,10 @@ const GUARDIA_IDX="guardias:index";
 
 async function idxGuardias(){ return await sGet(GUARDIA_IDX,[]); }
 async function getGuardia(c){ return await sGet("guardia:"+c,null); }
-async function setGuardia(c,d){
-  await sSet("guardia:"+c,d);
-  const idx=await idxGuardias();
-  if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,fecha:d.fechaIng}); await sSet(GUARDIA_IDX,idx); }
+async function setGuardia(c,d,ifVersion){
+  await sSet("guardia:"+c,d,Number.isInteger(ifVersion)?{ifVersion}:undefined);
+  await sAddToList(GUARDIA_IDX,{clave:c,fecha:d.fechaIng},{uniqueBy:"clave"});
+  return SVER.get("guardia:"+c);
 }
 function claveGuardia(f,h){ return f+"__"+(h||"").replace(":",""); }
 /* Dataset temporal de validación del Dashboard.
@@ -2036,7 +2101,7 @@ async function validarMatrizGuardiaPrueba(){
   const errores=[], activos=ROSTER.filter(x=>x.activo!==false);
   const stats=await guardiasEnRangoPanel("2026-02-04","2026-02-15",activos);
   if(stats.turnos!==12) errores.push("Matriz: se esperaban 12 turnos y hay "+stats.turnos);
-  if(stats.incompletas!==2) errores.push("Matriz: se esperaban 2 noches bajo mínimo y hay "+stats.incompletas);
+  if(stats.incompletas!==0) errores.push("Matriz: con mínimo de "+GN_DOTACION_MIN.voluntarios+" voluntarios se esperaban 0 noches bajo mínimo y hay "+stats.incompletas);
   if(stats.cedidas!==2) errores.push("Matriz: se esperaban 2 guardias cedidas y hay "+stats.cedidas);
   const christian=stats.por[idPorClaveGuardia("517")], moller=stats.por[idPorClaveGuardia("522")];
   if(!christian||christian.reemplazos!==2) errores.push("Matriz: Christian debe registrar 2 reemplazos");
@@ -2105,6 +2170,7 @@ const GN_MOTIVOS=["Enfermedad","Licencia médica","Viaje","Otra actividad","Trab
 
 /* Guardianes del turno, en memoria mientras se edita la ficha */
 let gnTurno=[];   // {id, estado, motivo, correo, obs, reemplazo}
+let gnTurnoBase={clave:"",version:undefined};   // versión del registro cuando se abrió el formulario
 
 function normalizaTurno(lista){
   return (lista||[]).map(x=> typeof x==="string"
@@ -2221,9 +2287,11 @@ function contarGuardianes(){
   const faltan=gnTurno.filter(g=>g.estado==="no" && !g.reemplazo).length;
   const msg=document.getElementById("gnMsg");
   if(msg && !msg.classList.contains("err")){
+    const min=GN_DOTACION_MIN.voluntarios;
+    const estadoDot=cubren<min?` · faltan ${min-cubren} para el mínimo de ${min}`:cubren>min?` · ${cubren-min} refuerzo${cubren-min===1?"":"s"} sobre el mínimo de ${min}`:` · mínimo de ${min} completo`;
     msg.textContent = gnTurno.length
       ? `${gnTurno.length} designado${gnTurno.length===1?"":"s"} · ${cubren} cubre${cubren===1?"":"n"} la guardia`
-        + (faltan?` · ${faltan} sin reemplazo`:"")
+        + estadoDot + (faltan?` · ${faltan} sin reemplazo`:"")
       : "";
   }
 }
@@ -2231,7 +2299,10 @@ function contarGuardianes(){
 async function cargarGuardia(){
   const f=document.getElementById("gnFechaIng").value, h=document.getElementById("gnHoraIng").value;
   if(!f) return;
-  const ex=await getGuardia(claveGuardia(f,h));
+  const clave=claveGuardia(f,h);
+  const lectura=await sGetV("guardia:"+clave,null);
+  const ex=lectura.value;
+  gnTurnoBase={clave,version:lectura.version};   /* versión con la que se abrió el formulario */
   const msg=document.getElementById("gnMsg"); msg.classList.remove("err");
   if(ex){
     document.getElementById("gnFechaSal").value=ex.fechaSal||"";
@@ -2268,10 +2339,23 @@ on("gnGuardarBtn","click",async()=>{
     conductor:document.getElementById("gnConductor")?.value||"",
     guardianes:gnTurno, novedades:document.getElementById("gnNovedades").value.trim()
   };
-  await setGuardia(claveGuardia(f,d.horaIng),d);
-  msg.classList.remove("err");
-  msg.textContent=`Guardia registrada: ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
-  renderGnLista();
+  const clave=claveGuardia(f,d.horaIng);
+  const base=gnTurnoBase.clave===clave?gnTurnoBase.version:undefined;
+  const btn=document.getElementById("gnGuardarBtn"); btn.disabled=true;
+  try{
+    const nuevaVersion=await setGuardia(clave,d,base);
+    if(Number.isInteger(nuevaVersion)) gnTurnoBase={clave,version:nuevaVersion};
+    msg.classList.remove("err");
+    msg.textContent=`Guardia guardada: ${g.length} designado${g.length===1?"":"s"}, ${cubrenGuardia(g).length} cubren el turno.`;
+    renderGnLista();
+  }catch(e){
+    msg.classList.add("err");
+    msg.textContent=(e&&e.message)||"No se pudo guardar la guardia. Vuelve a intentarlo.";
+    if(e&&e.conflicto){
+      const b=document.createElement("button"); b.type="button"; b.className="btn small secondary"; b.style.marginLeft="8px"; b.textContent="Ver lo último guardado";
+      b.onclick=()=>cargarGuardia(); msg.appendChild(document.createElement("br")); msg.appendChild(b);
+    }
+  }finally{ btn.disabled=false; }
 });
 
 function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id); return m?nombreCompleto(m):"—"; }
@@ -2880,7 +2964,7 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
       if(por[x.id]){por[x.id].asignadas++;if(x.estado!=="no"){por[x.id].propias++;hechos.add(x.id);cobertura++;}else if(x.reemplazo)por[x.id].cedidas++;else por[x.id].ausenciasSinReemplazo++;}
       if(x.estado==="no"&&x.reemplazo&&por[x.reemplazo]){por[x.reemplazo].reemplazos++;hechos.add(x.reemplazo);cobertura++;}
     });
-    if(cobertura<4)incompletas++; if(cobertura>4)sobreDotacion++;
+    if(cobertura<GN_DOTACION_MIN.voluntarios)incompletas++; if(cobertura>GN_DOTACION_MIN.voluntarios)sobreDotacion++;
     if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}else sinObac++;
     if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}else sinConductor++;
     hechos.forEach(id=>{if(por[id])por[id].total++;});
@@ -3420,6 +3504,13 @@ on("registrarIngresoBtn","click",async()=>{
   const msg=document.getElementById("fiMsg");
   if(!g("fiNombre")||!g("fiApPat")){ msg.textContent="Nombre y apellido paterno son obligatorios."; msg.classList.add("err"); return; }
   const cat=document.getElementById("fiCategoria").value;
+  /* Evita duplicar a alguien que ya existe (activo o dado de baja): mismo RUT. */
+  const rutNuevo=rutLimpio(g("fiRut"));
+  const yaExiste=rutNuevo?ROSTER.find(m=>rutLimpio(m.rut)===rutNuevo):null;
+  if(yaExiste){
+    msg.textContent=`${nombreCompleto(yaExiste)} ya está en la nómina${yaExiste.activo===false?" como dado de baja. Usa «Buscar persona» y luego «Reactivar» para conservar su hoja de vida":` (N° ${yaExiste.n||"—"})`}. No se registró de nuevo.`;
+    msg.classList.add("err"); return;
+  }
   ROSTER.push({
     id:uid(), n:null,
     nombre:g("fiNombre"), apellidoPaterno:g("fiApPat"), apellidoMaterno:g("fiApMat"),
@@ -3435,6 +3526,127 @@ on("registrarIngresoBtn","click",async()=>{
   msg.textContent=`${g("fiNombre")} ${g("fiApPat")} fue registrado con el N° ${nuevo?nuevo.n:""}.`;
   ["fiNombre","fiApPat","fiApMat","fiRut","fiNac","fiIngreso","fiOrigen","fiEspecialidad","fiCargo","fiTelefono"].forEach(i=>document.getElementById(i).value=""); document.getElementById("fiCargo").value="Voluntario";
   refrescarTodo();
+});
+
+/* ============ BUSCAR PERSONA / RESCATE ============
+   Solo lee. Revisa: nómina (activos y bajas), copias de la nómina guardadas en MODO PRUEBA,
+   lista de precedencia (vigente e historial) y archivo de Órdenes del Día.
+   Las acciones (reactivar, restaurar ficha, cargar en la ficha de ingreso) piden confirmación. */
+function rutLimpio(r){ return String(r||"").replace(/[^0-9kK]/g,"").toLowerCase(); }
+const RESCATE_PENDIENTES=[
+  {nombre:"Saida",apellidoPaterno:"Pollak",apellidoMaterno:"Donoso",rut:"13.920.202-3"},
+  {nombre:"Felipe",apellidoPaterno:"Carrillo",apellidoMaterno:"Ahumada",rut:"10.790.336-4"}
+];
+async function rescateLeer(k){
+  const r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
+  if(!r.ok) throw new Error("No se pudo leer "+k);
+  const j=await r.json(); return j&&j.value!==undefined?j.value:null;
+}
+function rescateCoincide(p,m){
+  const rp=rutLimpio(p.rut), rm=rutLimpio(m&&m.rut);
+  if(rp&&rm&&rp===rm) return "RUT";
+  const a=precTokens([p.nombre,p.apellidoPaterno].filter(Boolean).join(" "));
+  const b=precTokens([m&&m.nombre,m&&m.apellidoPaterno,m&&m.apellidoMaterno].filter(Boolean).join(" "));
+  return a.length>=2&&a.every(x=>b.includes(x))?"nombre":"";
+}
+function rescateEnTexto(p,valor){
+  if(valor==null) return false;
+  const t=precN(JSON.stringify(valor)), rp=rutLimpio(p.rut);
+  if(rp&&t.replace(/[^0-9k ]/g,"").includes(rp)) return true;
+  return precTokens([p.nombre,p.apellidoPaterno].join(" ")).every(x=>t.includes(x));
+}
+async function rescateBuscar(p){
+  const out={roster:[],copias:[],prec:[],precHist:[],odd:[],avisos:[],errores:[]};
+  ROSTER.forEach(m=>{ const c=rescateCoincide(p,m); if(c) out.roster.push({m,por:c}); });
+  try{
+    const base=await rescateLeer(TEST_BASELINE_KEY);
+    const copia=base&&base[ROSTER_KEY];
+    if(Array.isArray(copia)) copia.forEach(m=>{ const c=rescateCoincide(p,m); if(c&&!ROSTER.some(x=>x.id===m.id)) out.copias.push({m,por:c}); });
+  }catch(e){ out.errores.push("copias de respaldo"); }
+  try{
+    const pr=await rescateLeer(PRECEDENCIA_KEY);
+    if(pr){
+      (pr.lista||[]).forEach(x=>{ if(rescateCoincide(p,{nombre:x.nombre})) out.prec.push(x); });
+      (pr.historial||[]).forEach(h=>{ if(rescateEnTexto(p,h)) out.precHist.push(h); });
+    }
+  }catch(e){ out.errores.push("lista de precedencia"); }
+  try{ const o=await rescateLeer(ODD_KEY); if(rescateEnTexto(p,o)) out.odd.push("Archivo de Órdenes del Día"); }catch(e){ out.errores.push("Órdenes del Día"); }
+  try{ const o=await rescateLeer(AVISOS_ODD_KEY); if(rescateEnTexto(p,o)) out.avisos.push("Avisos de Órdenes del Día"); }catch(e){ out.errores.push("avisos de Órdenes del Día"); }
+  return out;
+}
+function rescateHtml(p,r,i){
+  const nom=[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" ");
+  const li=[]; let accion="";
+  r.roster.forEach(({m,por})=>{
+    if(m.activo===false){
+      li.push(`<li>✔ <b>Está en la nómina, dado de baja</b> (${esc(m.motivoBaja||"sin motivo")}${m.fechaBaja?" · "+esc(m.fechaBaja):""}). Su hoja de vida se conserva: ${(m.anotaciones||[]).length} anotaciones, ${Object.keys(m.cursos||{}).length} cursos. Coincidió por ${por}.</li>`);
+      accion+=`<button class="btn small" data-rescate="reactivar" data-id="${esc(m.id)}">Reactivar a ${esc(nombreCompleto(m))}</button> `;
+    }else li.push(`<li>✔ <b>Ya está activo en la nómina</b> con N° ${esc(m.n||"—")}${m.clave?" · clave "+esc(m.clave):""}. Coincidió por ${por}. Si no sale al pasar lista o en el selector, avísame para revisar su cargo/categoría.</li>`);
+  });
+  r.copias.forEach(({m})=>{
+    li.push(`<li>✔ <b>Está en una copia de respaldo de la nómina</b> (modo prueba) con su ficha: ${(m.anotaciones||[]).length} anotaciones, ${Object.keys(m.cursos||{}).length} cursos.</li>`);
+    accion+=`<button class="btn small" data-rescate="restaurar" data-i="${i}" data-id="${esc(m.id)}">Restaurar su ficha desde la copia</button> `;
+  });
+  if(r.prec.length) li.push(`<li>✔ <b>Aparece en la lista de precedencia vigente</b> (lugar ${r.prec.map(x=>esc(x.n)).join(", ")}).</li>`);
+  else li.push(`<li>✖ No aparece en la lista de precedencia vigente. Para el mando operativo solo se usa si figura en la ODD; si corresponde, se agrega desde Precedencia.</li>`);
+  if(r.precHist.length) li.push(`<li>✔ Aparece en ${r.precHist.length} versión(es) anterior(es) de la precedencia.</li>`);
+  li.push(r.odd.length?`<li>✔ Aparece en el archivo de Órdenes del Día.</li>`:`<li>✖ No aparece en el archivo de Órdenes del Día.</li>`);
+  if(r.avisos.length) li.push(`<li>✔ Aparece en los avisos de Órdenes del Día.</li>`);
+  if(!r.roster.length&&!r.copias.length){
+    li.unshift(`<li>✖ <b>No está en la nómina ni en copias de respaldo.</b> No hay hoja de vida que rescatar: hay que registrarlo.</li>`);
+    accion+=`<button class="btn small gold" data-rescate="cargar" data-i="${i}">Cargar en la ficha de ingreso</button>`;
+  }
+  if(r.errores.length) li.push(`<li>⚠ No se pudo revisar: ${esc(r.errores.join(", "))}. Reintenta antes de concluir que no existe.</li>`);
+  return `<div class="card" style="margin-top:12px;"><h3>${esc(nom)}${p.rut?" · "+esc(p.rut):""}</h3><ul style="padding-left:18px;line-height:1.5;">${li.join("")}</ul><div style="display:flex;gap:8px;flex-wrap:wrap;">${accion}</div></div>`;
+}
+let RESCATE_ULT=[];
+async function rescateEjecutar(personas){
+  const msg=document.getElementById("rescateMsg"), res=document.getElementById("rescateRes");
+  msg.classList.remove("err"); msg.textContent="Buscando…"; res.innerHTML="";
+  try{
+    RESCATE_ULT=[];
+    for(const p of personas){ const r=await rescateBuscar(p); RESCATE_ULT.push({p,r}); }
+    res.innerHTML=RESCATE_ULT.map(({p,r},i)=>rescateHtml(p,r,i)).join("");
+    msg.textContent="Listo. No se cambió nada.";
+  }catch(e){ msg.textContent="No se pudo buscar: "+e.message; msg.classList.add("err"); }
+}
+on("rescateBuscarBtn","click",()=>{
+  const q=document.getElementById("rescateQ").value.trim();
+  if(!q){ const m=document.getElementById("rescateMsg"); m.textContent="Escribe un nombre o un RUT."; m.classList.add("err"); return; }
+  const esRut=/^[0-9.\-kK\s]+$/.test(q)&&rutLimpio(q).length>=7;
+  const partes=q.split(/\s+/);
+  rescateEjecutar([esRut?{rut:q}:{nombre:partes[0],apellidoPaterno:partes.slice(1).join(" ")||partes[0]}]);
+});
+on("rescatePendientesBtn","click",()=>rescateEjecutar(RESCATE_PENDIENTES));
+document.getElementById("rescateRes")?.addEventListener("click",async ev=>{
+  const b=ev.target.closest("[data-rescate]"); if(!b) return;
+  const msg=document.getElementById("rescateMsg"), tipo=b.dataset.rescate;
+  try{
+    if(tipo==="reactivar"){
+      const m=ROSTER.find(x=>x.id===b.dataset.id); if(!m) return;
+      if(!confirm(`¿Reactivar a ${nombreCompleto(m)}? Volverá a la lista y al selector. Su hoja de vida se conserva y queda anotada la reincorporación.`)) return;
+      m.activo=true; (m.anotaciones=m.anotaciones||[]).push({id:uid(),tipo:"Reincorporación",fecha:todayISO(),institucion:"5ª Compañía Germania",detalle:"Reincorporación (rescate desde Buscar persona)",registradoEn:new Date().toISOString()});
+      delete m.motivoBaja; delete m.fechaBaja; delete m.obsBaja;
+      await renumerarYGuardar(); refrescarTodo();
+      msg.classList.remove("err"); msg.textContent=`${nombreCompleto(m)} fue reactivado.`;
+    }else if(tipo==="restaurar"){
+      const base=await rescateLeer(TEST_BASELINE_KEY), orig=(base&&base[ROSTER_KEY]||[]).find(x=>String(x.id)===b.dataset.id);
+      if(!orig) throw new Error("La copia ya no está disponible.");
+      if(rutLimpio(orig.rut)&&ROSTER.some(x=>rutLimpio(x.rut)===rutLimpio(orig.rut))) throw new Error("Ya existe en la nómina; no se duplicó.");
+      if(!confirm(`¿Restaurar la ficha de ${nombreCompleto(orig)} tal como estaba en la copia (con sus cursos y anotaciones) y dejarla activa?`)) return;
+      const copia=JSON.parse(JSON.stringify(orig)); copia.activo=true; delete copia.motivoBaja; delete copia.fechaBaja; delete copia.obsBaja;
+      ROSTER.push(copia); await renumerarYGuardar(); refrescarTodo();
+      msg.classList.remove("err"); msg.textContent=`${nombreCompleto(copia)} fue restaurado desde la copia.`;
+    }else if(tipo==="cargar"){
+      const p=RESCATE_ULT[Number(b.dataset.i)]?.p; if(!p) return;
+      const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||""; };
+      set("fiNombre",p.nombre); set("fiApPat",p.apellidoPaterno); set("fiApMat",p.apellidoMaterno); set("fiRut",p.rut);
+      document.getElementById("fiCategoria").value="Operativo";
+      const fi=document.getElementById("fiMsg"); fi.classList.remove("err");
+      fi.textContent="Datos cargados. Completa la fecha de ingreso (define el N° de lista) y el teléfono, revisa la calidad y toca «Registrar ingreso».";
+      document.getElementById("fiIngreso").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("fiIngreso").focus();
+    }
+  }catch(e){ msg.textContent=e.message; msg.classList.add("err"); }
 });
 
 /* ============ NÓMINA ============ */

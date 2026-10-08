@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { ensureSchema, readState, writeState, addToList } from "../../../../lib/state-store.js";
 
 export const runtime = "nodejs";
 
@@ -8,25 +9,6 @@ const reserved = (key) => key.startsWith("security:");
 function sqlClient() {
   if (!process.env.DATABASE_URL) return null;
   return neon(process.env.DATABASE_URL);
-}
-
-/* La tabla se verifica una sola vez por instancia de la función, no en cada
-   solicitud. Si falla, se vuelve a intentar en la siguiente. */
-let schemaListo = null;
-function ensureSchema(sql) {
-  if (!schemaListo) {
-    schemaListo = (async () => {
-      await sql`
-        CREATE TABLE IF NOT EXISTS app_state (
-          key text PRIMARY KEY,
-          value jsonb NOT NULL,
-          updated_at timestamptz NOT NULL DEFAULT now()
-        )
-      `;
-      await sql`CREATE INDEX IF NOT EXISTS app_state_updated_at_idx ON app_state(updated_at DESC)`;
-    })().catch((error) => { schemaListo = null; throw error; });
-  }
-  return schemaListo;
 }
 
 export async function GET(_request, { params }) {
@@ -39,8 +21,8 @@ export async function GET(_request, { params }) {
 
   try {
     await ensureSchema(sql);
-    const rows = await sql`SELECT value FROM app_state WHERE key = ${key} LIMIT 1`;
-    return Response.json({ value: rows?.[0]?.value ?? null }, { headers: { "Cache-Control": "no-store" } });
+    const estado = await readState(sql, key);
+    return Response.json({ value: estado.value ?? null, version: estado.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state GET failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
@@ -67,18 +49,43 @@ export async function PUT(request, { params }) {
   catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
   if (!Object.prototype.hasOwnProperty.call(body, "value")) return Response.json({ error: "missing_value" }, { status: 400 });
 
+  const ifVersion = Object.prototype.hasOwnProperty.call(body, "ifVersion") && Number.isInteger(body.ifVersion) ? body.ifVersion : null;
+
   try {
     await ensureSchema(sql);
-    const value = JSON.stringify(body.value);
-    await sql`
-      INSERT INTO app_state (key, value, updated_at)
-      VALUES (${key}, ${value}::jsonb, now())
-      ON CONFLICT (key)
-      DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-    `;
-    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    const r = await writeState(sql, key, body.value, { ifVersion });
+    if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
+  }
+}
+
+/* Agrega un elemento a una lista sin leerla antes: {"op":"addToList","item":…,"uniqueBy":"clave","sort":"asc"} */
+export async function PATCH(request, { params }) {
+  if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
+  const { key } = await params;
+  if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
+  if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+
+  const sql = sqlClient();
+  if (!sql) return Response.json({ error: "database_not_configured" }, { status: 503 });
+
+  let body;
+  try { body = await request.json(); }
+  catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  if (body?.op !== "addToList" || !Object.prototype.hasOwnProperty.call(body, "item")) return Response.json({ error: "invalid_op" }, { status: 400 });
+  const uniqueBy = typeof body.uniqueBy === "string" ? body.uniqueBy : null;
+  const sort = body.sort === "asc" ? "asc" : null;
+
+  try {
+    await ensureSchema(sql);
+    const r = await addToList(sql, key, body.item, { uniqueBy, sort });
+    if (!r.ok) return Response.json({ error: "not_a_list" }, { status: 409 });
+    return Response.json({ ok: true, version: r.version, value: r.value }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("state PATCH failed", error);
+    return Response.json({ error: error?.message === "invalid_unique_by" ? "invalid_unique_by" : "database_error" }, { status: error?.message === "invalid_unique_by" ? 400 : 500 });
   }
 }
