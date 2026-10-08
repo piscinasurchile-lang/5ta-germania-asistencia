@@ -45,3 +45,4 @@ No fusionar si:
 | Tarjetas por cargo en Inicio | Con elección abierta Inicio muestra Voluntario (+Maquinista si conductor, +OBAC si rango, +Información si mando); desaparecen al cerrar; Mis noches en Guardia; sin IDs duplicados ni desbordes | 320/390/768/1280 |
 | Botones de Inicio | Mi estado y Emergencia · B-5 para todos; Guardia nocturna solo oficiales; CSS no queda en caché vieja (sw v6, ?v=…d) | 390/1280 |
 | OBAC | Solo ven la tarjeta OBAC Capitán, Tte 1°/2°/3° y los 2 siguientes de la precedencia (6 en total) | 390 |
+| Maquinista / vista de prueba | En toda la app dice «Maquinista» (no «Conductor»); 517 ve tarjetas Maquinista y OBAC solo lectura; voluntario marca todas las noches que quiera (mín. 2); OBAC puede sumar noches como voluntario | 390 |
