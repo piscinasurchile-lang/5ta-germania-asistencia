@@ -109,3 +109,10 @@ test("guardia: central weekly status is refreshed before assigning a role", () =
   assert.ok(refresh >= 0 && refresh < save);
   assert.ok(section.includes('p.fin===GN_ROL_PLAN.fin&&p.estado==="abierta"&&p.fin>=todayISO()'));
 });
+
+test("guardia: repeated save taps are blocked while request is pending", () => {
+  const section = app.split('on("gnRolGuardar","click",async()=>{')[1].split('on("miVoluntario","change"')[0];
+  assert.ok(section.includes("if(botonGuardar?.disabled) return"));
+  assert.ok(section.includes("if(botonGuardar) botonGuardar.disabled=true"));
+  assert.ok(section.includes("finally { if(botonGuardar) botonGuardar.disabled=false; }"));
+});
