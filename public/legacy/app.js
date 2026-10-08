@@ -1959,6 +1959,9 @@ function gnEsOficial(m){
   return t.includes("capitan")||t.includes("teniente primero")||t.includes("teniente segundo")||t.includes("teniente tercero")||t.includes("teniente 1")||t.includes("teniente 2")||t.includes("teniente 3");
 }
 async function gnGuardarRolSemanal(rol,p,who,noches,extra={}){
+  if(!Array.isArray(noches)||!noches.length||noches.some(n=>typeof n!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(n)||n<p.inicio||n>p.fin)){
+    throw new Error("Guardia: fechas de asignación inválidas o fuera de la semana.");
+  }
   const key=gnRolSemanalKey(rol,p.inicio), actual=await sGet(key,{inicio:p.inicio,fin:p.fin,rol,personas:{},historial:[]});
   if(!actual||typeof actual!=="object"||Array.isArray(actual)||!actual.personas||typeof actual.personas!=="object"||Array.isArray(actual.personas)||!Array.isArray(actual.historial)){
     throw new Error("Guardia: registro semanal inválido; se requiere conciliación antes de guardar.");
