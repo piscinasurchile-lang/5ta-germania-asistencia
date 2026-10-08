@@ -115,3 +115,21 @@ Compatibilidad: si el cliente no envía `ifVersion`, el servidor se comporta com
 - Toda sobrescritura deja copia en `app_state_history`.
 - `npm run build` pasa; la matriz de `docs/REGRESION.md` sin regresiones.
 - No se despliega a producción hasta pasar pruebas (PDF «Criterio final»).
+
+## 9. Inicio y Guardia por rol (09-2026, rama `feat/inicio-tarjetas-por-rol`)
+
+Decisiones del usuario (08-10-2026): todos son voluntarios; los oficiales tienen recursos propios y solo ellos los ven; «Sin emergencias» sirve para novedades; las ODD no se tocan todavía.
+
+**Inicio** (orden): foto + nombre + rol → «Sin emergencias» con novedades (las publican oficiales y mando; clave `novedades:v1`) → Mi estado → recordatorio de guardia → Mis accesos → minuta/tabla siempre visible (orden PDF: En cuartel, Disponibles, No disponibles, Fuera de zona, Sin marcar).
+
+**Guardia → tarjeta «Mi guardia nocturna»** con pestañas según quién eres:
+| Pestaña | Quién la ve | Qué hace |
+|---|---|---|
+| Voluntario | todos | elige noches (mín. 2), ve cupos x/3 y refuerzos, confirma o justifica |
+| Maquinista | `conductor: true` en la nómina | elige noches como maquinista (1 por noche); titular = quien eligió primero |
+| OBAC | quien figura en la precedencia vigente | elige noches como OBAC (1 por noche); titular = mejor lugar en la precedencia, los demás quedan de reserva |
+| Información | Capitán, Teniente 3° y administradores (`ADMINISTRADORES` en `germania-roles.js`, hoy clave 517) | cobertura por noche 3+1+1, faltantes, voluntarios sin elegir |
+
+Reglas: un voluntario ocupa un solo rol por noche; datos en `guardia-inscripcion:`, `guardia-maq:`, `guardia-obac:` y `guardia-confirmacion:` (+ `<inicio>:<id>`); lectura por lote `GET /api/state?prefix=`.
+Visibilidad: Programación, «Quiénes están de guardia», Informes y el acceso Oficiales solo aparecen para oficiales/mando (clase `solo-oficiales`). Es orden visual: el PIN de Oficialidad sigue siendo la protección real cuando se desactive el modo prueba.
+Pendiente: ODD con el formato de la imagen (a pedido, después), ícono/splash/Despacho B-5.

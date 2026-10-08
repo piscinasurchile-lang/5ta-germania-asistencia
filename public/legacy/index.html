@@ -345,8 +345,8 @@
   <div class="panel active" id="panel-germania">
     <div class="home-grid">
       <div id="avisosOdd" style="grid-column:1 / -1;min-width:0;"></div>
-      <div id="gnInscripcionCard" style="grid-column:1 / -1;min-width:0;"></div>
-      <div class="card">
+
+      <div class="card home-hero" style="grid-column:1 / -1;">
         <div class="volunteer-hero">
           <img id="miFoto" class="volunteer-avatar loading" src="/legacy/germania-icon.png" alt="" aria-label="Foto del voluntario">
           <div class="volunteer-who">
@@ -354,15 +354,31 @@
             <span id="miCargo">Selecciona tu nombre</span>
             <button type="button" class="photo-action" id="cambiarFotoBtn">Cambiar foto</button>
             <input type="file" id="miFotoInput" accept="image/*" style="display:none">
-            <small style="display:block;opacity:.7;font-size:11px;margin-top:3px;">Foto: se ajusta sola a 200 × 200 px (máx. 15 KB)</small>
+            <small class="photo-hint">Foto: se ajusta sola a 200 × 200 px (máx. 15 KB)</small>
           </div>
         </div>
-        <h2>¿Cuál es tu estado ahora?</h2>
-        <p class="sub">Informa tu disponibilidad para la Compañía. Tu estado se mantiene hasta que lo cambies: actualízalo cuando cambie tu situación.</p>
         <div class="field">
           <label for="miVoluntario">Voluntario que está usando este dispositivo</label>
           <select id="miVoluntario"></select>
         </div>
+      </div>
+
+      <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
+        <div class="ha-main">
+          <span class="ha-ico" aria-hidden="true">✔</span>
+          <div><strong>SIN EMERGENCIAS</strong><span>Novedades de la Compañía. Informativo: una emergencia se despacha por el canal oficial B-5.</span></div>
+        </div>
+        <div id="novedadesLista" class="ha-lista"></div>
+        <div id="novedadesAdmin" class="ha-admin" hidden>
+          <label for="novedadTexto">Nueva novedad para la Compañía</label>
+          <div class="ha-fila"><input type="text" id="novedadTexto" maxlength="280" placeholder="Ej: Ejercicio de compañía el sábado 10:00"><button type="button" class="btn small" id="novedadAgregar">Publicar</button></div>
+          <div class="status-msg" id="novedadMsg"></div>
+        </div>
+      </section>
+
+      <div class="card" id="miEstadoCard" style="grid-column:1 / -1;">
+        <h2>Mi estado</h2>
+        <p class="sub">¿Dónde estás ahora? Se mantiene hasta que lo cambies.</p>
         <div class="status-actions">
           <button class="status-choice" data-estado="cuartel"><span class="dot cuartel"></span>En cuartel</button>
           <button class="status-choice" data-estado="disponible"><span class="dot disponible"></span>Disponible</button>
@@ -372,16 +388,17 @@
         <div class="status-msg" id="miEstadoMsg"></div>
       </div>
 
-      <div class="card">
-        <h2>Accesos rápidos</h2>
-        <p class="sub">Operación diaria de la Quinta Compañía.</p>
-        <div class="quick-actions">
-          <button class="btn" type="button" data-go="lista">Asistencia</button>
-          <button class="btn" type="button" data-go="servicio">Emergencia · B-5</button>
-          <button class="btn secondary" type="button" data-go="guardia">Guardias</button>
-          <button class="btn secondary" type="button" data-go="historial">Historial</button>
-          <button class="btn secondary" type="button" data-go="panel">Informes</button>
-          <button class="btn secondary" type="button" data-go="config">Oficiales</button>
+      <div id="gnInscripcionCard" style="grid-column:1 / -1;min-width:0;"></div>
+
+      <div class="card" style="grid-column:1 / -1;">
+        <h2>Mis accesos</h2>
+        <div class="home-tiles quick-actions">
+          <button class="tile" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
+          <button class="tile" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true">🚒</span>Emergencia · B-5</button>
+          <button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Mi historial</button>
+          <button class="tile" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
+          <button class="tile" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true">📊</span>Informes</button>
+          <button class="tile solo-oficiales" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
         </div>
         <div class="test-mode">Modo de prueba: funciones abiertas para evaluación.</div>
       </div>
@@ -390,8 +407,8 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
         <div>
-          <h2>Minuta de disponibilidad</h2>
-          <p class="sub">Vista para Capitán / Oficialidad: quién está en el cuartel y quién declaró disponibilidad hoy.</p>
+          <h2>Quién está hoy · minuta de disponibilidad</h2>
+          <p class="sub">Siempre a la vista: quién está en el cuartel, quién está disponible y quién no. Se ordena: En cuartel, Disponibles, No disponibles, Fuera de zona y Sin marcar.</p>
         </div>
         <button class="btn small secondary" id="actualizarMinuta" type="button">Actualizar</button>
       </div>
@@ -581,7 +598,8 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia">
-    <div class="card gn-planner-card">
+    <div class="card" id="gnRolCard" aria-live="polite"></div>
+    <div class="card gn-planner-card solo-oficiales">
       <div class="gn-head"><div><h2>Programación de Guardia</h2><p class="sub">Semana normal: miércoles 23:00 → miércoles siguiente 07:00 · 7 turnos nocturnos.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
       <div class="gn-layout">
         <section>
@@ -612,17 +630,7 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Inscribirme a la guardia</h2>
-      <p class="sub">Toca las noches en que puedes quedarte. Elige al menos 2. Después toca «Confirmar mis noches». Lo que elijas queda guardado en GERMANIA.</p>
-      <div id="gnVolSemana" class="gn-vol-week"></div>
-      <div class="gn-actions"><button class="btn secondary" id="gnVolLimpiar">Limpiar selección</button><button class="btn" id="gnVolConfirmar">Confirmar mis noches</button></div>
-      <div class="status-msg" id="gnVolMsg"></div>
-      <h3 style="margin-top:18px">Mis guardias asignadas</h3>
-      <div id="gnMisAsignadas"></div>
-    </div>
-
-    <div class="card">
+    <div class="card solo-oficiales">
       <h2>Quiénes están de guardia</h2>
       <p class="sub">Para oficiales. Anota quién es el Oficial a cargo (OBAC), quién conduce y quiénes son los guardianes de la noche. Cada turno queda guardado con su historial.</p>
       <div class="field-row">
@@ -640,7 +648,7 @@
       <div class="status-msg" id="gnMsg"></div>
     </div>
 
-    <div class="card">
+    <div class="card solo-oficiales">
       <h2>Informes de guardia</h2>
       <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
       <div class="gn-actions"><button class="btn gold" id="gnPdfSemanal">Informe del período</button><button class="btn gold" id="gnPdfEstad">Informe estadístico</button><button class="btn" id="gnInfo">Infografía de guardias</button></div>
@@ -1358,5 +1366,6 @@
 <div id="testModeBanner" style="position:fixed;left:10px;right:10px;bottom:10px;z-index:99999;background:#7a1018;color:#fff;border:2px solid #d4af37;border-radius:12px;padding:9px 12px;box-shadow:0 4px 18px #0008;display:flex;gap:10px;align-items:center;justify-content:space-between;font:700 12px/1.25 Arial,sans-serif"><span><b>🧪 MODO PRUEBA</b><span class="tm-det"> · Los cambios quedan marcados y la nómina base está protegida.</span></span><button id="testCleanBtn" type="button" disabled title="Bloqueado: la app ya tiene datos reales y esta restauración los borraría" style="background:#111;color:#8a8a8a;border:1px solid #555;border-radius:8px;padding:7px 9px;font-weight:700;cursor:not-allowed;">Restauración bloqueada</button></div>
 <script src="/legacy/germania-fixes-20261002.js?v=20261002"></script>
 <script src="./germania-ui.js?v=20261008"></script>
+<script src="./germania-roles.js?v=20261008b"></script>
 </body>
 </html>

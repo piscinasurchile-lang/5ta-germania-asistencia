@@ -4952,18 +4952,20 @@ async function renderDisponibilidad(){
     const r=d[p.id]||{};
     return String(r.ciudad||r.localidad||r.ubicacion||r.lugar||"").trim();
   };
+  /* Orden del PDF: 1) En cuartel, 2) Disponibles, 3) No disponibles, 4) Fuera de zona, 5) Sin marcar */
   const prioridad=(p)=>{
     const e=d[p.id]?.estado||"";
     if(e==="cuartel") return 0;
     if(e==="disponible") return 1;
-    if(e==="fuera") return 2;
-    return 3;   /* "no disponible" y quienes aún no han declarado nada quedan en el mismo grupo */
+    if(e==="no") return 2;
+    if(e==="fuera") return 3;
+    return 4;
   };
   const rosterOrdenado=sortedRoster(false).map((p,indice)=>({p,indice})).sort((a,b)=>{
     const pa=prioridad(a.p), pb=prioridad(b.p);
     if(pa!==pb) return pa-pb;
     if(pa===0||pa===1) return apellido(a.p).localeCompare(apellido(b.p),"es",{sensitivity:"base"})||a.indice-b.indice;
-    if(pa===2){
+    if(pa===3){
       const porCiudad=ciudad(a.p).localeCompare(ciudad(b.p),"es",{sensitivity:"base"});
       return porCiudad||apellido(a.p).localeCompare(apellido(b.p),"es",{sensitivity:"base"})||a.indice-b.indice;
     }
@@ -4972,14 +4974,14 @@ async function renderDisponibilidad(){
 
   const html=rosterOrdenado.map(p=>{
     const r=d[p.id]||{}, declarado=!!r.estado, e=r.estado||"no";
-    cuenta[e]=(cuenta[e]||0)+1;
+    if(declarado) cuenta[e]=(cuenta[e]||0)+1; else cuenta.sin=(cuenta.sin||0)+1;
     if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
     const desde=dispDesdeTexto(r);
     const foto=fotoVoluntario(p);
     return `<tr data-voluntario-id="${esc(String(p.id))}">
       <td style="text-align:center;"><img src="${foto}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto;"></td>
       <td class="name-col">${esc(nombreCompleto(p))}</td>
-      <td>${'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e])}${declarado?'':' <small style="color:var(--muted)">· sin declarar</small>'}</td>
+      <td>${declarado?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span class="dot sin"></span>Sin marcar'}</td>
       <td>${desde}</td>
       <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
       <td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td></tr>`;
@@ -4990,7 +4992,8 @@ async function renderDisponibilidad(){
     <div class="summary-item"><div class="big">${cuenta.cuartel}</div><div class="lbl">En cuartel</div></div>
     <div class="summary-item"><div class="big">${cuenta.disponible}</div><div class="lbl">Disponibles</div></div>
     <div class="summary-item"><div class="big">${cuenta.no}</div><div class="lbl">No disponibles</div></div>
-    <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de Villarrica</div></div>
+    <div class="summary-item"><div class="big">${cuenta.fuera}</div><div class="lbl">Fuera de zona</div></div>
+    <div class="summary-item"><div class="big">${cuenta.sin||0}</div><div class="lbl">Sin marcar</div></div>
     <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Conductores disponibles</div></div>`;
   if(resumen.innerHTML!==resumenHtml) resumen.innerHTML=resumenHtml;
   const sel=document.getElementById("miVoluntario");
