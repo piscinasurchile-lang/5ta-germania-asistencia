@@ -29,8 +29,14 @@ async function cargarPrec(){
   var lista=(d&&Array.isArray(d.lista)&&d.lista.length)?d.lista:PRECEDENCIA_ODD_037.lista.map(function(x,i){ return {n:i+1,cargo:x[0],nombre:x[1]}; });
   PREC={};
   lista.forEach(function(x){ var m=precBuscar(x.nombre); if(m&&PREC[String(m.id)]==null) PREC[String(m.id)]=x.n; });
+  /* OBAC (obligatorios): Capitán y Tenientes 1°, 2° y 3°, y se completan con los siguientes
+     voluntarios del orden de precedencia hasta OBAC_TOTAL. */
+  OBAC={}; var n=0, ya=function(x){ var m=precBuscar(x.nombre); return m?String(m.id):null; };
+  lista.forEach(function(x){ if(/^(capit|teniente (primero|segundo|tercero))/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
+  lista.forEach(function(x){ if(n>=OBAC_TOTAL) return; if(/^(voluntari)/i.test(String(x.cargo||""))){ var id=ya(x); if(id&&!OBAC[id]){ OBAC[id]=true; n++; } } });
 }
-function rangoObac(m){ return m&&PREC&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
+var OBAC=null, OBAC_TOTAL=6;
+function rangoObac(m){ return m&&PREC&&OBAC&&OBAC[String(m.id)]&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function corto(m){ return m?[m.nombre,m.apellidoPaterno].filter(Boolean).join(" "):"—"; }
 function porId(id){ return ROSTER.find(function(x){ return String(x.id)===String(id); })||null; }
 

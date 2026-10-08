@@ -111,11 +111,6 @@ tbody tr:nth-child(even) td{background:rgba(255,255,255,.025);}
 .badge{padding:var(--sp-1) var(--sp-3);font-size:14px;}
 
 /* ---------- Guardia Nocturna ---------- */
-#panel-guardia{counter-reset:gn;}
-#panel-guardia > .card{counter-increment:gn;}
-#panel-guardia > .card > h2::before,#panel-guardia > .card > .gn-head h2::before{
-  content:counter(gn);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-right:var(--sp-2);border-radius:50%;
-  background:var(--g-gold);color:var(--g-gold-ink);font:700 16px/1 'Oswald',sans-serif;vertical-align:middle;}
 .gn-layout{gap:var(--sp-4);}
 .gn-weekdays,.gn-calendar{grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--sp-1);}
 .gn-layout > *{min-width:0;}

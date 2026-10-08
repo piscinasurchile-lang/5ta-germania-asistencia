@@ -272,7 +272,7 @@ function renumerar(){
   activos.forEach((m,i)=>{ m.n = i+1; });
   ROSTER.filter(m=>m.activo===false).forEach(m=>{ m.n=null; });
 }
-async function renumerarYGuardar(){ renumerar(); await saveRoster(); }
+async function renumerarYGuardar(permitirQuitar){ renumerar(); await saveRoster(permitirQuitar); }
 
 let ROSTER=[], TIPOS=[], CARGOS=[], currentRecord={}, currentPartClave=null;
 
@@ -363,6 +363,7 @@ async function rawSet(k,v,opts){
   const silencioso=CLAVES_SILENCIOSAS.has(k);
   const ifVersion=opts&&Number.isInteger(opts.ifVersion)?opts.ifVersion:undefined;
   const cuerpo={value:v}; if(ifVersion!==undefined) cuerpo.ifVersion=ifVersion;
+  if(opts&&Array.isArray(opts.permitirQuitar)) cuerpo.permitirQuitar=opts.permitirQuitar;
   if(!silencioso) avisoGuardado("guardando","Guardando…");
   let r;
   try{
@@ -374,6 +375,16 @@ async function rawSet(k,v,opts){
     throw new Error("GERMANIA no pudo guardar en la base central.");
   }
   if(r.status===409){
+    let cj=null; try{ cj=await r.clone().json(); }catch(x){}
+    if(cj&&cj.error==="roster_quita_voluntarios"){
+      const lista=(cj.faltan||[]).map(x=>"• "+(x.clave?x.clave+" · ":"")+x.nombre).join("\n");
+      const e=new Error("La nómina quitaba voluntarios y NO se guardó.");
+      e.rosterProtegido=true; e.faltan=cj.faltan||[];
+      avisoGuardado("error","No se guardó: se perdían voluntarios de la nómina.",9000);
+      setTimeout(()=>{ try{ location.reload(); }catch(x){} },400);
+      alert("REGLA DE LA NÓMINA: ningún voluntario se pierde sin avisar.\n\nEste cambio dejaba fuera a:\n"+lista+"\n\nNo se guardó nada. Si de verdad es una baja o un error, hazlo desde «Bajas y eliminación». Recarga la página para ver la nómina vigente.");
+      throw e;
+    }
     const e=new Error("Otra persona guardó este mismo dato mientras tú lo editabas. Para no borrar su trabajo, no se guardó nada. Toca «Ver lo último guardado» y vuelve a hacer tus cambios.");
     e.conflicto=true;
     if(!silencioso) avisoGuardado("error","Otra persona cambió esto antes que tú. No se guardó nada para no borrar su trabajo.",9000);
@@ -596,7 +607,7 @@ async function loadAll(){
   ORDEN_MODO = ordenL || "oficialidad";
   renumerar();
 }
-async function saveRoster(){ await sSet(ROSTER_KEY,ROSTER); }
+async function saveRoster(permitirQuitar){ await sSet(ROSTER_KEY,ROSTER,permitirQuitar&&permitirQuitar.length?{permitirQuitar}:undefined); }
 async function saveTipos(){ await sSet(TIPOS_KEY,TIPOS); }
 async function saveCargos(){ await sSet(CARGOS_KEY,CARGOS); }
 
@@ -1824,10 +1835,18 @@ async function renderGnPlanner(){
  cal.querySelectorAll("[data-gn-date]").forEach(b=>b.onclick=()=>gnElegirSemana(b.dataset.gnDate));
  renderGnPeriodo(); await renderGnVoluntario();
 }
-function gnElegirSemana(iso){
- const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ const msg=document.getElementById("gnPlanMsg"); msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
- gnPlanDraft={inicio:iso,fin:gnAdd(iso,7),domingoDiurno:false,lugarDomingo:"domicilio",actividad:"",estado:"planificacion",confirmado:false};
- document.getElementById("gnDomingoDiurno").checked=false; document.getElementById("gnDomingoOpciones").style.display="none"; renderGnPlanner();
+/* hora de Chile como valor de <input type="datetime-local"> */
+function gnLocalInput(ms){ return new Date(ms).toLocaleString("sv-SE",{timeZone:"America/Santiago"}).replace(" ","T").slice(0,16); }
+async function gnElegirSemana(iso){
+ const msg=document.getElementById("gnPlanMsg");
+ const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
+ /* si la semana ya está guardada, se abre esa (para cerrar, suspender o borrar); si no, es una nueva */
+ let guardada=null; try{ guardada=await sGet(gnPlanKey(iso),null); }catch(e){}
+ if(guardada&&guardada.estado!=="anulada"){ gnPlanDraft={...guardada,guardada:true}; msg.textContent="Semana ya programada ("+({abierta:"inscripción abierta",suspendida:"suspendida",asignacion:"en asignación"}[guardada.estado]||guardada.estado)+")."; }
+ else { gnPlanDraft={inicio:iso,fin:gnAdd(iso,7),domingoDiurno:false,lugarDomingo:"domicilio",actividad:"",estado:"planificacion",confirmado:false}; msg.textContent=""; }
+ const cv=document.getElementById("gnCierrePeriodo");
+ if(cv){ const ms=gnPlanDraft.cierre?Date.parse(gnPlanDraft.cierre):instanteChile(gnAdd(iso,-1),"19:00"); cv.value=gnLocalInput(ms); }
+ document.getElementById("gnDomingoDiurno").checked=!!gnPlanDraft.domingoDiurno; document.getElementById("gnDomingoOpciones").style.display=gnPlanDraft.domingoDiurno?"block":"none"; renderGnPlanner();
 }
 function renderGnPeriodo(){
  const box=document.getElementById("gnPeriodoResumen"); if(!box) return;
@@ -1836,15 +1855,42 @@ function renderGnPeriodo(){
 }
 on("gnPrevMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()-1,1);renderGnPlanner();});
 on("gnNextMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()+1,1);renderGnPlanner();});
-on("gnBorrarSemana","click",()=>{gnPlanDraft=null;document.getElementById("gnDomingoDiurno").checked=false;document.getElementById("gnDomingoOpciones").style.display="none";document.getElementById("gnPlanMsg").textContent="Selección borrada.";renderGnPlanner();});
+on("gnBorrarSemana","click",async()=>{
+ const msg=document.getElementById("gnPlanMsg");
+ if(gnPlanDraft&&gnPlanDraft.guardada){
+  const ini=gnPlanDraft.inicio; let n=0; try{ const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+ini+":"),{cache:"no-store"}); n=(await r.json()).items.length; }catch(e){}
+  if(!confirm("¿Borrar la semana "+gnFmt(ini)+" → "+gnFmt(gnPlanDraft.fin)+"?"+(n?"\n\nHay "+n+" voluntario(s) con noches elegidas. Dejarán de verse en Inicio y Guardia (la base conserva el historial).":""))) return;
+  try{
+   const plan=await sGet(gnPlanKey(ini),null); if(plan) await sSet(gnPlanKey(ini),{...plan,estado:"anulada",anuladaEn:new Date().toISOString()});
+   const idx=await sGet(GN_PLAN_INDEX,[]); await sSet(GN_PLAN_INDEX,(Array.isArray(idx)?idx:[]).filter(x=>x!==ini));
+   gnPlanDraft=null; msg.textContent="Semana borrada."; GN_INS_CACHE=null; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true);
+  }catch(e){ msg.textContent="No se pudo borrar. Inténtalo de nuevo."; }
+  return;
+ }
+ gnPlanDraft=null;document.getElementById("gnDomingoDiurno").checked=false;document.getElementById("gnDomingoOpciones").style.display="none";msg.textContent="Selección borrada.";renderGnPlanner();
+});
+on("gnCerrarInscripcion","click",async()=>{
+ const msg=document.getElementById("gnPlanMsg");
+ if(!gnPlanDraft||!gnPlanDraft.guardada){ msg.textContent="Primero toca el miércoles de una semana ya programada."; return; }
+ if(!confirm("¿Cerrar la inscripción de la semana "+gnFmt(gnPlanDraft.inicio)+" ahora? Los voluntarios ya no podrán elegir noches.")) return;
+ try{ const plan=await sGet(gnPlanKey(gnPlanDraft.inicio),null); await sSet(gnPlanKey(gnPlanDraft.inicio),{...plan,cierre:new Date().toISOString()}); gnPlanDraft.cierre=new Date().toISOString(); GN_INS_CACHE=null; msg.textContent="Inscripción cerrada."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){ msg.textContent="No se pudo cerrar."; }
+});
+on("gnSuspenderPeriodo","click",async()=>{
+ const msg=document.getElementById("gnPlanMsg");
+ if(!gnPlanDraft||!gnPlanDraft.guardada){ msg.textContent="Primero toca el miércoles de una semana ya programada."; return; }
+ const motivo=prompt("Motivo de la suspensión (se mostrará en el calendario):","Suspendida por Comandancia"); if(motivo===null) return;
+ try{ const plan=await sGet(gnPlanKey(gnPlanDraft.inicio),null); await sSet(gnPlanKey(gnPlanDraft.inicio),{...plan,estado:"suspendida",nota:motivo}); gnPlanDraft=null; GN_INS_CACHE=null; msg.textContent="Semana suspendida."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){ msg.textContent="No se pudo suspender."; }
+});
 on("gnDomingoDiurno","change",e=>{if(!gnPlanDraft){e.target.checked=false;return;}gnPlanDraft.domingoDiurno=e.target.checked;document.getElementById("gnDomingoOpciones").style.display=e.target.checked?"block":"none";renderGnPlanner();});
 document.querySelectorAll("[data-gn-lugar]").forEach(b=>b.addEventListener("click",()=>{if(!gnPlanDraft)return;gnPlanDraft.lugarDomingo=b.dataset.gnLugar;document.querySelectorAll("[data-gn-lugar]").forEach(x=>x.classList.toggle("active",x===b));document.getElementById("gnActividadWrap").style.display=b.dataset.gnLugar==="cuartel"?"block":"none";}));
 on("gnActividad","input",e=>{if(gnPlanDraft)gnPlanDraft.actividad=e.target.value;});
 on("gnConfirmarPeriodo","click",async()=>{
  const msg=document.getElementById("gnPlanMsg"); if(!gnPlanDraft){msg.textContent="Selecciona primero un miércoles.";return;}
  const cv=document.getElementById("gnCierrePeriodo")?.value;
-  const cierre=new Date(cv?instanteChile(cv.slice(0,10),cv.slice(11,16)):instanteChile(gnAdd(gnPlanDraft.inicio,-1),"19:00")).toISOString();   /* por omisión: el martes anterior, 19:00 */
-  const p={...gnPlanDraft,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"23:00",horaFin:"08:00",cierre};
+  const cierreMs=cv?instanteChile(cv.slice(0,10),cv.slice(11,16)):instanteChile(gnAdd(gnPlanDraft.inicio,-1),"19:00");   /* por omisión: el martes anterior, 19:00 */
+  if(!(cierreMs>Date.now())){ msg.textContent="La fecha de cierre ya pasó ("+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"). Elige una fecha y hora futuras: así los voluntarios pueden elegir sus noches."; return; }
+  const cierre=new Date(cierreMs).toISOString();
+  const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"23:00",horaFin:"08:00",cierre};
  await gnSavePlan(p); gnPlanDraft=null; msg.textContent="Período confirmado. Inscripción abierta."; await renderGnPlanner();
 });
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
@@ -3688,7 +3734,7 @@ function renderCfgRoster(){
     }));
     tr.querySelector("[data-del]").addEventListener("click",async()=>{
       if(!confirm(`¿Eliminar a ${nombreCompleto(p)} de la nómina? El historial ya guardado no se modifica.\n\nSi solo se retiró de la Compañía, es mejor darlo de baja en la sección "Bajas y eliminación".`)) return;
-      ROSTER=ROSTER.filter(x=>x.id!==p.id); await renumerarYGuardar();
+      ROSTER=ROSTER.filter(x=>x.id!==p.id); await renumerarYGuardar([p.id]);
       refrescarTodo();
     });
     body.appendChild(tr);
@@ -4279,7 +4325,7 @@ on("borrarMiembroBtn","click",async()=>{
   auditoria.push({fecha:new Date().toISOString(),voluntarioId:m.id,nombre:nombreCompleto(m),motivo:"Registro creado por error",validaciones:["Capitán","Secretario","Ayudante"]});
   await sSet("auditoria:eliminaciones:v1",auditoria);
   ROSTER=ROSTER.filter(x=>x.id!==id);
-  await renumerarYGuardar();
+  await renumerarYGuardar([id]);
   ["borrarValCapitan","borrarValSecretario","borrarValAyudante"].forEach(x=>{const el=document.getElementById(x);if(el)el.checked=false;});
   msg.classList.remove("err");
   msg.textContent=`${nombreCompleto(m)} fue eliminado tras la triple validación. La autorización quedó registrada en auditoría.`;
@@ -4537,13 +4583,15 @@ on("impRestaurar","change",async(e)=>{
   try{
     const r=JSON.parse(await f.text());
     if(!r.roster) throw new Error("formato");
-    ROSTER=r.roster; TIPOS=r.tipos||TIPOS; CARGOS=r.cargos||CARGOS; ORDEN_MODO=r.orden||ORDEN_MODO;
+    /* Regla: restaurar nunca deja fuera a un voluntario que hoy está en la nómina. */
+    const enResp=new Set(r.roster.map(x=>String(x.id))), conservados=ROSTER.filter(x=>!enResp.has(String(x.id)));
+    ROSTER=r.roster.concat(conservados); TIPOS=r.tipos||TIPOS; CARGOS=r.cargos||CARGOS; ORDEN_MODO=r.orden||ORDEN_MODO;
     await saveRoster(); await saveTipos(); await saveCargos(); await sSet("orden:v1",ORDEN_MODO);
     await sSet(INDEX_KEY, r.indice||[]);
     for(const [clave,parte] of Object.entries(r.partes||{})) await sSet("parte:"+clave,parte);
     renderTipoSelect(); populateTipoFilters(); refrescarTodo();
     msg.classList.remove("err");
-    msg.textContent="Respaldo restaurado.";
+    msg.textContent="Respaldo restaurado."+(conservados.length?` Se conservaron ${conservados.length} voluntario(s) que hoy están en la nómina y no venían en el respaldo.`:"");
   }catch(err){
     msg.classList.add("err"); msg.textContent="El archivo no es un respaldo válido.";
   }
