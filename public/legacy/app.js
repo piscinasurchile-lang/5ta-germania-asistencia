@@ -1942,7 +1942,7 @@ on("gnVolLimpiar","click",()=>{gnVolSel.clear();document.querySelectorAll("[data
 on("gnVolConfirmar","click",async()=>{
  const msg=document.getElementById("gnVolMsg"),who=document.getElementById("miVoluntario")?.value,ini=document.getElementById("gnVolSemana")?.dataset.inicio;
  if(!who){msg.textContent="Selecciona tu nombre primero.";return;} if(!ini){msg.textContent="No hay inscripción abierta.";return;} if(gnVolSel.size<2){msg.textContent="Debes seleccionar al menos 2 noches.";return;}
- await sSet("guardia-inscripcion:"+ini+":"+who,[...gnVolSel].sort()); msg.textContent="Disponibilidad guardada en GERMANIA."; 
+ try { await gnInsGuardar({inicio:ini},who,[...gnVolSel].sort(),null); msg.textContent="Inscripción confirmada en GERMANIA."; await renderGnInscripcionCard(); } catch(e) { msg.textContent=e.message||"No se pudo confirmar la inscripción."; } 
 });
 
 /* ============ GUARDIA NOCTURNA ============ */
