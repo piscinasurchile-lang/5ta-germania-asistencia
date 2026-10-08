@@ -107,5 +107,5 @@ test("guardia: central weekly status is refreshed before assigning a role", () =
   const refresh = section.indexOf("const planesVigentes=await gnPlanes()");
   const save = section.indexOf("await gnGuardarRolSemanal(");
   assert.ok(refresh >= 0 && refresh < save);
-  assert.ok(section.includes('p.estado==="abierta"&&p.fin>=todayISO()'));
+  assert.ok(section.includes('p.fin===GN_ROL_PLAN.fin&&p.estado==="abierta"&&p.fin>=todayISO()'));
 });
