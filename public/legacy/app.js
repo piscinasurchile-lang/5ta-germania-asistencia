@@ -3793,12 +3793,26 @@ function hvActual(){ return ROSTER.find(m=>m.id===document.getElementById("hvMie
 
 function renderHvSelect(){
   const sel=document.getElementById("hvMiembro"), cur=sel.value;
-  sel.innerHTML=sortedRoster(true).map(p=>{
+  const filtro=document.getElementById("hvBuscar");
+  const q=String(filtro?.value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const lista=sortedRoster(true).filter(p=>{
+    if(!q) return true;
+    const texto=[nombreCompleto(p),p.rut,p.clave,p.n].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const rut=String(p.rut||"").replace(/[^0-9k]/gi,"").toLowerCase();
+    const limpio=q.replace(/[^0-9k]/gi,"");
+    return texto.includes(q)||(limpio.length>=3&&rut.includes(limpio));
+  });
+  sel.innerHTML=lista.map(p=>{
     const a=acronimoCargo(p);
     return `<option value="${p.id}">N°${p.n} — ${esc(nombreCompleto(p))}${a?" ("+esc(a)+")":""}${p.activo===false?" [baja]":""}</option>`;
   }).join("");
-  if(ROSTER.find(m=>m.id===cur)) sel.value=cur;
+  if(lista.some(m=>m.id===cur)) sel.value=cur;
+  if(!lista.length) sel.innerHTML='<option value="">Sin coincidencias</option>';
 }
+document.getElementById("hvBuscar")?.addEventListener("input",()=>{
+  renderHvSelect();
+  renderHoja();
+});
 
 function renderHvInstitucional(){
   const m=hvActual(), box=document.getElementById("hvInstitucional");
