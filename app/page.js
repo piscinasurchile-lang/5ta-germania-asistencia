@@ -10,6 +10,7 @@ export default function Page() {
   const [frameKey, setFrameKey] = useState(0);
   const [updating, setUpdating] = useState(false);
   const versionRef = useRef(null);
+  const reintentoAuto = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), 8000);
@@ -79,6 +80,15 @@ export default function Page() {
       return !el || el.classList.contains("hidden") || win.getComputedStyle(el).display === "none";
     };
 
+    // La aplicación «arrancó» cuando su primer paso ya pintó el escudo. Si el archivo principal
+    // no llegó o falló, la pantalla quedaría vacía (sin nombres ni datos) aunque el aviso de carga
+    // ya se haya ocultado: en ese caso NO se libera la interfaz; se reintenta una vez y luego se
+    // muestra «Reintentar».
+    const iniciada = () => {
+      try { return !!frame.contentDocument?.getElementById("crestImg")?.getAttribute("src"); }
+      catch { return true; }
+    };
+
     // Usar tiempo real: algunas tablets Android reducen la frecuencia de
     // setInterval y un contador por "ticks" puede tardar 4x o más.
     const startedAt = Date.now();
@@ -87,6 +97,7 @@ export default function Page() {
       const elapsed = Date.now() - startedAt;
       if (isLoaded()) {
         clearInterval(interval);
+        reintentoAuto.current = false;
         setReady(true);
         setFailed(false);
         return;
@@ -94,7 +105,15 @@ export default function Page() {
 
       // A los 6 s liberamos primero la interfaz. La recuperación secundaria
       // corre después y nunca puede dejar el cargador esperando una petición.
-      if (elapsed >= 6000 && !recoveryStarted) {
+      if (elapsed >= 9000 && !recoveryStarted && !iniciada() && !reintentoAuto.current) {
+        reintentoAuto.current = true;
+        clearInterval(interval);
+        setSlow(false);
+        setFrameKey(k => k + 1);
+        return;
+      }
+
+      if (elapsed >= 6000 && !recoveryStarted && iniciada()) {
         recoveryStarted = true;
         loading()?.classList.add("hidden");
         setReady(true);
