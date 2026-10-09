@@ -1,8 +1,18 @@
+import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { redactRoster, preserveMedical } from "../../../../lib/medical-access.js";
 import { ensureSchema, readState, writeState, addToList, voluntariosQuitados } from "../../../../lib/state-store.js";
 
 export const runtime = "nodejs";
+function officialSession(request) {
+  const secret = process.env.SESSION_SECRET || process.env.OFFICIALITY_PIN;
+  const got = request.cookies?.get("quinta_oficialidad")?.value || "";
+  if (!secret || !got) return false;
+  const expected = crypto.createHmac("sha256", secret).update("5ta-germania-oficialidad").digest("hex");
+  const a = Buffer.from(got), b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a,b);
+}
+
 
 const valid = (key) => /^[a-zA-Z0-9:_-]{1,100}$/.test(key);
 const reserved = (key) => key.startsWith("security:");
@@ -12,7 +22,7 @@ function sqlClient() {
   return neon(process.env.DATABASE_URL);
 }
 
-export async function GET(_request, { params }) {
+export async function GET(request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
@@ -23,7 +33,7 @@ export async function GET(_request, { params }) {
   try {
     await ensureSchema(sql);
     const estado = await readState(sql, key);
-    return Response.json({ value: key === "roster:v8" ? redactRoster(estado.value) : (estado.value ?? null), version: estado.version }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ value: key === "roster:v8" && !officialSession(request) ? redactRoster(estado.value) : (estado.value ?? null), version: estado.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state GET failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
@@ -62,9 +72,9 @@ export async function PUT(request, { params }) {
         return Response.json({ error: "roster_quita_voluntarios", faltan }, { status: 409, headers: { "Cache-Control": "no-store" } });
       }
     }
-    const safeValue = key === "roster:v8" ? preserveMedical(actual.value, body.value) : body.value;
+    const safeValue = key === "roster:v8" && !officialSession(request) ? preserveMedical(actual.value, body.value) : body.value;
     const r = await writeState(sql, key, safeValue, { ifVersion });
-    if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: key === "roster:v8" ? redactRoster(r.value) : r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: key === "roster:v8" && !officialSession(request) ? redactRoster(r.value) : r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
     return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
