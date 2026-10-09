@@ -321,18 +321,22 @@ function lsAvailable(){ return false; }
 const SVER=new Map();
 async function sGet(k,f){ return (await sGetV(k,f)).value; }
 async function sGetV(k,f){
-  let r;
-  try{
-    r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
-  }catch(error){
-    STORAGE_MODE="sin-conexion";
-    actualizarAvisoAlmacenamiento();
-    throw new Error("GERMANIA no pudo consultar la base central.");
+  /* Una lectura que falla por red o por un error momentáneo del servidor (5xx) se reintenta hasta
+     3 veces antes de rendirse: es solo lectura, repetirla no cambia nada. Sin esto, un fallo suelto
+     al abrir dejaba la lista de voluntarios vacía. */
+  let r=null, causa="";
+  for(let intento=0;intento<3;intento++){
+    try{
+      r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});
+      if(r.ok||r.status<500) break;
+      causa=String(r.status);
+    }catch(error){ r=null; causa="red"; }
+    if(intento<2) await new Promise(res=>setTimeout(res,500+intento*700));
   }
-  if(!r.ok){
+  if(!r||!r.ok){
     STORAGE_MODE="sin-conexion";
     actualizarAvisoAlmacenamiento();
-    throw new Error("GERMANIA no pudo consultar la base central ("+r.status+").");
+    throw new Error("GERMANIA no pudo consultar la base central ("+(r?r.status:causa)+").");
   }
   const data=await r.json();
   STORAGE_MODE="servidor";
@@ -5168,6 +5172,13 @@ function switchTab(name){ if(window.__mostrarPestana) window.__mostrarPestana(na
   }catch(e){
     console.error("Inicio GERMANIA:",e);
     ocultarCarga();
+    /* Sin la nómina no hay a quién elegir: se avisa con claridad y se ofrece reintentar (antes quedaba la lista vacía sin explicación). */
+    const w=document.getElementById("storageWarn");
+    if(w){
+      w.style.display="block";
+      w.innerHTML='No se pudieron cargar los datos de GERMANIA. <button type="button" id="reintentarCargaBtn" style="margin-left:8px;min-height:44px;padding:8px 16px;font-weight:700;">Reintentar</button>';
+      const b=document.getElementById("reintentarCargaBtn"); if(b) b.addEventListener("click",()=>location.reload());
+    }
   }
   // La minuta se actualiza al entrar, al marcar estado o al pulsar Actualizar. Sin refresco periódico para evitar parpadeos.
 })();
