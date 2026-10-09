@@ -4211,6 +4211,22 @@ on("hvPdfBtn","click",async()=>{
     ]
   });
 
+  if(document.getElementById("hvPdfMedico")?.checked){
+    doc.autoTable({
+      startY:doc.lastAutoTable.finalY+6, styles:{fontSize:9}, headStyles:{fillColor:[130,40,40]},
+      head:[["Ficha de emergencia médica (información declarada)",""]],
+      body:[
+        ["Grupo sanguíneo declarado",m.grupoSanguineo||"No informado"],
+        ["Alergias conocidas",m.alergias||"No informado"],
+        ["Alergias a medicamentos",m.alergiasMedicamentos||"No informado"],
+        ["Condiciones médicas relevantes",m.condicionesMedicas||"No informado"],
+        ["Medicamentos habituales",m.medicacionHabitual||"No informado"],
+        ["Contacto de emergencia",[m.emergenciaNombre,m.emergenciaTelefono].filter(Boolean).join(" · ")||"No informado"],
+        ["Advertencia","Verificar alergias y grupo sanguíneo en el centro asistencial. No sustituye evaluación ni pruebas hospitalarias."]
+      ]
+    });
+  }
+
   const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"")<(b.fecha||"")?1:-1);
   doc.autoTable({
     startY:doc.lastAutoTable.finalY+6, styles:{fontSize:9}, headStyles:{fillColor:[179,36,28]},
