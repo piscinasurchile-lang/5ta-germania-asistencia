@@ -3873,12 +3873,11 @@ async function renderHvFoto(){
   const m=hvActual(), img=document.getElementById("hvFoto");
   if(!img) return;
   if(!m){ img.src=fotoPlaceholder(); return; }
-  if(!m.foto){
-    const anterior=await sGet(fotoKey(m.id),null);
-    if(anterior){ m.foto=anterior; await saveRoster(); }
-  }
+  // La Hoja de Vida usa la misma fotografía central que el perfil y B-5.
+  // Los respaldos antiguos solo se leen: nunca sobrescribir fotos al abrir una vista.
+  const foto=await fotoUnificada(m);
   if(hvActual()?.id!==m.id) return;
-  img.src=fotoVoluntario(m);
+  img.src=foto;
 }
 /* ============ FOTOS DE VOLUNTARIOS: se reducen al subir ============
    Cada foto se ajusta sola a 200 x 200 px (recorte centrado) y se comprime a
@@ -4718,6 +4717,16 @@ const FOTOS_OFICIALES_POR_RUT={
   "16.711.219-6":"/legacy/voluntarios/andres-herrera-santander.webp"
 };
 function fotoVoluntario(p){ return (p&&p.foto)||(p&&FOTOS_OFICIALES_POR_RUT[p.rut])||fotoPlaceholder(); }
+async function fotoUnificada(p){
+  if(!p) return fotoPlaceholder();
+  // La única foto editable es ROSTER[id].foto, compartida por Hoja de Vida,
+  // Inicio, Disponibilidad y Emergencia B-5.
+  if(p.foto) return p.foto;
+  // Compatibilidad de lectura con fotografías antiguas, sin escrituras
+  // automáticas que puedan sobrescribir una edición simultánea.
+  const antigua=await sGet(fotoKey(p.id),null);
+  return antigua||fotoVoluntario(p);
+}
 function fotoPlaceholder(){
   return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171d22"/><circle cx="50" cy="38" r="19" fill="#ffcc00"/><path d="M18 92c4-24 18-36 32-36s28 12 32 36" fill="#ffcc00"/></svg>');
 }
@@ -4729,11 +4738,9 @@ async function refrescarIdentidadVoluntario(){
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Elige tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
   cargo.textContent=p.cargo||"Voluntario";
-  if(!p.foto){
-    const anterior=await sGet(fotoKey(p.id),null);
-    if(anterior){ p.foto=anterior; await saveRoster(); }
-  }
-  img.src=fotoVoluntario(p);
+  // El perfil de inicio consulta la foto canónica de la Hoja de Vida.
+  const foto=await fotoUnificada(p);
+  img.src=foto;
 }
 const DEVICE_VOLUNTARIO_KEY="germania:voluntario-dispositivo:v2";
 function guardarVoluntarioDispositivo(p){
