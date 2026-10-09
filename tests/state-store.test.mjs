@@ -181,3 +181,31 @@ test("regla de la nómina: no se pierde un voluntario sin autorización expresa"
   assert.deepEqual(voluntariosQuitados(actual, []).map((x) => x.id), ["a", "b"]);
   assert.deepEqual(voluntariosQuitados(null, actual), []);
 });
+
+test("esquema al día: el arranque hace 1 consulta y no ejecuta DDL", async () => {
+  const { sql } = await nuevaBase();
+  const consultas = [];
+  const espia = (strings, ...vals) => { consultas.push(strings.join("?")); return sql(strings, ...vals); };
+  resetSchemaCache();
+  await ensureSchema(espia);
+  assert.equal(consultas.length, 1);
+  assert.ok(!/CREATE|ALTER/i.test(consultas[0]));
+});
+
+test("esquema: un choque de migración simultánea no deja la app sin datos", async () => {
+  const { sql } = await nuevaBase();
+  // simula una base vieja (sin la función con «roster») y un choque en el primer intento
+  await sql`CREATE OR REPLACE FUNCTION app_state_keep_history() RETURNS trigger AS $fn$ BEGIN RETURN NEW; END $fn$ LANGUAGE plpgsql`;
+  let fallo = true;
+  const conChoque = (strings, ...vals) => {
+    if (fallo && /CREATE OR REPLACE FUNCTION/.test(strings.join(""))) { fallo = false; return Promise.reject(new Error("tuple concurrently updated")); }
+    return sql(strings, ...vals);
+  };
+  resetSchemaCache();
+  await ensureSchema(conChoque);
+  assert.equal(fallo, false);
+  await writeState(sql, "roster:v8", [{ id: "1" }]);
+  await writeState(sql, "roster:v8", [{ id: "1" }, { id: "2" }]);
+  const h = await listHistory(sql, "roster:v8");
+  assert.equal(h.length, 1);
+});
