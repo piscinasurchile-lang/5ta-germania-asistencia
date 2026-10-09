@@ -3847,9 +3847,25 @@ function renderHvDatos(){
 document.querySelectorAll("[data-hv]").forEach(inp=>{
   inp.addEventListener("change",async()=>{
     const m=hvActual(); if(!m) return;
-    m[inp.dataset.hv]=inp.value;
-    await saveRoster();
-    if(inp.dataset.hv==="fechaNacimiento") renderHvInstitucional();
+    const campo=inp.dataset.hv, anterior=m[campo]||"", nuevo=inp.value;
+    if(String(anterior)===nuevo) return;
+    // Mantener historial de correcciones sin guardar valores médicos antiguos
+    // en la bitácora general de la nómina.
+    const medicos=new Set(["grupoSanguineo","alergias","alergiasMedicamentos","condicionesMedicas","medicacionHabitual"]);
+    if(!medicos.has(campo)){
+      m.correccionesFicha=m.correccionesFicha||[];
+      m.correccionesFicha.push({campo,fecha:new Date().toISOString(),valorAnterior:anterior,valorNuevo:nuevo});
+    }
+    m[campo]=nuevo;
+    try{
+      await saveRoster();
+      if(campo==="fechaNacimiento") renderHvInstitucional();
+    }catch(e){
+      m[campo]=anterior;
+      if(!medicos.has(campo)) m.correccionesFicha.pop();
+      inp.value=anterior;
+      alert("No se pudo guardar el cambio. Se restauró el valor anterior.");
+    }
   });
 });
 
@@ -4158,7 +4174,11 @@ on("premiosCalcularBtn","click",async()=>{
 function renderHoja(){
   renderHvInstitucional(); renderHvDatos(); renderHvFoto(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
-on("hvMiembro","change",renderHoja);
+on("hvMiembro","change",()=>{
+  const check=document.getElementById("hvPdfMedico");
+  if(check) check.checked=false;
+  renderHoja();
+});
 
 on("hvTransferenciaPdfBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
