@@ -2947,11 +2947,16 @@ function firmaParteImportado(pt){
 }
 const PANEL_CACHE_TTL_MS=5*60*1000;
 const panelCache=new Map();
+const panelEnCurso=new Map();
 function invalidarCachePanel(){ panelCache.clear(); }
 async function datosPanel(desde,hasta){
   const cacheKey=desde+"|"+hasta;
   const cached=panelCache.get(cacheKey);
   if(cached && (Date.now()-cached.ts)<PANEL_CACHE_TTL_MS) return cached.data;
+  // Compartir la misma carga cuando el usuario pulsa varias veces Informes
+  // o solicita un PDF del mismo período antes de terminar las lecturas.
+  if(panelEnCurso.has(cacheKey)) return panelEnCurso.get(cacheKey);
+  const carga=(async()=>{
   const idx=(await getIndex()).filter(i=>i.date>=desde && i.date<=hasta);
   const resultados=[];
   // Carga acotada: evita lanzar cientos de lecturas simultáneas contra Neon.
@@ -2988,6 +2993,10 @@ async function datosPanel(desde,hasta){
   const data={partes, activos, stats};
   panelCache.set(cacheKey,{ts:Date.now(),data});
   return data;
+  })();
+  panelEnCurso.set(cacheKey,carga);
+  try{ return await carga; }
+  finally{ if(panelEnCurso.get(cacheKey)===carga) panelEnCurso.delete(cacheKey); }
 }
 
 /* Estadísticas separadas: concurrencia institucional y asistencia individual. */
