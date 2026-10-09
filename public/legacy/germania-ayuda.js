@@ -41,7 +41,7 @@ var AY={
  "#gnBorrarSemana":"Anula la semana seleccionada y avisa cuántas inscripciones tenía. Pide confirmación.",
  "#gnCerrarInscripcion":"Cierra ahora la elección de noches y pasa la semana a asignación. Las tarjetas dejan de aparecer.",
  "#gnSuspenderPeriodo":"Suspende la semana por orden de Comandancia. Queda marcada en rojo.",
- "#gnConfirmarPeriodo":"Abre la elección: aparecen las tarjetas a voluntarios, maquinistas, OBAC y mando hasta la fecha de cierre.",
+ "#gnConfirmarPeriodo":"Abre la elección: aparecen las tarjetas a voluntarios, maquinistas y mando hasta la fecha de cierre. El OBAC de cada noche se calcula solo por precedencia.",
  "#gnAgregarBtn":"Agrega al voluntario seleccionado a la guardia.",
  "#gnGuardarBtn":"Guarda la guardia de esa noche.",
  "#gnPdfBtn":"PDF de esta guardia.",

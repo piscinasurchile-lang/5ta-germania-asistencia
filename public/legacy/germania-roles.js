@@ -40,6 +40,8 @@ var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
 var VISTA_PRUEBA=["517"];
 function vistaPrueba(m,kind){ return !!m&&VISTA_PRUEBA.indexOf(String(m.clave))>=0&&!(kind==="maq"?esMaquinista(m):rangoObac(m)!=null); }
+function rangoPrec(m){ return m&&PREC&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
+function porPrec(a,b){ var ra=rangoPrec(a), rb=rangoPrec(b); return (ra==null?9999:ra)-(rb==null?9999:rb); }
 function rangoObac(m){ return m&&PREC&&OBAC&&OBAC[String(m.id)]&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function corto(m){ return m?[m.nombre,m.apellidoPaterno].filter(Boolean).join(" "):"—"; }
 function porId(id){ return ROSTER.find(function(x){ return String(x.id)===String(id); })||null; }
@@ -115,27 +117,33 @@ async function planActivo(who){
   return {p:p,abierto:!!abierto,lista:ab.filter(function(x){ return x.fin>=hoy; }),ahora:ahora};
 }
 async function cargarSemana(p){
-  var pref=["guardia-inscripcion:","guardia-maq:","guardia-obac:","guardia-confirmacion:"];
+  var pref=["guardia-inscripcion:","guardia-maq:","guardia-obac:","guardia-confirmacion:"]; /* guardia-obac: solo se lee por compatibilidad; ya no se usa */
   var r=await Promise.all(pref.map(function(x){ return leerPrefijo(x+p.inicio+":"); }));
   return r.map(function(items,i){ var o={}, n=(pref[i]+p.inicio+":").length; items.forEach(function(it){ o[it.key.slice(n)]=it.value; }); return o; });
 }
 /* un registro puede ser "2026-10-14" o {f,t} */
 function regs(v){ return (Array.isArray(v)?v:[]).map(function(x){ return typeof x==="string"?{f:x,t:""}:x; }).filter(function(x){ return x&&x.f; }); }
 function tiene(v,f){ return regs(v).some(function(x){ return x.f===f; }); }
+/* OBAC automático (ADR 0009): ya no hay ficha de OBAC. Cada noche, el OBAC es el inscrito de mayor precedencia
+   (germania-obac.js). Si no hay maquinista inscrito, el inscrito habilitado de mayor precedencia (hoy el Capitán)
+   pasa a maquinista y el OBAC es el siguiente. Los registros antiguos guardia-obac:* no se usan ni se borran. */
+function ordenPrec(){ return PREC?Object.keys(PREC).sort(function(a,b){ return PREC[a]-PREC[b]; }):[]; }
 function cobertura(S,noches){
-  var DOT=GN_DOTACION_MIN;
+  var DOT=GN_DOTACION_MIN, orden=ordenPrec();
   return noches.map(function(f){
-    var maq=[],obac=[],vol=[],ocupado={};
-    Object.keys(S.maq).forEach(function(id){ var r=regs(S.maq[id]).filter(function(x){ return x.f===f; })[0]; if(r) maq.push({id:id,t:r.t||""}); });
-    Object.keys(S.obac).forEach(function(id){ var r=regs(S.obac[id]).filter(function(x){ return x.f===f; })[0]; if(r) obac.push({id:id,t:r.t||"",n:PREC&&PREC[id]!=null?PREC[id]:9999}); });
+    var maq=[],obac=[],vol=[],maqIds={};
+    Object.keys(S.maq).forEach(function(id){ var r=regs(S.maq[id]).filter(function(x){ return x.f===f; })[0]; if(r){ maq.push({id:id,t:r.t||""}); maqIds[id]=1; } });
     maq.sort(function(a,b){ return a.t.localeCompare(b.t); });
-    obac.sort(function(a,b){ return a.n-b.n||a.t.localeCompare(b.t); });
-    maq.forEach(function(x){ ocupado[x.id]=1; }); obac.forEach(function(x){ ocupado[x.id]=1; });
-    Object.keys(S.vol).forEach(function(id){ if(!ocupado[id]&&tiene(S.vol[id],f)){ var m=porId(id); if(m&&m.activo!==false) vol.push(id); } });
+    var inscritos=maq.map(function(x){ return {id:x.id,maquinista:true}; });
+    Object.keys(S.vol).forEach(function(id){ if(!maqIds[id]&&tiene(S.vol[id],f)){ var m=porId(id); if(m&&m.activo!==false) inscritos.push({id:id,habilitadoMaquinista:esMaquinista(m)}); } });
+    var r=window.GermaniaObac?window.GermaniaObac.obacDeNoche({inscritos:inscritos,orden:orden}):{obac:null,voluntarios:[],maquinistaPorRespaldo:null,empateSinPosicion:false};
+    if(r.maquinistaPorRespaldo&&!maq.length) maq.push({id:r.maquinistaPorRespaldo,t:"",respaldo:true});
+    if(r.obac) obac.push({id:r.obac,t:"",n:PREC&&PREC[r.obac]!=null?PREC[r.obac]:9999});
+    vol=r.voluntarios.slice();
     var refuerzos=Math.max(0,vol.length-DOT.voluntarios);
     var completa=vol.length>=DOT.voluntarios&&maq.length>=DOT.conductor&&obac.length>=DOT.obac;
     var nada=!vol.length&&!maq.length&&!obac.length;
-    return {f:f,vol:vol,maq:maq,obac:obac,refuerzos:refuerzos,completa:completa,nada:nada};
+    return {f:f,vol:vol,maq:maq,obac:obac,refuerzos:refuerzos,completa:completa,nada:nada,empate:!!r.empateSinPosicion};
   });
 }
 function nombreNoche(f){ var d=new Date(f+"T12:00"); var w=d.toLocaleDateString("es-CL",{weekday:"short"}).replace(".",""); return {w:w.charAt(0).toUpperCase()+w.slice(1),d:f.slice(8)}; }
@@ -200,7 +208,7 @@ GR.abiertas={vol:true};
 function resumenInfo(pn,D){
   var DOT=GN_DOTACION_MIN, ok=D.cov.filter(function(c){ return c.completa; }).length;
   pn.innerHTML='<p class="sub"><b>'+ok+' de '+D.cov.length+' noches completas</b> (cada una: '+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC).</p><div class="gr-lista">'+D.cov.map(function(c){
-    var n=nombreNoche(c.f); return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+'</em>':'')+(c.completa?'<span class="gr-chip verde">Completa</span>':'<span class="gr-chip rojo">Incompleta</span>')+'</div><div class="gr-nc-fila">🚒 '+(c.maq[0]?'<b>'+E(corto(porId(c.maq[0].id)))+'</b>':'<span class="falta">falta</span>')+' · 🎧 '+(c.obac[0]?'<b>'+E(corto(porId(c.obac[0].id)))+'</b>':'<span class="falta">falta</span>')+'</div></div></div>'; }).join("")+'</div><button type="button" class="btn secondary gr-grande" id="irGestionar">Gestionar la guardia</button>';
+    var n=nombreNoche(c.f); return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+'</em>':'')+(c.completa?'<span class="gr-chip verde">Completa</span>':'<span class="gr-chip rojo">Incompleta</span>')+'</div><div class="gr-nc-fila">🚒 '+(c.maq[0]?'<b>'+E(corto(porId(c.maq[0].id)))+'</b>':'<span class="falta">falta</span>')+' · 🎧 '+(c.obac[0]?'<b>'+E(corto(porId(c.obac[0].id)))+'</b>':'<span class="falta">falta</span>')+'</div>'+(c.empate?'<div class="gr-nc-fila"><small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC lo confirma el Teniente 3°.</small></div>':'')+'</div></div>'; }).join("")+'</div><button type="button" class="btn secondary gr-grande" id="irGestionar">Gestionar la guardia</button>';
   var g=$("irGestionar"); if(g) g.onclick=function(){ ponerVista("gestion"); window.__mostrarPestana("guardia"); };
 }
 function pintarInicioRoles(){
@@ -209,7 +217,6 @@ function pintarInicioRoles(){
   if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; return; }
   var cards=[["vol","Voluntario","🙋"]];
   if(esMaquinista(m)||vistaPrueba(m,"maq")) cards.push(["maq","Maquinista","🚒"]);
-  if(rangoObac(m)!=null||vistaPrueba(m,"obac")) cards.push(["obac","OBAC","🎧"]);
   if(esMando(m)) cards.push(["info","Información","📋"]);
   var hasta=new Date(gnInsCierreMs(D.p)).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
   box.innerHTML=cards.map(function(c){
@@ -264,18 +271,18 @@ function panelVol(pn,D){
   var h='<h3 class="gr-t">Elige tus noches</h3>';
   h+='<p class="sub gr-como">Toca cada noche en que puedes venir y al final presiona <b>Confirmar</b>.</p>';
   h+=D.abierto?'<p class="sub">Cierra el <b>'+E(cierreTxt)+'</b> · faltan '+E(avisoRestante(cierre,Date.now()))+'. Elige <b>como mínimo '+GN_NOCHES_MIN+' noches</b>; puedes marcar todas las que quieras.</p>':'<p class="sub">La inscripción de esta semana está cerrada.</p>';
-  var rolSet={}; regs(D.S.maq[who]).concat(regs(D.S.obac[who])).forEach(function(x){ rolSet[x.f]=1; });
+  var rolSet={}; regs(D.S.maq[who]).forEach(function(x){ rolSet[x.f]=1; });
   var nRol=Object.keys(rolSet).length, unionN=Object.keys(Object.assign({},rolSet,(function(){ var o={}; sel.forEach(function(f){ o[f]=1; }); return o; })())).length;
   if(nRol){
     var nomsRol=Object.keys(rolSet).sort().map(function(f){ var q=nombreNoche(f); return q.w+" "+q.d; }).join(", ");
     var falta=Math.max(0,GN_NOCHES_MIN-unionN);
-    h+='<div class="gr-semana"><div class="gr-sem-fila ok">✔ <b>Tu noche como '+(rangoObac(D.m)!=null?"OBAC":"maquinista")+'</b> (obligatoria): '+E(nomsRol)+'</div>'
+    h+='<div class="gr-semana"><div class="gr-sem-fila ok">✔ <b>Tu noche como maquinista</b> (obligatoria): '+E(nomsRol)+'</div>'
       +(falta?'<div class="gr-sem-fila falta">➕ Te falta <b>'+falta+' noche'+(falta===1?"":"s")+' como voluntario</b> para llegar al mínimo de '+GN_NOCHES_MIN+'. Elígela abajo.</div>':'<div class="gr-sem-fila ok">✔ Ya cumples el mínimo de '+GN_NOCHES_MIN+' noches. Puedes sumar más si quieres.</div>')+'</div>';
   }
   if(confirmada) h+='<p class="gr-ok">✔ Confirmadas: '+saved.length+' noche(s) como voluntario. Puedes <b>agregar más</b> mientras la elección esté abierta.</p>';
   h+='<div class="gr-noches">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mia=sel.has(c.f), fija=saved.indexOf(c.f)>=0;
-    var otro=tiene(D.S.maq[who],c.f)?"maquinista":tiene(D.S.obac[who],c.f)?"OBAC":"";
+    var otro=tiene(D.S.maq[who],c.f)?"maquinista":"";
     var dis=!editable||!!otro||fija;
     return '<button type="button" class="gr-noche'+(mia?" on":"")+(c.completa?" full":"")+'" data-gr-vol="'+c.f+'"'+(dis?" disabled":"")+' aria-pressed="'+mia+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><span class="gr-info"><span class="gr-hora">'+E(horaNoche(c.f))+' → '+E(HORARIOS.fin)+'</span>'+(otro?'<span class="gr-cupo">Ya la elegiste como '+otro+'</span>':filaCupos(c))+'</span><span class="gr-marca" aria-hidden="true">'+(mia?"✔":"")+'</span></button>';
   }).join("")+'</div>';
@@ -341,18 +348,17 @@ async function guardarRol(D,kind){
 function panelInfo(pn,D){
   var DOT=GN_DOTACION_MIN, completas=D.cov.filter(function(c){ return c.completa; }).length;
   var activos=ROSTER.filter(function(x){ return x.activo!==false; });
-  var sinConf=activos.filter(function(x){ var id=String(x.id), c=D.S.conf[id]; return !(c&&(c.cumple||c.justificacion))&&!regs(D.S.maq[id]).length&&!regs(D.S.obac[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
-  var h='<h3 class="gr-t">Cobertura de la semana</h3><div class="gr-nota info"><span aria-hidden="true">👥</span><p>Cada noche debe contar con <b>'+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC</b>. El OBAC titular se asigna según la precedencia; los voluntarios de más son refuerzos. <b>'+completas+' de '+D.cov.length+' noches completas.</b></p></div>';
+  var sinConf=activos.filter(function(x){ var id=String(x.id), c=D.S.conf[id]; return !(c&&(c.cumple||c.justificacion))&&!regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
+  var h='<h3 class="gr-t">Cobertura de la semana</h3><div class="gr-nota info"><span aria-hidden="true">👥</span><p>Cada noche debe contar con <b>'+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC</b>. El OBAC se calcula solo: es el inscrito de mayor precedencia de esa noche (si no hay maquinista, el Capitán pasa a maquinista y el OBAC es el siguiente). Los voluntarios de más son refuerzos. <b>'+completas+' de '+D.cov.length+' noches completas.</b></p></div>';
   h+='<div class="gr-lista">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mt=c.maq[0]?corto(porId(c.maq[0].id)):null, ot=c.obac[0]?corto(porId(c.obac[0].id)):null;
     var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
     return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
       +'<div class="gr-nc-fila"><span aria-hidden="true">🚒</span> Maquinista: '+(mt?'<b>'+E(mt)+'</b>':'<span class="falta">falta</span>')+'</div>'
       +'<div class="gr-nc-fila"><span aria-hidden="true">🎧</span> OBAC: '+(ot?'<b>'+E(ot)+'</b>':'<span class="falta">falta</span>')+'</div>'
+      +(c.empate?'<small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC de esta noche debe confirmarlo el Teniente 3° en la Revisión.</small>':'')
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
-  var obacSin=activos.filter(function(x){ return rangoObac(x)!=null&&!regs(D.S.obac[String(x.id)]).length; });
-  h+='<details class="gr-det"'+(obacSin.length?' open':'')+'><summary>OBAC sin su noche (obligatoria): '+obacSin.length+'</summary><p>'+(obacSin.length?obacSin.map(function(x){ return E(corto(x)); }).join(" · "):"Todos los OBAC ya eligieron su noche.")+'</p></details>';
   h+='<details class="gr-det"><summary>Sin elegir noches: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><p>'+(sinConf.length?sinConf.map(function(x){ return E(corto(x)); }).join(" · "):"Todos eligieron sus noches.")+'</p></details>';
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';
@@ -455,7 +461,7 @@ async function panelRev(pn,D){
   var ocup=function(f){ var n=doc.noches[f],o={}; n.vol.forEach(function(x){ o[x]=1; }); if(n.maq) o[n.maq]=1; if(n.obac) o[n.obac]=1; return o; };
   var activos=ROSTER.filter(function(x){ return x.activo!==false; }).sort(function(a,b){ return nombreCompleto(a).localeCompare(nombreCompleto(b),"es"); });
   var maqs=activos.filter(esMaquinista);
-  var obacs=activos.filter(function(x){ return rangoObac(x)!=null; }).sort(function(a,b){ return rangoObac(a)-rangoObac(b); });
+  var obacs=activos.slice().sort(porPrec); /* corrección manual del OBAC: cualquier voluntario, ordenado por precedencia */
   var h='<h3 class="gr-t">Revisión de la dotación</h3>';
   h+='<div class="gr-nota '+(aprobada?"maq":"info")+'"><span aria-hidden="true">'+(aprobada?"🔒":"🛠")+'</span><p>'+(aprobada?'<b>Aprobada</b> por '+E(doc.aprobadaPor)+' el '+E(new Date(doc.aprobadaEn).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}))+'. Lista para la ODD. Para cambiar algo, reabre la revisión.':'<b>Borrador.</b> Corrige lo que haga falta y aprueba. '+completas+' de '+cov.length+' noches completas · '+dif+' cambio'+(dif===1?"":"s")+' sobre lo inscrito.')+'</p></div>';
   h+='<div class="gr-lista">'+cov.map(function(c){
@@ -463,7 +469,7 @@ async function panelRev(pn,D){
     var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
     var chips=c.n.vol.map(function(id){ return '<span class="rv-chip">'+E(nom(id))+(aprobada?'':'<button type="button" data-rv-del="'+c.f+'|'+E(id)+'" aria-label="Quitar a '+E(nom(id))+'">×</button>')+'</span>'; }).join("")||'<span class="falta">sin voluntarios</span>';
     var optV='<option value="">+ Agregar voluntario</option>'+activos.filter(function(x){ return !o[String(x.id)]; }).map(function(x){ return '<option value="'+E(x.id)+'">'+E(corto(x))+'</option>'; }).join("");
-    var optM=function(lista,cur,rol){ var l=lista.slice(); if(cur&&!l.some(function(x){ return String(x.id)===cur; })){ var m=porId(cur); if(m) l.unshift(m); } return '<option value="">— sin asignar —</option>'+l.map(function(x){ var id=String(x.id); var bloq=o[id]&&id!==cur; return '<option value="'+E(id)+'"'+(id===cur?" selected":"")+(bloq?" disabled":"")+'>'+(rol==="obac"&&rangoObac(x)!=null?"N° "+rangoObac(x)+" · ":"")+E(corto(x))+(bloq?" (ya asignado)":"")+'</option>'; }).join(""); };
+    var optM=function(lista,cur,rol){ var l=lista.slice(); if(cur&&!l.some(function(x){ return String(x.id)===cur; })){ var m=porId(cur); if(m) l.unshift(m); } return '<option value="">— sin asignar —</option>'+l.map(function(x){ var id=String(x.id); var bloq=o[id]&&id!==cur; return '<option value="'+E(id)+'"'+(id===cur?" selected":"")+(bloq?" disabled":"")+'>'+(rol==="obac"&&rangoPrec(x)!=null?"N° "+rangoPrec(x)+" · ":"")+E(corto(x))+(bloq?" (ya asignado)":"")+'</option>'; }).join(""); };
     return '<div class="gr-nc rv'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body">'
       +'<div class="gr-nc-top"><b>'+c.n.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
       +'<div class="rv-chips">'+chips+'</div>'
@@ -628,8 +634,8 @@ async function panelRep(pn,D){
   h+=pend.length?'<div class="gr-lista">'+pend.map(function(a){
     var n=nombreNoche(a.f), dot=revs.map(function(x){ return x.value; }).filter(function(d){ return d&&d.noches&&d.noches[a.f]; })[0], nn=dot?dot.noches[a.f]:null;
     var ocup={}; if(nn){ (nn.vol||[]).forEach(function(x){ ocup[x]=1; }); if(nn.maq) ocup[nn.maq]=1; if(nn.obac) ocup[nn.obac]=1; }
-    var lista=a.rol==="maq"?activos.filter(esMaquinista):a.rol==="obac"?activos.filter(function(x){ return rangoObac(x)!=null; }).sort(function(x,y){ return rangoObac(x)-rangoObac(y); }):activos;
-    var opts='<option value="">— elegir reemplazo —</option>'+lista.filter(function(x){ return !ocup[String(x.id)]; }).map(function(x){ return '<option value="'+E(x.id)+'">'+(a.rol==="obac"?"N° "+rangoObac(x)+" · ":"")+E(corto(x))+'</option>'; }).join("");
+    var lista=a.rol==="maq"?activos.filter(esMaquinista):a.rol==="obac"?activos.slice().sort(porPrec):activos;
+    var opts='<option value="">— elegir reemplazo —</option>'+lista.filter(function(x){ return !ocup[String(x.id)]; }).map(function(x){ return '<option value="'+E(x.id)+'">'+(a.rol==="obac"&&rangoPrec(x)!=null?"N° "+rangoPrec(x)+" · ":"")+E(corto(x))+'</option>'; }).join("");
     return '<div class="gr-nc aviso"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nom(a.id))+'</b><span class="gr-chip rojo">No puede · '+E(ROL_NOCHE[a.rol]||"")+'</span></div>'+(a.motivo?'<div class="gr-nc-fila">Motivo: '+E(a.motivo)+'</div>':'')+(dot&&dot.estado==="aprobada"?'':'<small class="gr-falta">La dotación de esa semana aún no está aprobada.</small>')+'<select class="rv-sel" data-rp-sel="'+E(a.f+"|"+a.id)+'" aria-label="Reemplazo para '+E(nom(a.id))+'">'+opts+'</select><div class="gr-fila-btn"><button type="button" class="btn" data-rp-ok="'+E(a.f+"|"+a.id)+'">Asignar reemplazo</button><button type="button" class="btn secondary" data-rp-no="'+E(a.f+"|"+a.id)+'">Sin reemplazo</button></div></div></div>';
   }).join("")+'</div>':'<div class="empty">No hay avisos pendientes.</div>';
   if(hechos.length) h+='<details class="gr-det"><summary>Reemplazos hechos: '+hechos.length+'</summary><ul class="rv-cambios">'+hechos.map(function(a){ var n=nombreNoche(a.f); return '<li><b>'+E(n.w+" "+n.d)+'</b> · '+E(nom(a.reemplazoId))+' cubre a '+E(nom(a.id))+' ('+E(ROL_NOCHE[a.rol]||"")+')</li>'; }).join("")+'</ul></details>';
