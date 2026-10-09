@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { redactRoster, preserveMedical } from "../../../../lib/medical-access.js";
 import { ensureSchema, readState, writeState, addToList, voluntariosQuitados } from "../../../../lib/state-store.js";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export async function GET(_request, { params }) {
   try {
     await ensureSchema(sql);
     const estado = await readState(sql, key);
-    return Response.json({ value: estado.value ?? null, version: estado.version }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ value: key === "roster:v8" ? redactRoster(estado.value) : (estado.value ?? null), version: estado.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state GET failed", error);
     return Response.json({ error: "database_error" }, { status: 500 });
@@ -53,15 +54,17 @@ export async function PUT(request, { params }) {
 
   try {
     await ensureSchema(sql);
+    let actual;
     if (key === "roster:v8") {
-      const actual = await readState(sql, key);
+      actual = await readState(sql, key);
       const faltan = voluntariosQuitados(actual.value, body.value, body.permitirQuitar);
       if (faltan.length) {
         return Response.json({ error: "roster_quita_voluntarios", faltan }, { status: 409, headers: { "Cache-Control": "no-store" } });
       }
     }
-    const r = await writeState(sql, key, body.value, { ifVersion });
-    if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    const safeValue = key === "roster:v8" ? preserveMedical(actual.value, body.value) : body.value;
+    const r = await writeState(sql, key, safeValue, { ifVersion });
+    if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: key === "roster:v8" ? redactRoster(r.value) : r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
     return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
@@ -88,6 +91,7 @@ export async function PATCH(request, { params }) {
 
   try {
     await ensureSchema(sql);
+    if (key === "roster:v8") return Response.json({ error: "roster_patch_forbidden" }, { status: 403 });
     const r = await addToList(sql, key, body.item, { uniqueBy, sort });
     if (!r.ok) return Response.json({ error: "not_a_list" }, { status: 409 });
     return Response.json({ ok: true, version: r.version, value: r.value }, { headers: { "Cache-Control": "no-store" } });
