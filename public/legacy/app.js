@@ -3584,7 +3584,7 @@ on("guardarOficialidadBtn","click",async()=>{
     const codigoFuncional=codigoOperativo(m,cargo);
     const detalle=`Ejerció como ${cargo} durante ${anio}. Código funcional del cargo: ${codigoFuncional}. Código personal conservado: ${m.clave||"sin registrar"}.`;
     if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
-      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",institucion:"5ª Compañía Germania",detalle});
+      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:"",institucion:"5ª Compañía Germania",detalle,registradoEn:new Date().toISOString(),fechaPendiente:true});
     }
   });
   await saveRoster();
@@ -4023,14 +4023,20 @@ on("hvAgregarBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
   const detalle=document.getElementById("hvDetalle").value.trim();
   if(!detalle) return;
+  const tipo=document.getElementById("hvTipo").value;
+  const fecha=document.getElementById("hvFecha").value;
+  const fechaHasta=document.getElementById("hvFechaHasta").value;
+  const institucion=document.getElementById("hvInstitucionEvento").value.trim();
+  const documento=document.getElementById("hvDocumento").value.trim();
+  if(!fecha){ alert("Indica la fecha real del antecedente. No se asigna automáticamente la fecha de hoy."); return; }
+  if(fechaHasta&&fechaHasta<fecha){ alert("La fecha de término no puede ser anterior al inicio."); return; }
   if(!m.anotaciones) m.anotaciones=[];
+  const repetido=m.anotaciones.some(a=>[a.tipo,a.fecha,a.fechaHasta||"",a.institucion||"",a.documento||"",a.detalle||""].join("|")===
+    [tipo,fecha,fechaHasta,institucion,documento,detalle].join("|"));
+  if(repetido){ alert("Este antecedente ya existe en la hoja de vida. No se duplicó."); return; }
   m.anotaciones.push({
-    id:uid(), tipo:document.getElementById("hvTipo").value,
-    fecha:document.getElementById("hvFecha").value||todayISO(),
-    fechaHasta:document.getElementById("hvFechaHasta").value||"",
-    institucion:document.getElementById("hvInstitucionEvento").value.trim(),
-    documento:document.getElementById("hvDocumento").value.trim(),
-    detalle, registradoEn:new Date().toISOString()
+    id:uid(), tipo, fecha, fechaHasta, institucion, documento, detalle,
+    registradoEn:new Date().toISOString()
   });
   await saveRoster();
   ["hvDetalle","hvFechaHasta","hvInstitucionEvento","hvDocumento"].forEach(id=>document.getElementById(id).value="");
@@ -4201,7 +4207,6 @@ on("hvPdfBtn","click",async()=>{
       ["Fecha de nacimiento",m.fechaNacimiento||"—"],["Estado civil",m.estadoCivil||"—"],
       ["Profesión u oficio",m.profesion||"—"],["Teléfono",m.telefono||"—"],
       ["Correo",m.email||"—"],["Dirección",m.direccion||"—"],
-      ["Grupo sanguíneo",m.grupoSanguineo||"—"],["Alergias / condiciones",m.alergias||"—"],
       ["Contacto de emergencia",[m.emergenciaNombre,m.emergenciaTelefono,m.emergenciaRelacion].filter(Boolean).join(" · ")||"—"]
     ]
   });
