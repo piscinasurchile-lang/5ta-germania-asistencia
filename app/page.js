@@ -99,17 +99,10 @@ export default function Page() {
         loading()?.classList.add("hidden");
         setReady(true);
         setFailed(false);
-        Promise.resolve().then(async () => {
-          try {
-            if (typeof win.cargarMiVoluntario === "function") win.cargarMiVoluntario();
-            if (typeof win.renderTipoSelect === "function") win.renderTipoSelect();
-            if (typeof win.populateTipoFilters === "function") win.populateTipoFilters();
-            if (typeof win.loadListaForSelection === "function") await win.loadListaForSelection();
-            if (typeof win.renderDisponibilidad === "function") await win.renderDisponibilidad();
-          } catch (e) {
-            console.error("Recuperación Tablet B-5:", e);
-          }
-        });
+        // El inicio de legacy/app.js ya realiza estas cargas. No repetirlas
+        // desde el contenedor: en conexiones lentas duplicaban lecturas y
+        // renderizados mientras la inicialización original seguía en curso.
+        // La recuperación aquí solo libera la máscara visual; no escribe datos.
       }
 
       if (elapsed >= 12000) {
