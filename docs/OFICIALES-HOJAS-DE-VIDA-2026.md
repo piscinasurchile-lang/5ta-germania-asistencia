@@ -25,3 +25,13 @@ Acceso solo desde Oficiales, con controles de autorización reales en servidor p
 
 ## Compatibilidad y pruebas
 Carga diferida de ficha y documentos. Mantener lista de precedencia `precedencia:v1` y ADR 0009 para OBAC; no mezclar con estadísticas de asistencia ni guardias. Verificar regresión en ingreso, nómina, disponibilidad, ODD, guardias, informes y fotos. Probar PDF y auditoría. Ningún cambio en producción sin revisión y pruebas.
+
+## Auditoría inicial de implementación existente (09-10-2026)
+- **YA EXISTE** en `public/legacy/index.html`: Oficiales → Hoja de vida (`sub-hoja`), selector `hvMiembro`, fotografía maestra (`hvFoto`), trayectoria previa, datos personales, anotaciones con fecha desde/hasta, botón PDF (`hvPdfBtn`), copia para traslado (`hvTransferenciaPdfBtn`), e ingreso de voluntarios como submódulo separado.
+- **YA EXISTE** Oficiales → Nómina y comparador `germania-nomina.js`; preservar comparación no destructiva.
+- **BRECHA CONFIRMADA** en `public/legacy/app.js` función `renderCfgRoster`: la edición `data-f="cargo"` hace `m[f]=v` y `saveRoster()`, sin generar en esa ruta un período histórico con fecha efectiva. Revisar también cambios desde `oficialidad` antes de implementar una única operación de cambio de cargo.
+- **BRECHA DE USABILIDAD**: hoja de vida tiene selector, pero no campo de búsqueda por nombre/RUT/código en el encabezado.
+- **NO CONFIRMADO**: si `hvPdfBtn` y `hvTransferenciaPdfBtn` fuerzan descarga (sin abrir visor) en cada dispositivo; verificar implementación y pruebas.
+- **RIESGO ACTUAL**: en la nómina aparece botón de eliminación directa `data-del`; revisar protecciones de conservación de historial antes de tocar este flujo.
+- **SEGURIDAD**: pantalla declara herramientas abiertas en etapa de prueba; control de acceso en servidor y tratamiento de datos sensibles requieren auditoría separada por responsable de seguridad. No asumir que el acceso actual está restringido.
+- **PRÓXIMA IMPLEMENTACIÓN**: extender componentes existentes con búsqueda, historial de cargos transaccional, exportación PDF adjunta y tests. No crear segundo módulo de hoja de vida ni sustituir código en producción sin pruebas.
