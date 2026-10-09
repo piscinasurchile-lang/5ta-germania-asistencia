@@ -9,9 +9,10 @@
 //  - Quien no tiene posición en la lista de precedencia queda al final, nunca sobre alguien con posición.
 //    Entre varios sin posición hay empate: se avisa y lo resuelve el Teniente 3° a mano.
 
+(function(root){
 // Convierte la lista de precedencia (filas {nombre}) en una lista ordenada de ids de voluntario.
 // «resolver» recibe un nombre y devuelve el id del voluntario de la nómina, o null si no figura.
-export function ordenDePrecedencia(lista, resolver) {
+function ordenDePrecedencia(lista, resolver) {
   const ids = [];
   for (const fila of Array.isArray(lista) ? lista : []) {
     const id = resolver(fila && fila.nombre);
@@ -24,7 +25,7 @@ export function ordenDePrecedencia(lista, resolver) {
 //   maquinista: se inscribió como maquinista esa noche.
 //   habilitadoMaquinista: puede cumplir de maquinista si falta (marca «conductor» de la nómina + oficial).
 // orden: ids en orden de precedencia (el primero es el de mayor precedencia).
-export function obacDeNoche({ inscritos, orden }) {
+function obacDeNoche({ inscritos, orden }) {
   const lista = Array.isArray(inscritos) ? inscritos : [];
   const posiciones = new Map();
   (Array.isArray(orden) ? orden : []).forEach((id, i) => { if (!posiciones.has(String(id))) posiciones.set(String(id), i); });
@@ -65,3 +66,5 @@ export function obacDeNoche({ inscritos, orden }) {
     empateSinPosicion,
   };
 }
+  root.GermaniaObac={ obacDeNoche:obacDeNoche, ordenDePrecedencia:ordenDePrecedencia };
+})(typeof window!=="undefined"?window:globalThis);

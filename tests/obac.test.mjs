@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { obacDeNoche, ordenDePrecedencia } from "../lib/obac.js";
+import "../public/legacy/germania-obac.js";
+const { obacDeNoche, ordenDePrecedencia } = globalThis.GermaniaObac;
 
 // Orden de precedencia: Capitán (cap), Teniente 1° (t1), Teniente 2° (t2), Teniente 3° (t3), luego voluntarios v1, v2.
 const ORDEN = ["cap", "t1", "t2", "t3", "v1", "v2"];
