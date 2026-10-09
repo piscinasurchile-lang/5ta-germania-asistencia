@@ -420,3 +420,25 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 .gr-sem-fila{padding:10px 12px;border-radius:10px;font-size:16px;line-height:1.35;background:rgba(255,255,255,.06);border-left:5px solid var(--g-line,#444);}
 .gr-sem-fila.ok{border-left-color:#2f9e5b;}
 .gr-sem-fila.falta{border-left-color:#e0b324;background:rgba(224,179,36,.10);}
+
+
+/* Hoja de Vida — ajustes de lectura en teléfonos, aislados del resto de Germania. */
+#sub-hoja .card { min-width:0; max-width:100%; }
+#sub-hoja .field-row { min-width:0; }
+#sub-hoja .field-row > .field { min-width:0; max-width:100%; }
+#sub-hoja input, #sub-hoja select, #sub-hoja textarea { box-sizing:border-box; max-width:100%; min-width:0; width:100%; }
+#sub-hoja textarea { display:block; resize:vertical; min-height:86px; background:var(--g-card,#1b1f24); color:#fff; border:1px solid var(--g-line,#444); border-radius:10px; padding:12px; font:inherit; }
+#sub-hoja .hv-table-scroll { width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+#sub-hoja .hv-table-scroll table { width:100%; max-width:100%; }
+#sub-hoja #hvAsistenciaAnual table { min-width:480px; }
+#sub-hoja .hv-resumen-compacto .summary-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+#sub-hoja .hv-resumen-compacto .summary-item { min-width:0; padding:0; }
+#sub-hoja .hv-resumen-compacto .summary-item .big { font-size:clamp(23px,6vw,34px); line-height:1.1; }
+#sub-hoja .hv-resumen-compacto .summary-item .lbl { font-size:clamp(12px,3.4vw,15px); line-height:1.25; overflow-wrap:anywhere; }
+@media (max-width:600px) {
+  #sub-hoja .field-row { display:flex; flex-direction:column; gap:12px; }
+  #sub-hoja .field-row > .field { width:100%; flex:1 1 auto !important; }
+  #sub-hoja .hv-resumen-compacto .summary-row { gap:8px; }
+  #sub-hoja .hv-resumen-compacto .summary-item .big { font-size:26px; }
+  #sub-hoja .hv-table-scroll th, #sub-hoja .hv-table-scroll td { padding:9px 10px; font-size:14px; white-space:nowrap; }
+}

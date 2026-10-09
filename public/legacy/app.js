@@ -3584,7 +3584,7 @@ on("guardarOficialidadBtn","click",async()=>{
     const codigoFuncional=codigoOperativo(m,cargo);
     const detalle=`Ejerció como ${cargo} durante ${anio}. Código funcional del cargo: ${codigoFuncional}. Código personal conservado: ${m.clave||"sin registrar"}.`;
     if(!m.anotaciones.some(a=>a.tipo==="Cargo"&&a.detalle===detalle)){
-      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:anio+"-01-01",institucion:"5ª Compañía Germania",detalle});
+      m.anotaciones.push({id:uid(),tipo:"Cargo",fecha:"",institucion:"5ª Compañía Germania",detalle,registradoEn:new Date().toISOString(),fechaPendiente:true});
     }
   });
   await saveRoster();
@@ -3793,12 +3793,26 @@ function hvActual(){ return ROSTER.find(m=>m.id===document.getElementById("hvMie
 
 function renderHvSelect(){
   const sel=document.getElementById("hvMiembro"), cur=sel.value;
-  sel.innerHTML=sortedRoster(true).map(p=>{
+  const filtro=document.getElementById("hvBuscar");
+  const q=String(filtro?.value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const lista=sortedRoster(true).filter(p=>{
+    if(!q) return true;
+    const texto=[nombreCompleto(p),p.rut,p.clave,p.n].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const rut=String(p.rut||"").replace(/[^0-9k]/gi,"").toLowerCase();
+    const limpio=q.replace(/[^0-9k]/gi,"");
+    return texto.includes(q)||(limpio.length>=3&&rut.includes(limpio));
+  });
+  sel.innerHTML=lista.map(p=>{
     const a=acronimoCargo(p);
     return `<option value="${p.id}">N°${p.n} — ${esc(nombreCompleto(p))}${a?" ("+esc(a)+")":""}${p.activo===false?" [baja]":""}</option>`;
   }).join("");
-  if(ROSTER.find(m=>m.id===cur)) sel.value=cur;
+  if(lista.some(m=>m.id===cur)) sel.value=cur;
+  if(!lista.length) sel.innerHTML='<option value="">Sin coincidencias</option>';
 }
+document.getElementById("hvBuscar")?.addEventListener("input",()=>{
+  renderHvSelect();
+  renderHoja();
+});
 
 function renderHvInstitucional(){
   const m=hvActual(), box=document.getElementById("hvInstitucional");
@@ -3833,9 +3847,25 @@ function renderHvDatos(){
 document.querySelectorAll("[data-hv]").forEach(inp=>{
   inp.addEventListener("change",async()=>{
     const m=hvActual(); if(!m) return;
-    m[inp.dataset.hv]=inp.value;
-    await saveRoster();
-    if(inp.dataset.hv==="fechaNacimiento") renderHvInstitucional();
+    const campo=inp.dataset.hv, anterior=m[campo]||"", nuevo=inp.value;
+    if(String(anterior)===nuevo) return;
+    // Mantener historial de correcciones sin guardar valores médicos antiguos
+    // en la bitácora general de la nómina.
+    const medicos=new Set(["grupoSanguineo","alergias","alergiasMedicamentos","condicionesMedicas","medicacionHabitual"]);
+    if(!medicos.has(campo)){
+      m.correccionesFicha=m.correccionesFicha||[];
+      m.correccionesFicha.push({campo,fecha:new Date().toISOString(),valorAnterior:anterior,valorNuevo:nuevo});
+    }
+    m[campo]=nuevo;
+    try{
+      await saveRoster();
+      if(campo==="fechaNacimiento") renderHvInstitucional();
+    }catch(e){
+      m[campo]=anterior;
+      if(!medicos.has(campo)) m.correccionesFicha.pop();
+      inp.value=anterior;
+      alert("No se pudo guardar el cambio. Se restauró el valor anterior.");
+    }
   });
 });
 
@@ -3843,11 +3873,11 @@ async function renderHvFoto(){
   const m=hvActual(), img=document.getElementById("hvFoto");
   if(!img) return;
   if(!m){ img.src=fotoPlaceholder(); return; }
-  if(!m.foto){
-    const anterior=await sGet(fotoKey(m.id),null);
-    if(anterior){ m.foto=anterior; await saveRoster(); }
-  }
-  img.src=fotoVoluntario(m);
+  // La Hoja de Vida usa la misma fotografía central que el perfil y B-5.
+  // Los respaldos antiguos solo se leen: nunca sobrescribir fotos al abrir una vista.
+  const foto=await fotoUnificada(m);
+  if(hvActual()?.id!==m.id) return;
+  img.src=foto;
 }
 /* ============ FOTOS DE VOLUNTARIOS: se reducen al subir ============
    Cada foto se ajusta sola a 200 x 200 px (recorte centrado) y se comprime a
@@ -4009,14 +4039,20 @@ on("hvAgregarBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
   const detalle=document.getElementById("hvDetalle").value.trim();
   if(!detalle) return;
+  const tipo=document.getElementById("hvTipo").value;
+  const fecha=document.getElementById("hvFecha").value;
+  const fechaHasta=document.getElementById("hvFechaHasta").value;
+  const institucion=document.getElementById("hvInstitucionEvento").value.trim();
+  const documento=document.getElementById("hvDocumento").value.trim();
+  if(!fecha){ alert("Indica la fecha real del antecedente. No se asigna automáticamente la fecha de hoy."); return; }
+  if(fechaHasta&&fechaHasta<fecha){ alert("La fecha de término no puede ser anterior al inicio."); return; }
   if(!m.anotaciones) m.anotaciones=[];
+  const repetido=m.anotaciones.some(a=>[a.tipo,a.fecha,a.fechaHasta||"",a.institucion||"",a.documento||"",a.detalle||""].join("|")===
+    [tipo,fecha,fechaHasta,institucion,documento,detalle].join("|"));
+  if(repetido){ alert("Este antecedente ya existe en la hoja de vida. No se duplicó."); return; }
   m.anotaciones.push({
-    id:uid(), tipo:document.getElementById("hvTipo").value,
-    fecha:document.getElementById("hvFecha").value||todayISO(),
-    fechaHasta:document.getElementById("hvFechaHasta").value||"",
-    institucion:document.getElementById("hvInstitucionEvento").value.trim(),
-    documento:document.getElementById("hvDocumento").value.trim(),
-    detalle, registradoEn:new Date().toISOString()
+    id:uid(), tipo, fecha, fechaHasta, institucion, documento, detalle,
+    registradoEn:new Date().toISOString()
   });
   await saveRoster();
   ["hvDetalle","hvFechaHasta","hvInstitucionEvento","hvDocumento"].forEach(id=>document.getElementById(id).value="");
@@ -4033,6 +4069,7 @@ async function renderHvResumen(){
     const s=p.records[m.id]; if(!s) continue;
     if(s==="presente") pres++; else if(s==="justificado") just++; else aus++;
   }
+  if(hvActual()?.id!==m.id) return;
   const total=pres+just+aus;
   const c=statsCursos(m);
   box.innerHTML=`
@@ -4066,6 +4103,7 @@ async function renderHvAsistenciaAnual(){
   const m=hvActual(), box=document.getElementById("hvAsistenciaAnual");
   if(!m){ box.innerHTML=""; return; }
   const porAnio=await calcularAsistenciaPorAnio(m);
+  if(hvActual()?.id!==m.id) return;
   const anios=Object.keys(porAnio).sort((a,b)=>b-a);
   if(!anios.length){ box.innerHTML='<div class="empty">Sin citaciones registradas.</div>'; return; }
   box.innerHTML='<table><thead><tr><th>Año</th><th>Presente</th><th>Justificado</th><th>Ausente</th><th>Asistencia</th></tr></thead><tbody>'+
@@ -4083,6 +4121,7 @@ on("premioAsistenciaGuardarBtn","click",async()=>{
 async function renderHvPremios(){
   const m=hvActual(), box=document.getElementById("hvPremios");
   const minimo=await sGet("premioAsistenciaMinima",75);
+  if(m&&hvActual()?.id!==m.id) return;
   document.getElementById("premioAsistenciaMinima").value=minimo;
   if(!m){ box.innerHTML=""; return; }
   if(!m.fechaIngreso){ box.innerHTML='<div class="empty">Sin fecha de ingreso registrada — no se puede calcular antigüedad.</div>'; return; }
@@ -4090,6 +4129,7 @@ async function renderHvPremios(){
   const aniosCumplidos=Math.floor((hoy-ingreso)/(365.25*86400000));
   let pres=0,total=0;
   for(const {p} of await leerPartesDelIndice()){ if(!p||!p.records) continue; const s=p.records[m.id]; if(!s) continue; total++; if(s==="presente") pres++; }
+  if(hvActual()?.id!==m.id) return;
   const pct=total?Math.round(pres/total*100):0;
   const cumpleAsistencia=pct>=minimo;
   box.innerHTML=`<div class="summary-row"><div class="summary-item"><div class="big">${aniosCumplidos}</div><div class="lbl">Años de servicio</div></div>
@@ -4138,7 +4178,11 @@ on("premiosCalcularBtn","click",async()=>{
 function renderHoja(){
   renderHvInstitucional(); renderHvDatos(); renderHvFoto(); renderHvAnotaciones(); renderHvResumen(); renderHvPremios(); renderHvAsistenciaAnual();
 }
-on("hvMiembro","change",renderHoja);
+on("hvMiembro","change",()=>{
+  const check=document.getElementById("hvPdfMedico");
+  if(check) check.checked=false;
+  renderHoja();
+});
 
 on("hvTransferenciaPdfBtn","click",async()=>{
   const m=hvActual(); if(!m) return;
@@ -4187,10 +4231,25 @@ on("hvPdfBtn","click",async()=>{
       ["Fecha de nacimiento",m.fechaNacimiento||"—"],["Estado civil",m.estadoCivil||"—"],
       ["Profesión u oficio",m.profesion||"—"],["Teléfono",m.telefono||"—"],
       ["Correo",m.email||"—"],["Dirección",m.direccion||"—"],
-      ["Grupo sanguíneo",m.grupoSanguineo||"—"],["Alergias / condiciones",m.alergias||"—"],
       ["Contacto de emergencia",[m.emergenciaNombre,m.emergenciaTelefono,m.emergenciaRelacion].filter(Boolean).join(" · ")||"—"]
     ]
   });
+
+  if(document.getElementById("hvPdfMedico")?.checked){
+    doc.autoTable({
+      startY:doc.lastAutoTable.finalY+6, styles:{fontSize:9}, headStyles:{fillColor:[130,40,40]},
+      head:[["Ficha de emergencia médica (información declarada)",""]],
+      body:[
+        ["Grupo sanguíneo declarado",m.grupoSanguineo||"No informado"],
+        ["Alergias conocidas",m.alergias||"No informado"],
+        ["Alergias a medicamentos",m.alergiasMedicamentos||"No informado"],
+        ["Condiciones médicas relevantes",m.condicionesMedicas||"No informado"],
+        ["Medicamentos habituales",m.medicacionHabitual||"No informado"],
+        ["Contacto de emergencia",[m.emergenciaNombre,m.emergenciaTelefono].filter(Boolean).join(" · ")||"No informado"],
+        ["Advertencia","Verificar alergias y grupo sanguíneo en el centro asistencial. No sustituye evaluación ni pruebas hospitalarias."]
+      ]
+    });
+  }
 
   const an=(m.anotaciones||[]).slice().sort((a,b)=>(a.fecha||"")<(b.fecha||"")?1:-1);
   doc.autoTable({
@@ -4658,6 +4717,16 @@ const FOTOS_OFICIALES_POR_RUT={
   "16.711.219-6":"/legacy/voluntarios/andres-herrera-santander.webp"
 };
 function fotoVoluntario(p){ return (p&&p.foto)||(p&&FOTOS_OFICIALES_POR_RUT[p.rut])||fotoPlaceholder(); }
+async function fotoUnificada(p){
+  if(!p) return fotoPlaceholder();
+  // La única foto editable es ROSTER[id].foto, compartida por Hoja de Vida,
+  // Inicio, Disponibilidad y Emergencia B-5.
+  if(p.foto) return p.foto;
+  // Compatibilidad de lectura con fotografías antiguas, sin escrituras
+  // automáticas que puedan sobrescribir una edición simultánea.
+  const antigua=await sGet(fotoKey(p.id),null);
+  return antigua||fotoVoluntario(p);
+}
 function fotoPlaceholder(){
   return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171d22"/><circle cx="50" cy="38" r="19" fill="#ffcc00"/><path d="M18 92c4-24 18-36 32-36s28 12 32 36" fill="#ffcc00"/></svg>');
 }
@@ -4669,11 +4738,9 @@ async function refrescarIdentidadVoluntario(){
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Elige tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
   cargo.textContent=p.cargo||"Voluntario";
-  if(!p.foto){
-    const anterior=await sGet(fotoKey(p.id),null);
-    if(anterior){ p.foto=anterior; await saveRoster(); }
-  }
-  img.src=fotoVoluntario(p);
+  // El perfil de inicio consulta la foto canónica de la Hoja de Vida.
+  const foto=await fotoUnificada(p);
+  img.src=foto;
 }
 const DEVICE_VOLUNTARIO_KEY="germania:voluntario-dispositivo:v2";
 function guardarVoluntarioDispositivo(p){
