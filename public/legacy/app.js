@@ -364,6 +364,7 @@ function avisoGuardado(estado,texto,ms){
 }
 function horaCorta(){ return new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}); }
 async function rawSet(k,v,opts){
+  if(typeof k==="string" && (k.startsWith("parte:")||k===INDEX_KEY)) partesCompartidas=null;
   const silencioso=CLAVES_SILENCIOSAS.has(k);
   const ifVersion=opts&&Number.isInteger(opts.ifVersion)?opts.ifVersion:undefined;
   const cuerpo={value:v}; if(ifVersion!==undefined) cuerpo.ifVersion=ifVersion;
@@ -786,7 +787,7 @@ async function calcularAlertas(){
   });
   // 4) Premios de antiguedad (carga los partes una sola vez)
   const minimo=await sGet("premioAsistenciaMinima",75);
-  const partes=[]; for(const it of await getIndex()){ const p=await getParte(it.clave); if(p&&p.records) partes.push(p.records); }
+  const partes=[]; for(const {p} of await leerPartesDelIndice()){ if(p&&p.records) partes.push(p.records); }
   sortedRoster(false).filter(m=>m.fechaIngreso).forEach(m=>{
     const anios=Math.floor((hoy-new Date(m.fechaIngreso+"T12:00:00"))/(365.25*86400000));
     const prox=PREMIO_TIERS.find(t=>t>anios); if(!prox||prox-anios>1) return;
@@ -1139,6 +1140,31 @@ async function renderMntTodo(){ await renderMntProximas(); await renderMntHistor
 
 async function getIndex(){ return await sGet(INDEX_KEY,[]); }
 async function getParte(c){ return await sGet("parte:"+c,null); }
+/* Lectura compartida de TODOS los partes del índice, en lotes de 8 en paralelo.
+   Hoja de vida y Alertas recorrían el índice de a uno (cientos de viajes en serie) y repetían
+   el recorrido 3 veces seguidas. Misma lectura de siempre (solo "parte:*"), mismo orden de
+   resultados; se comparte entre llamadas simultáneas, vive 15 s y se descarta al guardar un parte.
+   Si alguna lectura falla, falla igual que antes (no se guarda en caché). */
+let partesCompartidas=null;
+async function leerPartesDelIndice(){
+  if(partesCompartidas && (partesCompartidas.carga || (Date.now()-partesCompartidas.ts)<15000)) return partesCompartidas.carga||partesCompartidas.datos;
+  const marca={ts:0,datos:null,carga:null};
+  marca.carga=(async()=>{
+    const idx=await getIndex(), salida=[], LOTE=8;
+    for(let i=0;i<idx.length;i+=LOTE){
+      const lote=idx.slice(i,i+LOTE);
+      const ps=await Promise.all(lote.map(it=>getParte(it.clave)));
+      lote.forEach((it,j)=>salida.push({it,p:ps[j]}));
+    }
+    return salida;
+  })();
+  partesCompartidas=marca;
+  try{
+    const datos=await marca.carga;
+    if(partesCompartidas===marca){ marca.datos=datos; marca.ts=Date.now(); marca.carga=null; }
+    return datos;
+  }catch(e){ if(partesCompartidas===marca) partesCompartidas=null; throw e; }
+}
 async function setParte(c,d){
   const ok = await sSet("parte:"+c,d);
   if(ok){ const idx=await getIndex(); if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,date:d.date,tipo:d.tipo}); await sSet(INDEX_KEY,idx); } }
@@ -3991,10 +4017,9 @@ on("hvAgregarBtn","click",async()=>{
 async function renderHvResumen(){
   const m=hvActual(), box=document.getElementById("hvResumen");
   if(!m){ box.innerHTML=""; return; }
-  const idx=await getIndex();
   let pres=0,just=0,aus=0;
-  for(const it of idx){
-    const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
+  for(const {it,p} of await leerPartesDelIndice()){
+    if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
     if(!voluntarioAplicaParte(p,m.id)) continue;
     const s=p.records[m.id]; if(!s) continue;
     if(s==="presente") pres++; else if(s==="justificado") just++; else aus++;
@@ -4016,10 +4041,9 @@ async function renderHvResumen(){
 }
 
 async function calcularAsistenciaPorAnio(m){
-  const idx=await getIndex();
   const porAnio={};
-  for(const it of idx){
-    const p=await getParte(it.clave); if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
+  for(const {it,p} of await leerPartesDelIndice()){
+    if(!p||!p.records||!parteCuentaAsistencia(p)) continue;
     if(!voluntarioAplicaParte(p,m.id)) continue;
     const s=p.records[m.id]; if(!s) continue;
     const anio=(it.date||"").slice(0,4); if(!anio) continue;
@@ -4055,8 +4079,8 @@ async function renderHvPremios(){
   if(!m.fechaIngreso){ box.innerHTML='<div class="empty">Sin fecha de ingreso registrada — no se puede calcular antigüedad.</div>'; return; }
   const ingreso=new Date(m.fechaIngreso+"T12:00:00"), hoy=new Date();
   const aniosCumplidos=Math.floor((hoy-ingreso)/(365.25*86400000));
-  const idx=await getIndex(); let pres=0,total=0;
-  for(const it of idx){ const p=await getParte(it.clave); if(!p||!p.records) continue; const s=p.records[m.id]; if(!s) continue; total++; if(s==="presente") pres++; }
+  let pres=0,total=0;
+  for(const {p} of await leerPartesDelIndice()){ if(!p||!p.records) continue; const s=p.records[m.id]; if(!s) continue; total++; if(s==="presente") pres++; }
   const pct=total?Math.round(pres/total*100):0;
   const cumpleAsistencia=pct>=minimo;
   box.innerHTML=`<div class="summary-row"><div class="summary-item"><div class="big">${aniosCumplidos}</div><div class="lbl">Años de servicio</div></div>
@@ -4075,10 +4099,9 @@ on("premiosCalcularBtn","click",async()=>{
   const box=document.getElementById("premiosAlertaBox");
   box.innerHTML="Calculando…";
   const minimo=await sGet("premioAsistenciaMinima",75);
-  const idx=await getIndex();
   // Cargar todos los partes una sola vez, no por persona
   const partes=[];
-  for(const it of idx){ const p=await getParte(it.clave); if(p&&p.records) partes.push(p.records); }
+  for(const {p} of await leerPartesDelIndice()){ if(p&&p.records) partes.push(p.records); }
   const hoy=new Date();
   const filas=sortedRoster(false).filter(m=>m.fechaIngreso).map(m=>{
     const ingreso=new Date(m.fechaIngreso+"T12:00:00");
