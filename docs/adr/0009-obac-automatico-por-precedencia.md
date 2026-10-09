@@ -15,3 +15,5 @@
 - **Riesgos:** precedencia desactualizada o incompleta (un voluntario sin posición); inscripciones tardías que cambian el OBAC ya calculado; edición simultánea de `app.js`/`germania-roles.js` (alto riesgo, coordinar con ChatGPT).
 - **Pruebas futuras:** unitarias de `obacDeNoche` (oficial vs. solo voluntarios, empates, noche sin inscritos, cambio de OBAC entre noches), regresión de la ODD y de Informes, Android/iPhone/PC/tablet B-5.
 - **No incluye:** seguridad/roles de acceso, ODD, borrado de datos.
+
+- **Maquinistas (09-10-2026):** hoy se conoce quiénes son (3). La lista debe poder crecer o cambiar con el tiempo sin tocar código: se usa la marca de la nómina `conductor` (casilla en Nómina, ya existente; en pantalla se dice «maquinista»). La regla del Capitán/oficial habilitado y el cálculo del OBAC leen esa marca; no se escriben nombres fijos. Dejar visible quién puede marcarla (Oficialidad) y respetar la regla de nómina: nunca perder ni borrar un voluntario.
