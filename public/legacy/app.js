@@ -3877,6 +3877,7 @@ async function renderHvFoto(){
     const anterior=await sGet(fotoKey(m.id),null);
     if(anterior){ m.foto=anterior; await saveRoster(); }
   }
+  if(hvActual()?.id!==m.id) return;
   img.src=fotoVoluntario(m);
 }
 /* ============ FOTOS DE VOLUNTARIOS: se reducen al subir ============
@@ -4069,6 +4070,7 @@ async function renderHvResumen(){
     const s=p.records[m.id]; if(!s) continue;
     if(s==="presente") pres++; else if(s==="justificado") just++; else aus++;
   }
+  if(hvActual()?.id!==m.id) return;
   const total=pres+just+aus;
   const c=statsCursos(m);
   box.innerHTML=`
@@ -4102,6 +4104,7 @@ async function renderHvAsistenciaAnual(){
   const m=hvActual(), box=document.getElementById("hvAsistenciaAnual");
   if(!m){ box.innerHTML=""; return; }
   const porAnio=await calcularAsistenciaPorAnio(m);
+  if(hvActual()?.id!==m.id) return;
   const anios=Object.keys(porAnio).sort((a,b)=>b-a);
   if(!anios.length){ box.innerHTML='<div class="empty">Sin citaciones registradas.</div>'; return; }
   box.innerHTML='<table><thead><tr><th>Año</th><th>Presente</th><th>Justificado</th><th>Ausente</th><th>Asistencia</th></tr></thead><tbody>'+
@@ -4119,6 +4122,7 @@ on("premioAsistenciaGuardarBtn","click",async()=>{
 async function renderHvPremios(){
   const m=hvActual(), box=document.getElementById("hvPremios");
   const minimo=await sGet("premioAsistenciaMinima",75);
+  if(m&&hvActual()?.id!==m.id) return;
   document.getElementById("premioAsistenciaMinima").value=minimo;
   if(!m){ box.innerHTML=""; return; }
   if(!m.fechaIngreso){ box.innerHTML='<div class="empty">Sin fecha de ingreso registrada — no se puede calcular antigüedad.</div>'; return; }
@@ -4126,6 +4130,7 @@ async function renderHvPremios(){
   const aniosCumplidos=Math.floor((hoy-ingreso)/(365.25*86400000));
   let pres=0,total=0;
   for(const {p} of await leerPartesDelIndice()){ if(!p||!p.records) continue; const s=p.records[m.id]; if(!s) continue; total++; if(s==="presente") pres++; }
+  if(hvActual()?.id!==m.id) return;
   const pct=total?Math.round(pres/total*100):0;
   const cumpleAsistencia=pct>=minimo;
   box.innerHTML=`<div class="summary-row"><div class="summary-item"><div class="big">${aniosCumplidos}</div><div class="lbl">Años de servicio</div></div>
