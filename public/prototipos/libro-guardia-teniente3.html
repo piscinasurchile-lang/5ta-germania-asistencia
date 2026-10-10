@@ -17,7 +17,7 @@
     .demo{background:#312814;color:#ffe29b;border:1px solid #665020;border-radius:8px;padding:10px;margin:14px 0;font-size:13px}
     h1{font-size:24px;line-height:1.2;margin:20px 0 3px}h2{font-size:17px;margin:0 0 5px}h3{font-size:15px;margin:0 0 8px}
     p{margin:4px 0 10px}.muted{color:var(--muted)}.small{font-size:12px}
-    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}
+    .tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}
     .tab{padding:12px;background:var(--panel2);color:white;border:1px solid var(--line);border-radius:10px;font-weight:700;cursor:pointer}
     .tab[aria-selected=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
     .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 15px}
@@ -57,6 +57,7 @@
     <p class="muted">Fotografías, novedades y seguimiento de guardias nocturnas.</p>
     <div class="tabs" role="tablist" aria-label="Cambiar pantalla de prueba">
       <button class="tab" id="tab-teniente" role="tab" aria-selected="true" aria-controls="vista-teniente" type="button">Teniente 3°</button>
+      <button class="tab" id="tab-capitan" role="tab" aria-selected="false" aria-controls="vista-capitan" type="button">Capitán</button>
       <button class="tab" id="tab-obac" role="tab" aria-selected="false" aria-controls="vista-obac" type="button">OBAC</button>
     </div>
 
@@ -78,6 +79,20 @@
         <h2>Archivo del Libro de Guardia</h2>
         <p class="muted small">Historial demostrativo de fotos revisadas. En la versión definitiva será persistente y consultable por fecha, semana y apellido del OBAC.</p>
         <div id="archivo" class="empty">Todavía no hay fotografías revisadas.</div>
+      </div>
+    </section>
+
+    <section id="vista-capitan" role="tabpanel" aria-labelledby="tab-capitan" hidden>
+      <div class="card">
+        <h2>Libro de Guardia · Capitán</h2>
+        <p class="muted small">Recibe las fotografías del OBAC. Solo debe verlas y confirmar su lectura. Los avisos por guardias sin cerrar y las correcciones corresponden al Teniente Tercero.</p>
+      </div>
+      <h2>Fotografías por confirmar</h2>
+      <div id="bandeja-capitan"></div>
+      <div class="card">
+        <h2>Fotografías revisadas</h2>
+        <p class="muted small">La confirmación de lectura del Capitán es independiente de la del Teniente Tercero.</p>
+        <div id="archivo-capitan" class="empty">Todavía no hay fotografías revisadas.</div>
       </div>
     </section>
 
@@ -112,7 +127,7 @@
 (function(){
 "use strict";
 var q=function(id){return document.getElementById(id);};
-var tz="America/Santiago", now=new Date(), dates=[], pending=[], archive=[], selectedUrl=null, selectedFile=null;
+var tz="America/Santiago", now=new Date(), dates=[], pending=[], archive=[], capPending=[], capArchive=[], selectedUrl=null, selectedFile=null;
 var fmt=function(iso){return new Date(iso+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"});};
 var iso=function(d){return d.toLocaleDateString("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit"}).replace(/(\d+)\/(\d+)\/(\d+)/,"$1-$2-$3");};
 var today=iso(now), dt=new Date(today+"T12:00:00"), dow=dt.getDay(), n=(dow+4)%7;
@@ -123,17 +138,23 @@ q("fecha-cierre").textContent=fmt(cierre);
 q("fecha-foto").innerHTML=dates.map(function(f){var op=document.createElement("option");op.value=f;op.textContent=fmt(f);return op.outerHTML;}).join("");
 q("fecha-foto").value=today>=dates[0]&&today<=dates[6]?today:dates[0];
 pending.push({id:"p-demo",fecha:example,obac:"OBAC de turno",hora:"08:12",imagen:null,demo:true});
+capPending.push({id:"p-demo",fecha:example,obac:"OBAC de turno",hora:"08:12",imagen:null,demo:true});
 function notify(s){var t=q("toast");t.textContent=s;t.style.display="block";clearTimeout(notify.timer);notify.timer=setTimeout(function(){t.style.display="none";},3500);}
 function tab(which){
-  var t=which==="teniente";q("vista-teniente").hidden=!t;q("vista-obac").hidden=t;
-  q("tab-teniente").setAttribute("aria-selected",String(t));q("tab-obac").setAttribute("aria-selected",String(!t));
-  if(t) render();
+  ["teniente","capitan","obac"].forEach(function(role){
+    q("vista-"+role).hidden=role!==which;
+    q("tab-"+role).setAttribute("aria-selected",String(role===which));
+  });
+  if(which!=="obac") render();
 }
-q("tab-teniente").onclick=function(){tab("teniente");};q("tab-obac").onclick=function(){tab("obac");};
+q("tab-teniente").onclick=function(){tab("teniente");};
+q("tab-capitan").onclick=function(){tab("capitan");};
+q("tab-obac").onclick=function(){tab("obac");};
 function btn(label,clazz,handler){var e=document.createElement("button");e.type="button";e.className="action "+(clazz||"");e.textContent=label;e.onclick=handler;return e;}
 function photoBox(src){var el=document.createElement("div");el.className="photo";if(src){var img=document.createElement("img");img.src=src;img.alt="Fotografía del Libro de Guardia";el.append(img);}else{el.textContent="Foto de ejemplo no disponible. Envía una foto desde la pantalla del OBAC para probar la visualización.";}return el;}
 function info(item){var p=document.createElement("p");p.className="details";p.textContent="Guardia: "+fmt(item.fecha)+" · OBAC: "+item.obac+" · Enviada: "+item.hora;return p;}
 function render(){
+  renderCaptain();
   var list=q("bandeja");list.replaceChildren();
   q("n-pendientes").textContent=pending.length;
   q("n-revisadas").textContent=archive.length;
@@ -162,6 +183,42 @@ function render(){
       if(el){el.remove();return;}row.append(photoBox(item.imagen));
     });row.append(h,p,action);arc.append(row);
   });}
+}
+function renderCaptain(){
+  var list=q("bandeja-capitan");list.replaceChildren();
+  if(!capPending.length){
+    var empty=document.createElement("p");empty.className="empty";empty.textContent="Sin fotografías pendientes de lectura.";list.append(empty);
+  }
+  capPending.forEach(function(item){
+    var card=document.createElement("article");card.className="card";
+    var title=document.createElement("h2");title.textContent="Libro de Guardia · Pendiente";
+    card.append(title,info(item));
+    var photo=photoBox(item.imagen);photo.hidden=true;card.append(photo);
+    var actions=document.createElement("div");actions.className="actions";
+    actions.append(btn("Ver fotografía","secondary",function(){photo.hidden=!photo.hidden;}));
+    actions.append(btn("✓ Confirmar lectura","",function(){
+      capPending=capPending.filter(function(x){return x.id!==item.id;});
+      item.visto=new Date().toLocaleString("es-CL",{timeZone:tz});
+      capArchive.unshift(item);render();
+      notify("Capitán: lectura confirmada en esta demostración. La bandeja del Teniente Tercero no cambia.");
+    }));
+    card.append(actions);list.append(card);
+  });
+  var history=q("archivo-capitan");history.replaceChildren();
+  if(!capArchive.length){history.className="empty";history.textContent="Todavía no hay fotografías revisadas.";}
+  else {
+    history.className="";
+    capArchive.forEach(function(item){
+      var row=document.createElement("div");row.className="history-item";
+      var title=document.createElement("strong");title.textContent=fmt(item.fecha)+" · "+item.obac;
+      var metadata=document.createElement("div");metadata.className="small muted";
+      metadata.textContent="Confirmado por Capitán: "+item.visto+(item.nombreArchivo?" · "+item.nombreArchivo:"");
+      row.append(title,metadata,btn("Ver fotografía archivada","secondary",function(){
+        var image=row.querySelector(".photo");if(image){image.remove();return;}row.append(photoBox(item.imagen));
+      }));
+      history.append(row);
+    });
+  }
 }
 async function preview(file){
   if(!file)return;
@@ -202,10 +259,12 @@ q("galeria").onchange=function(){preview(this.files&&this.files[0]);};
 q("btn-enviar").onclick=function(){
   if(!selectedFile||!selectedUrl)return;
   var hour=new Date().toLocaleTimeString("es-CL",{timeZone:tz,hour:"2-digit",minute:"2-digit"});
-  pending.unshift({id:"demo-"+Date.now(),fecha:q("fecha-foto").value,obac:q("obac-foto").value,hora:hour,imagen:selectedUrl,nombreArchivo:selectedFile.name,formato:selectedFile.type,demo:true});
+  var item={id:"demo-"+Date.now(),fecha:q("fecha-foto").value,obac:q("obac-foto").value,hora:hour,imagen:selectedUrl,nombreArchivo:selectedFile.name,formato:selectedFile.type,demo:true};
+  pending.unshift(Object.assign({},item));
+  capPending.unshift(Object.assign({},item));
   selectedFile=null;selectedUrl=null;q("btn-enviar").disabled=true;q("vista-foto").textContent="Fotografía enviada en la demostración.";
-  q("estado-obac").textContent="Envío simulado. Revisá la bandeja del Teniente Tercero.";
-  notify("Fotografía recibida en esta demostración.");tab("teniente");
+  q("estado-obac").textContent="Envío simulado a las bandejas del Teniente Tercero y del Capitán.";
+  notify("Fotografía entregada a Capitán y Teniente Tercero en esta demostración.");tab("teniente");
 };
 render();
 })();
