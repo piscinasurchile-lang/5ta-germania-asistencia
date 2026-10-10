@@ -175,3 +175,46 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
   #panel-germania .home-tiles{grid-template-columns:repeat(3,minmax(0,1fr));}
   #panel-germania .gn-franja-dia{flex-basis:150px;}
 }
+
+
+/* Resumen «Quién está hoy»: cifra más discreta, centrada sobre su etiqueta.
+ * No afecta estadísticas, oficiales ni el resumen de otras pantallas.
+ */
+#panel-germania #dispResumen{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px 6px;
+  margin:12px 0 14px;
+}
+#panel-germania #dispResumen .summary-item{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  text-align:center;
+  padding:5px 3px;
+}
+#panel-germania #dispResumen .summary-item .big{
+  display:block;
+  font:600 21px/1.1 'Oswald',sans-serif;
+  font-variant-numeric:tabular-nums;
+  color:var(--g-gold,#ffcc00);
+}
+#panel-germania #dispResumen .summary-item .lbl{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  line-height:1.22;
+  color:var(--g-muted,#aeb5bb);
+  overflow-wrap:anywhere;
+  text-align:center;
+}
+@media (min-width:701px){
+  #panel-germania #dispResumen{
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:12px;
+  }
+  #panel-germania #dispResumen .summary-item .big{font-size:23px;}
+  #panel-germania #dispResumen .summary-item .lbl{font-size:13px;}
+}
