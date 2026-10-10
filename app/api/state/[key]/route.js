@@ -53,7 +53,7 @@ export async function PUT(request, { params }) {
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
   // El titular solo se reserva mediante la operación atómica por fecha.
   // PUT/PATCH no pueden eludir esta restricción.
-  if (key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
+  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
     return Response.json({ error: "usar_reserva_titular" }, { status: 409, headers: { "Cache-Control": "no-store" } });
 
   const sql = sqlClient();
@@ -94,7 +94,7 @@ export async function PATCH(request, { params }) {
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
   // El titular solo se reserva mediante la operación atómica por fecha.
   // PUT/PATCH no pueden eludir esta restricción.
-  if (key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
+  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
     return Response.json({ error: "usar_reserva_titular" }, { status: 409, headers: { "Cache-Control": "no-store" } });
 
   const sql = sqlClient();
