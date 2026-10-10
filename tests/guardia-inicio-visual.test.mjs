@@ -48,7 +48,7 @@ test("seis tarjetas de inicio tienen sus rutas y novedades conserva su contenido
 });
 
 test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
-  assert.match(html,/germania-inicio\.css\?v=20261010b/);
+  assert.match(html,/germania-inicio\.css\?v=20261010c/);
   assert.match(html,/germania-guardia-franja\.js\?v=20261010a/);
   assert.match(css,/#panel-germania \.home-tiles/);
   assert.match(css,/#panel-germania \.gn-franja/);
@@ -64,4 +64,25 @@ test("resumen de disponibilidad usa cifras compactas centradas sobre la etiqueta
   assert.ok(bloque.includes("font:600 21px/1.1"));
   assert.ok(bloque.includes("grid-template-columns:repeat(6,minmax(0,1fr))"));
   assert.ok(html.includes('id="dispResumen"'));
+});
+
+test("seis botones conservan rutas y muestran contornos coloreados propios, sin bucles",()=>{
+  const colores={
+    "tile-asistencia":"#3295ff",
+    "tile-emergencia":"#ff3645",
+    "tile-disponibilidad":"#28cf75",
+    "tile-estadistica":"#b85af3",
+    "tile-oficiales":"#ffcc00",
+    "tile-novedades":"#91a7b7"
+  };
+  for(const [clase,color] of Object.entries(colores)){
+    assert.ok(html.includes("tile "+clase),clase);
+    const comienzo=css.indexOf("#panel-germania .home-tiles ."+clase+"{");
+    assert.ok(comienzo>=0,clase);
+    assert.ok(css.slice(comienzo,comienzo+135).includes(color),clase);
+  }
+  assert.match(css,/border-left-width:5px/);
+  assert.match(css,/animation:germaniaTileEntrada \.45s ease-out both;/);
+  assert.match(css,/@media \(prefers-reduced-motion:reduce\)/);
+  assert.ok(!html.includes('data-nav="guardia"'));
 });
