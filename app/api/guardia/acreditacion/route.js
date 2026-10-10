@@ -35,7 +35,7 @@ export async function POST(req) {
   if (!origen(req) || !oficialidad(req)) return Response.json({error:"oficialidad_requerida"},{status:403});
   let b; try { b=await req.json(); } catch { return Response.json({error:"datos_invalidos"},{status:400}); }
   const fecha=String(b?.fecha||""), actor=String(b?.actorId||"");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha) || !Number.isInteger(b?.ifVersion) || b.ifVersion<0)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isInteger(b?.ifVersion) || b.ifVersion<0)
     return Response.json({error:"datos_invalidos"},{status:400});
   const semana=new Date(fecha+"T12:00:00Z"); if (Number.isNaN(semana.getTime()))
     return Response.json({error:"fecha_invalida"},{status:400});
@@ -54,7 +54,7 @@ export async function POST(req) {
     const error=validarAcreditacion({fecha,noche:revision?.noches?.[fecha],
       asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
     if (error) return Response.json({error},{status:409});
-    const fin=/^\\d{2}:\\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"08:00";
+    const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"08:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
     const ids=integrantesNoche(revision.noches[fecha]);
