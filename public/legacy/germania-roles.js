@@ -308,8 +308,8 @@ function panelRol(pn,D,kind){
   +D.cov.map(function(c){
     var nn=nombreNoche(c.f), lista=esM?c.maq:c.obac, tit=lista[0]||null, soyTit=!!tit&&tit.id===who, enLista=lista.some(function(x){ return x.id===who; });
     var comoVol=tiene(D.S.vol[who],c.f), comoOtro=tiene(D.S[otroK][who],c.f);
-    var marcada=sel.has(c.f), bloq=prev||!D.abierto||comoVol||comoOtro;
-    var chip=comoVol?'<span class="gr-chip gris">Ya voluntario</span>':comoOtro?'<span class="gr-chip gris">Ya '+(esM?"OBAC":"maquinista")+'</span>':marcada?'<span class="gr-chip azul">Seleccionado</span>':'<span class="gr-chip verde">Disponible</span>';
+    var marcada=sel.has(c.f), ocupada=esM&&!!tit&&!soyTit, bloq=prev||!D.abierto||comoVol||comoOtro||ocupada||(esM&&soyTit);
+    var chip=ocupada?'<span class="gr-chip rojo">OCUPADO. ELIGE OTRO DÍA</span>':comoVol?'<span class="gr-chip gris">Ya voluntario</span>':comoOtro?'<span class="gr-chip gris">Ya '+(esM?"OBAC":"maquinista")+'</span>':marcada?'<span class="gr-chip azul">Seleccionado</span>':'<span class="gr-chip verde">Disponible</span>';
     var cupo=tit?('<b>1 / 1</b> <small>(completo)</small><small class="gr-tit">'+(soyTit?"Titular: tú":"Titular: "+E(corto(porId(tit.id))))+(enLista&&!soyTit?" · tú: reserva":"")+'</small>'):'<b>0 / 1</b><small class="gr-tit falta">Falta '+(esM?"maquinista":"OBAC")+'</small>';
     return '<label class="gr-tr'+(marcada?" on":"")+'" role="row"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><span class="gr-chk"><input type="checkbox" data-gr-rol="'+c.f+'"'+(marcada?" checked":"")+(bloq?" disabled":"")+' aria-label="'+E(nn.w+" "+nn.d)+'">'+chip+'</span><span class="gr-cupo-c">'+cupo+'</span></label>';
   }).join("")+'</div>';
@@ -324,6 +324,48 @@ async function guardarRol(D,kind){
   if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind], previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
+  if(kind==="maq"){
+    // Una solicitud por fecha; cada reserva es atómica y escribe en los registros
+    // institucionales existentes. No sobrescribe otras noches ya elegidas.
+    var nuevas=[...sel].sort().filter(function(f){return !previos.some(function(x){return x.f===f;});});
+    if(!nuevas.length){ msg.textContent="Elige una noche libre distinta de las que ya tienes."; return; }
+    msg.classList.remove("err");msg.textContent="Reservando noche(s)…";
+    var ganadas=[],fallidas=[];
+    for(var i=0;i<nuevas.length;i++){
+      var f=nuevas[i],resultado=null;
+      try{
+        var http=await fetch("/api/guardia/reserva-titular",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({inicio:D.p.inicio,fecha:f,personaId:D.who})});
+        resultado=await http.json();
+        if(!http.ok||!resultado.ok){
+          fallidas.push({f:f,codigo:resultado.codigo||"ERROR_DE_RED"});
+          continue;
+        }
+        ganadas.push(f);
+      }catch(error){fallidas.push({f:f,codigo:"ERROR_DE_RED"});}
+    }
+    // El mínimo de dos noches se calcula incluyendo otras funciones confirmadas.
+    try{
+      var conf=D.S.conf[D.who];
+      if(conf&&!conf.justificacion&&ganadas.length){
+        var maqActual=await sGet("guardia-maq:"+D.p.inicio+":"+D.who,[]);
+        var total={};
+        regs(D.S.vol[D.who]).concat(regs(D.S.obac[D.who])).concat(regs(maqActual)).forEach(function(x){total[x.f]=true;});
+        var cumple=Object.keys(total).length>=GN_NOCHES_MIN;
+        if(cumple!==!!conf.cumple) await sSet("guardia-confirmacion:"+D.p.inicio+":"+D.who,Object.assign({},conf,{cumple:cumple}));
+      }
+    }catch(error){fallidas.push({f:"confirmación",codigo:"REVISAR_CONFIRMACION"});}
+    var txt=ganadas.length?"Reservadas "+ganadas.length+" noche(s). ":"";
+    if(fallidas.length) txt+=fallidas.map(function(x){
+      var fecha=x.f==="confirmación"?"Confirmación":nombreNoche(x.f).w+" "+nombreNoche(x.f).d;
+      var causa=x.codigo==="OCUPADO"?"OCUPADO. ELIGE OTRO DÍA":x.codigo==="YA_INSCRITO_COMO_VOLUNTARIO"?"Ya inscrito como voluntario":x.codigo==="INSCRIPCION_CERRADA"?"Inscripción cerrada":"No se pudo reservar ("+x.codigo+")";
+      return fecha+": "+causa;
+    }).join(" · ");
+    if(typeof gnInsToast==="function") gnInsToast(txt||"No se pudo reservar");
+    GR.sel.maq=null;
+    await grRender(true);
+    return;
+  }
+
   if(kind==="obac"&&recs.length>1){ msg.textContent="Como OBAC es una sola noche por persona; las demás noches las tomas como voluntario."; msg.classList.add("err"); return; }
   if(kind==="obac"&&rangoObac(D.m)!=null&&!recs.length){ msg.textContent="Tu noche como OBAC es obligatoria: elige al menos una."; msg.classList.add("err"); return; }
   var otroK=kind==="maq"?"obac":"maq";
