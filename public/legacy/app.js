@@ -2687,12 +2687,12 @@ on("gnPdfSemanal","click",async()=>{
   const lista=await guardiasEnRango(); const {d,h}=rangoGn();
   if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
-  pdfHeader(doc,"INFORME DE GUARDIAS NOCTURNAS");
+  pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");
   doc.setFontSize(9);
   doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} guardias · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
   doc.autoTable({startY:42,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
     columnStyles:{3:{cellWidth:58}},
-    head:[["Fecha","Horario","Oficial a cargo","Cubren la guardia","Inasistencias","Novedades"]],
+    head:[["Fecha","Horario","Oficial designado","Voluntarios designados","Avisos de ausencia","Novedades"]],
     body:lista.map(g=>{
       const t=normalizaTurno(g.guardianes);
       const faltas=t.filter(x=>x.estado==="no").map(x=>
@@ -2704,6 +2704,9 @@ on("gnPdfSemanal","click",async()=>{
         faltas.length?faltas.join(" | "):"—",
         g.novedades||"Sin novedad"];
     })});
+  // Este informe describe programación y avisos; nunca reemplaza la acreditación T3.
+  const notaY=doc.lastAutoTable.finalY+7;
+  if(notaY<270){doc.setFontSize(8);doc.text("Registro de dotación programada. No certifica asistencia real.",14,notaY);}
   let fy=doc.lastAutoTable.finalY+20;
   if(fy>240){ doc.addPage(); fy=40; }
   doc.setFontSize(9);
