@@ -307,9 +307,9 @@ function acronimoCargo(p){
 }
 function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "); }
 
-/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 3 voluntarios + 1 conductor + 1 OBAC.
+/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 2 voluntarios + 1 conductor + 1 OBAC.
    Los voluntarios que se sumen sobre el mínimo son refuerzos. Cada voluntario se inscribe en al menos 2 noches. */
-const GN_DOTACION_MIN={voluntarios:3,conductor:1,obac:1};
+const GN_DOTACION_MIN={voluntarios:2,conductor:1,obac:1};
 const GN_NOCHES_MIN=2;
 
 /* Persistencia institucional: el servidor/Neon es la única fuente de verdad.
