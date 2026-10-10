@@ -368,6 +368,7 @@ async function rawSet(k,v,opts){
   const silencioso=CLAVES_SILENCIOSAS.has(k);
   const ifVersion=opts&&Number.isInteger(opts.ifVersion)?opts.ifVersion:undefined;
   const cuerpo={value:v}; if(ifVersion!==undefined) cuerpo.ifVersion=ifVersion;
+  if(opts&&opts.indexedWrite===true) cuerpo.indexedWrite=true;
   if(opts&&Array.isArray(opts.permitirQuitar)) cuerpo.permitirQuitar=opts.permitirQuitar;
   if(!silencioso) avisoGuardado("guardando","Guardando…");
   let r;
@@ -478,7 +479,19 @@ async function sSet(k,v,opts){
     TEST_INTERNAL_WRITE=true;
     try{
       const base=await sGet(TEST_BASELINE_KEY,{});
-      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); await rawSet(TEST_BASELINE_KEY,base); }
+      let cambioBase=false;
+      if(!Object.prototype.hasOwnProperty.call(base,k)){ base[k]=await sGet(k,null); cambioBase=true; }
+      // La escritura atómica también modifica el índice: se respalda para que
+      // el modo de prueba conserve el mismo alcance de restauración anterior.
+      if(opts&&opts.indexedWrite===true){
+        const indice=k.startsWith("parte:")?"partes:index:v1":
+          k.startsWith("guardia:")?"guardias:index":
+          k.startsWith("servicio:")?"servicio:index:v1":null;
+        if(indice&&!Object.prototype.hasOwnProperty.call(base,indice)){
+          base[indice]=await sGet(indice,null); cambioBase=true;
+        }
+      }
+      if(cambioBase) await rawSet(TEST_BASELINE_KEY,base);
       if(typeof ROSTER_KEY!=="undefined" && k===ROSTER_KEY && Array.isArray(base[k]) && Array.isArray(v)){
         const ids=new Set(v.map(x=>String(x.id)));
         const faltan=base[k].filter(x=>!ids.has(String(x.id)));
@@ -1166,9 +1179,10 @@ async function leerPartesDelIndice(){
   }catch(e){ if(partesCompartidas===marca) partesCompartidas=null; throw e; }
 }
 async function setParte(c,d){
-  const ok = await sSet("parte:"+c,d);
-  if(ok){ const idx=await getIndex(); if(!idx.find(i=>i.clave===c)){ idx.push({clave:c,date:d.date,tipo:d.tipo}); await sSet(INDEX_KEY,idx); } }
-  return ok;
+  const key="parte:"+c;
+  // Registro e índice se guardan en la misma operación; si otro usuario
+  // cambió esta versión, se rechaza todo sin sobrescribir su trabajo.
+  return sSet(key,d,{indexedWrite:true,ifVersion:SVER.has(key)?SVER.get(key):0});
 }
 
 /* Fuente única de asistencia institucional.
@@ -1530,9 +1544,8 @@ const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraCon
  "svCombConductor","svCombKm","svCombFecha","svCombServicentro","svCombRut","svCombLitros","svCombValor"];
 const SV_INDEX_KEY="servicio:index:v1";
 async function setServicio(clave,datos){
-  const ok=await sSet(clave,datos);
-  if(ok){ const idx=await sGet(SV_INDEX_KEY,[]); if(!idx.find(i=>i.clave===clave)){ idx.push({clave,fecha:datos.svFecha,tipo:datos.svTipoAct}); await sSet(SV_INDEX_KEY,idx); } }
-  return ok;
+  // Evita el antiguo leer-modificar-guardar del índice compartido.
+  return sSet(clave,datos,{indexedWrite:true,ifVersion:SVER.has(clave)?SVER.get(clave):0});
 }
 const SV_TIPOS_KEY="svTipos:v1";
 const DEFAULT_SV_TIPOS=["Acto de servicio","Carga de combustible","Ejercicio con material","Emergencia","Mantención","Traslado","Otro"];
@@ -2228,9 +2241,10 @@ const GUARDIA_IDX="guardias:index";
 async function idxGuardias(){ return await sGet(GUARDIA_IDX,[]); }
 async function getGuardia(c){ return await sGet("guardia:"+c,null); }
 async function setGuardia(c,d,ifVersion){
-  await sSet("guardia:"+c,d,Number.isInteger(ifVersion)?{ifVersion}:undefined);
-  await sAddToList(GUARDIA_IDX,{clave:c,fecha:d.fechaIng},{uniqueBy:"clave"});
-  return SVER.get("guardia:"+c);
+  const key="guardia:"+c;
+  const base=Number.isInteger(ifVersion)?ifVersion:(SVER.has(key)?SVER.get(key):0);
+  await sSet(key,d,{indexedWrite:true,ifVersion:base});
+  return SVER.get(key);
 }
 function claveGuardia(f,h){ return f+"__"+(h||"").replace(":",""); }
 /* Dataset temporal de validación del Dashboard.
