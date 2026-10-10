@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07090b">
+  <title>GERMANIA · Libro de Guardia · Prototipo</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07090b;--panel:#10151a;--panel2:#171d22;--line:#303840;--text:#fff;--muted:#aeb5bb;--gold:#ffcc00;--fire:#e30613;--ok:#77b489}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,input,select{font:inherit}
+    .shell{max-width:820px;margin:auto;padding:15px 12px 90px}
+    .top{display:flex;align-items:center;gap:12px;margin:4px 0 12px}
+    .crest{width:48px;height:48px;object-fit:contain;border-radius:8px;background:#171d22}
+    .brand{font-weight:800;letter-spacing:.08em;font-size:19px}.subbrand{color:var(--muted);font-size:12px}
+    .demo{background:#312814;color:#ffe29b;border:1px solid #665020;border-radius:8px;padding:10px;margin:14px 0;font-size:13px}
+    h1{font-size:24px;line-height:1.2;margin:20px 0 3px}h2{font-size:17px;margin:0 0 5px}h3{font-size:15px;margin:0 0 8px}
+    p{margin:4px 0 10px}.muted{color:var(--muted)}.small{font-size:12px}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}
+    .tab{padding:12px;background:var(--panel2);color:white;border:1px solid var(--line);border-radius:10px;font-weight:700;cursor:pointer}
+    .tab[aria-selected=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 15px}
+    .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 10px;min-height:82px}.stat strong{display:block;font-size:26px}.stat span{font-size:11px;color:var(--muted)}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:12px 0;padding:15px}
+    .alert{border-color:#8e392e;background:#261513}.alert h2{color:#ffb4a6}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .chip{border-radius:5px;padding:3px 7px;font-size:11px;font-weight:800;white-space:nowrap}
+    .red{background:#532a27;color:#ffaaa1}.yellow{background:#49401f;color:#ffda6c}.green{background:#213c29;color:#9cdeb0}.gray{background:#282f36;color:#c5cbd1}
+    .details{color:var(--muted);font-size:13px;margin:8px 0 12px;line-height:1.6}
+    .actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+    button.action{min-height:46px;padding:10px 16px;border:0;border-radius:8px;font-weight:750;cursor:pointer;background:var(--gold);color:#151515}
+    button.secondary{background:#27323a;color:#fff;border:1px solid #43505a}
+    button.action:disabled{opacity:.48;cursor:not-allowed}
+    button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #fff;outline-offset:3px}
+    .photo{border:1px dashed #4c5862;border-radius:10px;min-height:150px;display:flex;align-items:center;justify-content:center;background:#0a0e12;overflow:hidden;text-align:center;color:var(--muted);padding:12px;margin:10px 0}
+    .photo img{width:100%;max-height:400px;object-fit:contain}
+    .history-item{padding:11px 0;border-bottom:1px solid var(--line)}
+    .history-item:last-child{border-bottom:0}
+    label{display:block;font-weight:700;margin-top:12px;margin-bottom:5px}
+    select{width:100%;padding:12px;color:#fff;background:#1b252c;border:1px solid #51606c;border-radius:8px}
+    input[type=file]{display:none}
+    .empty{color:var(--muted);font-size:13px;background:#151c22;padding:12px;border-radius:8px}
+    .bar{display:flex;gap:6px;justify-content:center;margin-top:14px}.bar i{height:4px;width:36px;border-radius:3px;background:#444}.bar i:first-child{background:var(--gold)}
+    .toast{position:fixed;bottom:16px;left:16px;right:16px;max-width:520px;margin:auto;background:#24372a;border:1px solid #5eac74;padding:12px;border-radius:9px;display:none}
+    [hidden]{display:none!important}
+    @media(max-width:380px){.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <img class="crest" src="/legacy/germania-icon.png" alt="Identidad GERMANIA" onerror="this.hidden=true">
+      <div><div class="brand">GERMANIA</div><div class="subbrand">Quinta Compañía · Villarrica</div></div>
+    </header>
+    <div class="demo"><strong>Prototipo de interfaz:</strong> permite probar cámara, vista previa, bandeja y confirmación de lectura. Los datos de esta demostración NO se guardan en Neon ni se envían a otros teléfonos.</div>
+    <h1>Libro de Guardia</h1>
+    <p class="muted">Fotografías, novedades y seguimiento de guardias nocturnas.</p>
+    <div class="tabs" role="tablist" aria-label="Cambiar pantalla de prueba">
+      <button class="tab" id="tab-teniente" role="tab" aria-selected="true" aria-controls="vista-teniente" type="button">Teniente 3°</button>
+      <button class="tab" id="tab-obac" role="tab" aria-selected="false" aria-controls="vista-obac" type="button">OBAC</button>
+    </div>
+
+    <section id="vista-teniente" role="tabpanel" aria-labelledby="tab-teniente">
+      <div class="stats" aria-label="Resumen de la semana">
+        <div class="stat"><strong id="n-pendientes">2</strong><span>Fotos pendientes de revisar</span></div>
+        <div class="stat"><strong id="n-cierres">1</strong><span>Guardias sin cerrar</span></div>
+        <div class="stat"><strong id="n-revisadas">0</strong><span>Lecturas confirmadas</span></div>
+      </div>
+      <div class="card alert" id="alerta-cierre">
+        <div class="row"><h2>⚠ Guardia sin cerrar</h2><span class="chip red">Bloquea informe semanal</span></div>
+        <p id="fecha-cierre">Guardia pendiente de cierre</p>
+        <p class="details">El OBAC no cerró la asistencia. Revisá el Libro de Guardia y regularizá el cierre con motivo registrado. Mientras siga pendiente, no se podrá generar el informe de los siete días.</p>
+      </div>
+      <h2>Fotografías recibidas</h2>
+      <p class="muted small">Al confirmar la lectura, el aviso desaparece de pendientes. La fotografía continúa disponible en el historial.</p>
+      <div id="bandeja"></div>
+      <div class="card">
+        <h2>Archivo del Libro de Guardia</h2>
+        <p class="muted small">Historial demostrativo de fotos revisadas. En la versión definitiva será persistente y consultable por fecha, semana y apellido del OBAC.</p>
+        <div id="archivo" class="empty">Todavía no hay fotografías revisadas.</div>
+      </div>
+    </section>
+
+    <section id="vista-obac" role="tabpanel" aria-labelledby="tab-obac" hidden>
+      <div class="card">
+        <div class="row"><h2>Finalización de guardia</h2><span class="chip green">Paso 1 · Asistencia</span></div>
+        <p class="muted">La asistencia se cierra primero, desde las 08:00. Después se envía la fotografía del Libro de Guardia.</p>
+        <p class="small">Este prototipo no modifica el registro real de asistencia.</p>
+      </div>
+      <div class="card">
+        <div class="row"><h2>Fotografiar Libro de Guardia</h2><span class="chip yellow">Paso 2 · Fotografía</span></div>
+        <label for="fecha-foto">Fecha de la guardia</label>
+        <select id="fecha-foto"></select>
+        <label for="obac-foto">OBAC de turno</label>
+        <select id="obac-foto"><option value="OBAC de turno">OBAC de turno (identificación de ejemplo)</option></select>
+        <div class="photo" id="vista-foto">La fotografía aparecerá aquí antes de enviarse.</div>
+        <div class="actions">
+          <button class="action" id="btn-foto" type="button">📷 Fotografiar Libro de Guardia</button>
+          <button class="action secondary" id="btn-galeria" type="button">Elegir de galería</button>
+        </div>
+        <input id="camara" type="file" accept="image/*" capture="environment" aria-label="Tomar foto del Libro de Guardia">
+        <input id="galeria" type="file" accept="image/*" aria-label="Elegir foto del Libro de Guardia">
+        <div class="actions"><button class="action" id="btn-enviar" type="button" disabled>Enviar fotografía (prueba)</button></div>
+        <p id="estado-obac" class="muted small" role="status">Primero tomá o seleccioná una fotografía.</p>
+      </div>
+    </section>
+    <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="muted small" style="text-align:center">GERMANIA · Diseño de prueba independiente · Sin cambios en producción</p>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+(function(){
+"use strict";
+var q=function(id){return document.getElementById(id);};
+var tz="America/Santiago", now=new Date(), dates=[], pending=[], archive=[], selectedUrl=null, selectedFile=null;
+var fmt=function(iso){return new Date(iso+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"});};
+var iso=function(d){return d.toLocaleDateString("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit"}).replace(/(\d+)\/(\d+)\/(\d+)/,"$1-$2-$3");};
+var today=iso(now), dt=new Date(today+"T12:00:00"), dow=dt.getDay(), n=(dow+4)%7;
+dt.setDate(dt.getDate()-n);
+for(var i=0;i<7;i++){var x=new Date(dt);x.setDate(dt.getDate()+i);dates.push(x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"));}
+var cierre=dates[0], example=dates[Math.min(1,dates.length-1)];
+q("fecha-cierre").textContent=fmt(cierre);
+q("fecha-foto").innerHTML=dates.map(function(f){var op=document.createElement("option");op.value=f;op.textContent=fmt(f);return op.outerHTML;}).join("");
+q("fecha-foto").value=today>=dates[0]&&today<=dates[6]?today:dates[0];
+pending.push({id:"p-demo",fecha:example,obac:"OBAC de turno",hora:"08:12",imagen:null,demo:true});
+function notify(s){var t=q("toast");t.textContent=s;t.style.display="block";clearTimeout(notify.timer);notify.timer=setTimeout(function(){t.style.display="none";},3500);}
+function tab(which){
+  var t=which==="teniente";q("vista-teniente").hidden=!t;q("vista-obac").hidden=t;
+  q("tab-teniente").setAttribute("aria-selected",String(t));q("tab-obac").setAttribute("aria-selected",String(!t));
+  if(t) render();
+}
+q("tab-teniente").onclick=function(){tab("teniente");};q("tab-obac").onclick=function(){tab("obac");};
+function btn(label,clazz,handler){var e=document.createElement("button");e.type="button";e.className="action "+(clazz||"");e.textContent=label;e.onclick=handler;return e;}
+function photoBox(src){var el=document.createElement("div");el.className="photo";if(src){var img=document.createElement("img");img.src=src;img.alt="Fotografía del Libro de Guardia";el.append(img);}else{el.textContent="Foto de ejemplo no disponible. Envía una foto desde la pantalla del OBAC para probar la visualización.";}return el;}
+function info(item){var p=document.createElement("p");p.className="details";p.textContent="Guardia: "+fmt(item.fecha)+" · OBAC: "+item.obac+" · Enviada: "+item.hora;return p;}
+function render(){
+  var list=q("bandeja");list.replaceChildren();
+  q("n-pendientes").textContent=pending.length;
+  q("n-revisadas").textContent=archive.length;
+  if(!pending.length){var x=document.createElement("p");x.className="empty";x.textContent="Sin fotografías pendientes de lectura.";list.append(x);}
+  pending.forEach(function(item){
+    var box=document.createElement("article");box.className="card";
+    var header=document.createElement("div");header.className="row";
+    var h=document.createElement("h2");h.textContent="Libro de Guardia";var chip=document.createElement("span");chip.className="chip yellow";chip.textContent="Pendiente de lectura";header.append(h,chip);
+    box.append(header,info(item));
+    var area=photoBox(item.imagen);area.hidden=true;box.append(area);
+    var acts=document.createElement("div");acts.className="actions";
+    acts.append(btn("Ver fotografía","secondary",function(){area.hidden=!area.hidden;}));
+    acts.append(btn("✓ Confirmar lectura","",function(){
+      pending=pending.filter(function(x){return x.id!==item.id;});item.visto=new Date().toLocaleString("es-CL",{timeZone:tz});archive.unshift(item);render();notify("Lectura registrada en esta demostración. La fotografía no se borra.");
+    }));
+    box.append(acts);list.append(box);
+  });
+  var arc=q("archivo");arc.replaceChildren();
+  if(!archive.length){arc.className="empty";arc.textContent="Todavía no hay fotografías revisadas.";}
+  else{arc.className="";archive.forEach(function(item){
+    var row=document.createElement("div");row.className="history-item";
+    var h=document.createElement("strong");h.textContent=fmt(item.fecha)+" · "+item.obac;
+    var p=document.createElement("div");p.className="small muted";p.textContent="Lectura confirmada: "+item.visto;
+    var action=btn("Ver fotografía archivada","secondary",function(){
+      var el=row.querySelector(".photo");
+      if(el){el.remove();return;}row.append(photoBox(item.imagen));
+    });row.append(h,p,action);arc.append(row);
+  });}
+}
+function preview(file){
+  if(!file)return;
+  if(!file.type.startsWith("image/")){notify("Seleccioná una imagen válida.");return;}
+  if(selectedUrl)URL.revokeObjectURL(selectedUrl);
+  selectedFile=file;selectedUrl=URL.createObjectURL(file);
+  q("vista-foto").replaceChildren();var img=document.createElement("img");img.src=selectedUrl;img.alt="Vista previa de la fotografía seleccionada";q("vista-foto").append(img);
+  q("btn-enviar").disabled=false;
+  q("estado-obac").textContent="Fotografía lista para enviar. Hora y fecha se agregarán automáticamente al registrar.";
+}
+q("btn-foto").onclick=function(){q("camara").click();};
+q("btn-galeria").onclick=function(){q("galeria").click();};
+q("camara").onchange=function(){preview(this.files&&this.files[0]);};
+q("galeria").onchange=function(){preview(this.files&&this.files[0]);};
+q("btn-enviar").onclick=function(){
+  if(!selectedFile||!selectedUrl)return;
+  var hour=new Date().toLocaleTimeString("es-CL",{timeZone:tz,hour:"2-digit",minute:"2-digit"});
+  pending.unshift({id:"demo-"+Date.now(),fecha:q("fecha-foto").value,obac:q("obac-foto").value,hora:hour,imagen:selectedUrl,demo:true});
+  selectedFile=null;selectedUrl=null;q("btn-enviar").disabled=true;q("vista-foto").textContent="Fotografía enviada en la demostración.";
+  q("estado-obac").textContent="Envío simulado. Revisá la bandeja del Teniente Tercero.";
+  notify("Fotografía recibida en esta demostración.");tab("teniente");
+};
+render();
+})();
+</script>
+</body>
+</html>
