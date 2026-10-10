@@ -34,7 +34,8 @@
     if(!noche || !Array.isArray(noche.vol) || !noche.maq || !noche.obac) return null;
     var vol=noche.vol.map(String);
     var todos=[String(noche.maq),String(noche.obac)].concat(vol);
-    if(new Set(todos).size!==todos.length) return null;
+    if(vol.length<2 || noche.vol.some(id=>id==null || String(id).trim()==="") ||
+      new Set(todos).size!==todos.length) return null;
     return JSON.stringify({maq:String(noche.maq),obac:String(noche.obac),vol:vol.sort()});
   }
   function acreditacionVigente(ac,revision,fecha){
