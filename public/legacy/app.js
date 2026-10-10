@@ -2015,7 +2015,7 @@ async function gnCrearRevision(inicio,dias){
   const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
   if(r.ok){ const j=await r.json(); for(const item of (j.items||[])){ const id=String(item.key||"").slice(("guardia-inscripcion:"+inicio+":").length); for(const f of (Array.isArray(item.value)?item.value:[])){ if(dias.includes(f)) (ins[f]||(ins[f]=[])).push(id); } } }
   const actor=gnRevisionActor(), rev={inicio,estado:"revision",creadoEn:new Date().toISOString(),creadoPor:actor,dias:dias.map(f=>({fecha:f,voluntarios:[...new Set(ins[f]||[])],conductor:(maq[f]||[])[0]||"",obac:(obac[f]||[])[0]||""})),cambios:[]};
-  await sSet(key,rev); return rev;
+  await sSet(key,rev,{ifVersion:SVER.get(key)||0}); return rev;
 }
 async function gnEditarRevision(inicio,fecha,tipo){
   const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev||rev.estado==="cerrada") return;
@@ -2026,15 +2026,15 @@ async function gnEditarRevision(inicio,fecha,tipo){
   if(tipo==="quitar"){ nuevo=prompt("Código del voluntario a quitar:",d.voluntarios[0]||""); if(!nuevo)return; const i=d.voluntarios.map(String).indexOf(String(nuevo)); if(i<0)return alert("Ese voluntario no está en esta noche."); antes=String(nuevo); d.voluntarios.splice(i,1); nuevo=""; accion="Quitó voluntario"; }
   if(tipo==="conductor"||tipo==="obac"){ antes=String(d[tipo]||""); nuevo=prompt("Código para "+(tipo==="conductor"?"conductor":"OBAC")+":",antes); if(nuevo===null)return; if(nuevo&&!opciones.map(String).includes(String(nuevo)))return alert("Voluntario no encontrado."); d[tipo]=String(nuevo||""); accion="Cambió "+tipo; }
   const actor=gnRevisionActor(); rev.cambios=Array.isArray(rev.cambios)?rev.cambios:[]; rev.cambios.push({fecha,accion,antes,nuevo:String(nuevo||""),por:actor,en:new Date().toISOString()});
-  await sSet(key,rev); await renderGnTablaSemanal();
+  try{ await sSet(key,rev,{ifVersion:SVER.get(key)||0}); }catch(e){ if(e.conflicto) alert("Otro oficial modificó esta revisión. Se recargará la versión vigente."); else throw e; } await renderGnTablaSemanal();
 }
 async function gnCerrarRevision(inicio){
   const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev)return;
   const malas=rev.dias.filter(d=>d.voluntarios.length<GN_DOTACION_MIN.voluntarios||!d.conductor||!d.obac);
-  if(malas.length){ alert("No se puede cerrar todavía. Hay "+malas.length+" noche(s) incompleta(s)."); return; }
-  if(!confirm("¿Cerrar definitivamente la revisión semanal?")) return;
+  if(malas.length&&!confirm("Hay "+malas.length+" noche(s) incompleta(s). La regla vigente permite cerrar con advertencia. ¿Cerrar igualmente?")) return;
+  if(!malas.length&&!confirm("¿Cerrar definitivamente la revisión semanal?")) return;
   const actor=gnRevisionActor(); rev.estado="cerrada"; rev.cerradoEn=new Date().toISOString(); rev.cerradoPor=actor; rev.cambios=(rev.cambios||[]).concat([{accion:"Cerró revisión semanal",por:actor,en:rev.cerradoEn}]);
-  await sSet(key,rev); await renderGnTablaSemanal();
+  try{ await sSet(key,rev,{ifVersion:SVER.get(key)||0}); }catch(e){ if(e.conflicto) alert("Otro oficial modificó esta revisión. Se recargará la versión vigente."); else throw e; } await renderGnTablaSemanal();
 }
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-gn-rev]"); if(!b)return;
