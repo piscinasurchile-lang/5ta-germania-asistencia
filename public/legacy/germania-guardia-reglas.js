@@ -30,5 +30,29 @@
       faltanVoluntarios:faltanVol,personasDistintas:distintas,razones:razones
     };
   }
-  root.GermaniaGuardiaReglas={evaluarDotacion:evaluarDotacion};
+  function firmaDotacion(noche){
+    if(!noche || !Array.isArray(noche.vol) || !noche.maq || !noche.obac) return null;
+    var vol=noche.vol.map(String);
+    var todos=[String(noche.maq),String(noche.obac)].concat(vol);
+    if(new Set(todos).size!==todos.length) return null;
+    return JSON.stringify({maq:String(noche.maq),obac:String(noche.obac),vol:vol.sort()});
+  }
+  function acreditacionVigente(ac,revision,fecha){
+    var n=revision&&revision.noches&&revision.noches[fecha];
+    if(!ac || !n || ac.estado!=="acreditada" || revision.estado!=="aprobada"
+      || ac.fecha!==fecha || ac.revisionAprobadaEn!==revision.aprobadaEn
+      || !ac.dotacionFirma || ac.dotacionFirma!==firmaDotacion(n)
+      || !ac.asistencias || typeof ac.asistencias!=="object" || Array.isArray(ac.asistencias)
+      || !Array.isArray(ac.asistentes) || !Array.isArray(ac.ausentes)) return false;
+    var ids=[String(n.maq),String(n.obac)].concat(n.vol.map(String));
+    var keys=Object.keys(ac.asistencias);
+    if(ids.length!==keys.length || ids.some(id=>!keys.includes(id)))return false;
+    var presentes=ids.filter(id=>ac.asistencias[id]==="presente"),
+        ausentes=ids.filter(id=>ac.asistencias[id]==="ausente");
+    return presentes.length+ausentes.length===ids.length &&
+      presentes.length===ac.asistentes.length && ausentes.length===ac.ausentes.length &&
+      presentes.every(id=>ac.asistentes.includes(id)) &&
+      ausentes.every(id=>ac.ausentes.includes(id));
+  }
+  root.GermaniaGuardiaReglas={evaluarDotacion:evaluarDotacion,firmaDotacion:firmaDotacion,acreditacionVigente:acreditacionVigente};
 })(typeof window!=="undefined"?window:globalThis);
