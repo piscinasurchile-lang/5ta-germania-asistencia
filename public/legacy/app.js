@@ -1863,7 +1863,7 @@ async function renderGnPlanner(){
  }
  cal.innerHTML=html;
  cal.querySelectorAll("[data-gn-date]").forEach(b=>b.onclick=()=>gnElegirSemana(b.dataset.gnDate));
- renderGnPeriodo(); await renderGnVoluntario();
+ renderGnPeriodo(); await renderGnVoluntario(); await renderGnTablaSemanal();
 }
 /* hora de Chile como valor de <input type="datetime-local"> */
 function gnLocalInput(ms){ return new Date(ms).toLocaleString("sv-SE",{timeZone:"America/Santiago"}).replace(" ","T").slice(0,16); }
@@ -1923,6 +1923,74 @@ on("gnConfirmarPeriodo","click",async()=>{
   const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"23:00",horaFin:"08:00",cierre};
  await gnSavePlan(p); gnPlanDraft=null; msg.textContent="Período confirmado. Inscripción abierta."; await renderGnPlanner();
 });
+/* Tabla semanal consolidada: lectura solamente sobre la fuente vigente guardia-plan/guardia-inscripcion.
+   No escribe ODD, historial, nómina ni inscripciones. */
+function gnNombreId(id){
+  const p=ROSTER.find(x=>String(x.id)===String(id));
+  return p?nombreCompleto(p):String(id||"—");
+}
+async function gnTablaRolSemana(prefijo,inicio){
+  const out={};
+  try{
+    const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo+inicio+":"),{cache:"no-store"});
+    if(!r.ok) return out;
+    const j=await r.json();
+    for(const item of (j.items||[])){
+      const id=String(item.key||"").slice((prefijo+inicio+":").length);
+      const vals=Array.isArray(item.value)?item.value:[];
+      vals.forEach(v=>{
+        const f=typeof v==="string"?v:(v&&v.f);
+        if(f) out[f]=out[f]||[];
+        if(f&&!out[f].includes(id)) out[f].push(id);
+      });
+    }
+  }catch(e){}
+  return out;
+}
+async function renderGnTablaSemanal(){
+  const box=document.getElementById("gnTablaSemanal"); if(!box) return;
+  let p=gnPlanDraft&&gnPlanDraft.inicio?gnPlanDraft:null;
+  if(!p){
+    try{
+      const planes=await gnPlanes(), hoy=todayISO();
+      p=planes.filter(x=>x.estado!=="anulada"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||planes.slice().sort((a,b)=>b.inicio.localeCompare(a.inicio))[0];
+    }catch(e){}
+  }
+  if(!p){ box.innerHTML='<div class="empty">No hay una semana programada.</div>'; return; }
+  const inicio=p.inicio, dias=gnWeek(inicio), inscritos={};
+  try{
+    const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
+    if(r.ok){
+      const j=await r.json();
+      for(const item of (j.items||[])){
+        const id=String(item.key||"").slice(("guardia-inscripcion:"+inicio+":").length);
+        for(const f of (Array.isArray(item.value)?item.value:[])){
+          if(!dias.includes(f)) continue;
+          (inscritos[f]||(inscritos[f]=[])).push(id);
+        }
+      }
+    }
+  }catch(e){}
+  const [obac,maq]=await Promise.all([
+    gnTablaRolSemana("guardia-obac:",inicio),
+    gnTablaRolSemana("guardia-maq:",inicio)
+  ]);
+  const filas=dias.map(f=>{
+    const vols=[...new Set(inscritos[f]||[])];
+    const o=[...new Set(obac[f]||[])], m=[...new Set(maq[f]||[])];
+    const faltan=Math.max(0,GN_DOTACION_MIN.voluntarios-vols.length);
+    const completa=faltan===0&&o.length>=GN_DOTACION_MIN.obac&&m.length>=GN_DOTACION_MIN.conductor;
+    const estado=completa?"Completa":"Incompleta";
+    const detalle=[];
+    if(faltan) detalle.push("faltan "+faltan+" voluntario"+(faltan===1?"":"s"));
+    if(!m.length) detalle.push("sin conductor");
+    if(!o.length) detalle.push("sin OBAC");
+    return '<tr><td><b>'+esc(gnFmt(f))+'</b></td><td>'+vols.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(vols.map(gnNombreId).join(" · ")||"Sin inscritos")+'</small></td><td>'+esc(m.map(gnNombreId).join(" · ")||"—")+'</td><td>'+esc(o.map(gnNombreId).join(" · ")||"—")+'</td><td><b>'+estado+'</b>'+(detalle.length?'<br><small>'+esc(detalle.join(" · "))+'</small>':'')+'</td></tr>';
+  }).join("");
+  box.innerHTML='<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>';
+}
+on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
+
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
    Mínimo sugerido: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
