@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 // No es autenticación personal: la seguridad individual sigue pendiente de auditoría.
 export function nombreOficial(roster, actor) {
   const p=Array.isArray(roster)?roster.find(x=>String(x.id)===String(actor)):null;
-  if(!p || p.activo===false) return null;
+  if(!p || p.activo===false || !String(p.nombre||"").trim() || !String(p.apellidoPaterno||"").trim()) return null;
   const nombre=[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" ").trim();
   return nombre || null;
 }
@@ -52,6 +52,7 @@ export async function POST(req) {
     const error=validarAcreditacion({fecha,noche:revision?.noches?.[fecha],
       asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
     if (error) return Response.json({error},{status:409});
+    if (!oficialNombre) return Response.json({error:"identidad_nombre_no_disponible"},{status:409});
     const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"08:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
