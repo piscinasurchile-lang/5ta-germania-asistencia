@@ -1,18 +1,15 @@
-import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
 export const runtime = "nodejs";
 
-// La autenticación individual del Teniente 3° debe revisarse en la auditoría de permisos;
-// la sesión compartida de Oficialidad no es identidad criptográfica personal.
-function oficialidad(req) {
-  const secret = process.env.SESSION_SECRET || process.env.OFFICIALITY_PIN;
-  const cookie = req.cookies?.get("quinta_oficialidad")?.value || "";
-  if (!secret || !cookie) return false;
-  const expected = crypto.createHmac("sha256", secret).update("5ta-germania-oficialidad").digest("hex");
-  const a=Buffer.from(cookie), b=Buffer.from(expected);
-  return a.length===b.length && crypto.timingSafeEqual(a,b);
+// Identificación provisoria por nombre y apellidos de la nómina institucional.
+// No es autenticación personal: la seguridad individual sigue pendiente de auditoría.
+export function nombreOficial(roster, actor) {
+  const p=Array.isArray(roster)?roster.find(x=>String(x.id)===String(actor)):null;
+  if(!p || p.activo===false) return null;
+  const nombre=[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" ").trim();
+  return nombre || null;
 }
 function origen(req) {
   const o=req.headers.get("origin");
@@ -32,7 +29,7 @@ function diaSiguiente(fecha) {
   return d.toISOString().slice(0,10);
 }
 export async function POST(req) {
-  if (!origen(req) || !oficialidad(req)) return Response.json({error:"oficialidad_requerida"},{status:403});
+  if (!origen(req)) return Response.json({error:"origen_no_permitido"},{status:403});
   let b; try { b=await req.json(); } catch { return Response.json({error:"datos_invalidos"},{status:400}); }
   const fecha=String(b?.fecha||""), actor=String(b?.actorId||"");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isInteger(b?.ifVersion) || b.ifVersion<0)
@@ -51,6 +48,7 @@ export async function POST(req) {
       readState(sql,"guardia-horarios:v1"),readState(sql,"guardia-acreditacion:"+fecha)
     ]);
     const revision=rev.value, roster=Array.isArray(rr.value)?rr.value:[];
+    const oficialNombre=nombreOficial(roster,actor);
     const error=validarAcreditacion({fecha,noche:revision?.noches?.[fecha],
       asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
     if (error) return Response.json({error},{status:409});
@@ -66,10 +64,11 @@ export async function POST(req) {
       dotacionFirma:firmaDotacion(revision.noches[fecha]),
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
       asistentes,ausentes,
-      acreditadoPorId:actor,acreditadoEn:new Date().toISOString(),
+      acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoEn:new Date().toISOString(),
       motivoCorreccion:String(b.motivoCorreccion||"").trim().slice(0,400),
       historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
+        porNombre:anteriorRegistro.acreditadoPorNombre||null,
         asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes
       }]:[]
     };
@@ -77,7 +76,7 @@ export async function POST(req) {
       return Response.json({error:"motivo_correccion_requerido"},{status:400});
     const guardado=await writeState(sql,"guardia-acreditacion:"+fecha,registro,{ifVersion:b.ifVersion});
     if (guardado.conflict) return Response.json({error:"version_conflict",version:guardado.version},{status:409});
-    return Response.json({ok:true,version:guardado.version,acreditadas:asistentes.length},{headers:{"Cache-Control":"no-store"}});
+    return Response.json({ok:true,version:guardado.version,acreditadas:asistentes.length,acreditadoPorNombre:oficialNombre},{headers:{"Cache-Control":"no-store"}});
   } catch(e) { console.error("guardia acreditacion failed",e);
     return Response.json({error:"database_error"},{status:500}); }
 }
