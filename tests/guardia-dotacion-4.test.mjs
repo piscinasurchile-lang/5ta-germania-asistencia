@@ -46,3 +46,16 @@ test("una persona no se cuenta dos veces si se repite accidentalmente", () => {
   ],orden:["t3","v1","maq"]});
   assert.equal(completo(r),false);
 });
+
+test("si hay maquinista titular, otro conductor inscrito sigue en precedencia para OBAC", () => {
+  const r=calcular({inscritos:[
+    {id:"maqTitular",maquinista:true},
+    {id:"capitan",habilitadoMaquinista:true},
+    {id:"vol1"},{id:"vol2"}
+  ],orden:["capitan","maqTitular","vol1","vol2"]});
+  assert.deepEqual(r.maquinistas,["maqTitular"]);
+  assert.equal(r.obac,"capitan");
+  assert.deepEqual(r.voluntarios,["vol1","vol2"]);
+  assert.equal(r.maquinistaPorRespaldo,null);
+  assert.equal(completo(r),true);
+});
