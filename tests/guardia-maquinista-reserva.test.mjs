@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
-import { fechasSemana, fechaISOValida, validarReservaMaquinista, fechaEnRegistro } from "../lib/guardia-maquinista.mjs";
+import { fechasSemana, fechaISOValida, validarReservaMaquinista, fechaEnRegistro, idVoluntarioValido } from "../lib/guardia-maquinista.mjs";
 import { RESERVA_TITULAR_SQL } from "../lib/guardia-reserva-titular-sql.mjs";
 
 const inicio = "2026-10-14", fecha = "2026-10-14";
@@ -9,6 +9,15 @@ const plan = { inicio, estado: "abierta", confirmado: true, cierre: "2026-10-13T
 const conductor = { id: "101", activo: true, conductor: true };
 const now = Date.parse("2026-10-12T15:00:00Z");
 const evaluar = (extras = {}) => validarReservaMaquinista({ inicio, fecha, personaId: "101", plan, miembro: conductor, ahora: now, ...extras });
+
+test("permite UUID reales de la nómina para reserva titular y conserva códigos antiguos", () => {
+  const id="a6f61713-4b31-467e-8e94-b541eed60f11";
+  assert.equal(idVoluntarioValido(id),true);
+  assert.equal(idVoluntarioValido("101"),true);
+  assert.equal(idVoluntarioValido("id_incorrecto"),false);
+  const caso=evaluar({personaId:id,miembro:{...conductor,id}});
+  assert.equal(caso.ok,true);
+});
 
 test("período válido: miércoles a martes (siete noches)", () => {
   assert.deepEqual(fechasSemana(inicio), [
