@@ -114,8 +114,12 @@ async function planActivo(who){
   var abiertos=ab.filter(function(x){ return ahora<gnInsCierreMs(x); }), abierto=abiertos[0]||null;
   /* con varias semanas abiertas: la primera que este voluntario aún no confirmó (igual que el aviso de Inicio) */
   if(who) for(var i=0;i<abiertos.length;i++){ var c=null; try{ c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); }catch(e){} if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
+  var esGestion=!!who&&esMando(porId(who));
+  var limite=esGestion?gnAdd(hoy,-90):hoy;
+  var lista=ab.filter(function(x){ return x.fin>=limite; });
   var p=abierto||ab.filter(function(x){ return x.fin>=hoy; })[0]||null;
-  return {p:p,abierto:!!abierto,lista:ab.filter(function(x){ return x.fin>=hoy; }),ahora:ahora};
+  if(!p&&esGestion&&lista.length)p=lista[lista.length-1];
+  return {p:p,abierto:!!abierto,lista:lista,ahora:ahora};
 }
 async function cargarSemana(p){
   var pref=["guardia-inscripcion:","guardia-maq:","guardia-obac:","guardia-confirmacion:","guardia-maq-reserva:"]; /* guardia-obac: solo compatibilidad. Reserva: disponibilidad suplente, NO titular */
@@ -189,7 +193,7 @@ async function grRender(forzar){
     var who=String(m.id), pa=await planActivo(who);
     var Dmi=await cargarD(m,pa.p,pa.abierto,pa.lista), D=Dmi;
     if(GR.vista==="gestion"&&pa.lista&&pa.lista.length){
-      var elegida=pa.lista.filter(function(x){ return x.inicio===GR.semana; })[0]||pa.lista[0];
+      var elegida=pa.lista.filter(function(x){ return x.inicio===GR.semana; })[0]||pa.lista.filter(function(x){return pa.p&&x.inicio===pa.p.inicio;})[0]||pa.lista[pa.lista.length-1];
       GR.semana=elegida.inicio;
       if(!pa.p||elegida.inicio!==pa.p.inicio) D=await cargarD(m,elegida,Date.now()<gnInsCierreMs(elegida),pa.lista);
     }
