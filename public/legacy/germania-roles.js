@@ -671,7 +671,8 @@ var MN={cache:null,who:"",en:0};
 function avKey(f,id){ return "guardia-aviso:"+f+":"+id; }
 async function misNochesDatos(who,forzar){
   if(!forzar&&MN.cache&&MN.who===who&&Date.now()-MN.en<15000) return MN.cache;
-  var rs=await Promise.all([leerPrefijo("guardia-revision:"),leerPrefijo("guardia-aviso:")]);
+  var rs=await Promise.all([leerPrefijo("guardia-revision:"),leerPrefijo("guardia-aviso:"),leerPrefijo("guardia-acreditacion:")]);
+  var acreditaciones={}; rs[2].forEach(function(it){ if(it.value && it.value.fecha) acreditaciones[it.value.fecha]=it.value; });
   var avisos={}; rs[1].forEach(function(it){ if(it.value&&it.value.f) avisos[it.value.f+":"+it.value.id]=it.value; });
   var ahora=Date.now(), prox=[], cumpl=[], vistas={};
   rs[0].forEach(function(it){
@@ -680,14 +681,20 @@ async function misNochesDatos(who,forzar){
       var n=d.noches[f], rol=n.maq===who?"maq":n.obac===who?"obac":(n.vol||[]).indexOf(who)>=0?"vol":null;
       var av=avisos[f+":"+who], cubre=null;
       Object.keys(avisos).forEach(function(k){ var a=avisos[k]; if(a.f===f&&a.estado==="cubierto"&&String(a.reemplazoId)===who) cubre=a.id; });
-      if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,cuenta:!(av&&av.estado!=="abierto"?false:false)}; (finNoche(f)>ahora?prox:cumpl).push(e); }
+      if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,revisionAprobadaEn:d.aprobadaEn,cuenta:false}; (finNoche(f)>ahora?prox:cumpl).push(e); }
     });
   });
   /* noches que cedí y ya cubrió otro: ya no estoy en la dotación, pero se muestran como «no cuenta» */
   Object.keys(avisos).forEach(function(k){ var a=avisos[k]; if(String(a.id)!==who||a.estado!=="cubierto"||vistas[a.f]) return; var e={f:a.f,rol:a.rol,hora:horaNoche(a.f),aviso:a,cubre:null}; (finNoche(a.f)>ahora?prox:cumpl).push(e); });
   prox.sort(function(a,b){ return a.f.localeCompare(b.f); }); cumpl.sort(function(a,b){ return b.f.localeCompare(a.f); });
-  /* ¿esta noche cuenta para mí? Solo si no avisé que no podía */
-  cumpl.forEach(function(e){ e.cuenta=!e.aviso; });
+  /* SOLO cuenta si el T3 acreditó presencialmente, con la última aprobación de dotación. */
+  cumpl.forEach(function(e){
+    var ac=acreditaciones[e.f], valida=!!(ac && ac.estado==="acreditada" &&
+      ac.revisionAprobadaEn===e.revisionAprobadaEn && Array.isArray(ac.asistentes) &&
+      ac.asistencias && typeof ac.asistencias==="object");
+    e.pendiente=!valida;
+    e.cuenta=valida && ac.asistentes.map(String).includes(who) && ac.asistencias[who]==="presente";
+  });
   MN.cache={prox:prox,cumpl:cumpl,avisos:avisos}; MN.who=who; MN.en=Date.now();
   return MN.cache;
 }
@@ -737,9 +744,9 @@ async function misNochesCumplidas(forzar){
   var m=miembro(); if(!m){ box.innerHTML=""; return; }
   var d; try{ d=await misNochesDatos(String(m.id),forzar); }catch(e){ return; }
   var ok=d.cumpl.filter(function(e){ return e.cuenta; }).length;
-  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+' con dotación aprobada.</p>'
+  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+' con asistencia real acreditada por el Teniente Tercero.</p>'
    +(d.cumpl.length?'<div class="gr-lista">'+d.cumpl.map(function(e){
-      var n=nombreNoche(e.f), nota=e.cubre?'<span class="gr-chip azul">Cubriste a '+E(nom(e.cubre))+' · cuenta a tu favor</span>':e.cuenta?'<span class="gr-chip verde">Cumplida</span>':'<span class="gr-chip gris">No cuenta'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
+      var n=nombreNoche(e.f), nota=e.cuenta?'<span class="gr-chip verde">Acreditada por T3</span>':e.pendiente?'<span class="gr-chip gris">Pendiente de acreditación</span>':'<span class="gr-chip gris">No cumplida'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
       return '<div class="gr-nc"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(ROL_NOCHE[e.rol]||"Voluntario")+'</b>'+nota+'</div></div></div>';
     }).join("")+'</div>':'<div class="empty">Aún no hay noches cumplidas.</div>');
 }
