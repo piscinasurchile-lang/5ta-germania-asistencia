@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { redactRoster, preserveMedical } from "../../../../lib/medical-access.js";
 import { ensureSchema, readState, writeState, addToList, voluntariosQuitados } from "../../../../lib/state-store.js";
+import { indexedRecordSpec, writeIndexedState } from "../../../../lib/indexed-state.js";
 
 export const runtime = "nodejs";
 function officialSession(request) {
@@ -61,6 +62,12 @@ export async function PUT(request, { params }) {
   if (!Object.prototype.hasOwnProperty.call(body, "value")) return Response.json({ error: "missing_value" }, { status: 400 });
 
   const ifVersion = Object.prototype.hasOwnProperty.call(body, "ifVersion") && Number.isInteger(body.ifVersion) ? body.ifVersion : null;
+  // Solo registros de Parte, Guardia y Servicio admiten escritura junto con su índice.
+  // Se deriva y valida el índice en servidor: el cliente no elige la clave ni el contenido.
+  const indexedWrite = body.indexedWrite === true;
+  if (indexedWrite && !indexedRecordSpec(key, body.value)) {
+    return Response.json({ error: "invalid_indexed_record" }, { status: 400 });
+  }
 
   try {
     await ensureSchema(sql);
@@ -73,12 +80,15 @@ export async function PUT(request, { params }) {
       }
     }
     const safeValue = key === "roster:v8" && !officialSession(request) ? preserveMedical(actual.value, body.value) : body.value;
-    const r = await writeState(sql, key, safeValue, { ifVersion });
+    const r = indexedWrite
+      ? await writeIndexedState(sql, key, safeValue, { ifVersion })
+      : await writeState(sql, key, safeValue, { ifVersion });
     if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: key === "roster:v8" && !officialSession(request) ? redactRoster(r.value) : r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
     return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
-    return Response.json({ error: "database_error" }, { status: 500 });
+    return Response.json({ error: error?.message === "invalid_indexed_record" ? "invalid_indexed_record" : "database_error" },
+      { status: error?.message === "invalid_indexed_record" ? 400 : 500 });
   }
 }
 
