@@ -2758,38 +2758,32 @@ on("gnPdfEstad","click",async()=>{
 /* ---- INFOGRAFÍA DE GUARDIAS ---- */
 on("gnInfo","click",async()=>{
   const lista=await guardiasEnRango(); const {d,h}=rangoGn();
-  if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
+  if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
+  let datos;
+  try{datos=await gnResumenAcreditado(lista);}
+  catch(e){alert("No se generó la infografía: no fue posible verificar las acreditaciones.");return;}
+  const {resumen,pares}=datos;
   const DIAS=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const f1=x=>x.toFixed(1);
-
-  const conteo={}, desig={}, falto={}, reemp={};
-  sortedRoster(false).forEach(p=>{ conteo[p.id]=0; desig[p.id]=0; falto[p.id]=0; reemp[p.id]=0; });
-  let inasist=0, justif=0, sinR=0, reemplazos=0, cubiertos=0;
-  lista.forEach(g=>{
-    normalizaTurno(g.guardianes).forEach(x=>{
-      if(desig[x.id]!==undefined) desig[x.id]++;
-      if(x.estado==="no"){
-        inasist++; if(x.correo) justif++;
-        if(falto[x.id]!==undefined) falto[x.id]++;
-        if(x.reemplazo){ reemplazos++; if(reemp[x.reemplazo]!==undefined) reemp[x.reemplazo]++; }
-        else sinR++;
-      }
-    });
-    const c=cubrenGuardia(g.guardianes); cubiertos+=c.length;
-    c.forEach(id=>{ if(conteo[id]!==undefined) conteo[id]++; });
-  });
-  const ranking=sortedRoster(false).map(p=>({p,n:conteo[p.id]||0,d:desig[p.id]||0,
-    f:falto[p.id]||0,r:reemp[p.id]||0})).filter(x=>x.d||x.n).sort((a,b)=>b.n-a.n);
-  const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-
+  const cubiertos=Object.values(resumen.por).reduce((z,x)=>z+x.hechas,0),
+    inasist=Object.values(resumen.por).reduce((z,x)=>z+x.falto,0),
+    reemplazos=Object.values(resumen.por).reduce((z,x)=>z+x.cubrio,0),
+    sinR=resumen.pendientes;
+  const ranking=sortedRoster(false).map(p=>{
+    const q=resumen.por[String(p.id)]||{asig:0,hechas:0,falto:0,cubrio:0,obac:0};
+    return {p,n:q.hechas,d:q.asig,f:q.falto,r:q.cubrio,obac:q.obac};
+  }).filter(x=>x.d||x.n).sort((a,b)=>b.n-a.n);
+  const conNov=lista.filter(g=>g.novedades&&!/^sin novedad/i.test(g.novedades)).length;
   const noches=lista.map(g=>{
-    const t=normalizaTurno(g.guardianes);
-    const [yy,mm,dd]=g.fechaIng.split("-").map(Number);
-    const dia=new Date(yy,mm-1,dd);
-    return {g,t,dia,
-      cuartel:t.filter(x=>x.estado==="cuartel"),
-      casa:t.filter(x=>x.estado==="casa"),
-      faltan:t.filter(x=>x.estado==="no")};
+    const [yy,mm,dd]=g.fechaIng.split("-").map(Number),dia=new Date(yy,mm-1,dd);
+    const par=pares[g.fechaIng]||{},rev=par.revision,n=rev?.noches?.[g.fechaIng];
+    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(par.acta,rev,g.fechaIng)?par.acta:null;
+    const designados=n?[n.maq,n.obac,...n.vol].filter(Boolean):
+      [g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
+    return {g,dia,acreditado:!!ac,programados:ac?[]:[...new Set(designados)].map(id=>({id})),
+      cuartel:ac?ac.asistentes.map(id=>({id})):[],
+      casa:[],faltan:ac?ac.ausentes.map(id=>({id})):[]
+    };
   });
 
   const doc=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=1180">
@@ -2848,10 +2842,10 @@ td{padding:5px 8px;border:1px solid #e3e9f2}
 
 <div class="sec"><h3>RESUMEN DEL PERÍODO</h3><div class="in"><div class="kpis">
 <div class="k"><div class="n">${lista.length}</div><div class="t">Noches con guardia</div></div>
-<div class="k v"><div class="n">${cubiertos}</div><div class="t">Turnos cubiertos</div></div>
-<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Guardianes por noche</div></div>
-<div class="k"><div class="n">${inasist}</div><div class="t">Inasistencias</div></div>
-<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Sin reemplazo</div></div>
+<div class="k v"><div class="n">${cubiertos}</div><div class="t">Asistencias acreditadas</div></div>
+<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Acreditadas por noche</div></div>
+<div class="k"><div class="n">${inasist}</div><div class="t">Ausencias verificadas</div></div>
+<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Por acreditar</div></div>
 <div class="k"><div class="n">${conNov}</div><div class="t">Noches con novedad</div></div>
 </div></div></div>
 
@@ -2861,37 +2855,34 @@ ${noches.map(n=>`
   <div class="noche">
     <div class="cab">
       <b>${DIAS[n.dia.getDay()]} ${n.dia.getDate()}</b>
-      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)}</span>
+      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Acreditada por T3":"Sin acreditar"}</span>
     </div>
     <div class="cnt">
-      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">CUARTEL</em>${esc(nombrePorId(x.id))}</div>`).join("")}
-      ${n.casa.map(x=>`<div class="g"><em class="e-h">A LLAMADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ T3</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.programados.map(x=>`<div class="g"><em class="e-h">DESIGNADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      
       ${n.faltan.map(x=>`
-        <div class="g"><em class="e-n">NO ASISTE</em><s>${esc(nombrePorId(x.id))}</s></div>
-        <div class="g" style="padding-left:14px;font-size:11px;color:#64748b;">${esc(x.motivo||"sin motivo")}${x.correo?" · justificó por correo":""}</div>
-        ${x.reemplazo?`<div class="g"><em class="e-r">REEMPLAZA</em>${esc(nombrePorId(x.reemplazo))}</div>`:
-          `<div class="g" style="padding-left:14px;font-size:11px;color:#8f1d1d;">Sin reemplazo</div>`}`).join("")}
+        <div class="g"><em class="e-n">NO ASISTIÓ T3</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
       <div class="ofi">Oficial a cargo: <b>${n.g.oficial?esc(nombrePorId(n.g.oficial)):"—"}</b></div>
       ${n.g.novedades && !/^sin novedad/i.test(n.g.novedades)?`<div class="nov"><b>Novedad:</b> ${esc(n.g.novedades)}</div>`:""}
     </div>
   </div>`).join("")}
 </div>
 <div class="leyenda">
-  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">CUARTEL</em> duerme en el cuartel</span>
-  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">A LLAMADO</em> acude desde su casa</span>
-  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZA</em> cubre a un designado</span>
-  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTE</em> designado que no concurre</span>
+  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ T3</em> asistencia acreditada</span>
+  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">DESIGNADO</em> sin acreditar</span>
+  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZO</em> solo cuenta al acreditarse</span>
+  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ T3</em> ausencia verificada</span>
 </div>
 </div></div>
 
 <div class="sec"><h3>PARTICIPACIÓN POR VOLUNTARIO</h3><div class="in">
-<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cubrió</th><th>No asistió</th><th>Reemplazó</th><th>Cumplimiento</th></tr>
+<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió T3</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC acreditado</th></tr>
 ${ranking.map(x=>`<tr><td>${x.p.n||""}</td><td><b>${esc(nombreCompleto(x.p))}</b></td>
 <td>${x.d}</td><td>${x.n}</td><td>${x.f}</td><td>${x.r}</td>
-<td><b>${x.d?((x.d-x.f)/x.d*100).toFixed(0)+"%":"—"}</b></td></tr>`).join("")}
+<td><b>${x.obac}</b></td></tr>`).join("")}
 </table>
-${inasist?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;">
-<b>Inasistencias:</b> ${inasist} en el período, de las cuales ${justif} se justificaron por correo y ${reemplazos} fueron cubiertas con reemplazo. ${sinR?`Quedaron ${sinR} turno${sinR===1?"":"s"} sin reemplazo.`:"Todas fueron reemplazadas."}</div>`:""}
+${inasist||sinR?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;"><b>Asistencia:</b> ${inasist} ausencia(s) verificadas; ${reemplazos} reemplazo(s) con asistencia acreditada; ${sinR} noche(s) finalizada(s) pendiente(s) de acreditar.</div>`:""}
 </div></div>
 
 </div>
