@@ -48,7 +48,7 @@ test("seis tarjetas de inicio tienen sus rutas y novedades conserva su contenido
 });
 
 test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
-  assert.match(html,/germania-inicio\.css\?v=20261010d/);
+  assert.match(html,/germania-inicio\.css\?v=20261010e/);
   assert.match(html,/germania-guardia-franja\.js\?v=20261010a/);
   assert.match(css,/#panel-germania \.home-tiles/);
   assert.match(css,/#panel-germania \.gn-franja/);
@@ -94,4 +94,14 @@ test("orden de Inicio: Asistencia y Disponibilidad arriba; Emergencia y Estadís
   const fragmento=html.slice(inicio,fin);
   const orden=[...fragmento.matchAll(/<button class="tile tile-([a-z]+)/g)].map(m=>m[1]);
   assert.deepEqual(orden,["asistencia","disponibilidad","emergencia","estadistica","oficiales","novedades"]);
+});
+
+test("tarjetas de Inicio ajustan títulos largos sin pisar la flecha en móviles",()=>{
+  const bloque=css.slice(css.indexOf("/* Corrección móvil: ningún título"));
+  assert.ok(bloque.includes("grid-template-columns:28px minmax(0,1fr) 12px"));
+  assert.ok(bloque.includes("grid-template-columns:24px minmax(0,1fr) 10px"));
+  assert.ok(bloque.includes("overflow-wrap:anywhere"));
+  assert.ok(bloque.includes("#panel-germania .home-tiles .tile-arrow"));
+  assert.ok(bloque.includes("@media (max-width:700px)"));
+  assert.ok(bloque.includes("@media (max-width:360px)"));
 });
