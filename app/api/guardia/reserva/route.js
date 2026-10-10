@@ -3,7 +3,7 @@ import {ensureSchema, readState} from "../../../../lib/state-store.js";
 import {evaluarInscripcion} from "../../../../lib/guardia-reglas.mjs";
 
 export const runtime="nodejs";
-const fechaValida=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||"") && !Number.isNaN(Date.parse(x+"T12:00:00Z"));
+const fechaValida=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||"") && !Number.isNaN(Date.parse(x+"T12:00:00Z")) && new Date(x+"T12:00:00Z").toISOString().slice(0,10)===x;
 const sameOrigin=req=>{try{return new URL(req.headers.get("origin")).host===req.headers.get("host");}catch{return false;}};
 const responder=(codigo,status=409)=>Response.json({ok:false,codigo},{status,headers:{"Cache-Control":"no-store"}});
 
