@@ -415,3 +415,60 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
   #panel-config #configContenido .of-grupo-botones{animation:none;}
   #panel-config #configContenido .of-grupo-arrow{transition:none;}
 }
+
+/* Corrección móvil: ningún título ni descripción invade la flecha o el
+ * contorno de las tarjetas del Inicio (p. ej. «Disponibilidad»).
+ * Solo layout visual; conserva nombres, rutas y colores aprobados.
+ */
+@media (max-width:700px){
+  #panel-germania .home-tiles .tile{
+    display:grid;
+    grid-template-columns:28px minmax(0,1fr) 12px;
+    align-items:center;
+    column-gap:6px;
+    padding:10px 8px;
+  }
+  #panel-germania .home-tiles .tile-ico{
+    width:28px;
+    min-width:0;
+    height:30px;
+  }
+  #panel-germania .home-tiles .tile-ico svg{
+    width:28px;
+    max-width:100%;
+    height:28px;
+  }
+  #panel-germania .home-tiles .tile-copy{
+    min-width:0;
+    max-width:100%;
+    overflow-wrap:anywhere;
+    hyphens:auto;
+  }
+  #panel-germania .home-tiles .tile-copy strong{
+    font-size:clamp(14px,3.6vw,16px);
+    line-height:1.18;
+    overflow-wrap:anywhere;
+    hyphens:auto;
+  }
+  #panel-germania .home-tiles .tile-copy small{
+    font-size:11px;
+    line-height:1.23;
+    overflow-wrap:anywhere;
+  }
+  #panel-germania .home-tiles .tile-arrow{
+    justify-self:end;
+    min-width:0;
+    font-size:20px;
+    line-height:1;
+  }
+}
+@media (max-width:360px){
+  #panel-germania .home-tiles .tile{
+    grid-template-columns:24px minmax(0,1fr) 10px;
+    column-gap:5px;
+    padding:9px 7px;
+  }
+  #panel-germania .home-tiles .tile-ico{width:24px;height:26px;}
+  #panel-germania .home-tiles .tile-ico svg{width:24px;height:24px;}
+  #panel-germania .home-tiles .tile-arrow{font-size:18px;}
+}
