@@ -3,7 +3,7 @@
    - Guardia: una tarjeta por rol → Voluntario, Maquinista, OBAC e Información (Capitán, Teniente 3° y administrador).
    - Una sola fuente de datos: las mismas claves de la base (guardia-inscripcion / guardia-confirmacion) más
      guardia-maq y guardia-obac. No toca la ODD.
-   Noche completa = 3 voluntarios + 1 maquinista + 1 OBAC (GN_DOTACION_MIN, en app.js).
+   Noche completa = 2 voluntarios + 1 maquinista + 1 OBAC (GN_DOTACION_MIN, en app.js).
    Un voluntario ocupa UN solo rol por noche (voluntario, maquinista u OBAC). */
 (function(){
 "use strict";
