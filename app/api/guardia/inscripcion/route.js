@@ -1,3 +1,4 @@
+import {permitirInscripcionHeredada} from "../../../../lib/guardia-acceso.mjs";
 import { neon } from "@neondatabase/serverless";
 export const runtime="nodejs"; export const dynamic="force-dynamic";
 const vd=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||""),vc=v=>/^\d{1,6}$/.test(v||"");
@@ -30,7 +31,7 @@ export async function GET(r){
 export async function PUT(r){
  // No confiar en codigo/nombre del cliente como identidad. Mantener cerrada
  // la escritura heredada hasta disponer de sesión individual verificada.
- if(process.env.GUARDIA_INSCRIPCION_LEGACY_BLOQUEADA !== "false") return Response.json({error:"identity_verification_required"},{status:403,headers:{"Cache-Control":"no-store"}});
+ if(!permitirInscripcionHeredada(process.env)) return Response.json({error:"identity_verification_required"},{status:403,headers:{"Cache-Control":"no-store"}});
  if(!origin(r))return Response.json({error:"forbidden_origin"},{status:403});const s=db();if(!s)return Response.json({error:"database_not_configured"},{status:503});
  let b;try{b=await r.json()}catch{return Response.json({error:"invalid_json"},{status:400})}
  const inicio=String(b.inicio||""),codigo=String(b.codigo||""),nombre=String(b.nombre||"").trim(),fechas=[...new Set((Array.isArray(b.fechas)?b.fechas:[]).map(String))];
