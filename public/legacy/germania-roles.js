@@ -3,7 +3,7 @@
    - Guardia: una tarjeta por rol → Voluntario, Maquinista, OBAC e Información (Capitán, Teniente 3° y administrador).
    - Una sola fuente de datos: las mismas claves de la base (guardia-inscripcion / guardia-confirmacion) más
      guardia-maq y guardia-obac. No toca la ODD.
-   Noche completa = 3 voluntarios + 1 maquinista + 1 OBAC (GN_DOTACION_MIN, en app.js).
+   Noche completa = 2 voluntarios + 1 maquinista + 1 OBAC distintos (GN_DOTACION_MIN, en app.js).
    Un voluntario ocupa UN solo rol por noche (voluntario, maquinista u OBAC). */
 (function(){
 "use strict";
@@ -141,18 +141,16 @@ function cobertura(S,noches){
     if(r.obac) obac.push({id:r.obac,t:"",n:PREC&&PREC[r.obac]!=null?PREC[r.obac]:9999});
     vol=r.voluntarios.slice();
     var refuerzos=Math.max(0,vol.length-DOT.voluntarios);
-    var completa=vol.length>=DOT.voluntarios&&maq.length>=DOT.conductor&&obac.length>=DOT.obac;
+    var valido=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion({vol:vol,maq:maq,obac:obac});
+    var completa=!!(valido&&valido.completa);
     var nada=!vol.length&&!maq.length&&!obac.length;
     return {f:f,vol:vol,maq:maq,obac:obac,refuerzos:refuerzos,completa:completa,nada:nada,empate:!!r.empateSinPosicion};
   });
 }
 function nombreNoche(f){ var d=new Date(f+"T12:00"); var w=d.toLocaleDateString("es-CL",{weekday:"short"}).replace(".",""); return {w:w.charAt(0).toUpperCase()+w.slice(1),d:f.slice(8)}; }
 function faltan(c){
-  var DOT=GN_DOTACION_MIN, t=[];
-  if(c.vol.length<DOT.voluntarios) t.push("faltan "+(DOT.voluntarios-c.vol.length)+" voluntario"+((DOT.voluntarios-c.vol.length)===1?"":"s"));
-  if(c.maq.length<DOT.conductor) t.push("falta maquinista");
-  if(c.obac.length<DOT.obac) t.push("falta OBAC");
-  return t.join(" · ");
+  var v=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion(c);
+  return v?v.razones.join(" · "):"No se pudo verificar la dotación";
 }
 
 /* ---------- Estado de la tarjeta ---------- */
@@ -422,7 +420,8 @@ function revAplicar(doc,D,op){
 function revCov(doc){
   var DOT=GN_DOTACION_MIN;
   return Object.keys(doc.noches).sort().map(function(f){
-    var n=doc.noches[f], ok=n.vol.length>=DOT.voluntarios&&!!n.maq&&!!n.obac, nada=!n.vol.length&&!n.maq&&!n.obac;
+    var n=doc.noches[f], v=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion(n);
+    var ok=!!(v&&v.completa), nada=!n.vol.length&&!n.maq&&!n.obac;
     return {f:f,n:n,completa:ok,nada:nada,refuerzos:Math.max(0,n.vol.length-DOT.voluntarios)};
   });
 }
@@ -476,7 +475,7 @@ async function panelRev(pn,D){
       +(aprobada?'':'<select class="rv-sel" data-rv-add="'+c.f+'" aria-label="Agregar voluntario el '+E(nn.w+" "+nn.d)+'">'+optV+'</select>')
       +'<label class="rv-lbl">🚒 Maquinista</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.maq?'<b>'+E(nom(c.n.maq))+'</b>':'<span class="falta">falta</span>')+'</div>':'<select class="rv-sel" data-rv-rol="'+c.f+'|maq">'+optM(maqs,c.n.maq,"maq")+'</select>')
       +'<label class="rv-lbl">🎧 OBAC</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.obac?'<b>'+E(nom(c.n.obac))+'</b>':'<span class="falta">falta</span>')+'</div>':'<select class="rv-sel" data-rv-rol="'+c.f+'|obac">'+optM(obacs,c.n.obac,"obac")+'</select>')
-      +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}))+'</small>':'')
+      +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan({vol:c.n.vol,maq:c.n.maq?[c.n.maq]:[],obac:c.n.obac?[c.n.obac]:[]}))+'</small>':'')
       +'</div></div>';
   }).join("")+'</div>';
   /* Resultado (así quedará, en el orden de la ODD) */
@@ -518,7 +517,7 @@ async function panelRev(pn,D){
 }
 async function aprobarRevision(pn,D){
   var doc=RV.doc, cov=revCov(doc), malas=cov.filter(function(c){ return !c.completa; });
-  var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
+  var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[c.n.maq]:[],obac:c.n.obac?[c.n.obac]:[]}); }).join("\n")+"\n\n":"";
   if(!confirm(aviso+"¿Aprobar la dotación? Se actualizarán las guardias de la semana con este resultado (queda historial de lo anterior).")) return;
   var msg=$("rvMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Aprobando…"; }
   var p=D.p, n=0;
