@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { ensureSchema, readState, writeState } from "../../../lib/state-store.js";
-import { integrantesNoche, validarAcreditacion } from "../../../lib/guardia-acreditacion.js";
+import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
+import { integrantesNoche, validarAcreditacion } from "../../../../lib/guardia-acreditacion.js";
 export const runtime = "nodejs";
 
 // La autenticación individual del Teniente 3° debe revisarse en la auditoría de permisos;
