@@ -2595,6 +2595,41 @@ async function guardiasEnRango(){
   }
   return out.sort((a,b)=>a.fechaIng<b.fechaIng?-1:1);
 }
+/* Un único cálculo institucional para pantalla, informe estadístico e infografía.
+   Solo lee registros reales y nunca presupone que una dotación designada haya asistido.
+   Se leen todas las revisiones y acreditaciones en dos solicitudes, sin cargar 7x2 veces. */
+async function gnResumenAcreditado(lista){
+  const claves=["guardia-revision:","guardia-acreditacion:"];
+  const [revisiones,actas]=await Promise.all(claves.map(async prefijo=>{
+    const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo),{cache:"no-store"});
+    if(!r.ok)throw new Error("No se pudieron consultar las acreditaciones ("+r.status+").");
+    const j=await r.json();
+    if(!Array.isArray(j.items))throw new Error("La respuesta de acreditaciones está incompleta.");
+    return new Map(j.items.map(x=>[x.key,x.value]));
+  }));
+  const pares={};
+  for(const g of lista){
+    const f=g.fechaIng;
+    if(!f)continue;
+    const d=new Date(f+"T12:00:00Z");
+    if(!Number.isFinite(+d))continue;
+    d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
+    const ini=d.toISOString().slice(0,10);
+    pares[f]={revision:revisiones.get("guardia-revision:"+ini)||null,
+      acta:actas.get("guardia-acreditacion:"+f)||null};
+  }
+  const partes=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{
+    timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",hour12:false,hourCycle:"h23"
+  }).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  const ahoraChile=[partes.year,partes.month,partes.day].join("-")+"T"+partes.hour+":"+partes.minute;
+  if(!window.GermaniaGuardiaEstadisticas)throw new Error("Módulo de estadísticas no disponible.");
+  const resumen=window.GermaniaGuardiaEstadisticas.calcularResumen({
+    guardias:lista,acreditaciones:pares,rosterIds:ROSTER.map(p=>String(p.id)),ahoraChile
+  });
+  return {resumen,pares};
+}
+
 on("gnSemana","click",()=>{
   const hoy=new Date();
   const ini=new Date(hoy); ini.setDate(hoy.getDate()-6);
