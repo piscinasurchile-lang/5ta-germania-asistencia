@@ -1958,6 +1958,8 @@ async function renderGnTablaSemanal(){
   }
   if(!p){ box.innerHTML='<div class="empty">No hay una semana programada.</div>'; return; }
   const inicio=p.inicio, dias=gnWeek(inicio), inscritos={};
+  const cierreMs=gnInsCierreMs(p), revision=Date.now()>=cierreMs;
+  const revisionAviso=revision?'<div class="gn-period-box" style="margin-bottom:12px;"><b>Inscripción cerrada · revisión T3 pendiente</b><br><small>Revisa la dotación de las 7 noches. Completa voluntarios, conductor y OBAC antes del cierre definitivo.</small></div>':'';
   try{
     const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
     if(r.ok){
@@ -1987,7 +1989,7 @@ async function renderGnTablaSemanal(){
     if(!o.length) detalle.push("sin OBAC");
     return '<tr><td><b>'+esc(gnFmt(f))+'</b></td><td>'+vols.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(vols.map(gnNombreId).join(" · ")||"Sin inscritos")+'</small></td><td>'+esc(m.map(gnNombreId).join(" · ")||"—")+'</td><td>'+esc(o.map(gnNombreId).join(" · ")||"—")+'</td><td><b>'+estado+'</b>'+(detalle.length?'<br><small>'+esc(detalle.join(" · "))+'</small>':'')+'</td></tr>';
   }).join("");
-  box.innerHTML='<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>';
+  box.innerHTML=revisionAviso+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
 
