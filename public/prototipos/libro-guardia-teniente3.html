@@ -156,21 +156,44 @@ function render(){
   else{arc.className="";archive.forEach(function(item){
     var row=document.createElement("div");row.className="history-item";
     var h=document.createElement("strong");h.textContent=fmt(item.fecha)+" · "+item.obac;
-    var p=document.createElement("div");p.className="small muted";p.textContent="Lectura confirmada: "+item.visto;
+    var p=document.createElement("div");p.className="small muted";p.textContent="Lectura confirmada: "+item.visto+(item.nombreArchivo?" · "+item.nombreArchivo:"");
     var action=btn("Ver fotografía archivada","secondary",function(){
       var el=row.querySelector(".photo");
       if(el){el.remove();return;}row.append(photoBox(item.imagen));
     });row.append(h,p,action);arc.append(row);
   });}
 }
-function preview(file){
+async function preview(file){
   if(!file)return;
-  if(!file.type.startsWith("image/")){notify("Seleccioná una imagen válida.");return;}
-  if(selectedUrl)URL.revokeObjectURL(selectedUrl);
-  selectedFile=file;selectedUrl=URL.createObjectURL(file);
-  q("vista-foto").replaceChildren();var img=document.createElement("img");img.src=selectedUrl;img.alt="Vista previa de la fotografía seleccionada";q("vista-foto").append(img);
-  q("btn-enviar").disabled=false;
-  q("estado-obac").textContent="Fotografía lista para enviar. Hora y fecha se agregarán automáticamente al registrar.";
+  q("btn-enviar").disabled=true;
+  q("estado-obac").textContent="Convirtiendo fotografía a WebP…";
+  if(!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name||"")){
+    q("estado-obac").textContent="El archivo debe ser una imagen.";return;
+  }
+  var inputUrl=URL.createObjectURL(file), image=new Image();
+  try{
+    await new Promise(function(resolve,reject){
+      image.onload=resolve;image.onerror=reject;image.src=inputUrl;
+    });
+    var max=2400, scale=Math.min(1,max/Math.max(image.naturalWidth,image.naturalHeight));
+    var canvas=document.createElement("canvas");
+    canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+    canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
+    var blob=await new Promise(function(resolve){canvas.toBlob(resolve,"image/webp",0.9);});
+    if(!blob||blob.type!=="image/webp")throw new Error("Este navegador no admite la conversión a WebP.");
+    var fecha=q("fecha-foto").value, nombre=q("obac-foto").value.replace(/[^a-zA-Z0-9_-]+/g,"_");
+    selectedFile=new File([blob],"GERMANIA_"+fecha+"_OBAC_"+nombre+".webp",{type:"image/webp"});
+    if(selectedUrl)URL.revokeObjectURL(selectedUrl);
+    selectedUrl=URL.createObjectURL(selectedFile);
+    q("vista-foto").replaceChildren();
+    var img=document.createElement("img");img.src=selectedUrl;img.alt="Vista previa de la fotografía WebP";q("vista-foto").append(img);
+    q("btn-enviar").disabled=false;
+    q("estado-obac").textContent="WebP preparado ("+canvas.width+" × "+canvas.height+" px, "+Math.round(blob.size/1024)+" KB). La fecha, hora y OBAC se registrarán al enviar.";
+  }catch(e){
+    selectedFile=null;
+    q("estado-obac").textContent="No se pudo convertir esta imagen a WebP. Probá tomarla nuevamente desde la cámara.";
+  }finally{URL.revokeObjectURL(inputUrl);}
 }
 q("btn-foto").onclick=function(){q("camara").click();};
 q("btn-galeria").onclick=function(){q("galeria").click();};
@@ -179,7 +202,7 @@ q("galeria").onchange=function(){preview(this.files&&this.files[0]);};
 q("btn-enviar").onclick=function(){
   if(!selectedFile||!selectedUrl)return;
   var hour=new Date().toLocaleTimeString("es-CL",{timeZone:tz,hour:"2-digit",minute:"2-digit"});
-  pending.unshift({id:"demo-"+Date.now(),fecha:q("fecha-foto").value,obac:q("obac-foto").value,hora:hour,imagen:selectedUrl,demo:true});
+  pending.unshift({id:"demo-"+Date.now(),fecha:q("fecha-foto").value,obac:q("obac-foto").value,hora:hour,imagen:selectedUrl,nombreArchivo:selectedFile.name,formato:selectedFile.type,demo:true});
   selectedFile=null;selectedUrl=null;q("btn-enviar").disabled=true;q("vista-foto").textContent="Fotografía enviada en la demostración.";
   q("estado-obac").textContent="Envío simulado. Revisá la bandeja del Teniente Tercero.";
   notify("Fotografía recibida en esta demostración.");tab("teniente");
