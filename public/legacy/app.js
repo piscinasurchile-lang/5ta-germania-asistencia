@@ -2713,56 +2713,46 @@ on("gnPdfSemanal","click",async()=>{
 });
 
 on("gnPdfEstad","click",async()=>{
-  const lista=await guardiasEnRango(); const {d,h}=rangoGn();
-  if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
-  const conteo={}, desig={}, falto={}, reemp={}, ofi={};
-  sortedRoster(false).forEach(p=>{ conteo[p.id]=0; desig[p.id]=0; falto[p.id]=0; reemp[p.id]=0; });
-  let inasist=0, justif=0, sinReemplazo=0, reemplazos=0;
-  lista.forEach(g=>{
-    const t=normalizaTurno(g.guardianes);
-    t.forEach(x=>{
-      if(desig[x.id]!==undefined) desig[x.id]++;
-      if(x.estado==="no"){
-        inasist++; if(x.correo) justif++;
-        if(falto[x.id]!==undefined) falto[x.id]++;
-        if(x.reemplazo){ reemplazos++; if(reemp[x.reemplazo]!==undefined) reemp[x.reemplazo]++; }
-        else sinReemplazo++;
-      }
-    });
-    cubrenGuardia(g.guardianes).forEach(id=>{ if(conteo[id]!==undefined) conteo[id]++; });
-    if(g.oficial) ofi[g.oficial]=(ofi[g.oficial]||0)+1;
-  });
-  const total=lista.length;
-  const cubiertos=lista.reduce((s,g)=>s+cubrenGuardia(g.guardianes).length,0);
-  const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-  const {jsPDF}=window.jspdf; const doc=new jsPDF();
+  const lista=await guardiasEnRango(), {d,h}=rangoGn();
+  if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
+  let resumen;
+  try{resumen=(await gnResumenAcreditado(lista)).resumen;}
+  catch(e){alert("No se generó el informe: falta verificar la información de acreditaciones.");return;}
+  const q=Object.values(resumen.por);
+  const cumplidas=q.reduce((t,x)=>t+x.hechas,0), ausentes=q.reduce((t,x)=>t+x.falto,0),
+    cubrio=q.reduce((t,x)=>t+x.cubrio,0),
+    conNov=lista.filter(g=>g.novedades&&!/^sin novedad/i.test(g.novedades)).length;
+  const {jsPDF}=window.jspdf,doc=new jsPDF();
   pdfHeader(doc,"INFORME ESTADÍSTICO DE GUARDIAS");
   doc.setFontSize(9);
-  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
+  doc.text('Período '+(d||"inicio")+' al '+(h||"hoy")+
+    ' · emitido el '+new Date().toLocaleDateString("es-CL"),35,33);
   doc.autoTable({startY:42,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]},
     head:[["Resumen",""]],
-    body:[["Guardias registradas",String(total)],
-          ["Turnos cubiertos",String(cubiertos)],
-          ["Promedio de guardianes por noche",(cubiertos/total).toFixed(1)],
-          ["Guardias con novedad",`${conNov} de ${total}`],
-          ["Voluntarios que participaron",String(Object.values(conteo).filter(v=>v>0).length)],
-          ["Inasistencias de designados",String(inasist)],
-          ["De ellas, justificadas por correo",`${justif} de ${inasist}`],
-          ["Cubiertas con reemplazo",`${reemplazos} de ${inasist}`],
-          ["Turnos que quedaron sin reemplazo",String(sinReemplazo)]]});
-  const filas=sortedRoster(false).map(p=>({p,n:conteo[p.id]||0,d:desig[p.id]||0,
-    f:falto[p.id]||0,r:reemp[p.id]||0})).sort((a,b)=>b.n-a.n);
-  doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
-    head:[["N°","Clave","Voluntario","Designado","Cubrió","No asistió","Reemplazó","% cumplim."]],
-    body:filas.map(x=>[x.p.n||"",x.p.clave||"—",nombreCompleto(x.p),String(x.d),String(x.n),
-      String(x.f),String(x.r), x.d?((x.d-x.f)/x.d*100).toFixed(0)+"%":"—"])});
-  const ofiFilas=Object.entries(ofi).sort((a,b)=>b[1]-a[1]);
-  if(ofiFilas.length){
-    doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
-      head:[["Oficial a cargo","Guardias"]],
-      body:ofiFilas.map(([id,n])=>[nombrePorId(id),String(n)])});
-  }
-  await sharePdfDoc(doc,`estadistica_guardias_${d||"inicio"}_a_${h||"hoy"}.pdf`,"Estadística de guardias nocturnas");
+    body:[
+      ["Guardias registradas",String(resumen.turnos)],
+      ["Noches finalizadas pendientes de acreditación",String(resumen.pendientes)],
+      ["Asistencias reales acreditadas",String(cumplidas)],
+      ["Ausencias verificadas por Teniente Tercero",String(ausentes)],
+      ["Reemplazos registrados",String(resumen.reemp)],
+      ["Reemplazos con asistencia acreditada",String(cubrio)],
+      ["Noches con novedad",String(conNov)]
+    ]});
+  const filas=sortedRoster(false).map(p=>({p,q:resumen.por[String(p.id)]||{
+    asig:0,hechas:0,falto:0,cubrio:0,ced:0,obac:0,maq:0
+  }})).sort((a,b)=>b.q.hechas-a.q.hechas);
+  doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},
+    headStyles:{fillColor:[100,90,80]},
+    head:[["N°","Clave","Voluntario","Designado","Cumplidas T3","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
+    body:filas.map(({p,q})=>[p.n||"",p.clave||"—",nombreCompleto(p),
+      String(q.asig),String(q.hechas),String(q.falto),String(q.ced),String(q.cubrio),
+      String(q.obac),String(q.maq)])});
+  doc.setFontSize(8);
+  const y=doc.lastAutoTable.finalY+8;
+  if(y<280)doc.text("Solo una acreditación válida del Teniente Tercero registra una guardia cumplida.",14,y);
+  await sharePdfDoc(doc,
+    'estadistica_guardias_'+(d||"inicio")+'_a_'+(h||"hoy")+'.pdf',
+    "Estadística de guardias nocturnas acreditadas");
 });
 
 /* ---- INFOGRAFÍA DE GUARDIAS ---- */
