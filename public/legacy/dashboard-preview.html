@@ -16,6 +16,7 @@
 <section class="section"><h2>Asistencia por voluntario</h2><div id="vols" class="muted">Sin cargar.</div></section>
 <section class="section"><h2>Guardia nocturna · acumulado por voluntario</h2><div id="guardia" class="muted">Se carga después del resumen principal y nunca lo bloquea.</div></section>
 </main>
+<script src="/legacy/germania-guardia-reglas.js?v=20261010firma"></script>
 <script>
 (()=>{
 'use strict';
@@ -35,35 +36,41 @@ const acreditaciones={};
 function inicioSemana(f){const d=new Date(f+"T12:00:00Z");d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);return d.toISOString().slice(0,10);}
 const verificaciones=await mapLimit(fechas,4,async f=>{
   const [a,rev]=await Promise.all([state("guardia-acreditacion:"+f),state("guardia-revision:"+inicioSemana(f))]);
-  const n=rev?.noches?.[f],personas=n?[n.maq,n.obac,...(n.vol||[])].filter(Boolean).map(String):[];
-  const valida=!!(a&&a.estado==="acreditada"&&a.revisionAprobadaEn&&rev?.estado==="aprobada"&&
-    a.revisionAprobadaEn===rev.aprobadaEn&&personas.length===new Set(personas).size&&
-    personas.length===Object.keys(a.asistencias||{}).length&&
-    personas.every(id=>["presente","ausente"].includes(a.asistencias[id])&&
-      (a.asistencias[id]==="presente")===a.asistentes?.includes(id)));
-  return valida?a:null;
+  const valida=!!(window.GermaniaGuardiaReglas &&
+    window.GermaniaGuardiaReglas.acreditacionVigente(a,rev,f));
+  return {acta:valida?a:null,revision:rev};
+
 });
 fechas.forEach((f,i)=>{acreditaciones[f]=verificaciones[i];});
 const partesChile=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false,hourCycle:"h23"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
 const ahoraChile=[partesChile.year,partesChile.month,partesChile.day].join("-")+"T"+partesChile.hour+":"+partesChile.minute;
 let pendientes=0;
-for(const g of gs){const ac=acreditaciones[g.fechaIng]||null;
+for(const g of gs){const item=acreditaciones[g.fechaIng]||null,ac=item?.acta||null,rev=item?.revision||null;
   // El turno futuro no es una "acreditación pendiente".
   if(!ac && g.fechaSal && ahoraChile>=g.fechaSal+"T"+(g.horaSal||"08:00"))pendientes++;
   const presentes=new Set(ac?.asistentes||[]),ausentes=new Set(ac?.ausentes||[]);
-  const guardianes=Array.isArray(g.guardianes)?g.guardianes:[];asign+=guardianes.length;reemp+=guardianes.filter(x=>x&&x.reemplazo).length;if(!g.oficial)sinObac++;if(!g.conductor)sinCond++;for(const x of guardianes){
-  if(!x||!por[x.id])continue;
-  por[x.id].asig++;
-  if(x.reemplazo)por[x.id].ced++;
-  if(ac&&presentes.has(x.id))por[x.id].hechas++;
-  else if(ac&&ausentes.has(x.id)&&!x.reemplazo)por[x.id].falto++;
-  if(x.reemplazo&&por[x.reemplazo]){
-    por[x.reemplazo].cubrio++;
-    if(ac&&presentes.has(x.reemplazo))por[x.reemplazo].hechas++;
+  const guardianes=Array.isArray(g.guardianes)?g.guardianes:[];
+  const n=rev?.noches?.[g.fechaIng]||null;
+  const asignados=n?[n.maq,n.obac,...(n.vol||[])].filter(Boolean).map(String):
+    [g.oficial,g.conductor,...guardianes.map(x=>x?.id)].filter(Boolean).map(String);
+  [...new Set(asignados)].forEach(id=>{if(por[id])por[id].asig++;});
+  reemp+=guardianes.filter(x=>x&&x.reemplazo).length;
+  if(!g.oficial)sinObac++;
+  if(!g.conductor)sinCond++;
+  // «Cedida» describe sustitución registrada, nunca presencia acreditada.
+  const cedidas=new Set(guardianes.filter(x=>x?.reemplazo).map(x=>String(x.id)));
+  cedidas.forEach(id=>{if(por[id])por[id].ced++;});
+  if(ac){
+    // La asistencia real se contabiliza exactamente UNA vez por fecha/persona,
+    // aunque el documento antiguo repita un nombre en guardianes o reemplazos.
+    presentes.forEach(id=>{if(por[id])por[id].hechas++;});
+    ausentes.forEach(id=>{if(por[id]&&!cedidas.has(id))por[id].falto++;});
+    const reemplazantes=new Set(guardianes.filter(x=>x?.reemplazo).map(x=>String(x.reemplazo)));
+    reemplazantes.forEach(id=>{if(por[id]&&presentes.has(id))por[id].cubrio++;});
+    if(n?.obac&&por[n.obac]&&presentes.has(String(n.obac)))por[n.obac].obac++;
+    if(n?.maq&&por[n.maq]&&presentes.has(String(n.maq)))por[n.maq].maq++;
   }
 }
-if(ac&&g.oficial&&por[g.oficial]&&presentes.has(g.oficial)){por[g.oficial].obac++;por[g.oficial].hechas++}
-if(ac&&g.conductor&&por[g.conductor]&&presentes.has(g.conductor)){por[g.conductor].maq++;por[g.conductor].hechas++}}
 const filas=activos.map(m=>({m,q:por[m.id]})).sort((a,b)=>(b.q.falto+b.q.ced)-(a.q.falto+a.q.ced)||(a.q.hechas-b.q.hechas)),sin=filas.filter(x=>!x.q.hechas&&!x.q.asig).length,fallan=filas.filter(x=>x.q.falto>0).length;
 const tabla=gs.length?`<p class="muted">${fallan} voluntario(s) con inasistencias sin reemplazo · ${sin} sin ninguna guardia. La guardia va aparte del % de asistencia reglamentario (emergencias, comandancia y reuniones). Solo las asistencias verificadas por el Teniente Tercero se consideran cumplidas; la dotación aprobada no acredita presencia.</p><div style="overflow-x:auto"><table style="width:100%;min-width:560px;border-collapse:collapse"><thead><tr><th align="left">Voluntario</th><th title="No fue y nadie lo cubrió: pierde lista">Faltó</th><th title="Noches que otro cubrió por él">Cedidas</th><th title="Noches en que fue, propias o cubriendo a otro">Cumplidas</th><th title="Noches que le tocaron">Asignadas</th><th title="Noches que cubrió a otro">Cubrió</th><th>OBAC</th><th>Maquinista</th></tr></thead><tbody>`+filas.map(({m,q})=>`<tr style="border-top:1px solid var(--line)"><td>${escapeHtml(m.apellidoPaterno?[m.nombre,m.apellidoPaterno].filter(Boolean).join(' '):nombre(m))}</td><td align="center" style="font-weight:700;color:${q.falto?'#ff6b6b':'inherit'}">${q.falto}</td><td align="center" style="color:${q.ced?'#ffcc00':'inherit'}">${q.ced}</td><td align="center"><b>${q.hechas}</b></td><td align="center">${q.asig}</td><td align="center">${q.cubrio}</td><td align="center">${q.obac}</td><td align="center">${q.maq}</td></tr>`).join('')+`</tbody></table></div>`:'<p class="muted">Aún no hay noches de guardia registradas en este período. Aparecen cuando se aprueba la dotación de una semana.</p>';
 $('guardia').innerHTML=`<div class="kpis"><div class="k"><b>${gs.length}</b><span>Turnos</span></div><div class="k"><b>${asign}</b><span>Asignaciones</span></div><div class="k"><b>${reemp}</b><span>Reemplazos</span></div><div class="k"><b>${sinObac+sinCond}</b><span>Alertas OBAC/maquinista</span></div><div class="k"><b>${pendientes}</b><span>Noches pendientes de acreditar</span></div></div>`+tabla;}catch(e){console.error(e);$('guardia').textContent='Guardia no disponible; el resumen de asistencia sigue operativo.'}}
