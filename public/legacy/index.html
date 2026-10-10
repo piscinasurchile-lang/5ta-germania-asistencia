@@ -308,6 +308,7 @@
 @media(max-width:850px){.gn-layout{grid-template-columns:1fr}.gn-vol-week{grid-template-columns:repeat(4,1fr)}}@media(max-width:520px){.gn-vol-week{grid-template-columns:repeat(2,1fr)}.gn-day{min-height:46px;font-size:12px}}
 </style>
 <link rel="stylesheet" href="./germania-ui.css?v=20261009hv1">
+<link rel="stylesheet" href="./germania-inicio.css?v=20261010e">
 </head>
 <body><div id="appLoading" class="app-loading"><div class="app-loading-box"><img src="/legacy/germania-icon.png" alt="" aria-hidden="true" style="width:72px;height:72px;object-fit:contain;margin:0 auto 12px;display:block"><div class="app-loading-spin"></div><strong>GERMANIA</strong><div>Estamos cargando la información…</div></div></div>
 <div class="wrap">
@@ -330,7 +331,7 @@
     <button type="button" data-go="estado">Mi estado</button>
     <button type="button" data-go="lista">Asistencia</button>
     <button type="button" data-go="servicio">Emergencia · B-5</button>
-    <button type="button" data-go="guardia">Guardias</button>
+
     <button type="button" data-go="historial">Historial</button>
     <button type="button" data-go="panel">Estadística</button>
     <button type="button" data-go="config">Oficiales / Administración</button>
@@ -383,12 +384,12 @@
       <div id="misNochesInicio" style="grid-column:1 / -1;min-width:0;"></div>
 
       <div class="home-tiles" style="grid-column:1 / -1;">
-        <button class="tile" type="button" data-go="estado"><span class="tile-ico" aria-hidden="true">🟢</span>Mi estado</button>
-        <button class="tile" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true">🚒</span>Emergencia · B-5</button>
-        <button class="tile t-movil" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true">✅</span>Asistencia</button>
-        <button class="tile" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true">📊</span>Estadística</button>
-        <button class="tile solo-oficiales" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
-        <button class="tile solo-oficiales t-movil" type="button" data-go="config"><span class="tile-ico" aria-hidden="true">⭐</span>Oficiales</button>
+        <button class="tile tile-asistencia" type="button" data-go="lista"><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M9 13l2 2 4-4M8 18h8"/></svg></span><span class="tile-copy"><strong>Asistencia</strong><small>Registro y citaciones</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
+        <button class="tile tile-disponibilidad" type="button" data-go="estado"><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 22v-2a7 7 0 0 1 14 0v2M17 5a4 4 0 0 1 0 8M18 16a6 6 0 0 1 4 6"/></svg></span><span class="tile-copy"><strong>Disponibilidad</strong><small>Mi estado actual</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
+        <button class="tile tile-emergencia" type="button" data-go="servicio"><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7h12v10H2zM14 11h4l3 3v3h-7zM5 4h8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span class="tile-copy"><strong>Emergencia B-5</strong><small>Despachos y dirección</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
+        <button class="tile tile-estadistica" type="button" data-go="panel"><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2"><rect x="2" y="13" width="5" height="9" rx="1"/><rect x="9" y="8" width="5" height="14" rx="1"/><rect x="16" y="3" width="5" height="19" rx="1"/></svg></span><span class="tile-copy"><strong>Estadística</strong><small>Reportes y porcentajes</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
+        <button class="tile tile-oficiales solo-oficiales" type="button" data-go="config"><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2"><path d="m12 2 3.2 6.7 7.3 1.1-5.3 5.1 1.2 7.2L12 18.6l-6.4 3.5 1.2-7.2-5.3-5.1 7.3-1.1z"/></svg></span><span class="tile-copy"><strong>Oficiales</strong><small>Gestión y administración</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
+        <button class="tile tile-novedades" type="button" data-home-novedades><span class="tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 7h5v5H7zM15 7h3M15 11h3M7 16h11M7 19h11"/></svg></span><span class="tile-copy"><strong>Novedades</strong><small>Comunicados de la Compañía</small></span><span class="tile-arrow" aria-hidden="true">›</span></button>
       </div>
     </div>
 
@@ -423,11 +424,8 @@
       <div class="status-msg" id="miEstadoMsg"></div>
     </div>
     <div class="card">
-      <h2>Mi guardia y mi historial</h2>
-      <div class="home-tiles">
-        <button class="tile" type="button" data-go="guardia"><span class="tile-ico" aria-hidden="true">🌙</span>Guardia nocturna</button>
-        <button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Mi historial</button>
-      </div>
+      <h2>Mi historial</h2>
+      <div class="home-tiles"><button class="tile" type="button" data-go="historial"><span class="tile-ico" aria-hidden="true">🕘</span>Ver mi historial de asistencia</button></div>
     </div>
     <div class="card" id="misNochesCumplidas"></div>
   </div>
@@ -767,6 +765,12 @@
   <!-- CONFIGURACIÓN -->
   <div class="panel" id="panel-config">
 
+    <div class="card solo-oficiales solo-mando" id="oficialesAccesoGuardia">
+      <h2>Guardias nocturnas</h2>
+      <p class="sub">Inscripciones, dotaciones, OBAC, maquinistas, reemplazos y ODD.</p>
+      <button type="button" class="btn" id="btnOficialesGuardia">Gestionar Guardias</button>
+    </div>
+
     <div class="card" id="configCandado">
       <h2>Sección restringida</h2>
       <p class="sub">La configuración de la Compañía — nómina, oficialidad, fichas, bajas, cursos y respaldos — solo puede ser modificada por la oficialidad: Director, Capitán o Secretario.</p>
@@ -807,29 +811,45 @@
         <span class="foot-note" id="correoCompaniaEstado">Correo oficial: germaniacbv@gmail.com · pendiente de conexión.</span>
       </div>
     </div>
-    <div class="subtabs">
-      <span class="subtab-grupo">Guardia y ODD</span>
-      <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
-      <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
-      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
-      <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
-      <span class="subtab-grupo">Personas</span>
-      <button class="subtab" data-sub="oficialidad">Oficialidad</button>
-      <button class="subtab" data-sub="precedencia">Precedencia</button>
-      <button class="subtab" data-sub="nomina">Nómina</button>
-      <button class="subtab" data-sub="hoja">Hoja de vida</button>
-      <button class="subtab" data-sub="ingreso">Ingreso</button>
-      <button class="subtab" data-sub="cursos">Cursos</button>
-      <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
-      <button class="subtab" data-sub="alertas">Alertas</button>
-      <span class="subtab-grupo">Material B-5</span>
-      <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
-      <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
-      <span class="subtab-grupo">Administración</span>
-      <button class="subtab" data-sub="correlativos">Correlativos</button>
-      <button class="subtab" data-sub="tipos">Tipos de citación</button>
-      <button class="subtab" data-sub="importar">Importar / respaldo</button>
-      <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
+    <div class="subtabs of-menu" id="ofMenuAgrupado" aria-label="Herramientas de Oficiales">
+      <details class="of-grupo of-grupo-guardias" data-of-grupo="guardias">
+        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Guardia y ODD">
+          <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
+          <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
+          <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
+          <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-personas" data-of-grupo="personas">
+        <summary><span class="of-grupo-icon" aria-hidden="true">♙</span><span class="of-grupo-tit"><strong>Personal</strong><small>Nómina, fichas, cursos y oficialidad</small></span><span class="of-grupo-count">8</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Personal">
+          <button class="subtab" data-sub="oficialidad">Oficialidad</button>
+          <button class="subtab" data-sub="precedencia">Precedencia</button>
+          <button class="subtab" data-sub="nomina">Nómina</button>
+          <button class="subtab" data-sub="hoja">Hoja de vida</button>
+          <button class="subtab" data-sub="ingreso">Ingreso</button>
+          <button class="subtab" data-sub="cursos">Cursos</button>
+          <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
+          <button class="subtab" data-sub="alertas">Alertas</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-material" data-of-grupo="material">
+        <summary><span class="of-grupo-icon" aria-hidden="true">▣</span><span class="of-grupo-tit"><strong>Material B-5</strong><small>Inventario y mantenciones del carro</small></span><span class="of-grupo-count">2</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Material B-5">
+          <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
+          <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-administracion" data-of-grupo="administracion">
+        <summary><span class="of-grupo-icon" aria-hidden="true">⚙</span><span class="of-grupo-tit"><strong>Administración</strong><small>Registros y configuración</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Administración">
+          <button class="subtab" data-sub="correlativos">Correlativos</button>
+          <button class="subtab" data-sub="tipos">Tipos de citación</button>
+          <button class="subtab" data-sub="importar">Importar / respaldo</button>
+          <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
+        </div>
+      </details>
     </div>
 
     <!-- ODD legacy retirado: acceso único mediante /odd-maestras -->
@@ -1400,7 +1420,7 @@
 <nav class="g-bottomnav" id="gBottomNav" aria-label="Navegación principal">
   <button type="button" data-go="germania" data-nav="germania" aria-current="page"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Inicio</span></button>
   <button type="button" data-go="estado" data-nav="estado"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg><span>Mi estado</span></button>
-  <button type="button" data-go="guardia" data-nav="guardia"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 13.5A8.5 8.5 0 1 1 10.5 3a7 7 0 0 0 10.5 10.5z"/></svg><span>Guardia</span></button>
+
   <button type="button" data-go="servicio" data-nav="servicio"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Emergencia</span></button>
   <button type="button" id="gNavMas" data-nav="mas" aria-haspopup="true"><svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Más</span></button>
 </nav>
@@ -1412,9 +1432,11 @@
 <script src="/legacy/germania-fixes-20261002.js?v=20261002"></script>
 <script src="./germania-ui.js?v=20261008f"></script>
 <script src="./germania-obac.js?v=20261009a"></script>
-<script src="./germania-roles.js?v=20261010guardia2"></script>
+<script src="./germania-guardia-franja.js?v=20261010a"></script>
+<script src="./germania-roles.js?v=20261010visual1"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
+<script src="./germania-oficiales-menu.js?v=20261010a"></script>
 <script src="./germania-actualizar.js?v=20261009a"></script>
 </body>
 </html>
