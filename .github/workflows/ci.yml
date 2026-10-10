@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, fix/guardia-maquinista-reserva-atomica-20261010]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm test
       - run: npm run build
