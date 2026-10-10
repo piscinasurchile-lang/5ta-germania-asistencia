@@ -58,3 +58,9 @@ test("habilitaciones OBAC y conductor son independientes",()=>{
 test("solo un OBAC por noche",()=>{
  assert.equal(intento("ob2","obac",[row("ob1","obac")],{habilitadosObac:["ob1","ob2"]}).codigo,"OBAC_OCUPADO");
 });
+
+test("rechaza fechas inexistentes sin afectar inscripciones",()=>{
+ for(const invalida of ["2026-02-30","2026-13-01","2026-00-10","2026-10-32"]){
+  assert.equal(evaluarInscripcion({fecha:invalida,personaId:"v1",funcion:"voluntario"}).codigo,"FECHA_INVALIDA");
+ }
+});
