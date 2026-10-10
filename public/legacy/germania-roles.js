@@ -630,7 +630,7 @@ async function pintarAcreditacionReal(D,doc){
     if(new Set(ids).size!==ids.length){
       html+='<p class="gr-falta">Dotación duplicada el '+E(f)+'. No se puede acreditar.</p>'; return;
     }
-    var vigente=v&&v.estado==="acreditada"&&v.revisionAprobadaEn===doc.aprobadaEn;
+    var vigente=!!(window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.acreditacionVigente(v,doc,f));
     html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>';
     personas.forEach(function(p){
       var id=String(p.id),estado=vigente&&v.asistencias&&v.asistencias[id]||"";
@@ -684,7 +684,7 @@ async function misNochesDatos(who,forzar){
       var n=d.noches[f], rol=n.maq===who?"maq":n.obac===who?"obac":(n.vol||[]).indexOf(who)>=0?"vol":null;
       var av=avisos[f+":"+who], cubre=null;
       Object.keys(avisos).forEach(function(k){ var a=avisos[k]; if(a.f===f&&a.estado==="cubierto"&&String(a.reemplazoId)===who) cubre=a.id; });
-      if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,revisionAprobadaEn:d.aprobadaEn,cuenta:false}; (finNoche(f)>ahora?prox:cumpl).push(e); }
+      if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,revision:d,cuenta:false}; (finNoche(f)>ahora?prox:cumpl).push(e); }
     });
   });
   /* noches que cedí y ya cubrió otro: ya no estoy en la dotación, pero se muestran como «no cuenta» */
@@ -692,10 +692,9 @@ async function misNochesDatos(who,forzar){
   prox.sort(function(a,b){ return a.f.localeCompare(b.f); }); cumpl.sort(function(a,b){ return b.f.localeCompare(a.f); });
   /* SOLO cuenta si el T3 acreditó presencialmente, con la última aprobación de dotación. */
   cumpl.forEach(function(e){
-    var ac=acreditaciones[e.f], valida=!!(ac && ac.estado==="acreditada" &&
-      ac.revisionAprobadaEn===e.revisionAprobadaEn && Array.isArray(ac.asistentes) &&
-      ac.asistencias && typeof ac.asistencias==="object");
-    e.pendiente=!valida;
+    var ac=acreditaciones[e.f], valida=!!(window.GermaniaGuardiaReglas &&
+      window.GermaniaGuardiaReglas.acreditacionVigente(ac,e.revision,e.f));
+    e.pendiente=!valida && !(e.aviso&&e.aviso.estado==="cubierto");
     e.cuenta=valida && ac.asistentes.map(String).includes(who) && ac.asistencias[who]==="presente";
   });
   MN.cache={prox:prox,cumpl:cumpl,avisos:avisos}; MN.who=who; MN.en=Date.now();
