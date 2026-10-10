@@ -3,7 +3,7 @@
    - Guardia: una tarjeta por rol → Voluntario, Maquinista, OBAC e Información (Capitán, Teniente 3° y administrador).
    - Una sola fuente de datos: las mismas claves de la base (guardia-inscripcion / guardia-confirmacion) más
      guardia-maq y guardia-obac. No toca la ODD.
-   Noche completa = 3 voluntarios + 1 maquinista + 1 OBAC (GN_DOTACION_MIN, en app.js).
+   Noche completa = 2 voluntarios + 1 maquinista + 1 OBAC (GN_DOTACION_MIN, en app.js).
    Un voluntario ocupa UN solo rol por noche (voluntario, maquinista u OBAC). */
 (function(){
 "use strict";
@@ -146,18 +146,16 @@ function cobertura(S,noches){
     if(r.obac) obac.push({id:r.obac,t:"",n:PREC&&PREC[r.obac]!=null?PREC[r.obac]:9999});
     vol=r.voluntarios.slice();
     var refuerzos=Math.max(0,vol.length-DOT.voluntarios);
-    var completa=vol.length>=DOT.voluntarios&&maq.length>=DOT.conductor&&obac.length>=DOT.obac;
+    var validacion=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion({vol:vol,maq:maq,obac:obac});
+    var completa=!!(validacion&&validacion.completa);
     var nada=!vol.length&&!maq.length&&!obac.length;
     return {f:f,vol:vol,maq:maq,obac:obac,refuerzos:refuerzos,completa:completa,nada:nada,empate:!!r.empateSinPosicion};
   });
 }
 function nombreNoche(f){ var d=new Date(f+"T12:00"); var w=d.toLocaleDateString("es-CL",{weekday:"short"}).replace(".",""); return {w:w.charAt(0).toUpperCase()+w.slice(1),d:f.slice(8)}; }
 function faltan(c){
-  var DOT=GN_DOTACION_MIN, t=[];
-  if(c.vol.length<DOT.voluntarios) t.push("faltan "+(DOT.voluntarios-c.vol.length)+" voluntario"+((DOT.voluntarios-c.vol.length)===1?"":"s"));
-  if(c.maq.length<DOT.conductor) t.push("falta maquinista");
-  if(c.obac.length<DOT.obac) t.push("falta OBAC");
-  return t.join(" · ");
+  var ver=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion(c);
+  return ver?ver.razones.join(" · "):"No se pudo verificar la dotación";
 }
 
 /* ---------- Estado de la tarjeta ---------- */
@@ -489,7 +487,8 @@ function revAplicar(doc,D,op){
 function revCov(doc){
   var DOT=GN_DOTACION_MIN;
   return Object.keys(doc.noches).sort().map(function(f){
-    var n=doc.noches[f], ok=n.vol.length>=DOT.voluntarios&&!!n.maq&&!!n.obac, nada=!n.vol.length&&!n.maq&&!n.obac;
+    var n=doc.noches[f], ver=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.evaluarDotacion(n);
+    var ok=!!(ver&&ver.completa), nada=!n.vol.length&&!n.maq&&!n.obac;
     return {f:f,n:n,completa:ok,nada:nada,refuerzos:Math.max(0,n.vol.length-DOT.voluntarios)};
   });
 }
