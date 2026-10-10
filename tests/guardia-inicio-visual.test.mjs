@@ -48,9 +48,17 @@ test("seis tarjetas de inicio tienen sus rutas y novedades conserva su contenido
 });
 
 test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
-  assert.match(html,/germania-inicio\.css\?v=20261010a/);
+  assert.match(html,/germania-inicio\.css\?v=20261010b/);
   assert.match(html,/germania-guardia-franja\.js\?v=20261010a/);
   assert.match(css,/#panel-germania \.home-tiles/);
   assert.match(css,/#panel-germania \.gn-franja/);
   assert.match(css,/#panel-germania \.gn-inicio-inscripcion/);
+});
+
+test("resumen de disponibilidad usa cifras compactas centradas sobre la etiqueta",()=>{
+  assert.match(css,/#panel-germania #dispResumen\\{[\\s\\S]*?grid-template-columns:repeat\\(3,minmax\\(0,1fr\\)\\)/);
+  assert.match(css,/#panel-germania #dispResumen \\.summary-item\\{[\\s\\S]*?align-items:center;[\\s\\S]*?text-align:center;/);
+  assert.match(css,/#panel-germania #dispResumen \\.summary-item \\.big\\{[\\s\\S]*?21px/);
+  assert.match(css,/#panel-germania #dispResumen \\.summary-item \\.lbl\\{[\\s\\S]*?text-align:center;/);
+  assert.match(html,/id="dispResumen"/);
 });
