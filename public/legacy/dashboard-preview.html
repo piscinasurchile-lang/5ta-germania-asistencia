@@ -44,9 +44,12 @@ const verificaciones=await mapLimit(fechas,4,async f=>{
   return valida?a:null;
 });
 fechas.forEach((f,i)=>{acreditaciones[f]=verificaciones[i];});
+const partesChile=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false,hourCycle:"h23"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+const ahoraChile=[partesChile.year,partesChile.month,partesChile.day].join("-")+"T"+partesChile.hour+":"+partesChile.minute;
 let pendientes=0;
 for(const g of gs){const ac=acreditaciones[g.fechaIng]||null;
-  if(!ac)pendientes++;
+  // El turno futuro no es una "acreditación pendiente".
+  if(!ac && g.fechaSal && ahoraChile>=g.fechaSal+"T"+(g.horaSal||"08:00"))pendientes++;
   const presentes=new Set(ac?.asistentes||[]),ausentes=new Set(ac?.ausentes||[]);
   const guardianes=Array.isArray(g.guardianes)?g.guardianes:[];asign+=guardianes.length;reemp+=guardianes.filter(x=>x&&x.reemplazo).length;if(!g.oficial)sinObac++;if(!g.conductor)sinCond++;for(const x of guardianes){
   if(!x||!por[x.id])continue;
