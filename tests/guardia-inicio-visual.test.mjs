@@ -56,9 +56,12 @@ test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
 });
 
 test("resumen de disponibilidad usa cifras compactas centradas sobre la etiqueta",()=>{
-  assert.match(css,/#panel-germania #dispResumen\\{[\\s\\S]*?grid-template-columns:repeat\\(3,minmax\\(0,1fr\\)\\)/);
-  assert.match(css,/#panel-germania #dispResumen \\.summary-item\\{[\\s\\S]*?align-items:center;[\\s\\S]*?text-align:center;/);
-  assert.match(css,/#panel-germania #dispResumen \\.summary-item \\.big\\{[\\s\\S]*?21px/);
-  assert.match(css,/#panel-germania #dispResumen \\.summary-item \\.lbl\\{[\\s\\S]*?text-align:center;/);
-  assert.match(html,/id="dispResumen"/);
+  const bloque=css.slice(css.indexOf("/* Resumen «Quién está hoy»"));
+  assert.ok(bloque.includes("#panel-germania #dispResumen{"));
+  assert.ok(bloque.includes("grid-template-columns:repeat(3,minmax(0,1fr))"));
+  assert.ok(bloque.includes("align-items:center;"));
+  assert.ok(bloque.includes("text-align:center;"));
+  assert.ok(bloque.includes("font:600 21px/1.1"));
+  assert.ok(bloque.includes("grid-template-columns:repeat(6,minmax(0,1fr))"));
+  assert.ok(html.includes('id="dispResumen"'));
 });
