@@ -622,7 +622,8 @@ async function pintarAcreditacionReal(D,doc){
   }
   var leidas=await Promise.all(terminadas.map(function(f){return sGetV("guardia-acreditacion:"+f,null);}));
   caja=$("rvAcreditacion"); if(!caja)return;
-  var html='<h3 class="gr-t">Acreditación real · Teniente Tercero</h3><p class="sub">Verifica la asistencia presencial. Las noches sin acreditar no cuentan como cumplidas. Las correcciones requieren motivo y conservan historial.</p>';
+  var nombreTeniente=[D.m.nombre,D.m.apellidoPaterno,D.m.apellidoMaterno].filter(Boolean).join(" ").trim();
+  var html='<h3 class="gr-t">Acreditación real · Teniente Tercero</h3><p class="sub">Responsable: <b>'+E(nombreTeniente)+'</b> (identificado por nómina). Verifica la asistencia real; las noches sin acreditar no cuentan. Las correcciones conservan historial.</p>';
   terminadas.forEach(function(f,i){
     var n=doc.noches[f],r=leidas[i],v=r.value;
     var personas=[{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(function(id){return{id:id,rol:"Voluntario"};})).filter(function(x){return!!x.id;});
@@ -631,7 +632,7 @@ async function pintarAcreditacionReal(D,doc){
       html+='<p class="gr-falta">Dotación duplicada el '+E(f)+'. No se puede acreditar.</p>'; return;
     }
     var vigente=!!(window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.acreditacionVigente(v,doc,f));
-    html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>';
+    html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>'+(vigente&&v.acreditadoPorNombre?'<p class="sub">Registró: '+E(v.acreditadoPorNombre)+'</p>':"");
     personas.forEach(function(p){
       var id=String(p.id),estado=vigente&&v.asistencias&&v.asistencias[id]||"";
       html+='<label class="rv-lbl">'+E(nom(id))+' · '+E(p.rol)+'</label>'
@@ -649,7 +650,7 @@ async function pintarAcreditacionReal(D,doc){
     var msg=$("acMsg");if(!completa){msg.textContent="Marca asistencia o ausencia de cada integrante.";msg.classList.add("err");return;}
     var motivo="";
     if(prev.value){motivo=prompt("Motivo obligatorio para corregir el registro:","");if(!motivo||!motivo.trim())return;}
-    if(!confirm("¿Acreditar la asistencia REAL de la noche "+f+"? Afectará las estadísticas."))return;
+    if(!confirm("¿Acreditar la asistencia REAL de la noche "+f+" a nombre de "+nombreTeniente+"? Afectará las estadísticas."))return;
     b.disabled=true;msg.classList.remove("err");msg.textContent="Guardando…";
     try{
       var respuesta=await fetch("/api/guardia/acreditacion",{
