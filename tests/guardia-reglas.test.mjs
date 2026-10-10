@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {evaluarInscripcion,resumenNoche,obacProvisional} from "../lib/guardia-reglas.mjs";
+import {evaluarInscripcion,resumenNoche,obacProvisional,guardiaCompleta} from "../lib/guardia-reglas.mjs";
 
 const fecha="2026-10-14";
 const row=(personaId,funcion)=>({fecha,personaId,funcion,estado:"inscrita"});
@@ -32,9 +32,20 @@ test("cierre de inscripción bloquea nuevos registros",()=>{
  assert.equal(intento("v1","voluntario",[],{cerrada:true}).codigo,"INSCRIPCION_CERRADA");
 });
 test("OBAC excluye conductor y aplica precedencia",()=>{
- const inscripciones=[row("capitan","conductor"),row("v1","voluntario"),row("v2","voluntario")];
+ const inscripciones=[row("capitan","conductor"),row("v1","voluntario"),row("v2","obac")];
  assert.equal(obacProvisional({inscripciones,fecha,precedencia:["capitan","v2","v1"],habilitadosObac:["capitan","v2","v1"]}),"v2");
 });
 test("anuladas no ocupan plaza",()=>{
  assert.equal(intento("maq2","conductor",[{...row("maq1","conductor"),estado:"anulada"}]).ok,true);
+});
+
+test("cinco personas distintas son necesarias para completar guardia",()=>{
+ const rows=[row("v1","voluntario"),row("v2","voluntario"),row("v3","voluntario"),row("maq1","conductor"),row("ob1","obac")];
+ assert.equal(guardiaCompleta(rows,fecha),true);
+ assert.equal(guardiaCompleta(rows.slice(0,4),fecha),false);
+ assert.equal(guardiaCompleta([...rows.slice(0,4),row("v1","obac")],fecha),false);
+});
+test("OBAC provisional no se obtiene de los voluntarios regulares",()=>{
+ const rows=[row("v1","voluntario"),row("v2","voluntario"),row("maq1","conductor")];
+ assert.equal(obacProvisional({inscripciones:rows,fecha,precedencia:["v1","v2"],habilitadosObac:["v1","v2"]}),null);
 });
