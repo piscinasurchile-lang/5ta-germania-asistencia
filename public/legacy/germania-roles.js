@@ -23,6 +23,7 @@ function cargoDe(m){ return norm(m&&m.cargo); }
 function esOficial(m){ return !!m&&/capitan|teniente|ayudante|director|secretari|tesorer|jefe de maquinas/.test(cargoDe(m)); }
 function esMando(m){ return !!m&&(/^capitan/.test(cargoDe(m))||/teniente (tercero|3)/.test(cargoDe(m))||ADMINISTRADORES.indexOf(String(m.clave))>=0); }
 function esMaquinista(m){ return !!m&&m.conductor===true; }
+function esTenienteTercero(m){ return !!m&&/teniente\s*(tercero|3)/.test(cargoDe(m)); }
 var PREC=null;
 async function cargarPrec(){
   var d=null; try{ d=await sGet(PRECEDENCIA_KEY,null); }catch(e){}
@@ -552,7 +553,11 @@ async function panelRev(pn,D){
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
   else h+='<button type="button" class="btn gr-grande" id="rvAprobar">Aprobar dotación</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
+  if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista"><p class="sub">Cargando acreditaciones…</p></div>';
   pn.innerHTML=h;
+  if(aprobada && esTenienteTercero(D.m)) pintarAcreditacionReal(D,doc).catch(function(){
+    var a=$("rvAcreditacion");if(a)a.innerHTML='<p class="gr-falta">No fue posible consultar acreditaciones. Reintenta.</p>';
+  });
   var guardarOp=async function(op){
     if(RV.ocupado) return; RV.ocupado=true; var nuevo=clonar(doc);
     revAplicar(nuevo,D,op);
@@ -600,6 +605,60 @@ async function aprobarRevision(pn,D){
     await revGuardar(D,nuevo); RV.msg="Dotación aprobada. Guardias actualizadas: "+n+"."; RV.err=false;
   }catch(e){ RV.msg=e&&e.conflicto?"Otra persona cambió la revisión. Se cargó lo último.":"No se pudo aprobar. No se cambió la aprobación; inténtalo de nuevo."; RV.err=true; try{ await revCargar(D); }catch(x){} }
   panelRev(pn,D);
+}
+
+/* Acreditación posterior: el T3 verifica personalmente cada rol y voluntario.
+   No equivale a aprobación de dotación. La API requiere oficialidad y valida el cargo.
+   La identidad individual del T3 necesita revisión de seguridad antes de producción. */
+async function pintarAcreditacionReal(D,doc){
+  var caja=$("rvAcreditacion"); if(!caja) return;
+  var terminadas=Object.keys(doc.noches||{}).sort().filter(function(f){return finNoche(f)<=Date.now();});
+  if(!terminadas.length){
+    caja.innerHTML='<h3 class="gr-t">Acreditación real de guardias</h3><p class="sub">Se habilitará después de terminar cada guardia. No se contabiliza automáticamente.</p>';
+    return;
+  }
+  var leidas=await Promise.all(terminadas.map(function(f){return sGetV("guardia-acreditacion:"+f,null);}));
+  caja=$("rvAcreditacion"); if(!caja)return;
+  var html='<h3 class="gr-t">Acreditación real · Teniente Tercero</h3><p class="sub">Verifica la asistencia presencial. Las noches sin acreditar no cuentan como cumplidas. Las correcciones requieren motivo y conservan historial.</p>';
+  terminadas.forEach(function(f,i){
+    var n=doc.noches[f],r=leidas[i],v=r.value;
+    var personas=[{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(function(id){return{id:id,rol:"Voluntario"};})).filter(function(x){return!!x.id;});
+    var ids=personas.map(function(x){return String(x.id);}), nn=nombreNoche(f);
+    if(new Set(ids).size!==ids.length){
+      html+='<p class="gr-falta">Dotación duplicada el '+E(f)+'. No se puede acreditar.</p>'; return;
+    }
+    var vigente=v&&v.estado==="acreditada"&&v.revisionAprobadaEn===doc.aprobadaEn;
+    html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>';
+    personas.forEach(function(p){
+      var id=String(p.id),estado=vigente&&v.asistencias&&v.asistencias[id]||"";
+      html+='<label class="rv-lbl">'+E(nom(id))+' · '+E(p.rol)+'</label>'
+        +'<select class="rv-sel" data-ac-noche="'+E(f)+'" data-ac-id="'+E(id)+'">'
+        +'<option value="">— verificar —</option>'
+        +'<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'
+        +'<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option></select>';
+    });
+    html+='<button type="button" class="btn gr-grande" data-ac-confirmar="'+E(f)+'">'+(r.value?"Corregir acreditación":"Acreditar esta noche")+'</button></div></div>';
+  });
+  caja.innerHTML=html+'<div class="status-msg" id="acMsg"></div>';
+  caja.querySelectorAll("[data-ac-confirmar]").forEach(function(b){b.onclick=async function(){
+    var f=b.dataset.acConfirmar,i=terminadas.indexOf(f),prev=leidas[i],asistencias={},completa=true;
+    caja.querySelectorAll('[data-ac-noche="'+f+'"]').forEach(function(el){if(!el.value)completa=false;asistencias[el.dataset.acId]=el.value;});
+    var msg=$("acMsg");if(!completa){msg.textContent="Marca asistencia o ausencia de cada integrante.";msg.classList.add("err");return;}
+    var motivo="";
+    if(prev.value){motivo=prompt("Motivo obligatorio para corregir el registro:","");if(!motivo||!motivo.trim())return;}
+    if(!confirm("¿Acreditar la asistencia REAL de la noche "+f+"? Afectará las estadísticas."))return;
+    b.disabled=true;msg.classList.remove("err");msg.textContent="Guardando…";
+    try{
+      var respuesta=await fetch("/api/guardia/acreditacion",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({fecha:f,actorId:String(D.m.id),asistencias:asistencias,ifVersion:prev.version||0,motivoCorreccion:motivo})
+      });
+      var dat=await respuesta.json();
+      if(!respuesta.ok)throw new Error(dat.error||"No se pudo acreditar");
+      MN.cache=null;
+      await pintarAcreditacionReal(D,doc);
+    }catch(e){b.disabled=false;msg.textContent="No se guardó: "+e.message;msg.classList.add("err");}
+  };});
 }
 
 /* ---------- Mis noches / avisos / reemplazos ----------
