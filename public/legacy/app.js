@@ -1989,9 +1989,60 @@ async function renderGnTablaSemanal(){
     if(!o.length) detalle.push("sin OBAC");
     return '<tr><td><b>'+esc(gnFmt(f))+'</b></td><td>'+vols.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(vols.map(gnNombreId).join(" · ")||"Sin inscritos")+'</small></td><td>'+esc(m.map(gnNombreId).join(" · ")||"—")+'</td><td>'+esc(o.map(gnNombreId).join(" · ")||"—")+'</td><td><b>'+estado+'</b>'+(detalle.length?'<br><small>'+esc(detalle.join(" · "))+'</small>':'')+'</td></tr>';
   }).join("");
-  box.innerHTML=revisionAviso+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>';
+  let revisionPanel="";
+  if(revision){
+    const rev=await sGet("guardia-revision:"+inicio,null);
+    if(!rev) revisionPanel='<p><button class="btn small" data-gn-rev="crear|'+inicio+'|">Iniciar revisión T3</button></p>';
+    else{
+      const cerrada=rev.estado==="cerrada";
+      const rf=rev.dias.map(d=>{ const faltan=Math.max(0,GN_DOTACION_MIN.voluntarios-d.voluntarios.length), completa=!faltan&&d.conductor&&d.obac; return '<tr><td><b>'+esc(gnFmt(d.fecha))+'</b></td><td>'+esc(d.voluntarios.map(gnNombreId).join(" · ")||"—")+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="agregar|'+inicio+'|'+d.fecha+'">Agregar</button> <button class="btn small secondary" data-gn-rev="quitar|'+inicio+'|'+d.fecha+'">Quitar</button>')+'</td><td>'+esc(gnNombreId(d.conductor))+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="conductor|'+inicio+'|'+d.fecha+'">Cambiar</button>')+'</td><td>'+esc(gnNombreId(d.obac))+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="obac|'+inicio+'|'+d.fecha+'">Cambiar</button>')+'</td><td><b>'+(completa?"Completa":"Incompleta")+'</b></td></tr>'; }).join("");
+      revisionPanel='<h3>Revisión T3 · '+(cerrada?"Cerrada":"Pendiente")+'</h3><div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+rf+'</tbody></table></div>'+(cerrada?'<p class="sub">Revisión semanal cerrada. La ODD todavía no se modifica.</p>':'<p><button class="btn" data-gn-rev="cerrar|'+inicio+'|">Cerrar Guardia semanal</button></p>');
+    }
+  }
+  box.innerHTML=revisionAviso+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>'+revisionPanel;
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
+
+function gnRevisionActor(){
+  const id=document.getElementById("miVoluntario")?.value||"";
+  const p=ROSTER.find(x=>String(x.id)===String(id));
+  return {id:String(id),nombre:p?nombreCompleto(p):String(id||"Oficial")};
+}
+async function gnCrearRevision(inicio,dias){
+  const key="guardia-revision:"+inicio, actual=await sGet(key,null);
+  if(actual&&Array.isArray(actual.dias)) return actual;
+  const ins={}, [obac,maq]=await Promise.all([gnTablaRolSemana("guardia-obac:",inicio),gnTablaRolSemana("guardia-maq:",inicio)]);
+  const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
+  if(r.ok){ const j=await r.json(); for(const item of (j.items||[])){ const id=String(item.key||"").slice(("guardia-inscripcion:"+inicio+":").length); for(const f of (Array.isArray(item.value)?item.value:[])){ if(dias.includes(f)) (ins[f]||(ins[f]=[])).push(id); } } }
+  const actor=gnRevisionActor(), rev={inicio,estado:"revision",creadoEn:new Date().toISOString(),creadoPor:actor,dias:dias.map(f=>({fecha:f,voluntarios:[...new Set(ins[f]||[])],conductor:(maq[f]||[])[0]||"",obac:(obac[f]||[])[0]||""})),cambios:[]};
+  await sSet(key,rev); return rev;
+}
+async function gnEditarRevision(inicio,fecha,tipo){
+  const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev||rev.estado==="cerrada") return;
+  const d=rev.dias.find(x=>x.fecha===fecha); if(!d) return;
+  const opciones=ROSTER.filter(x=>x.activo!==false).map(x=>x.id);
+  let antes,nuevo,accion;
+  if(tipo==="agregar"){ nuevo=prompt("Código del voluntario a agregar:",""); if(!nuevo)return; if(!opciones.map(String).includes(String(nuevo)))return alert("Voluntario no encontrado."); if(d.voluntarios.map(String).includes(String(nuevo)))return; antes=""; d.voluntarios.push(String(nuevo)); accion="Agregó voluntario"; }
+  if(tipo==="quitar"){ nuevo=prompt("Código del voluntario a quitar:",d.voluntarios[0]||""); if(!nuevo)return; const i=d.voluntarios.map(String).indexOf(String(nuevo)); if(i<0)return alert("Ese voluntario no está en esta noche."); antes=String(nuevo); d.voluntarios.splice(i,1); nuevo=""; accion="Quitó voluntario"; }
+  if(tipo==="conductor"||tipo==="obac"){ antes=String(d[tipo]||""); nuevo=prompt("Código para "+(tipo==="conductor"?"conductor":"OBAC")+":",antes); if(nuevo===null)return; if(nuevo&&!opciones.map(String).includes(String(nuevo)))return alert("Voluntario no encontrado."); d[tipo]=String(nuevo||""); accion="Cambió "+tipo; }
+  const actor=gnRevisionActor(); rev.cambios=Array.isArray(rev.cambios)?rev.cambios:[]; rev.cambios.push({fecha,accion,antes,nuevo:String(nuevo||""),por:actor,en:new Date().toISOString()});
+  await sSet(key,rev); await renderGnTablaSemanal();
+}
+async function gnCerrarRevision(inicio){
+  const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev)return;
+  const malas=rev.dias.filter(d=>d.voluntarios.length<GN_DOTACION_MIN.voluntarios||!d.conductor||!d.obac);
+  if(malas.length){ alert("No se puede cerrar todavía. Hay "+malas.length+" noche(s) incompleta(s)."); return; }
+  if(!confirm("¿Cerrar definitivamente la revisión semanal?")) return;
+  const actor=gnRevisionActor(); rev.estado="cerrada"; rev.cerradoEn=new Date().toISOString(); rev.cerradoPor=actor; rev.cambios=(rev.cambios||[]).concat([{accion:"Cerró revisión semanal",por:actor,en:rev.cerradoEn}]);
+  await sSet(key,rev); await renderGnTablaSemanal();
+}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-gn-rev]"); if(!b)return;
+  const [accion,inicio,fecha]=String(b.dataset.gnRev||"").split("|");
+  if(accion==="crear"){ await gnCrearRevision(inicio,gnWeek(inicio)); await renderGnTablaSemanal(); return; }
+  if(accion==="cerrar"){ await gnCerrarRevision(inicio); return; }
+  await gnEditarRevision(inicio,fecha,accion);
+});
 
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
