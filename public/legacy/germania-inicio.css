@@ -218,3 +218,69 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
   #panel-germania #dispResumen .summary-item .big{font-size:23px;}
   #panel-germania #dispResumen .summary-item .lbl{font-size:13px;}
 }
+
+
+/* Prueba visual: contorno con identidad y respuesta suave al tocar.
+ * Exclusivo a seis botones del Inicio. Sin bucles de animación
+ * para no penalizar la tablet B-5 de 2 GB.
+ */
+#panel-germania .home-tiles .tile{
+  border:1.5px solid var(--tile-accent,#52616c);
+  border-left-width:5px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),
+             0 0 10px var(--tile-glow,rgba(100,115,130,.12));
+  transition:transform .16s ease,box-shadow .2s ease,background-color .2s ease;
+  animation:germaniaTileEntrada .45s ease-out both;
+}
+#panel-germania .home-tiles .tile-asistencia{
+  --tile-accent:#3295ff;
+  --tile-glow:rgba(50,149,255,.17);
+}
+#panel-germania .home-tiles .tile-emergencia{
+  --tile-accent:#ff3645;
+  --tile-glow:rgba(255,54,69,.18);
+}
+#panel-germania .home-tiles .tile-disponibilidad{
+  --tile-accent:#28cf75;
+  --tile-glow:rgba(40,207,117,.16);
+}
+#panel-germania .home-tiles .tile-estadistica{
+  --tile-accent:#b85af3;
+  --tile-glow:rgba(184,90,243,.17);
+}
+#panel-germania .home-tiles .tile-oficiales{
+  --tile-accent:#ffcc00;
+  --tile-glow:rgba(255,204,0,.17);
+}
+#panel-germania .home-tiles .tile-novedades{
+  --tile-accent:#91a7b7;
+  --tile-glow:rgba(145,167,183,.14);
+}
+#panel-germania .home-tiles .tile:nth-child(2){animation-delay:60ms;}
+#panel-germania .home-tiles .tile:nth-child(3){animation-delay:120ms;}
+#panel-germania .home-tiles .tile:nth-child(4){animation-delay:180ms;}
+#panel-germania .home-tiles .tile:nth-child(5){animation-delay:240ms;}
+#panel-germania .home-tiles .tile:nth-child(6){animation-delay:300ms;}
+#panel-germania .home-tiles .tile:hover,
+#panel-germania .home-tiles .tile:focus-visible{
+  transform:translateY(-2px);
+  box-shadow:inset 0 0 0 1px var(--tile-accent),
+             0 0 18px var(--tile-glow);
+  outline:2px solid var(--tile-accent);
+  outline-offset:1px;
+}
+#panel-germania .home-tiles .tile:active{
+  transform:scale(.985);
+  box-shadow:inset 0 0 0 2px var(--tile-accent),
+             0 0 16px var(--tile-glow);
+}
+@keyframes germaniaTileEntrada{
+  from{opacity:.88;transform:translateY(4px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@media (prefers-reduced-motion:reduce){
+  #panel-germania .home-tiles .tile{
+    animation:none!important;
+    transition:none!important;
+  }
+}
