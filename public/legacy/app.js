@@ -307,9 +307,9 @@ function acronimoCargo(p){
 }
 function nombreCompleto(p){ return [p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "); }
 
-/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 3 voluntarios + 1 conductor + 1 OBAC.
+/* Dotación de una noche de guardia (decisión del usuario, 08-10-2026): mínimo 2 voluntarios + 1 conductor + 1 OBAC.
    Los voluntarios que se sumen sobre el mínimo son refuerzos. Cada voluntario se inscribe en al menos 2 noches. */
-const GN_DOTACION_MIN={voluntarios:3,conductor:1,obac:1};
+const GN_DOTACION_MIN={voluntarios:2,conductor:1,obac:1};
 const GN_NOCHES_MIN=2;
 
 /* Persistencia institucional: el servidor/Neon es la única fuente de verdad.
@@ -1973,76 +1973,40 @@ async function renderGnTablaSemanal(){
       }
     }
   }catch(e){}
-  const [obac,maq]=await Promise.all([
-    gnTablaRolSemana("guardia-obac:",inicio),
-    gnTablaRolSemana("guardia-maq:",inicio)
+  /* Fuente única de verdad: inscritos + titular maquinista + precedencia. Esta tabla
+     NO tiene editor independiente y no genera ni modifica órdenes del día. */
+  const [maqs,precedencia]=await Promise.all([
+    gnTablaRolSemana("guardia-maq:",inicio),
+    sGet("precedencia:v1",null)
   ]);
-  const filas=dias.map(f=>{
-    const vols=[...new Set(inscritos[f]||[])];
-    const o=[...new Set(obac[f]||[])], m=[...new Set(maq[f]||[])];
-    const faltan=Math.max(0,GN_DOTACION_MIN.voluntarios-vols.length);
-    const completa=faltan===0&&o.length>=GN_DOTACION_MIN.obac&&m.length>=GN_DOTACION_MIN.conductor;
-    const estado=completa?"Completa":"Incompleta";
-    const detalle=[];
-    if(faltan) detalle.push("faltan "+faltan+" voluntario"+(faltan===1?"":"s"));
-    if(!m.length) detalle.push("sin conductor");
-    if(!o.length) detalle.push("sin OBAC");
-    return '<tr><td><b>'+esc(gnFmt(f))+'</b></td><td>'+vols.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(vols.map(gnNombreId).join(" · ")||"Sin inscritos")+'</small></td><td>'+esc(m.map(gnNombreId).join(" · ")||"—")+'</td><td>'+esc(o.map(gnNombreId).join(" · ")||"—")+'</td><td><b>'+estado+'</b>'+(detalle.length?'<br><small>'+esc(detalle.join(" · "))+'</small>':'')+'</td></tr>';
+  const orden=((precedencia&&precedencia.lista)||[]).map(x=>precBuscar(x.nombre)).filter(Boolean).map(x=>String(x.id));
+  const datos=dias.map(f=>{
+    const voluntarios=[...new Set(inscritos[f]||[])], titulares=[...new Set(maqs[f]||[])];
+    const entradas=titulares.map(id=>({id,maquinista:true})).concat(
+      voluntarios.filter(id=>!titulares.includes(id)).map(id=>{
+        const persona=ROSTER.find(x=>String(x.id)===String(id));
+        return {id,habilitadoMaquinista:!!persona&&persona.activo!==false&&persona.conductor===true};
+      })
+    );
+    const roles=window.GermaniaObac?window.GermaniaObac.obacDeNoche({inscritos:entradas,orden}):null;
+    const m=roles?roles.maquinistas:[],o=roles&&roles.obac?[roles.obac]:[],v=roles?roles.voluntarios:[];
+    const valid=window.GermaniaGuardiaReglas?window.GermaniaGuardiaReglas.evaluarDotacion({vol:v,maq:m,obac:o}):null;
+    return {f,m,o,v,valid};
+  });
+  const filas=datos.map(x=>{
+    const estado=x.valid&&x.valid.completa?"Completa":"Incompleta";
+    const detalles=x.valid?x.valid.razones.join(" · "):"No se pudo verificar la dotación";
+    return '<tr><td><b>'+esc(gnFmt(x.f))+'</b></td>'
+      +'<td>'+x.v.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(x.v.map(gnNombreId).join(" · ")||"Sin voluntarios")+'</small></td>'
+      +'<td>'+esc(x.m.map(gnNombreId).join(" · ")||"—")+'</td>'
+      +'<td>'+esc(x.o.map(gnNombreId).join(" · ")||"—")+'</td>'
+      +'<td><b>'+estado+'</b>'+(detalles?'<br><small>'+esc(detalles)+'</small>':'')+'</td></tr>';
   }).join("");
-  let revisionPanel="";
-  if(revision){
-    const rev=await sGet("guardia-revision:"+inicio,null);
-    if(!rev) revisionPanel='<p><button class="btn small" data-gn-rev="crear|'+inicio+'|">Iniciar revisión T3</button></p>';
-    else{
-      const cerrada=rev.estado==="cerrada";
-      const rf=rev.dias.map(d=>{ const faltan=Math.max(0,GN_DOTACION_MIN.voluntarios-d.voluntarios.length), completa=!faltan&&d.conductor&&d.obac; return '<tr><td><b>'+esc(gnFmt(d.fecha))+'</b></td><td>'+esc(d.voluntarios.map(gnNombreId).join(" · ")||"—")+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="agregar|'+inicio+'|'+d.fecha+'">Agregar</button> <button class="btn small secondary" data-gn-rev="quitar|'+inicio+'|'+d.fecha+'">Quitar</button>')+'</td><td>'+esc(gnNombreId(d.conductor))+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="conductor|'+inicio+'|'+d.fecha+'">Cambiar</button>')+'</td><td>'+esc(gnNombreId(d.obac))+(cerrada?"":'<br><button class="btn small secondary" data-gn-rev="obac|'+inicio+'|'+d.fecha+'">Cambiar</button>')+'</td><td><b>'+(completa?"Completa":"Incompleta")+'</b></td></tr>'; }).join("");
-      revisionPanel='<h3>Revisión T3 · '+(cerrada?"Cerrada":"Pendiente")+'</h3><div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+rf+'</tbody></table></div>'+(cerrada?'<p class="sub">Revisión semanal cerrada. La ODD todavía no se modifica.</p>':'<p><button class="btn" data-gn-rev="cerrar|'+inicio+'|">Cerrar Guardia semanal</button></p>');
-    }
-  }
-  box.innerHTML=revisionAviso+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Conductor</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div><p class="sub" style="margin-top:8px;">Mínimo operativo mostrado: '+GN_DOTACION_MIN.voluntarios+' voluntarios + '+GN_DOTACION_MIN.conductor+' conductor + '+GN_DOTACION_MIN.obac+' OBAC.</p>'+revisionPanel;
+  const nota=revision?'<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>':"";
+  box.innerHTML=nota+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
+    +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
-
-function gnRevisionActor(){
-  const id=document.getElementById("miVoluntario")?.value||"";
-  const p=ROSTER.find(x=>String(x.id)===String(id));
-  return {id:String(id),nombre:p?nombreCompleto(p):String(id||"Oficial")};
-}
-async function gnCrearRevision(inicio,dias){
-  const key="guardia-revision:"+inicio, actual=await sGet(key,null);
-  if(actual&&Array.isArray(actual.dias)) return actual;
-  const ins={}, [obac,maq]=await Promise.all([gnTablaRolSemana("guardia-obac:",inicio),gnTablaRolSemana("guardia-maq:",inicio)]);
-  const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
-  if(r.ok){ const j=await r.json(); for(const item of (j.items||[])){ const id=String(item.key||"").slice(("guardia-inscripcion:"+inicio+":").length); for(const f of (Array.isArray(item.value)?item.value:[])){ if(dias.includes(f)) (ins[f]||(ins[f]=[])).push(id); } } }
-  const actor=gnRevisionActor(), rev={inicio,estado:"revision",creadoEn:new Date().toISOString(),creadoPor:actor,dias:dias.map(f=>({fecha:f,voluntarios:[...new Set(ins[f]||[])],conductor:(maq[f]||[])[0]||"",obac:(obac[f]||[])[0]||""})),cambios:[]};
-  await sSet(key,rev,{ifVersion:SVER.get(key)||0}); return rev;
-}
-async function gnEditarRevision(inicio,fecha,tipo){
-  const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev||rev.estado==="cerrada") return;
-  const d=rev.dias.find(x=>x.fecha===fecha); if(!d) return;
-  const opciones=ROSTER.filter(x=>x.activo!==false).map(x=>x.id);
-  let antes,nuevo,accion;
-  if(tipo==="agregar"){ nuevo=prompt("Código del voluntario a agregar:",""); if(!nuevo)return; if(!opciones.map(String).includes(String(nuevo)))return alert("Voluntario no encontrado."); if(d.voluntarios.map(String).includes(String(nuevo)))return; antes=""; d.voluntarios.push(String(nuevo)); accion="Agregó voluntario"; }
-  if(tipo==="quitar"){ nuevo=prompt("Código del voluntario a quitar:",d.voluntarios[0]||""); if(!nuevo)return; const i=d.voluntarios.map(String).indexOf(String(nuevo)); if(i<0)return alert("Ese voluntario no está en esta noche."); antes=String(nuevo); d.voluntarios.splice(i,1); nuevo=""; accion="Quitó voluntario"; }
-  if(tipo==="conductor"||tipo==="obac"){ antes=String(d[tipo]||""); nuevo=prompt("Código para "+(tipo==="conductor"?"conductor":"OBAC")+":",antes); if(nuevo===null)return; if(nuevo&&!opciones.map(String).includes(String(nuevo)))return alert("Voluntario no encontrado."); d[tipo]=String(nuevo||""); accion="Cambió "+tipo; }
-  const actor=gnRevisionActor(); rev.cambios=Array.isArray(rev.cambios)?rev.cambios:[]; rev.cambios.push({fecha,accion,antes,nuevo:String(nuevo||""),por:actor,en:new Date().toISOString()});
-  try{ await sSet(key,rev,{ifVersion:SVER.get(key)||0}); }catch(e){ if(e.conflicto) alert("Otro oficial modificó esta revisión. Se recargará la versión vigente."); else throw e; } await renderGnTablaSemanal();
-}
-async function gnCerrarRevision(inicio){
-  const key="guardia-revision:"+inicio, rev=await sGet(key,null); if(!rev)return;
-  const malas=rev.dias.filter(d=>d.voluntarios.length<GN_DOTACION_MIN.voluntarios||!d.conductor||!d.obac);
-  if(malas.length&&!confirm("Hay "+malas.length+" noche(s) incompleta(s). La regla vigente permite cerrar con advertencia. ¿Cerrar igualmente?")) return;
-  if(!malas.length&&!confirm("¿Cerrar definitivamente la revisión semanal?")) return;
-  const actor=gnRevisionActor(); rev.estado="cerrada"; rev.cerradoEn=new Date().toISOString(); rev.cerradoPor=actor; rev.cambios=(rev.cambios||[]).concat([{accion:"Cerró revisión semanal",por:actor,en:rev.cerradoEn}]);
-  try{ await sSet(key,rev,{ifVersion:SVER.get(key)||0}); }catch(e){ if(e.conflicto) alert("Otro oficial modificó esta revisión. Se recargará la versión vigente."); else throw e; } await renderGnTablaSemanal();
-}
-document.addEventListener("click",async e=>{
-  const b=e.target.closest("[data-gn-rev]"); if(!b)return;
-  const [accion,inicio,fecha]=String(b.dataset.gnRev||"").split("|");
-  if(accion==="crear"){ await gnCrearRevision(inicio,gnWeek(inicio)); await renderGnTablaSemanal(); return; }
-  if(accion==="cerrar"){ await gnCerrarRevision(inicio); return; }
-  await gnEditarRevision(inicio,fecha,accion);
-});
 
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
@@ -2631,6 +2595,41 @@ async function guardiasEnRango(){
   }
   return out.sort((a,b)=>a.fechaIng<b.fechaIng?-1:1);
 }
+/* Un único cálculo institucional para pantalla, informe estadístico e infografía.
+   Solo lee registros reales y nunca presupone que una dotación designada haya asistido.
+   Se leen todas las revisiones y acreditaciones en dos solicitudes, sin cargar 7x2 veces. */
+async function gnResumenAcreditado(lista){
+  const claves=["guardia-revision:","guardia-acreditacion:"];
+  const [revisiones,actas]=await Promise.all(claves.map(async prefijo=>{
+    const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo),{cache:"no-store"});
+    if(!r.ok)throw new Error("No se pudieron consultar las acreditaciones ("+r.status+").");
+    const j=await r.json();
+    if(!Array.isArray(j.items))throw new Error("La respuesta de acreditaciones está incompleta.");
+    return new Map(j.items.map(x=>[x.key,x.value]));
+  }));
+  const pares={};
+  for(const g of lista){
+    const f=g.fechaIng;
+    if(!f)continue;
+    const d=new Date(f+"T12:00:00Z");
+    if(!Number.isFinite(+d))continue;
+    d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
+    const ini=d.toISOString().slice(0,10);
+    pares[f]={revision:revisiones.get("guardia-revision:"+ini)||null,
+      acta:actas.get("guardia-acreditacion:"+f)||null};
+  }
+  const partes=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{
+    timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",hour12:false,hourCycle:"h23"
+  }).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  const ahoraChile=[partes.year,partes.month,partes.day].join("-")+"T"+partes.hour+":"+partes.minute;
+  if(!window.GermaniaGuardiaEstadisticas)throw new Error("Módulo de estadísticas no disponible.");
+  const resumen=window.GermaniaGuardiaEstadisticas.calcularResumen({
+    guardias:lista,acreditaciones:pares,rosterIds:ROSTER.map(p=>String(p.id)),ahoraChile
+  });
+  return {resumen,pares};
+}
+
 on("gnSemana","click",()=>{
   const hoy=new Date();
   const ini=new Date(hoy); ini.setDate(hoy.getDate()-6);
@@ -2648,46 +2647,52 @@ on("gnDesde","change",renderGnLista);
 on("gnHasta","change",renderGnLista);
 
 async function renderGnLista(){
-  const lista=await guardiasEnRango();
   const box=document.getElementById("gnLista"), res=document.getElementById("gnResumen");
-  const turnos=lista.length;
-  const cubiertos=lista.reduce((s,g)=>s+cubrenGuardia(g.guardianes).length,0);
+  let lista,verificacion;
+  try{
+    lista=await guardiasEnRango();
+    verificacion=await gnResumenAcreditado(lista);
+  }catch(e){
+    if(res)res.innerHTML='<div class="empty">No se pudo verificar asistencia acreditada. Las estadísticas no se calcularon.</div>';
+    if(box)box.innerHTML='<div class="empty">Reintenta la consulta de guardias. No se modificó ningún registro.</div>';
+    return;
+  }
+  const {resumen,pares}=verificacion, turnos=resumen.turnos;
+  const acreditadas=Object.values(resumen.por).reduce((s,x)=>s+x.hechas,0);
+  const inasistencias=Object.values(resumen.por).reduce((s,x)=>s+x.falto,0);
   const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-  let inasist=0, sinR=0;
-  lista.forEach(g=>normalizaTurno(g.guardianes).forEach(x=>{
-    if(x.estado==="no"){ inasist++; if(!x.reemplazo) sinR++; } }));
-  res.innerHTML=`
-    <div class="summary-item"><div class="big">${turnos}</div><div class="lbl">Guardias registradas</div></div>
-    <div class="summary-item"><div class="big">${cubiertos}</div><div class="lbl">Turnos cubiertos</div></div>
-    <div class="summary-item"><div class="big">${turnos?(cubiertos/turnos).toFixed(1):0}</div><div class="lbl">Guardianes por noche</div></div>
-    <div class="summary-item"><div class="big">${inasist}</div><div class="lbl">Inasistencias</div></div>
-    <div class="summary-item"><div class="big">${sinR}</div><div class="lbl">Sin reemplazo</div></div>
-    <div class="summary-item"><div class="big">${conNov}</div><div class="lbl">Con novedad</div></div>`;
-  if(!turnos){ box.innerHTML='<div class="empty">No hay guardias registradas en este período.</div>'; return; }
-  box.innerHTML=lista.slice().reverse().map(g=>`
-    <div class="hist-item">
-      <div>
-        <div class="hist-date">${fmtDateLong(g.fechaIng)} · ${esc(g.horaIng||"")} a ${esc(g.horaSal||"")}</div>
-        <div class="hist-acto">${cubrenGuardia(g.guardianes).map(id=>esc(nombrePorId(id))).join(", ")}
-          ${g.oficial?" · Oficial: "+esc(nombrePorId(g.oficial)):""}
-          ${(()=>{const f=normalizaTurno(g.guardianes).filter(x=>x.estado==="no");
-            return f.length?" · No asisten: "+f.map(x=>esc(nombrePorId(x.id))+(x.reemplazo?" (reemplazado)":" (sin reemplazo)")).join(", "):"";})()}
-          ${g.novedades?" · "+esc(g.novedades):""}</div>
-      </div>
-      <div class="hist-right"><span class="badge">${cubrenGuardia(g.guardianes).length}</span></div>
-    </div>`).join("");
+  res.innerHTML=
+    '<div class="summary-item"><div class="big">'+turnos+'</div><div class="lbl">Guardias registradas</div></div>'+
+    '<div class="summary-item"><div class="big">'+acreditadas+'</div><div class="lbl">Asistencias acreditadas</div></div>'+
+    '<div class="summary-item"><div class="big">'+resumen.pendientes+'</div><div class="lbl">Noches por acreditar</div></div>'+
+    '<div class="summary-item"><div class="big">'+inasistencias+'</div><div class="lbl">Ausencias verificadas</div></div>'+
+    '<div class="summary-item"><div class="big">'+resumen.reemp+'</div><div class="lbl">Reemplazos registrados</div></div>'+
+    '<div class="summary-item"><div class="big">'+conNov+'</div><div class="lbl">Con novedad</div></div>';
+  if(!turnos){box.innerHTML='<div class="empty">No hay guardias registradas en este período.</div>';return;}
+  box.innerHTML=lista.slice().reverse().map(g=>{
+    const r=pares[g.fechaIng],n=r?.revision?.noches?.[g.fechaIng];
+    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(r?.acta,r?.revision,g.fechaIng)?r.acta:null;
+    const quienes=n?[n.maq,n.obac,...n.vol].filter(Boolean):[g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
+    const detalle=ac?"Acreditados: "+ac.asistentes.map(id=>esc(nombrePorId(id))).join(", ")+
+      (ac.ausentes.length?" · No asistieron: "+ac.ausentes.map(id=>esc(nombrePorId(id))).join(", "):""):
+      "Designados (sin acreditar): "+[...new Set(quienes)].map(id=>esc(nombrePorId(id))).join(", ");
+    const nov=g.novedades?" · "+esc(g.novedades):"";
+    return '<div class="hist-item"><div><div class="hist-date">'+esc(fmtDateLong(g.fechaIng))+
+      ' · '+esc(g.horaIng||"")+' a '+esc(g.horaSal||"")+'</div><div class="hist-acto">'+detalle+
+      nov+'</div></div><div class="hist-right"><span class="badge">'+(ac?ac.asistentes.length:"—")+'</span></div></div>';
+  }).join("");
 }
 
 on("gnPdfSemanal","click",async()=>{
   const lista=await guardiasEnRango(); const {d,h}=rangoGn();
   if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
-  pdfHeader(doc,"INFORME DE GUARDIAS NOCTURNAS");
+  pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");
   doc.setFontSize(9);
   doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} guardias · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
   doc.autoTable({startY:42,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
     columnStyles:{3:{cellWidth:58}},
-    head:[["Fecha","Horario","Oficial a cargo","Cubren la guardia","Inasistencias","Novedades"]],
+    head:[["Fecha","Horario","Oficial designado","Voluntarios designados","Avisos de ausencia","Novedades"]],
     body:lista.map(g=>{
       const t=normalizaTurno(g.guardianes);
       const faltas=t.filter(x=>x.estado==="no").map(x=>
@@ -2699,6 +2704,9 @@ on("gnPdfSemanal","click",async()=>{
         faltas.length?faltas.join(" | "):"—",
         g.novedades||"Sin novedad"];
     })});
+  // Este informe describe programación y avisos; nunca reemplaza la acreditación T3.
+  const notaY=doc.lastAutoTable.finalY+7;
+  if(notaY<270){doc.setFontSize(8);doc.text("Registro de dotación programada. No certifica asistencia real.",14,notaY);}
   let fy=doc.lastAutoTable.finalY+20;
   if(fy>240){ doc.addPage(); fy=40; }
   doc.setFontSize(9);
@@ -2708,93 +2716,77 @@ on("gnPdfSemanal","click",async()=>{
 });
 
 on("gnPdfEstad","click",async()=>{
-  const lista=await guardiasEnRango(); const {d,h}=rangoGn();
-  if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
-  const conteo={}, desig={}, falto={}, reemp={}, ofi={};
-  sortedRoster(false).forEach(p=>{ conteo[p.id]=0; desig[p.id]=0; falto[p.id]=0; reemp[p.id]=0; });
-  let inasist=0, justif=0, sinReemplazo=0, reemplazos=0;
-  lista.forEach(g=>{
-    const t=normalizaTurno(g.guardianes);
-    t.forEach(x=>{
-      if(desig[x.id]!==undefined) desig[x.id]++;
-      if(x.estado==="no"){
-        inasist++; if(x.correo) justif++;
-        if(falto[x.id]!==undefined) falto[x.id]++;
-        if(x.reemplazo){ reemplazos++; if(reemp[x.reemplazo]!==undefined) reemp[x.reemplazo]++; }
-        else sinReemplazo++;
-      }
-    });
-    cubrenGuardia(g.guardianes).forEach(id=>{ if(conteo[id]!==undefined) conteo[id]++; });
-    if(g.oficial) ofi[g.oficial]=(ofi[g.oficial]||0)+1;
-  });
-  const total=lista.length;
-  const cubiertos=lista.reduce((s,g)=>s+cubrenGuardia(g.guardianes).length,0);
-  const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-  const {jsPDF}=window.jspdf; const doc=new jsPDF();
+  const lista=await guardiasEnRango(), {d,h}=rangoGn();
+  if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
+  let resumen;
+  try{resumen=(await gnResumenAcreditado(lista)).resumen;}
+  catch(e){alert("No se generó el informe: falta verificar la información de acreditaciones.");return;}
+  const q=Object.values(resumen.por);
+  const cumplidas=q.reduce((t,x)=>t+x.hechas,0), ausentes=q.reduce((t,x)=>t+x.falto,0),
+    cubrio=q.reduce((t,x)=>t+x.cubrio,0),
+    conNov=lista.filter(g=>g.novedades&&!/^sin novedad/i.test(g.novedades)).length;
+  const {jsPDF}=window.jspdf,doc=new jsPDF();
   pdfHeader(doc,"INFORME ESTADÍSTICO DE GUARDIAS");
   doc.setFontSize(9);
-  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
+  doc.text('Período '+(d||"inicio")+' al '+(h||"hoy")+
+    ' · emitido el '+new Date().toLocaleDateString("es-CL"),35,33);
   doc.autoTable({startY:42,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]},
     head:[["Resumen",""]],
-    body:[["Guardias registradas",String(total)],
-          ["Turnos cubiertos",String(cubiertos)],
-          ["Promedio de guardianes por noche",(cubiertos/total).toFixed(1)],
-          ["Guardias con novedad",`${conNov} de ${total}`],
-          ["Voluntarios que participaron",String(Object.values(conteo).filter(v=>v>0).length)],
-          ["Inasistencias de designados",String(inasist)],
-          ["De ellas, justificadas por correo",`${justif} de ${inasist}`],
-          ["Cubiertas con reemplazo",`${reemplazos} de ${inasist}`],
-          ["Turnos que quedaron sin reemplazo",String(sinReemplazo)]]});
-  const filas=sortedRoster(false).map(p=>({p,n:conteo[p.id]||0,d:desig[p.id]||0,
-    f:falto[p.id]||0,r:reemp[p.id]||0})).sort((a,b)=>b.n-a.n);
-  doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
-    head:[["N°","Clave","Voluntario","Designado","Cubrió","No asistió","Reemplazó","% cumplim."]],
-    body:filas.map(x=>[x.p.n||"",x.p.clave||"—",nombreCompleto(x.p),String(x.d),String(x.n),
-      String(x.f),String(x.r), x.d?((x.d-x.f)/x.d*100).toFixed(0)+"%":"—"])});
-  const ofiFilas=Object.entries(ofi).sort((a,b)=>b[1]-a[1]);
-  if(ofiFilas.length){
-    doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
-      head:[["Oficial a cargo","Guardias"]],
-      body:ofiFilas.map(([id,n])=>[nombrePorId(id),String(n)])});
-  }
-  await sharePdfDoc(doc,`estadistica_guardias_${d||"inicio"}_a_${h||"hoy"}.pdf`,"Estadística de guardias nocturnas");
+    body:[
+      ["Guardias registradas",String(resumen.turnos)],
+      ["Noches finalizadas pendientes de acreditación",String(resumen.pendientes)],
+      ["Asistencias reales acreditadas",String(cumplidas)],
+      ["Ausencias verificadas por Teniente Tercero",String(ausentes)],
+      ["Reemplazos registrados",String(resumen.reemp)],
+      ["Reemplazos con asistencia acreditada",String(cubrio)],
+      ["Noches con novedad",String(conNov)]
+    ]});
+  const filas=sortedRoster(false).map(p=>({p,q:resumen.por[String(p.id)]||{
+    asig:0,hechas:0,falto:0,cubrio:0,ced:0,obac:0,maq:0
+  }})).sort((a,b)=>b.q.hechas-a.q.hechas);
+  doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},
+    headStyles:{fillColor:[100,90,80]},
+    head:[["N°","Clave","Voluntario","Designado","Cumplidas T3","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
+    body:filas.map(({p,q})=>[p.n||"",p.clave||"—",nombreCompleto(p),
+      String(q.asig),String(q.hechas),String(q.falto),String(q.ced),String(q.cubrio),
+      String(q.obac),String(q.maq)])});
+  doc.setFontSize(8);
+  const y=doc.lastAutoTable.finalY+8;
+  if(y<280)doc.text("Solo una acreditación válida del Teniente Tercero registra una guardia cumplida.",14,y);
+  await sharePdfDoc(doc,
+    'estadistica_guardias_'+(d||"inicio")+'_a_'+(h||"hoy")+'.pdf',
+    "Estadística de guardias nocturnas acreditadas");
 });
 
 /* ---- INFOGRAFÍA DE GUARDIAS ---- */
 on("gnInfo","click",async()=>{
   const lista=await guardiasEnRango(); const {d,h}=rangoGn();
-  if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
+  if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
+  let datos;
+  try{datos=await gnResumenAcreditado(lista);}
+  catch(e){alert("No se generó la infografía: no fue posible verificar las acreditaciones.");return;}
+  const {resumen,pares}=datos;
   const DIAS=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const f1=x=>x.toFixed(1);
-
-  const conteo={}, desig={}, falto={}, reemp={};
-  sortedRoster(false).forEach(p=>{ conteo[p.id]=0; desig[p.id]=0; falto[p.id]=0; reemp[p.id]=0; });
-  let inasist=0, justif=0, sinR=0, reemplazos=0, cubiertos=0;
-  lista.forEach(g=>{
-    normalizaTurno(g.guardianes).forEach(x=>{
-      if(desig[x.id]!==undefined) desig[x.id]++;
-      if(x.estado==="no"){
-        inasist++; if(x.correo) justif++;
-        if(falto[x.id]!==undefined) falto[x.id]++;
-        if(x.reemplazo){ reemplazos++; if(reemp[x.reemplazo]!==undefined) reemp[x.reemplazo]++; }
-        else sinR++;
-      }
-    });
-    const c=cubrenGuardia(g.guardianes); cubiertos+=c.length;
-    c.forEach(id=>{ if(conteo[id]!==undefined) conteo[id]++; });
-  });
-  const ranking=sortedRoster(false).map(p=>({p,n:conteo[p.id]||0,d:desig[p.id]||0,
-    f:falto[p.id]||0,r:reemp[p.id]||0})).filter(x=>x.d||x.n).sort((a,b)=>b.n-a.n);
-  const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-
+  const cubiertos=Object.values(resumen.por).reduce((z,x)=>z+x.hechas,0),
+    inasist=Object.values(resumen.por).reduce((z,x)=>z+x.falto,0),
+    reemplazos=Object.values(resumen.por).reduce((z,x)=>z+x.cubrio,0),
+    sinR=resumen.pendientes;
+  const ranking=sortedRoster(false).map(p=>{
+    const q=resumen.por[String(p.id)]||{asig:0,hechas:0,falto:0,cubrio:0,obac:0};
+    return {p,n:q.hechas,d:q.asig,f:q.falto,r:q.cubrio,obac:q.obac};
+  }).filter(x=>x.d||x.n).sort((a,b)=>b.n-a.n);
+  const conNov=lista.filter(g=>g.novedades&&!/^sin novedad/i.test(g.novedades)).length;
   const noches=lista.map(g=>{
-    const t=normalizaTurno(g.guardianes);
-    const [yy,mm,dd]=g.fechaIng.split("-").map(Number);
-    const dia=new Date(yy,mm-1,dd);
-    return {g,t,dia,
-      cuartel:t.filter(x=>x.estado==="cuartel"),
-      casa:t.filter(x=>x.estado==="casa"),
-      faltan:t.filter(x=>x.estado==="no")};
+    const [yy,mm,dd]=g.fechaIng.split("-").map(Number),dia=new Date(yy,mm-1,dd);
+    const par=pares[g.fechaIng]||{},rev=par.revision,n=rev?.noches?.[g.fechaIng];
+    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(par.acta,rev,g.fechaIng)?par.acta:null;
+    const designados=n?[n.maq,n.obac,...n.vol].filter(Boolean):
+      [g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
+    return {g,dia,acreditado:!!ac,programados:ac?[]:[...new Set(designados)].map(id=>({id})),
+      cuartel:ac?ac.asistentes.map(id=>({id})):[],
+      casa:[],faltan:ac?ac.ausentes.map(id=>({id})):[]
+    };
   });
 
   const doc=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=1180">
@@ -2853,10 +2845,10 @@ td{padding:5px 8px;border:1px solid #e3e9f2}
 
 <div class="sec"><h3>RESUMEN DEL PERÍODO</h3><div class="in"><div class="kpis">
 <div class="k"><div class="n">${lista.length}</div><div class="t">Noches con guardia</div></div>
-<div class="k v"><div class="n">${cubiertos}</div><div class="t">Turnos cubiertos</div></div>
-<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Guardianes por noche</div></div>
-<div class="k"><div class="n">${inasist}</div><div class="t">Inasistencias</div></div>
-<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Sin reemplazo</div></div>
+<div class="k v"><div class="n">${cubiertos}</div><div class="t">Asistencias acreditadas</div></div>
+<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Acreditadas por noche</div></div>
+<div class="k"><div class="n">${inasist}</div><div class="t">Ausencias verificadas</div></div>
+<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Por acreditar</div></div>
 <div class="k"><div class="n">${conNov}</div><div class="t">Noches con novedad</div></div>
 </div></div></div>
 
@@ -2866,37 +2858,34 @@ ${noches.map(n=>`
   <div class="noche">
     <div class="cab">
       <b>${DIAS[n.dia.getDay()]} ${n.dia.getDate()}</b>
-      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)}</span>
+      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Acreditada por T3":"Sin acreditar"}</span>
     </div>
     <div class="cnt">
-      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">CUARTEL</em>${esc(nombrePorId(x.id))}</div>`).join("")}
-      ${n.casa.map(x=>`<div class="g"><em class="e-h">A LLAMADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ T3</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.programados.map(x=>`<div class="g"><em class="e-h">DESIGNADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      
       ${n.faltan.map(x=>`
-        <div class="g"><em class="e-n">NO ASISTE</em><s>${esc(nombrePorId(x.id))}</s></div>
-        <div class="g" style="padding-left:14px;font-size:11px;color:#64748b;">${esc(x.motivo||"sin motivo")}${x.correo?" · justificó por correo":""}</div>
-        ${x.reemplazo?`<div class="g"><em class="e-r">REEMPLAZA</em>${esc(nombrePorId(x.reemplazo))}</div>`:
-          `<div class="g" style="padding-left:14px;font-size:11px;color:#8f1d1d;">Sin reemplazo</div>`}`).join("")}
+        <div class="g"><em class="e-n">NO ASISTIÓ T3</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
       <div class="ofi">Oficial a cargo: <b>${n.g.oficial?esc(nombrePorId(n.g.oficial)):"—"}</b></div>
       ${n.g.novedades && !/^sin novedad/i.test(n.g.novedades)?`<div class="nov"><b>Novedad:</b> ${esc(n.g.novedades)}</div>`:""}
     </div>
   </div>`).join("")}
 </div>
 <div class="leyenda">
-  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">CUARTEL</em> duerme en el cuartel</span>
-  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">A LLAMADO</em> acude desde su casa</span>
-  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZA</em> cubre a un designado</span>
-  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTE</em> designado que no concurre</span>
+  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ T3</em> asistencia acreditada</span>
+  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">DESIGNADO</em> sin acreditar</span>
+  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZO</em> solo cuenta al acreditarse</span>
+  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ T3</em> ausencia verificada</span>
 </div>
 </div></div>
 
 <div class="sec"><h3>PARTICIPACIÓN POR VOLUNTARIO</h3><div class="in">
-<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cubrió</th><th>No asistió</th><th>Reemplazó</th><th>Cumplimiento</th></tr>
+<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió T3</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC acreditado</th></tr>
 ${ranking.map(x=>`<tr><td>${x.p.n||""}</td><td><b>${esc(nombreCompleto(x.p))}</b></td>
 <td>${x.d}</td><td>${x.n}</td><td>${x.f}</td><td>${x.r}</td>
-<td><b>${x.d?((x.d-x.f)/x.d*100).toFixed(0)+"%":"—"}</b></td></tr>`).join("")}
+<td><b>${x.obac}</b></td></tr>`).join("")}
 </table>
-${inasist?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;">
-<b>Inasistencias:</b> ${inasist} en el período, de las cuales ${justif} se justificaron por correo y ${reemplazos} fueron cubiertas con reemplazo. ${sinR?`Quedaron ${sinR} turno${sinR===1?"":"s"} sin reemplazo.`:"Todas fueron reemplazadas."}</div>`:""}
+${inasist||sinR?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;"><b>Asistencia:</b> ${inasist} ausencia(s) verificadas; ${reemplazos} reemplazo(s) con asistencia acreditada; ${sinR} noche(s) finalizada(s) pendiente(s) de acreditar.</div>`:""}
 </div></div>
 
 </div>
