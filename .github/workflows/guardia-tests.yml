@@ -1,0 +1,21 @@
+name: Guardia reglas tests
+on:
+  push:
+    branches: [feat/guardias-unificadas-20261009]
+  pull_request:
+    paths:
+      - 'lib/guardia-reglas.mjs'
+      - 'tests/**'
+      - '.github/workflows/guardia-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Ejecutar pruebas
+        run: npm test
