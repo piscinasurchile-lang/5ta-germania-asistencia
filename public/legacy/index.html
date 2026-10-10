@@ -308,7 +308,7 @@
 @media(max-width:850px){.gn-layout{grid-template-columns:1fr}.gn-vol-week{grid-template-columns:repeat(4,1fr)}}@media(max-width:520px){.gn-vol-week{grid-template-columns:repeat(2,1fr)}.gn-day{min-height:46px;font-size:12px}}
 </style>
 <link rel="stylesheet" href="./germania-ui.css?v=20261009hv1">
-<link rel="stylesheet" href="./germania-inicio.css?v=20261010c">
+<link rel="stylesheet" href="./germania-inicio.css?v=20261010d">
 </head>
 <body><div id="appLoading" class="app-loading"><div class="app-loading-box"><img src="/legacy/germania-icon.png" alt="" aria-hidden="true" style="width:72px;height:72px;object-fit:contain;margin:0 auto 12px;display:block"><div class="app-loading-spin"></div><strong>GERMANIA</strong><div>Estamos cargando la información…</div></div></div>
 <div class="wrap">
@@ -810,29 +810,45 @@
         <span class="foot-note" id="correoCompaniaEstado">Correo oficial: germaniacbv@gmail.com · pendiente de conexión.</span>
       </div>
     </div>
-    <div class="subtabs">
-      <span class="subtab-grupo">Guardia y ODD</span>
-      <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
-      <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
-      <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
-      <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
-      <span class="subtab-grupo">Personas</span>
-      <button class="subtab" data-sub="oficialidad">Oficialidad</button>
-      <button class="subtab" data-sub="precedencia">Precedencia</button>
-      <button class="subtab" data-sub="nomina">Nómina</button>
-      <button class="subtab" data-sub="hoja">Hoja de vida</button>
-      <button class="subtab" data-sub="ingreso">Ingreso</button>
-      <button class="subtab" data-sub="cursos">Cursos</button>
-      <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
-      <button class="subtab" data-sub="alertas">Alertas</button>
-      <span class="subtab-grupo">Material B-5</span>
-      <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
-      <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
-      <span class="subtab-grupo">Administración</span>
-      <button class="subtab" data-sub="correlativos">Correlativos</button>
-      <button class="subtab" data-sub="tipos">Tipos de citación</button>
-      <button class="subtab" data-sub="importar">Importar / respaldo</button>
-      <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
+    <div class="subtabs of-menu" id="ofMenuAgrupado" aria-label="Herramientas de Oficiales">
+      <details class="of-grupo of-grupo-guardias" data-of-grupo="guardias">
+        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Guardia y ODD">
+          <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
+          <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
+          <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
+          <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-personas" data-of-grupo="personas">
+        <summary><span class="of-grupo-icon" aria-hidden="true">♙</span><span class="of-grupo-tit"><strong>Personal</strong><small>Nómina, fichas, cursos y oficialidad</small></span><span class="of-grupo-count">8</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Personal">
+          <button class="subtab" data-sub="oficialidad">Oficialidad</button>
+          <button class="subtab" data-sub="precedencia">Precedencia</button>
+          <button class="subtab" data-sub="nomina">Nómina</button>
+          <button class="subtab" data-sub="hoja">Hoja de vida</button>
+          <button class="subtab" data-sub="ingreso">Ingreso</button>
+          <button class="subtab" data-sub="cursos">Cursos</button>
+          <button class="subtab" data-sub="eppPersonal">EPP Personal</button>
+          <button class="subtab" data-sub="alertas">Alertas</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-material" data-of-grupo="material">
+        <summary><span class="of-grupo-icon" aria-hidden="true">▣</span><span class="of-grupo-tit"><strong>Material B-5</strong><small>Inventario y mantenciones del carro</small></span><span class="of-grupo-count">2</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Material B-5">
+          <button class="subtab" data-sub="inventariob5">Inventario B-5</button>
+          <button class="subtab" data-sub="mantencionesb5">Mantenciones B-5</button>
+        </div>
+      </details>
+      <details class="of-grupo of-grupo-administracion" data-of-grupo="administracion">
+        <summary><span class="of-grupo-icon" aria-hidden="true">⚙</span><span class="of-grupo-tit"><strong>Administración</strong><small>Registros y configuración</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <div class="of-grupo-botones" aria-label="Administración">
+          <button class="subtab" data-sub="correlativos">Correlativos</button>
+          <button class="subtab" data-sub="tipos">Tipos de citación</button>
+          <button class="subtab" data-sub="importar">Importar / respaldo</button>
+          <button class="subtab" data-sub="bajas">Bajas / eliminación</button>
+        </div>
+      </details>
     </div>
 
     <!-- ODD legacy retirado: acceso único mediante /odd-maestras -->
@@ -1417,6 +1433,7 @@
 <script src="./germania-roles.js?v=20261010inicio1"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
+<script src="./germania-oficiales-menu.js?v=20261010a"></script>
 <script src="./germania-actualizar.js?v=20261009a"></script>
 </body>
 </html>
