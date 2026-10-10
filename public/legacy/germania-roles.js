@@ -64,6 +64,7 @@ function finNoche(f){ return instanteChile(gnAdd(f,1),HORARIOS.fin); }
 function aplicarRol(){
   var m=miembro(), of=esOficial(m)||esMando(m);
   document.body.setAttribute("data-oficial",of?"1":"0");
+  document.body.setAttribute("data-mando",esMando(m)?"1":"0");
   var a=$("novedadesAdmin"); if(a) a.hidden=!of;
   if(!of&&GR.vista!=="mi") ponerVista("mi");
 }
@@ -159,7 +160,7 @@ function faltan(c){
 }
 
 /* ---------- Estado de la tarjeta ---------- */
-var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",cargando:false};
+var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",eligiendo:false,eleccionClave:"",cargando:false};
 var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["2 · Inscripciones","📋"],rev:["3 · Revisión","🛠"],rep:["4 · Reemplazos","🔁"]};
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
@@ -217,16 +218,44 @@ function resumenInfo(pn,D){
 function pintarInicioRoles(){
   var box=$("inicioRoles"); if(!box) return;
   var D=GR.Dmi, m=miembro();
-  if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; return; }
-  var cards=[["vol","Voluntario","🙋"]];
-  if(esMaquinista(m)||vistaPrueba(m,"maq")) cards.push(["maq","Maquinista","🚒"]);
-  if(esMando(m)) cards.push(["info","Información","📋"]);
-  var hasta=new Date(gnInsCierreMs(D.p)).toLocaleString("es-CL",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"America/Santiago"}).replace(".","");
-  box.innerHTML=cards.map(function(c){
-    return '<details class="card gr-rol-card" data-rol="'+c[0]+'"'+(GR.abiertas[c[0]]?" open":"")+'><summary><span class="gr-rol-ico" aria-hidden="true">'+c[2]+'</span><span class="gr-rol-tit">Guardia nocturna · '+c[1]+'<small>Semana '+E(gnFmt(D.p.inicio))+' · cierra '+E(hasta)+'</small></span></summary><div class="gr-rol-body" id="irp-'+c[0]+'"></div></details>';
-  }).join("");
-  cards.forEach(function(c){ var pn=$("irp-"+c[0]); if(!pn) return; if(c[0]==="vol") panelVol(pn,D); else if(c[0]==="info") resumenInfo(pn,D); else panelRol(pn,D,c[0]); });
-  box.querySelectorAll("details[data-rol]").forEach(function(d){ d.addEventListener("toggle",function(){ GR.abiertas[d.dataset.rol]=d.open; }); });
+  if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; GR.eligiendo=false; return; }
+  var conf=D.S.conf[D.who];
+  // Al confirmar, desaparece el cuadro. No queda un módulo personal permanente.
+  if(conf&&(conf.confirmadaEn||conf.cumple||conf.justificacion)){
+    box.innerHTML=""; GR.eligiendo=false; return;
+  }
+  var clave=D.p.inicio+":"+D.who;
+  if(GR.eleccionClave!==clave){ GR.eleccionClave=clave; GR.eligiendo=false; }
+  var cierre=gnInsCierreMs(D.p);
+  var hasta=new Date(cierre).toLocaleString("es-CL",{
+    weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",
+    hour12:false,timeZone:"America/Santiago"
+  }).replace(".","");
+  var mas=esMaquinista(m)&&!vistaPrueba(m,"maq");
+  box.innerHTML='<section class="card gn-inicio-inscripcion" aria-label="Inscripción de Guardia Nocturna">'
+    +'<div class="gn-inicio-encabezado">'
+    +'<span class="gn-inicio-luna" aria-hidden="true">☾</span>'
+    +'<div class="gn-inicio-titulo"><span class="gn-inicio-sello">INSCRIPCIÓN ABIERTA</span>'
+    +'<h2>Inscripción Guardia Nocturna abierta</h2>'
+    +'<p>Selecciona las noches en que podrás asistir. Cierra '+E(hasta)+'.</p></div></div>'
+    +'<button type="button" class="btn gn-inicio-accion" id="gnInicioSeleccionar" aria-expanded="'+GR.eligiendo+'" aria-controls="gnInicioEleccion">'
+    +(GR.eligiendo?'Cerrar selección':'Seleccionar noches ›')+'</button>'
+    +(GR.eligiendo?'<div class="gn-inicio-eleccion" id="gnInicioEleccion">'
+       +'<div id="gnInicioVol"></div>'
+       +(mas?'<details id="gnInicioConductor"><summary>También estoy habilitado como maquinista</summary><div id="gnInicioMaq"></div></details>':"")
+       +'</div>':'<div id="gnInicioEleccion" hidden></div>')
+    +'</section>';
+  var b=$("gnInicioSeleccionar");
+  if(b) b.onclick=function(){ GR.eligiendo=!GR.eligiendo; pintarInicioRoles(); };
+  if(GR.eligiendo){
+    var vol=$("gnInicioVol"); if(vol) panelVol(vol,D);
+    if(mas){
+      var det=$("gnInicioConductor"),maq=$("gnInicioMaq");
+      if(det&&maq){
+        det.addEventListener("toggle",function(){ if(det.open) panelRol(maq,D,"maq"); });
+      }
+    }
+  }
 }
 
 function selectorSemana(D){
@@ -737,11 +766,38 @@ function abrirAviso(pn,D,v){
 async function misNochesInicio(forzar){
   var box=$("misNochesInicio"); if(!box) return;
   var m=miembro(); if(!m){ box.innerHTML=""; return; }
-  var d; try{ d=await misNochesDatos(String(m.id),forzar); }catch(e){ return; }
-  if(!d.prox.length){ box.innerHTML=""; return; }
-  box.innerHTML='<div class="card home-pend"><h2>Mis noches de guardia</h2><div class="gr-lista">'+d.prox.map(function(e){ return tarjetaNoche(e,false); }).join("")+'</div><button type="button" class="btn secondary gr-grande" id="mnVer">Ver y avisar si no puedo</button></div>';
-  $("mnVer").onclick=function(){ ponerVista("mi"); window.__mostrarPestana("guardia"); };
+  var d;
+  try{ d=await misNochesDatos(String(m.id),forzar); }
+  catch(e){ return; }
+  if(!window.GermaniaGuardiaFranja){ box.innerHTML=""; return; }
+  // Solo de guardia-revision APROBADA, sin contar sustituidos ni otras semanas.
+  // finNoche se usa exclusivamente para VISIBILIDAD, no acredita asistencia.
+  var entradas=d.prox.map(function(e){
+    return Object.assign({},e,{finMs:finNoche(e.f)});
+  });
+  var activas=window.GermaniaGuardiaFranja.franjaAsignada(entradas,Date.now());
+  if(!activas.length){ box.innerHTML=""; return; }
+  var icono='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 10h18M8 14h3M14 14h3M8 18h3"/></svg>';
+  box.innerHTML='<section class="card gn-franja" aria-label="Mis próximas guardias">'
+    +'<div class="gn-franja-cab"><h2>'+icono+' Próximas guardias</h2><small>Se actualiza automáticamente</small></div>'
+    +'<div class="gn-franja-lista">'
+    +activas.map(function(e){
+      var n=nombreNoche(e.f),rol=ROL_NOCHE[e.rol]||"Voluntario";
+      var aviso=e.aviso&&e.aviso.estado!=="cubierto"?' <span class="gn-franja-aviso">Avisaste que no puedes</span>':"";
+      return '<button type="button" class="gn-franja-dia" data-gn-noche="'+E(e.f)+'"'
+        +' aria-label="'+E(n.w+" "+n.d+", "+rol+". Ver detalles y avisar si no puedes")+'">'
+        +'<span class="gn-franja-semana">'+E(n.w)+'</span><strong>'+E(n.d)+'</strong>'
+        +'<span class="gn-franja-cargo">'+E(rol)+'</span>'+aviso+'</button>';
+    }).join("")
+    +'</div><p class="gn-franja-nota">Solo tus noches asignadas. Toca una fecha para ver detalles.</p></section>';
+  box.querySelectorAll("[data-gn-noche]").forEach(function(b){
+    b.onclick=function(){
+      ponerVista("mi"); GR.tab="mis";
+      if(typeof window.__mostrarPestana==="function") window.__mostrarPestana("guardia");
+    };
+  });
 }
+
 async function misNochesCumplidas(forzar){
   var box=$("misNochesCumplidas"); if(!box) return;
   var m=miembro(); if(!m){ box.innerHTML=""; return; }
@@ -831,7 +887,15 @@ window.renderGnInscripcionCard=async function(forzar){
 };
 
 /* ---------- Eventos ---------- */
+var botonGestion=$("btnOficialesGuardia");
+if(botonGestion) botonGestion.addEventListener("click",function(){
+  if(!esMando(miembro())) return;
+  ponerVista("gestion");
+  if(typeof window.__mostrarPestana==="function") window.__mostrarPestana("guardia");
+});
 document.addEventListener("click",function(ev){
+  var noticia=ev.target.closest("[data-home-novedades]");
+  if(noticia){ var destino=$("inicioNovedades"); if(destino) destino.scrollIntoView({behavior:"smooth",block:"start"}); return; }
   var v=ev.target.closest("#gnVistaSel [data-gv]");
   if(v){ ponerVista(v.dataset.gv); pintarTarjeta(); return; }
   var t=ev.target.closest("[data-gr-tab]"); if(!t||!$("gnRolCard")||!$("gnRolCard").contains(t)) return;
@@ -883,7 +947,14 @@ function vigilarIdentidad(){
   grRender(true).catch(function(){});
 }
 setInterval(vigilarIdentidad,700);
-setInterval(function(){ if((guardiaActiva()||($("panel-germania")&&$("panel-germania").classList.contains("active")))&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")) grRender(false).catch(function(){}); },60000);
+setInterval(function(){
+  var inicio=$("panel-germania");
+  var enInicio=!!inicio&&inicio.classList.contains("active");
+  if((guardiaActiva()||enInicio)&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")){
+    grRender(false).catch(function(){});
+    if(enInicio) misNochesInicio(false).catch(function(){});
+  }
+},60000);
 cargarHorarios().then(function(){ misNochesInicio(false); });
 aplicarRol();
 })();
