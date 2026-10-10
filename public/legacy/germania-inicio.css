@@ -1,0 +1,474 @@
+/* GERMANIA · Inicio aprobado, 10/oct/2026.
+ * Solo el Inicio y la navegación inferior: no modificar las pantallas de ODD,
+ * disponibilidad dinámica, Oficiales, tablet B-5 ni los demás módulos.
+ * Los colores y la identidad vienen de germania-ui.css.
+ */
+body:not([data-mando="1"]) .solo-mando{display:none!important;}
+
+#panel-germania .home-grid{gap:12px;}
+#panel-germania .home-grid>#avisosOdd{order:0;}
+#panel-germania .home-grid>.home-hero{order:1;}
+#panel-germania .home-grid>#gnInscripcionCard{order:2;}
+#panel-germania .home-grid>#inicioRoles{order:3;}
+#panel-germania .home-grid>#misNochesInicio{order:4;}
+#panel-germania .home-grid>.home-tiles{order:5;}
+#panel-germania .home-grid>#inicioNovedades{order:6;}
+#panel-germania .home-grid>#inicioRoles:empty,
+#panel-germania .home-grid>#misNochesInicio:empty,
+#panel-germania .home-grid>#gnInscripcionCard:empty{display:none;}
+#panel-germania .home-hero{
+  padding:12px 14px 14px;
+  margin-bottom:0;
+  background:linear-gradient(135deg,#0b1115,#10151a);
+  border-radius:13px;
+}
+#panel-germania .home-hero .volunteer-hero{
+  padding:0;
+  margin:0;
+  background:transparent;
+  gap:13px;
+}
+#panel-germania .home-hero .volunteer-avatar{
+  width:76px;height:76px;flex:0 0 76px;
+  border:3px solid var(--g-gold,#ffcc00);
+}
+#panel-germania .home-hero .volunteer-who strong{
+  font:600 clamp(18px,4.8vw,24px)/1.12 'Oswald',sans-serif;
+}
+#panel-germania .home-hero .volunteer-who>span{
+  display:block;font-size:14px;line-height:1.25;
+}
+#panel-germania .home-hero .photo-action{
+  min-height:28px;margin:0 10px 0 0;font-size:12px;
+}
+#panel-germania .home-hero .chip-estado{
+  min-height:34px;padding:6px 12px;font-size:14px;margin:7px 0 2px;
+}
+#panel-germania .home-hero select:not(.sel-oculto){margin-top:10px;}
+
+#panel-germania .gr-roles{display:block;}
+#panel-germania .gn-inicio-inscripcion{
+  border:1.5px solid #d6a300!important;
+  background:linear-gradient(120deg,rgba(144,101,0,.32),#101417 64%)!important;
+  border-radius:14px!important;padding:16px!important;margin:0!important;
+}
+#panel-germania .gn-inicio-encabezado{
+  display:flex;align-items:flex-start;gap:12px;
+}
+#panel-germania .gn-inicio-luna{
+  width:50px;height:50px;flex:0 0 50px;
+  border-radius:50%;display:grid;place-items:center;
+  font-size:31px;color:var(--g-gold,#ffcc00);
+  background:#28210d;border:1px solid rgba(255,204,0,.4);
+}
+#panel-germania .gn-inicio-titulo{flex:1;min-width:0;}
+#panel-germania .gn-inicio-sello{
+  display:inline-block;color:#16130a;background:var(--g-gold,#ffcc00);
+  border-radius:8px;padding:2px 9px;
+  font:600 13px 'Source Sans 3',sans-serif;letter-spacing:.02em;
+}
+#panel-germania .gn-inicio-titulo h2{
+  font:600 21px/1.18 'Oswald',sans-serif;margin:5px 0 4px;
+}
+#panel-germania .gn-inicio-titulo p{color:var(--g-muted,#aeb5bb);font-size:14px;margin:0;}
+#panel-germania .gn-inicio-accion{margin:12px 0 0 auto;display:flex;max-width:max-content;min-height:44px;padding:9px 14px;}
+#panel-germania .gn-inicio-eleccion{
+  border-top:1px solid rgba(255,204,0,.3);margin-top:14px;padding-top:14px;
+  display:grid;gap:8px;
+}
+#panel-germania .gn-inicio-eleccion .gr-t{font-size:18px;}
+#panel-germania .gn-inicio-eleccion .gr-grande{min-height:46px;font-size:16px;}
+#panel-germania .gn-inicio-eleccion details{
+  background:#0b1115;border:1px solid var(--g-line);border-radius:10px;
+  padding:10px;
+}
+#panel-germania .gn-inicio-eleccion summary{
+  font-size:15px;font-weight:700;cursor:pointer;padding:5px 3px;
+}
+#panel-germania .gn-inicio-eleccion details[open] summary{margin-bottom:10px;}
+
+#panel-germania .gn-franja{
+  border-radius:14px!important;
+  background:linear-gradient(135deg,#0b1115,#0c171b)!important;
+  border:1px solid var(--g-line,#303840)!important;
+  padding:13px 14px!important;margin:0!important;
+}
+#panel-germania .gn-franja-cab{
+  display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+}
+#panel-germania .gn-franja-cab h2{
+  font:600 19px/1.2 'Oswald',sans-serif!important;
+  display:flex;gap:8px;align-items:center;margin:0;
+}
+#panel-germania .gn-franja-cab h2 svg{
+  width:25px;height:25px;color:var(--g-red,#e30613);flex:0 0 25px;
+}
+#panel-germania .gn-franja-cab small{font-size:11px;color:var(--g-muted,#aeb5bb);}
+#panel-germania .gn-franja-lista{
+  display:flex;gap:9px;margin-top:12px;overflow-x:auto;
+  padding-bottom:3px;scroll-snap-type:x proximity;
+  scrollbar-width:thin;scrollbar-color:#49545c transparent;
+}
+#panel-germania .gn-franja-dia{
+  flex:0 0 clamp(100px,31%,165px);min-width:100px;
+  min-height:112px;background:linear-gradient(135deg,#11181c,#0b1013);
+  color:#fff;border:1px solid #39434a;border-radius:11px;
+  display:flex;flex-direction:column;align-items:flex-start;
+  padding:10px 12px;cursor:pointer;scroll-snap-align:start;text-align:left;
+}
+#panel-germania .gn-franja-dia:hover,#panel-germania .gn-franja-dia:focus-visible{border-color:var(--g-gold,#ffcc00);}
+#panel-germania .gn-franja-dia .gn-franja-semana{font-size:14px;color:#fff;}
+#panel-germania .gn-franja-dia strong{
+  color:var(--g-gold,#ffcc00);font:700 31px/1 'Oswald',sans-serif;margin:3px 0;
+}
+#panel-germania .gn-franja-dia .gn-franja-cargo{font-size:12px;line-height:1.2;color:#d9e0e4;}
+#panel-germania .gn-franja-dia .gn-franja-cargo::before{content:"◉ ";color:#ced9df;}
+#panel-germania .gn-franja-nota{font-size:12px;color:#9ca6ac;margin:9px 0 0;}
+#panel-germania .gn-franja-dia .gn-franja-aviso{font-size:11px;color:#ffd071;margin-top:5px;}
+
+#panel-germania .home-tiles{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+#panel-germania .home-tiles .tile{
+  display:flex;flex-direction:row;align-items:center;justify-content:flex-start;
+  text-align:left;gap:9px;min-height:86px;padding:12px 11px;
+  border-radius:12px;box-shadow:none;
+  background:linear-gradient(135deg,#11181d,#0a1014);
+}
+#panel-germania .home-tiles .tile.solo-oficiales{grid-column:auto;}
+#panel-germania .home-tiles .tile-ico{
+  flex:0 0 34px;width:34px;height:34px;display:grid;place-items:center;
+}
+#panel-germania .home-tiles .tile-ico svg{width:32px;height:32px;}
+#panel-germania .tile-asistencia .tile-ico{color:#2589ff;}
+#panel-germania .tile-emergencia .tile-ico{color:#ff2634;}
+#panel-germania .tile-disponibilidad .tile-ico{color:#1ecb69;}
+#panel-germania .tile-estadistica .tile-ico{color:#b54bea;}
+#panel-germania .tile-oficiales .tile-ico{color:var(--g-gold,#ffcc00);}
+#panel-germania .tile-novedades .tile-ico{color:#abb8c5;}
+#panel-germania .tile-copy{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}
+#panel-germania .tile-copy strong{font:600 17px/1.15 'Oswald',sans-serif;letter-spacing:0;}
+#panel-germania .tile-copy small{font:400 11px/1.22 'Source Sans 3',sans-serif;color:#c4cbd1;}
+#panel-germania .tile-arrow{flex:0 0 auto;font-size:26px;line-height:1;color:#d7e0e4;}
+#panel-germania #inicioNovedades{margin-top:2px;scroll-margin-top:14px;}
+#panel-germania #inicioNovedades.home-alert{
+  background:linear-gradient(145deg,#171b1e,#10151a);border-color:var(--g-line,#303840);
+}
+#panel-germania #inicioNovedades .ha-main span:not(.ha-ico){color:#b9c2c8;}
+
+@media(max-width:700px){
+  .g-bottomnav{grid-template-columns:repeat(4,1fr);}
+  #panel-germania{padding-top:12px;}
+  #panel-germania .home-hero .volunteer-avatar{
+    width:70px;height:70px;flex-basis:70px;
+  }
+}
+@media(max-width:360px){
+  #panel-germania .home-tiles .tile{gap:6px;padding:10px 8px;}
+  #panel-germania .home-tiles .tile-ico{width:25px;flex-basis:25px;}
+  #panel-germania .home-tiles .tile-ico svg{width:24px;height:24px;}
+  #panel-germania .home-tiles .tile-copy strong{font-size:15px;}
+  #panel-germania .tile-arrow{font-size:22px;}
+}
+@media(min-width:701px){
+  #panel-germania .home-tiles{grid-template-columns:repeat(3,minmax(0,1fr));}
+  #panel-germania .gn-franja-dia{flex-basis:150px;}
+}
+
+
+/* Resumen «Quién está hoy»: cifra más discreta, centrada sobre su etiqueta.
+ * No afecta estadísticas, oficiales ni el resumen de otras pantallas.
+ */
+#panel-germania #dispResumen{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px 6px;
+  margin:12px 0 14px;
+}
+#panel-germania #dispResumen .summary-item{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  text-align:center;
+  padding:5px 3px;
+}
+#panel-germania #dispResumen .summary-item .big{
+  display:block;
+  font:600 21px/1.1 'Oswald',sans-serif;
+  font-variant-numeric:tabular-nums;
+  color:var(--g-gold,#ffcc00);
+}
+#panel-germania #dispResumen .summary-item .lbl{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  line-height:1.22;
+  color:var(--g-muted,#aeb5bb);
+  overflow-wrap:anywhere;
+  text-align:center;
+}
+@media (min-width:701px){
+  #panel-germania #dispResumen{
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:12px;
+  }
+  #panel-germania #dispResumen .summary-item .big{font-size:23px;}
+  #panel-germania #dispResumen .summary-item .lbl{font-size:13px;}
+}
+
+
+/* Prueba visual: contorno con identidad y respuesta suave al tocar.
+ * Exclusivo a seis botones del Inicio. Sin bucles de animación
+ * para no penalizar la tablet B-5 de 2 GB.
+ */
+#panel-germania .home-tiles .tile{
+  border:1.5px solid var(--tile-accent,#52616c);
+  border-left-width:5px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),
+             0 0 10px var(--tile-glow,rgba(100,115,130,.12));
+  transition:transform .16s ease,box-shadow .2s ease,background-color .2s ease;
+  animation:germaniaTileEntrada .45s ease-out both;
+}
+#panel-germania .home-tiles .tile-asistencia{
+  --tile-accent:#3295ff;
+  --tile-glow:rgba(50,149,255,.17);
+}
+#panel-germania .home-tiles .tile-emergencia{
+  --tile-accent:#ff3645;
+  --tile-glow:rgba(255,54,69,.18);
+}
+#panel-germania .home-tiles .tile-disponibilidad{
+  --tile-accent:#28cf75;
+  --tile-glow:rgba(40,207,117,.16);
+}
+#panel-germania .home-tiles .tile-estadistica{
+  --tile-accent:#b85af3;
+  --tile-glow:rgba(184,90,243,.17);
+}
+#panel-germania .home-tiles .tile-oficiales{
+  --tile-accent:#ffcc00;
+  --tile-glow:rgba(255,204,0,.17);
+}
+#panel-germania .home-tiles .tile-novedades{
+  --tile-accent:#91a7b7;
+  --tile-glow:rgba(145,167,183,.14);
+}
+#panel-germania .home-tiles .tile:nth-child(2){animation-delay:60ms;}
+#panel-germania .home-tiles .tile:nth-child(3){animation-delay:120ms;}
+#panel-germania .home-tiles .tile:nth-child(4){animation-delay:180ms;}
+#panel-germania .home-tiles .tile:nth-child(5){animation-delay:240ms;}
+#panel-germania .home-tiles .tile:nth-child(6){animation-delay:300ms;}
+#panel-germania .home-tiles .tile:hover,
+#panel-germania .home-tiles .tile:focus-visible{
+  transform:translateY(-2px);
+  box-shadow:inset 0 0 0 1px var(--tile-accent),
+             0 0 18px var(--tile-glow);
+  outline:2px solid var(--tile-accent);
+  outline-offset:1px;
+}
+#panel-germania .home-tiles .tile:active{
+  transform:scale(.985);
+  box-shadow:inset 0 0 0 2px var(--tile-accent),
+             0 0 16px var(--tile-glow);
+}
+@keyframes germaniaTileEntrada{
+  from{opacity:.88;transform:translateY(4px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@media (prefers-reduced-motion:reduce){
+  #panel-germania .home-tiles .tile{
+    animation:none!important;
+    transition:none!important;
+  }
+}
+
+
+/* Oficiales: cuatro secciones, 18 funciones conservadas y carga bajo demanda.
+ * Se limita a configContenido para no alterar ODD, guardias ni otras tarjetas.
+ */
+#panel-config #configContenido .of-menu{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0 18px;
+}
+#panel-config #configContenido .of-grupo{
+  --of-accent:#ffcc00;
+  --of-glow:rgba(255,204,0,.15);
+  min-width:0;
+  border:1.5px solid var(--of-accent);
+  border-left-width:5px;
+  background:linear-gradient(135deg,#141b20,#0a1014);
+  border-radius:13px;
+  box-shadow:0 0 9px var(--of-glow);
+  overflow:hidden;
+}
+#panel-config #configContenido .of-grupo-personas{
+  --of-accent:#3295ff;
+  --of-glow:rgba(50,149,255,.15);
+}
+#panel-config #configContenido .of-grupo-material{
+  --of-accent:#ff3645;
+  --of-glow:rgba(255,54,69,.16);
+}
+#panel-config #configContenido .of-grupo-administracion{
+  --of-accent:#b85af3;
+  --of-glow:rgba(184,90,243,.15);
+}
+#panel-config #configContenido .of-grupo[open]{
+  grid-column:1/-1;
+  box-shadow:inset 0 0 0 1px var(--of-accent),0 0 14px var(--of-glow);
+}
+#panel-config #configContenido .of-grupo>summary{
+  display:flex;
+  gap:9px;
+  align-items:center;
+  box-sizing:border-box;
+  padding:11px 10px;
+  min-height:82px;
+  color:#fff;
+  list-style:none;
+  cursor:pointer;
+}
+#panel-config #configContenido .of-grupo>summary::-webkit-details-marker{display:none;}
+#panel-config #configContenido .of-grupo>summary:focus-visible{
+  outline:2px solid var(--of-accent);outline-offset:-3px;
+}
+#panel-config #configContenido .of-grupo-icon{
+  flex:0 0 29px;
+  width:29px;
+  display:grid;
+  place-items:center;
+  color:var(--of-accent);
+  font:700 23px/1 'Oswald',sans-serif;
+}
+#panel-config #configContenido .of-grupo-tit{
+  min-width:0;flex:1;
+  display:flex;flex-direction:column;gap:4px;
+}
+#panel-config #configContenido .of-grupo-tit strong{
+  font:600 17px/1.14 'Oswald',sans-serif;
+}
+#panel-config #configContenido .of-grupo-tit small{
+  font:400 11px/1.3 'Source Sans 3',sans-serif;
+  color:#c0c9d0;
+}
+#panel-config #configContenido .of-grupo-count{
+  align-self:flex-start;
+  flex:0 0 auto;
+  font:600 12px/1.2 'Source Sans 3',sans-serif;
+  color:var(--of-accent);
+}
+#panel-config #configContenido .of-grupo-arrow{
+  font-size:19px;line-height:1;color:var(--of-accent);
+  transition:transform .18s ease;
+}
+#panel-config #configContenido .of-grupo[open] .of-grupo-arrow{transform:rotate(180deg);}
+#panel-config #configContenido .of-grupo-botones{
+  padding:11px;
+  border-top:1px solid var(--of-accent);
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  animation:ofGrupoAparece .18s ease-out;
+}
+#panel-config #configContenido .of-grupo-botones .subtab{
+  min-width:0;
+  min-height:48px;
+  padding:9px 11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font:600 14px/1.15 'Source Sans 3',sans-serif;
+  color:#fff;
+  background:#141b20;
+  border:1px solid #3f4b55;
+  border-left:4px solid var(--of-accent);
+  border-radius:9px;
+  box-shadow:none;
+}
+#panel-config #configContenido .of-grupo-botones .subtab.active,
+#panel-config #configContenido .of-grupo-botones .subtab:focus-visible{
+  border-color:var(--of-accent);
+  background:#27313a;
+  outline-offset:2px;
+}
+@keyframes ofGrupoAparece{from{opacity:.75;}to{opacity:1;}}
+@media(min-width:701px){
+  #panel-config #configContenido .of-menu{grid-template-columns:repeat(4,minmax(0,1fr));}
+  #panel-config #configContenido .of-grupo-botones{grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media(max-width:390px){
+  #panel-config #configContenido .of-grupo>summary{gap:5px;padding:9px 7px;}
+  #panel-config #configContenido .of-grupo-icon{flex-basis:24px;width:24px;font-size:19px;}
+  #panel-config #configContenido .of-grupo-tit strong{font-size:15px;}
+  #panel-config #configContenido .of-grupo-count{font-size:11px;}
+  #panel-config #configContenido .of-grupo-arrow{font-size:16px;}
+}
+@media(prefers-reduced-motion:reduce){
+  #panel-config #configContenido .of-grupo-botones{animation:none;}
+  #panel-config #configContenido .of-grupo-arrow{transition:none;}
+}
+
+/* Corrección móvil: ningún título ni descripción invade la flecha o el
+ * contorno de las tarjetas del Inicio (p. ej. «Disponibilidad»).
+ * Solo layout visual; conserva nombres, rutas y colores aprobados.
+ */
+@media (max-width:700px){
+  #panel-germania .home-tiles .tile{
+    display:grid;
+    grid-template-columns:28px minmax(0,1fr) 12px;
+    align-items:center;
+    column-gap:6px;
+    padding:10px 8px;
+  }
+  #panel-germania .home-tiles .tile-ico{
+    width:28px;
+    min-width:0;
+    height:30px;
+  }
+  #panel-germania .home-tiles .tile-ico svg{
+    width:28px;
+    max-width:100%;
+    height:28px;
+  }
+  #panel-germania .home-tiles .tile-copy{
+    min-width:0;
+    max-width:100%;
+    overflow-wrap:anywhere;
+    hyphens:auto;
+  }
+  #panel-germania .home-tiles .tile-copy strong{
+    font-size:clamp(14px,3.6vw,16px);
+    line-height:1.18;
+    overflow-wrap:anywhere;
+    hyphens:auto;
+  }
+  #panel-germania .home-tiles .tile-copy small{
+    font-size:11px;
+    line-height:1.23;
+    overflow-wrap:anywhere;
+  }
+  #panel-germania .home-tiles .tile-arrow{
+    justify-self:end;
+    min-width:0;
+    font-size:20px;
+    line-height:1;
+  }
+}
+@media (max-width:360px){
+  #panel-germania .home-tiles .tile{
+    grid-template-columns:24px minmax(0,1fr) 10px;
+    column-gap:5px;
+    padding:9px 7px;
+  }
+  #panel-germania .home-tiles .tile-ico{width:24px;height:26px;}
+  #panel-germania .home-tiles .tile-ico svg{width:24px;height:24px;}
+  #panel-germania .home-tiles .tile-arrow{font-size:18px;}
+}
