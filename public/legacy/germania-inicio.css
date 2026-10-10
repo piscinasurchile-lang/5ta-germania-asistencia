@@ -284,3 +284,134 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
     transition:none!important;
   }
 }
+
+
+/* Oficiales: cuatro secciones, 18 funciones conservadas y carga bajo demanda.
+ * Se limita a configContenido para no alterar ODD, guardias ni otras tarjetas.
+ */
+#panel-config #configContenido .of-menu{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0 18px;
+}
+#panel-config #configContenido .of-grupo{
+  --of-accent:#ffcc00;
+  --of-glow:rgba(255,204,0,.15);
+  min-width:0;
+  border:1.5px solid var(--of-accent);
+  border-left-width:5px;
+  background:linear-gradient(135deg,#141b20,#0a1014);
+  border-radius:13px;
+  box-shadow:0 0 9px var(--of-glow);
+  overflow:hidden;
+}
+#panel-config #configContenido .of-grupo-personas{
+  --of-accent:#3295ff;
+  --of-glow:rgba(50,149,255,.15);
+}
+#panel-config #configContenido .of-grupo-material{
+  --of-accent:#ff3645;
+  --of-glow:rgba(255,54,69,.16);
+}
+#panel-config #configContenido .of-grupo-administracion{
+  --of-accent:#b85af3;
+  --of-glow:rgba(184,90,243,.15);
+}
+#panel-config #configContenido .of-grupo[open]{
+  grid-column:1/-1;
+  box-shadow:inset 0 0 0 1px var(--of-accent),0 0 14px var(--of-glow);
+}
+#panel-config #configContenido .of-grupo>summary{
+  display:flex;
+  gap:9px;
+  align-items:center;
+  box-sizing:border-box;
+  padding:11px 10px;
+  min-height:82px;
+  color:#fff;
+  list-style:none;
+  cursor:pointer;
+}
+#panel-config #configContenido .of-grupo>summary::-webkit-details-marker{display:none;}
+#panel-config #configContenido .of-grupo>summary:focus-visible{
+  outline:2px solid var(--of-accent);outline-offset:-3px;
+}
+#panel-config #configContenido .of-grupo-icon{
+  flex:0 0 29px;
+  width:29px;
+  display:grid;
+  place-items:center;
+  color:var(--of-accent);
+  font:700 23px/1 'Oswald',sans-serif;
+}
+#panel-config #configContenido .of-grupo-tit{
+  min-width:0;flex:1;
+  display:flex;flex-direction:column;gap:4px;
+}
+#panel-config #configContenido .of-grupo-tit strong{
+  font:600 17px/1.14 'Oswald',sans-serif;
+}
+#panel-config #configContenido .of-grupo-tit small{
+  font:400 11px/1.3 'Source Sans 3',sans-serif;
+  color:#c0c9d0;
+}
+#panel-config #configContenido .of-grupo-count{
+  align-self:flex-start;
+  flex:0 0 auto;
+  font:600 12px/1.2 'Source Sans 3',sans-serif;
+  color:var(--of-accent);
+}
+#panel-config #configContenido .of-grupo-arrow{
+  font-size:19px;line-height:1;color:var(--of-accent);
+  transition:transform .18s ease;
+}
+#panel-config #configContenido .of-grupo[open] .of-grupo-arrow{transform:rotate(180deg);}
+#panel-config #configContenido .of-grupo-botones{
+  padding:11px;
+  border-top:1px solid var(--of-accent);
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  animation:ofGrupoAparece .18s ease-out;
+}
+#panel-config #configContenido .of-grupo-botones .subtab{
+  min-width:0;
+  min-height:48px;
+  padding:9px 11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font:600 14px/1.15 'Source Sans 3',sans-serif;
+  color:#fff;
+  background:#141b20;
+  border:1px solid #3f4b55;
+  border-left:4px solid var(--of-accent);
+  border-radius:9px;
+  box-shadow:none;
+}
+#panel-config #configContenido .of-grupo-botones .subtab.active,
+#panel-config #configContenido .of-grupo-botones .subtab:focus-visible{
+  border-color:var(--of-accent);
+  background:#27313a;
+  outline-offset:2px;
+}
+@keyframes ofGrupoAparece{from{opacity:.75;}to{opacity:1;}}
+@media(min-width:701px){
+  #panel-config #configContenido .of-menu{grid-template-columns:repeat(4,minmax(0,1fr));}
+  #panel-config #configContenido .of-grupo-botones{grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media(max-width:390px){
+  #panel-config #configContenido .of-grupo>summary{gap:5px;padding:9px 7px;}
+  #panel-config #configContenido .of-grupo-icon{flex-basis:24px;width:24px;font-size:19px;}
+  #panel-config #configContenido .of-grupo-tit strong{font-size:15px;}
+  #panel-config #configContenido .of-grupo-count{font-size:11px;}
+  #panel-config #configContenido .of-grupo-arrow{font-size:16px;}
+}
+@media(prefers-reduced-motion:reduce){
+  #panel-config #configContenido .of-grupo-botones{animation:none;}
+  #panel-config #configContenido .of-grupo-arrow{transition:none;}
+}
