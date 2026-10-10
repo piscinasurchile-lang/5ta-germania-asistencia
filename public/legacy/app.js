@@ -2647,34 +2647,40 @@ on("gnDesde","change",renderGnLista);
 on("gnHasta","change",renderGnLista);
 
 async function renderGnLista(){
-  const lista=await guardiasEnRango();
   const box=document.getElementById("gnLista"), res=document.getElementById("gnResumen");
-  const turnos=lista.length;
-  const cubiertos=lista.reduce((s,g)=>s+cubrenGuardia(g.guardianes).length,0);
+  let lista,verificacion;
+  try{
+    lista=await guardiasEnRango();
+    verificacion=await gnResumenAcreditado(lista);
+  }catch(e){
+    if(res)res.innerHTML='<div class="empty">No se pudo verificar asistencia acreditada. Las estadísticas no se calcularon.</div>';
+    if(box)box.innerHTML='<div class="empty">Reintenta la consulta de guardias. No se modificó ningún registro.</div>';
+    return;
+  }
+  const {resumen,pares}=verificacion, turnos=resumen.turnos;
+  const acreditadas=Object.values(resumen.por).reduce((s,x)=>s+x.hechas,0);
+  const inasistencias=Object.values(resumen.por).reduce((s,x)=>s+x.falto,0);
   const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
-  let inasist=0, sinR=0;
-  lista.forEach(g=>normalizaTurno(g.guardianes).forEach(x=>{
-    if(x.estado==="no"){ inasist++; if(!x.reemplazo) sinR++; } }));
-  res.innerHTML=`
-    <div class="summary-item"><div class="big">${turnos}</div><div class="lbl">Guardias registradas</div></div>
-    <div class="summary-item"><div class="big">${cubiertos}</div><div class="lbl">Turnos cubiertos</div></div>
-    <div class="summary-item"><div class="big">${turnos?(cubiertos/turnos).toFixed(1):0}</div><div class="lbl">Guardianes por noche</div></div>
-    <div class="summary-item"><div class="big">${inasist}</div><div class="lbl">Inasistencias</div></div>
-    <div class="summary-item"><div class="big">${sinR}</div><div class="lbl">Sin reemplazo</div></div>
-    <div class="summary-item"><div class="big">${conNov}</div><div class="lbl">Con novedad</div></div>`;
-  if(!turnos){ box.innerHTML='<div class="empty">No hay guardias registradas en este período.</div>'; return; }
-  box.innerHTML=lista.slice().reverse().map(g=>`
-    <div class="hist-item">
-      <div>
-        <div class="hist-date">${fmtDateLong(g.fechaIng)} · ${esc(g.horaIng||"")} a ${esc(g.horaSal||"")}</div>
-        <div class="hist-acto">${cubrenGuardia(g.guardianes).map(id=>esc(nombrePorId(id))).join(", ")}
-          ${g.oficial?" · Oficial: "+esc(nombrePorId(g.oficial)):""}
-          ${(()=>{const f=normalizaTurno(g.guardianes).filter(x=>x.estado==="no");
-            return f.length?" · No asisten: "+f.map(x=>esc(nombrePorId(x.id))+(x.reemplazo?" (reemplazado)":" (sin reemplazo)")).join(", "):"";})()}
-          ${g.novedades?" · "+esc(g.novedades):""}</div>
-      </div>
-      <div class="hist-right"><span class="badge">${cubrenGuardia(g.guardianes).length}</span></div>
-    </div>`).join("");
+  res.innerHTML=
+    '<div class="summary-item"><div class="big">'+turnos+'</div><div class="lbl">Guardias registradas</div></div>'+
+    '<div class="summary-item"><div class="big">'+acreditadas+'</div><div class="lbl">Asistencias acreditadas</div></div>'+
+    '<div class="summary-item"><div class="big">'+resumen.pendientes+'</div><div class="lbl">Noches por acreditar</div></div>'+
+    '<div class="summary-item"><div class="big">'+inasistencias+'</div><div class="lbl">Ausencias verificadas</div></div>'+
+    '<div class="summary-item"><div class="big">'+resumen.reemp+'</div><div class="lbl">Reemplazos registrados</div></div>'+
+    '<div class="summary-item"><div class="big">'+conNov+'</div><div class="lbl">Con novedad</div></div>';
+  if(!turnos){box.innerHTML='<div class="empty">No hay guardias registradas en este período.</div>';return;}
+  box.innerHTML=lista.slice().reverse().map(g=>{
+    const r=pares[g.fechaIng],n=r?.revision?.noches?.[g.fechaIng];
+    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(r?.acta,r?.revision,g.fechaIng)?r.acta:null;
+    const quienes=n?[n.maq,n.obac,...n.vol].filter(Boolean):[g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
+    const detalle=ac?"Acreditados: "+ac.asistentes.map(id=>esc(nombrePorId(id))).join(", ")+
+      (ac.ausentes.length?" · No asistieron: "+ac.ausentes.map(id=>esc(nombrePorId(id))).join(", "):""):
+      "Designados (sin acreditar): "+[...new Set(quienes)].map(id=>esc(nombrePorId(id))).join(", ");
+    const nov=g.novedades?" · "+esc(g.novedades):"";
+    return '<div class="hist-item"><div><div class="hist-date">'+esc(fmtDateLong(g.fechaIng))+
+      ' · '+esc(g.horaIng||"")+' a '+esc(g.horaSal||"")+'</div><div class="hist-acto">'+detalle+
+      nov+'</div></div><div class="hist-right"><span class="badge">'+(ac?ac.asistentes.length:"—")+'</span></div></div>';
+  }).join("");
 }
 
 on("gnPdfSemanal","click",async()=>{
