@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
-import { integrantesNoche, validarAcreditacion } from "../../../../lib/guardia-acreditacion.js";
+import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
 export const runtime = "nodejs";
 
 // La autenticación individual del Teniente 3° debe revisarse en la auditoría de permisos;
@@ -63,6 +63,7 @@ export async function POST(req) {
     const anteriorRegistro=anterior.value && typeof anterior.value==="object"?anterior.value:null;
     const registro={
       fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
+      dotacionFirma:firmaDotacion(revision.noches[fecha]),
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
       asistentes,ausentes,
       acreditadoPorId:actor,acreditadoEn:new Date().toISOString(),
