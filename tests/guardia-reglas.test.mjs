@@ -49,3 +49,12 @@ test("OBAC provisional no se obtiene de los voluntarios regulares",()=>{
  const rows=[row("v1","voluntario"),row("v2","voluntario"),row("maq1","conductor")];
  assert.equal(obacProvisional({inscripciones:rows,fecha,precedencia:["v1","v2"],habilitadosObac:["v1","v2"]}),null);
 });
+
+test("habilitaciones OBAC y conductor son independientes",()=>{
+ assert.equal(intento("ob1","obac",[],{habilitadosObac:["ob1"]}).ok,true);
+ assert.equal(intento("maq1","obac",[],{habilitadosObac:["ob1"]}).codigo,"NO_HABILITADO");
+ assert.equal(intento("ob1","conductor",[],{habilitadosObac:["ob1"]}).codigo,"NO_HABILITADO");
+});
+test("solo un OBAC por noche",()=>{
+ assert.equal(intento("ob2","obac",[row("ob1","obac")],{habilitadosObac:["ob1","ob2"]}).codigo,"OBAC_OCUPADO");
+});
