@@ -86,3 +86,12 @@ test("seis botones conservan rutas y muestran contornos coloreados propios, sin 
   assert.match(css,/@media \(prefers-reduced-motion:reduce\)/);
   assert.ok(!html.includes('data-nav="guardia"'));
 });
+
+test("orden de Inicio: Asistencia y Disponibilidad arriba; Emergencia y Estadística después",()=>{
+  const inicio=html.indexOf('<div class="home-tiles" style="grid-column:1 / -1;">');
+  const fin=html.indexOf('</div>',inicio);
+  assert.ok(inicio>=0 && fin>inicio);
+  const fragmento=html.slice(inicio,fin);
+  const orden=[...fragmento.matchAll(/<button class="tile tile-([a-z]+)/g)].map(m=>m[1]);
+  assert.deepEqual(orden,["asistencia","disponibilidad","emergencia","estadistica","oficiales","novedades"]);
+});
