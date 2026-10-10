@@ -1,12 +1,12 @@
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState } from "../../../../lib/state-store.js";
-import { validarReservaMaquinista, fechasSemana } from "../../../../lib/guardia-maquinista.mjs";
+import { validarReservaMaquinista, fechasSemana, idVoluntarioValido } from "../../../../lib/guardia-maquinista.mjs";
 import { RESERVA_TITULAR_SQL } from "../../../../lib/guardia-reserva-titular-sql.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const codigo = id => /^\d{1,8}$/.test(String(id || ""));
+const codigo = id => idVoluntarioValido(id);
 const db = () => process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 function mismoOrigen(r) {
   const origin = r.headers.get("origin");
