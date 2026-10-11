@@ -17,7 +17,8 @@ test('lee mensajes y canales, no ediciones', () => {
   assert.equal(extraerMensaje({ edited_message: mensaje('B-5').message }), null);
 });
 test('detecta señales previstas', () => {
-  assert.deepEqual(detectarDespacho('LLAMADO GENERAL B5 10-0'), ['llamado general', 'B-5', '10-0']);
+  assert.deepEqual(detectarDespacho('LLAMADO GENERAL B5 10-0'), ['llamado general', 'B-5']);
+  assert.deepEqual(detectarDespacho('10-0-1 sin asignar unidad'), []);
   assert.deepEqual(detectarDespacho('otro grupo'), []);
 });
 test('rechaza grupo incorrecto y falta de configuración', () => {
