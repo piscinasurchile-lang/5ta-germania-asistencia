@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+.telegram-session
+.telegram-relay-state.json
+.telegram-relay-state.json.*.tmp
+node_modules/

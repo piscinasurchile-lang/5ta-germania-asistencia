@@ -1,13 +1,27 @@
-# Laboratorio Telegram y ntfy
+# Laboratorio Telegram → ntfy (aislado)
 
-**Prueba aislada.** No tiene webhook, credenciales ni conexión a la aplicación Germania, Neon o Vercel. Ejecutar `npm run demo` solo imprime un ejemplo: no envía mensajes.
+Estado: preparado como código de pruebas; no conectado a Telegram ni desplegado. Exclusivamente en la rama test/telegram-emergencias-villarrica-2022, bajo experiments/telegram-ntfy/. No cambia interfaz, Neon, Vercel, asistencia ni guardias de Germania.
 
-Se trabaja exclusivamente en `test/telegram-emergencias-villarrica-2022`, bajo `experiments/telegram-ntfy/`.
+## Por qué se usa una sesión Telegram
+El grupo Emergencias Villarrica 2022 no necesita recibir un bot nuevo. Se usa una sesión MTProto de una cuenta que ya tenga acceso al grupo, con credenciales y autorización de su titular. Este lector puede detectar mensajes enviados por personas u otros bots visibles para esa cuenta. Solo lee el grupo cuyo ID exacto se configure. No modifica mensajes ni miembros.
 
-El prototipo reconoce `B-5`, `B5`, `10-0` y `llamado general`, valida el identificador del grupo y prepara un aviso `PRUEBA - NO EMERGENCIA REAL` con prioridad 5 para ntfy.
+## Preparar en computador privado con Node 20+
+Obtener API_ID y API_HASH desde https://my.telegram.org/apps (guardar siempre en privado).
 
-Para verificarlo, ejecutar `npm test` y `npm run demo` dentro de esta carpeta.
+1. cd experiments/telegram-ntfy
+2. npm install
+3. cp .env.example .env y completar solo TELEGRAM_API_ID, TELEGRAM_API_HASH.
+4. npm run auth (ingresar número y código directamente en la terminal; nunca compartir).
+5. npm run chats (encuentra el ID exacto del grupo y copiarlo a TELEGRAM_CHAT_ID en .env).
+6. npm test
+7. npm run watch (por defecto DRY_RUN=1: no envía alarmas).
 
-Antes de conectar el grupo Emergencias Villarrica 2022, se debe comprobar que el bot tiene acceso a los mensajes reales, en particular si vienen de otro bot de Telegram, y configurar el identificador de grupo sin publicar credenciales. Para pruebas en teléfonos, usar un tema de ntfy aislado y únicamente el dispositivo autorizado. En Android habilitar entrega instantánea y revisar restricciones de batería. En iPhone comprobar avisos con bloqueo y modos de concentración. No hay garantía absoluta de sonido 24/7. No sustituye el despacho oficial.
+La sesión se escribe en .telegram-session, archivo privado ignorado por Git. No compartir el contenido con ChatGPT ni guardar sesiones, claves o contraseñas en GitHub.
 
-Pendiente: recepción real del bot, deduplicación y registros, extracción de direcciones y pruebas de notificación en teléfono. No integrar a producción sin pruebas explícitas.
+## Prueba de aviso aislado
+Solo después de tener autorización para leer y reproducir el contenido de los despachos, configurar DRY_RUN=0 y un canal NTFY_TOPIC privado cuyo nombre comience con germania-test- y termine con más de 20 caracteres aleatorios. No se permite el canal de producción. Todas las alertas son explícitamente simuladas: PRUEBA / NO EMERGENCIA REAL / NO ACUDIR.
+
+Reconoce B-5, B5, 10-0, llamado general. Extrae direcciones identificables, sin inventarlas. Filtra otros chats, evita duplicados por ID de mensaje y descarta avisos de más de siete minutos. El primer inicio ignora el historial antiguo. Usa eventos de Telegram y revisión periódica de 12 segundos. El último ID procesado se conserva en un archivo privado local.
+
+## Pendiente de verificar
+Todavía no se han leído mensajes reales, no se ha comprobado la reconexión automática, no existe servicio persistente ni se ha integrado Germania. No usar como sistema de despacho real. Para 24/7 se requiere alojar este proceso de forma permanente; Vercel Functions no es un servicio de escucha permanente. No reemplaza las alarmas oficiales.
