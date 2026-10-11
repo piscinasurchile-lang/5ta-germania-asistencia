@@ -21,7 +21,16 @@ La sesión se escribe en .telegram-session, archivo privado ignorado por Git. No
 ## Prueba de aviso aislado
 Solo después de tener autorización para leer y reproducir el contenido de los despachos, configurar DRY_RUN=0 y un canal NTFY_TOPIC privado cuyo nombre comience con germania-test- y termine con más de 20 caracteres aleatorios. No se permite el canal de producción. Todas las alertas son explícitamente simuladas: PRUEBA / NO EMERGENCIA REAL / NO ACUDIR.
 
-Reconoce B-5, B5, 10-0, llamado general. Extrae direcciones identificables, sin inventarlas. Filtra otros chats, evita duplicados por ID de mensaje y descarta avisos de más de siete minutos. El primer inicio ignora el historial antiguo. Usa eventos de Telegram y revisión periódica de 12 segundos. El último ID procesado se conserva en un archivo privado local.
+## Interpretación operativa de claves (CLAVES NUEVAS.pdf)
+
+- El catálogo del Departamento de Radiocomunicaciones de Villarrica define 24 claves de emergencias entre 10-0-0 y 10-15 (incluye llamadas estructurales, incendios, materiales peligrosos, rescates y otros). El programa **reconoce el tipo de emergencia pero no deduce que Germania esté despachada** por ver una clave 10-*.
+- Una notificación automática de laboratorio exige la mención identificable de B-5 (también B5, B 5, B–5) **o** un "llamado general" no cancelado. No asumir que cualquier clave 10-* implica salida del B-5. El prefijo incompleto "10-0" por sí solo no basta.
+- **10-4-1** (rescate vehicular, vehículos menores) y **10-3-3** (rescate en ríos, lagos o canales) son especialidades **no asignadas al B-5 actualmente**, confirmado por la Quinta Compañía. Estas claves por sí solas no activan alarmas. Si el mismo mensaje nombra B-5 con una de esas claves, se registra como `requiere_revision` pero no se hace sonar una alarma automática; existe una contradicción que debe verificarse con la Central. Un llamado general explícito se procesa como convocatoria distinta y puede generar alerta.
+- Información de estado/cancelación (por ejemplo 6-3, 6-7, 6-9, 6-10, 6-16, "sin efecto", "cancelado") no constituye un despacho nuevo.
+- Las otras claves **no son una lista de especialidades aprobadas para Germania**; el motor sigue exigiendo asignación a B-5 o llamado general. Quedan pendientes ejemplos reales de formato Telegram para aumentar la precisión.
+- Las alertas de laboratorio no contienen datos personales completos y se etiquetan siempre como simulación. Todo depende de un grupo por ID exacto, sin tocar producción.
+
+Extrae direcciones identificables, sin inventarlas. Filtra otros chats, evita duplicados por ID de mensaje y descarta avisos de más de siete minutos. El primer inicio ignora el historial antiguo. Usa eventos de Telegram y revisión periódica de 12 segundos. El último ID procesado se conserva en un archivo privado local.
 
 ## Pendiente de verificar
 Todavía no se han leído mensajes reales, no se ha comprobado la reconexión automática, no existe servicio persistente ni se ha integrado Germania. No usar como sistema de despacho real. Para 24/7 se requiere alojar este proceso de forma permanente; Vercel Functions no es un servicio de escucha permanente. No reemplaza las alarmas oficiales.
