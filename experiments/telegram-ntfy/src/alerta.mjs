@@ -25,10 +25,12 @@ export function extraerMensaje(update) {
   };
 }
 
+// Simulador histórico. El lector operativo utiliza clasificarMensajeOperativo()
+// en relay-core.mjs para aplicar especialidades, estados y asignación del B-5.
+// "10-0" solo es un prefijo, no una orden de salida por sí mismo.
 const REGLAS = [
   { nombre: 'llamado general', regex: /\bllamado\s+general\b/ },
-  { nombre: 'B-5', regex: /\bb[\s-]?5\b/ },
-  { nombre: '10-0', regex: /\b10[\s-]?0\b/ }
+  { nombre: 'B-5', regex: /\bb[\s-]?5\b/ }
 ];
 
 export function detectarDespacho(texto) {
