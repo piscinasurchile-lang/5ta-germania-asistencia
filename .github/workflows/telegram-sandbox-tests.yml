@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verificar sintaxis de lector MTProto
+        run: node --check experiments/telegram-ntfy/src/mtproto.mjs
       - name: Pruebas unitarias aisladas
         working-directory: experiments/telegram-ntfy
         run: npm test
