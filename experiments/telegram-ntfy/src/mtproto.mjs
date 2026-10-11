@@ -77,9 +77,12 @@ try {
           const evaluacion = evaluarMensaje({
             chatId, messageId: numero, texto: m.message || '', fecha: m.date
           }, chatId, estado.ultimoId);
+          if (evaluacion.estado === 'requiere_revision') {
+            console.warn('REVISAR, sin alarma: mensaje', numero, '| especialidad no asignada al B-5:', evaluacion.excluidas.join(', '));
+          }
           if (evaluacion.estado === 'alerta') {
             if (dryRun) {
-              console.log('SIMULACIÓN, mensaje', numero, '| señales:', evaluacion.coincidencias.join(', '));
+              console.log('SIMULACIÓN, mensaje', numero, '| motivo:', evaluacion.motivo, '| claves:', evaluacion.claves.join(', ') || 'sin código');
             } else {
               await publicarEnNtfy(avisoDeLaboratorio(evaluacion, topic), {
                 server: process.env.NTFY_SERVER || 'https://ntfy.sh',
