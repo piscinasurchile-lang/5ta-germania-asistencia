@@ -6,7 +6,7 @@ const ejemplo = {
   update_id: 1000,
   message: {
     message_id: 88,
-    chat: { id: Number(SIMULACION_GRUPO_ID), title: 'EMERGENCIAS VILLARRICA 2022 (SIMULACIÓN)' },
+    chat: { id: Number(SIMULACION_GRUPO_ID), title: 'DESPACHOS VILLARRICA 2023 (SIMULACIÓN)' },
     text: 'PRUEBA 10-0. Se despacha B-5 a calle de ejemplo 123.'
   }
 };
