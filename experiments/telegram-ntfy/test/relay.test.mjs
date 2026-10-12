@@ -66,9 +66,36 @@ test('llamado general se evalúa independiente de las especialidades', () => {
   assert.equal(clasificarMensajeOperativo('B-5 10-4-1 llamado general').estado, 'alerta');
 });
 
-test('si se menciona B-5 para un código no excluido, puede activar prueba', () => {
-  for (const t of ['Despachar B-5 10-0-1', 'B5 sale a 10-2', 'B-5', 'B–5 10-6']) {
-    assert.equal(evaluarMensaje(msg(t), CHAT, 100, ahora).estado, 'alerta');
+test('solo despachos B-5 con orden o emergencia completa generan alerta', () => {
+  for (const t of ['Despachar B-5 10-0-1', 'B5 sale a 10-2', 'B–5 10-6', 'Se despacha B5 a Los Canelos 123', 'LLAMADO GENERAL 10-0-1']) {
+    assert.equal(evaluarMensaje(msg(t), CHAT, 100, ahora).estado, 'alerta', t);
+  }
+});
+
+test('menciones aisladas y prefijos incompletos no disparan alarma', () => {
+  for (const t of ['B-5', 'B5 presente', '10-0 B5', 'B-5 en la lista', 'Resumen diario B5']) {
+    assert.equal(clasificarMensajeOperativo(t).estado, 'mencion_sin_despacho', t);
+  }
+});
+
+test('se bloquean claves de estado y mensajes logísticos sin despacho confirmado', () => {
+  for (const t of ['B-5 6-3', 'B5 6-7', 'B-5 6-9', 'B5 6-6', 'B-5 12-10', 'Se solicita maquinista para B5', 'B5 sale de cuartel', 'LLAMADO GENERAL 6-7']) {
+    assert.notEqual(clasificarMensajeOperativo(t).estado, 'alerta', t);
+  }
+  assert.equal(clasificarMensajeOperativo('B5 6-6').estado, 'comunicacion_logistica');
+  assert.equal(clasificarMensajeOperativo('B-5 12-10').estado, 'comunicacion_logistica');
+  assert.equal(clasificarMensajeOperativo('B5 6-9').estado, 'estado_operativo');
+});
+
+test('órdenes mezcladas con radioestado o solicitud de maquinista requieren revisión', () => {
+  for (const t of ['Se despacha B5 10-0-1, 6-9', 'Despachar B5 10-2, 12-10', 'Se despacha B-5 a 10-0-1 sin maquinista']) {
+    assert.equal(clasificarMensajeOperativo(t).estado, 'requiere_revision', t);
+  }
+});
+
+test('cancelaciones y simulacros jamás son emergencia nueva', () => {
+  for (const t of ['B-5 10-0-1 sin efecto', 'LLAMADO GENERAL cancelado', 'B5 se despacha a simulacro 10-15', 'Mensaje de prueba se despacha B5 10-2']) {
+    assert.notEqual(clasificarMensajeOperativo(t).estado, 'alerta', t);
   }
 });
 
