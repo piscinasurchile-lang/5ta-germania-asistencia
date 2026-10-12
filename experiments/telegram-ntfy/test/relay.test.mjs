@@ -114,7 +114,7 @@ test('rechaza grupo distinto, duplicado, mensaje viejo y fecha ausente', () => {
 });
 
 test('solo prepara avisos simulados para canal de pruebas', () => {
-  const e = evaluarMensaje(msg('B-5\nDirección: Los Canelos 123'), CHAT, 100, ahora);
+  const e = evaluarMensaje(msg('B-5 10-0-1\nDirección: Los Canelos 123'), CHAT, 100, ahora);
   const aviso = avisoDeLaboratorio(e, 'germania-test-e840d846cf769042ad5d4133');
   assert.equal(aviso.priority, 5);
   assert.match(aviso.title, /NO EMERGENCIA REAL/);
