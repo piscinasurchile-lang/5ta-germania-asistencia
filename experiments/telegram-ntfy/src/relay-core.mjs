@@ -62,39 +62,52 @@ export function extraerDireccion(texto) {
 }
 
 export function clasificarMensajeOperativo(texto) {
-  const t = normalizar(texto).replace(/[\u2010-\u2015\u2212]/g, '-');
+  const t = normalizar(texto).replace(/[\\u2010-\\u2015\\u2212]/g, '-');
   const claves = extraerClavesEmergencia(t);
   const b5 = detectarUnidadB5(t);
-  const llamadoGeneral = /\bllamado\s+general\b/.test(t);
+  const llamadoGeneral = /\\bllamado\\s+general\\b/.test(t);
   const excluidas = claves.filter(c => CLAVES_NO_ASIGNADAS_B5.includes(c));
+
+  const estadosRadiales = [...new Set(t.match(/(?<![\\d-])(?:6\\s*-\\s*(?:3|7|8|9|10|16)|0\\s*-\\s*(?:8|9|10))(?![\\d-])/g) || [])].map(c => c.replace(/\\s+/g, ''));
+  const comunicacionesLogisticas = [...new Set(t.match(/(?<![\\d-])(?:6\\s*-\\s*6|12\\s*-\\s*10)(?![\\d-])/g) || [])].map(c => c.replace(/\\s+/g, ''));
+  const hayOrden = /\\b(?:se\\s+despacha|despachar|despacho|despachando|se\\s+activa|activacion|se\\s+declara|concurrir|concurra|dirijase|acudir|salida\\s+a|sale\\s+a|se\\s+dirige\\s+a)\\b/.test(t);
+  const logisticaMaquinista = /\\b(?:sin\\s+maquinista|falta\\s+(?:de\\s+)?maquinista|solicit(?:a|ar|ando)\\s+(?:un\\s+)?maquinista|se\\s+solicita\\s+(?:un\\s+)?conductor|sin\\s+conductor)\\b/.test(t);
+  const relatoEstado = /\\b(?:situacion\\s+controlada|regresa|retorna|se\\s+retira|en\\s+cuartel|disponible|queda\\s+disponible|en\\s+servicio|sale\\s+de\\s+cuartel)\\b/.test(t);
+  const cancelacion = /\\b(?:sin\\s+efecto|cancelad[oa]s?|suspendid[oa]s?|no\\s+despachar|no\\s+sale|no\\s+concurrir|falsa\\s+alarma|se\\s+deja\\s+sin\\s+efecto)\\b/.test(t);
+  const simulacro = claves.includes('10-15') || /\\b(?:simulacro|simulacion|mensaje\\s+de\\s+prueba|no\\s+es\\s+emergencia\\s+real)\\b/.test(t);
 
   const base = {
     claves,
     tipos: claves.map(c => CLAVES_EMERGENCIA[c]),
     unidadB5: b5,
     llamadoGeneral,
-    excluidas
+    excluidas,
+    estadosRadiales,
+    comunicacionesLogisticas
   };
 
-  // Las comunicaciones radiales de estado y cancelación no equivalen a un despacho.
-  const cancelacion = /\b(?:sin\s+efecto|cancelad[oa]?|suspendid[oa]?|no\s+despachar|no\s+sale|no\s+concurrir|falsa\s+alarma)\b/.test(t);
+  // Nunca convertir cancelaciones, ejercicios o simulacros en alarmas.
   if (cancelacion) return {...base, estado: 'cancelacion'};
+  if (simulacro) return {...base, estado: 'simulacro'};
+
+  // Los estados 6-* y las comunicaciones 6-6 / 12-10 no son nuevos despachos.
+  // Si conviven con una orden y un código de emergencia, requieren revisión humana.
+  if (estadosRadiales.length || comunicacionesLogisticas.length || logisticaMaquinista || relatoEstado) {
+    if (hayOrden && claves.length) return {...base, estado: 'requiere_revision'};
+    return {...base, estado: (comunicacionesLogisticas.length || logisticaMaquinista) ? 'comunicacion_logistica' : 'estado_operativo'};
+  }
+
+  // Un llamado general vigente sí es una convocatoria independiente.
   if (llamadoGeneral) return {...base, estado: 'alerta', motivo: 'llamado general'};
 
-  // Sin autorización operativa para esas especialidades: caso contradictorio a revisar.
-  // Una referencia al B-5 no lo convierte automáticamente en despacho válido.
+  // Especialidades no asignadas, aun cuando mencionen B-5, no activan ntfy.
   if (excluidas.length) {
     return {...base, estado: b5 ? 'requiere_revision' : 'especialidad_no_asignada'};
   }
-
   if (!b5) return {...base, estado: 'sin_asignacion_b5'};
 
-  // 6-3, 6-7, 6-9, 6-10, 6-16 y estados semejantes no son llamadas nuevas.
-  const soloEstadoRadial = /\b(?:6\s*-\s*(?:3|7|8|9|10|16)|0\s*-\s*(?:8|9|10))\b/.test(t) ||
-    /\b(?:situacion\s+controlada|regresa|retorna|se\s+retira|en\s+cuartel|disponible)\b/.test(t);
-  const hayOrden = /\b(?:se\s+despacha|despachar|despacho|se\s+solicita|concurrir|concurre|sale|salida|dirijase|acudir|se\s+activa)\b/.test(t);
-  if (soloEstadoRadial && !hayOrden) return {...base, estado: 'estado_operativo'};
-
+  // No basta con que aparezca B-5: hace falta una orden o una clave de emergencia completa.
+  if (!hayOrden && !claves.length) return {...base, estado: 'mencion_sin_despacho'};
   return {...base, estado: 'alerta', motivo: 'B-5'};
 }
 
