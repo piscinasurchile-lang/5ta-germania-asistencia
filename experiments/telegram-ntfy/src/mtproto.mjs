@@ -82,7 +82,11 @@ try {
             chatId, messageId: numero, texto: m.message || '', fecha: m.date
           }, chatId, estado.ultimoId);
           if (evaluacion.estado === 'requiere_revision') {
-            console.warn('REVISAR, sin alarma: mensaje', numero, '| especialidad no asignada al B-5:', evaluacion.excluidas.join(', '));
+            const motivos = [];
+            if (evaluacion.excluidas?.length) motivos.push('especialidad no asignada: ' + evaluacion.excluidas.join(', '));
+            if (evaluacion.estadosRadiales?.length) motivos.push('estado radial: ' + evaluacion.estadosRadiales.join(', '));
+            if (evaluacion.comunicacionesLogisticas?.length) motivos.push('comunicacion logistica: ' + evaluacion.comunicacionesLogisticas.join(', '));
+            console.warn('REVISAR, sin alarma: mensaje', numero, '|', motivos.join('; ') || 'contexto ambiguo');
           }
           if (evaluacion.estado === 'alerta') {
             if (dryRun) {
