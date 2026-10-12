@@ -86,6 +86,7 @@ try {
             if (evaluacion.excluidas?.length) motivos.push('especialidad no asignada: ' + evaluacion.excluidas.join(', '));
             if (evaluacion.estadosRadiales?.length) motivos.push('estado radial: ' + evaluacion.estadosRadiales.join(', '));
             if (evaluacion.comunicacionesLogisticas?.length) motivos.push('comunicacion logistica: ' + evaluacion.comunicacionesLogisticas.join(', '));
+            if (evaluacion.necesidadesPersonal?.length) motivos.push('solicitud operativa sin unidad confirmada o contexto ambiguo: ' + evaluacion.necesidadesPersonal.join(', '));
             console.warn('REVISAR, sin alarma: mensaje', numero, '|', motivos.join('; ') || 'contexto ambiguo');
           }
           if (evaluacion.estado === 'alerta') {
