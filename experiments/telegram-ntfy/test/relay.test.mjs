@@ -79,7 +79,7 @@ test('menciones aisladas y prefijos incompletos no disparan alarma', () => {
 });
 
 test('se bloquean claves de estado y mensajes logísticos sin despacho confirmado', () => {
-  for (const t of ['B-5 6-3', 'B5 6-7', 'B-5 6-9', 'B5 6-6', 'B-5 12-10', 'Se solicita maquinista para B5', 'B5 sale de cuartel', 'LLAMADO GENERAL 6-7']) {
+  for (const t of ['B-5 6-3', 'B5 6-7', 'B-5 6-9', 'B5 6-6', 'B-5 12-10', 'B5 sale de cuartel', 'LLAMADO GENERAL 6-7']) {
     assert.notEqual(clasificarMensajeOperativo(t).estado, 'alerta', t);
   }
   assert.equal(clasificarMensajeOperativo('B5 6-6').estado, 'comunicacion_logistica');
@@ -87,10 +87,57 @@ test('se bloquean claves de estado y mensajes logísticos sin despacho confirmad
   assert.equal(clasificarMensajeOperativo('B5 6-9').estado, 'estado_operativo');
 });
 
-test('órdenes mezcladas con radioestado o solicitud de maquinista requieren revisión', () => {
-  for (const t of ['Se despacha B5 10-0-1, 6-9', 'Despachar B5 10-2, 12-10', 'Se despacha B-5 a 10-0-1 sin maquinista']) {
+test('órdenes mezcladas con radioestado o códigos ambiguos requieren revisión', () => {
+  for (const t of ['Se despacha B5 10-0-1, 6-9', 'Despachar B5 10-2, 12-10', 'Se despacha B-5 a 10-0-1 sin maquinista 6-7']) {
     assert.equal(clasificarMensajeOperativo(t).estado, 'requiere_revision', t);
   }
+});
+
+test('solicitudes de maquinista y voluntarios del B-5 activan alerta de refuerzo', () => {
+  const mensajes = [
+    'B-5 sin maquinista',
+    'B5 falta de maquinista',
+    'Se solicita maquinista para B5',
+    'B-5 falta de voluntarios',
+    'B5 faltan voluntarios',
+    'B5 se solicitan voluntarios',
+    'B-5 sin voluntarios',
+    'B5 dotación incompleta',
+    'Se despacha B-5 10-0-1, sin maquinista y faltan voluntarios'
+  ];
+  for (const t of mensajes) {
+    const d = clasificarMensajeOperativo(t);
+    assert.equal(d.estado, 'alerta', t);
+    assert.equal(d.motivo, 'refuerzo de dotacion B-5', t);
+    assert.ok(d.necesidadesPersonal.length > 0, t);
+  }
+});
+
+test('solicitudes sin unidad confirmada se revisan, pero no se silencian', () => {
+  for (const t of ['Sin maquinista', 'Falta de voluntarios', 'Faltan voluntarios para el 10-0-1']) {
+    assert.equal(clasificarMensajeOperativo(t).estado, 'requiere_revision', t);
+  }
+  for (const t of ['R-5 sin maquinista', 'B-4 faltan voluntarios']) {
+    assert.notEqual(clasificarMensajeOperativo(t).estado, 'alerta', t);
+  }
+});
+
+test('llamado general conserva la alerta aun si faltan maquinistas o voluntarios', () => {
+  for (const t of ['LLAMADO GENERAL SIN MAQUINISTA', 'LLAMADO GENERAL FALTAN VOLUNTARIOS']) {
+    const d = clasificarMensajeOperativo(t);
+    assert.equal(d.estado, 'alerta', t);
+    assert.equal(d.motivo, 'llamado general');
+    assert.ok(d.necesidadesPersonal.length);
+  }
+});
+
+test('la notificación simulada describe correctamente la falta de dotación', () => {
+  const e = evaluarMensaje(msg('B-5 sin maquinista y faltan voluntarios'), CHAT, 100, ahora);
+  assert.equal(e.estado, 'alerta');
+  const aviso = avisoDeLaboratorio(e, 'germania-test-e840d846cf769042ad5d4133');
+  assert.match(aviso.message, /sin maquinista/);
+  assert.match(aviso.message, /falta de voluntarios/);
+  assert.match(aviso.message, /NO ACUDIR/);
 });
 
 test('cancelaciones y simulacros jamás son emergencia nueva', () => {
