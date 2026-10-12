@@ -51,6 +51,10 @@ try {
         if (String(d.id) === chatId) { grupo = d; break; }
       }
       if (!grupo) throw new Error('La cuenta no tiene acceso al grupo solicitado');
+      const tituloEsperado = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Despachos Villarrica 2023';
+      if (String(grupo.title || '').trim().toLocaleLowerCase('es') !== tituloEsperado.toLocaleLowerCase('es')) {
+        throw new Error('El ID de Telegram corresponde a un grupo diferente al configurado; no se inicia el lector');
+      }
       const estadoArchivo = '.telegram-relay-state.json';
       let estado;
       try {
