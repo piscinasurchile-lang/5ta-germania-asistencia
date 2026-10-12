@@ -71,7 +71,13 @@ export function clasificarMensajeOperativo(texto) {
   const estadosRadiales = [...new Set(t.match(/(?<![\d-])(?:6\s*-\s*(?:3|7|8|9|10|16)|0\s*-\s*(?:8|9|10))(?![\d-])/g) || [])].map(c => c.replace(/\s+/g, ''));
   const comunicacionesLogisticas = [...new Set(t.match(/(?<![\d-])(?:6\s*-\s*6|12\s*-\s*10)(?![\d-])/g) || [])].map(c => c.replace(/\s+/g, ''));
   const hayOrden = /\b(?:se\s+despacha|despachar|despacho|despachando|se\s+activa|activacion|se\s+declara|concurrir|concurra|dirijase|acudir|salida\s+a|sale\s+a|se\s+dirige\s+a)\b/.test(t);
-  const logisticaMaquinista = /\b(?:sin\s+maquinista|falta\s+(?:de\s+)?maquinista|solicit(?:a|ar|ando)\s+(?:un\s+)?maquinista|se\s+solicita\s+(?:un\s+)?conductor|sin\s+conductor)\b/.test(t);
+  // Estas frases son solicitudes operativas usadas por la Central, no ruido.
+  const requiereMaquinista = /\b(?:sin\s+maquinista|falta(?:\s+de)?\s+maquinista|no\s+hay\s+maquinista|(?:se\s+)?solicita(?:n|r)?\s+(?:(?:un|algun)\s+)?maquinista|(?:se\s+)?requiere\s+(?:un\s+)?maquinista|sin\s+conductor|falta\s+conductor)\b/.test(t);
+  const faltaVoluntarios = /\b(?:falta(?:n)?(?:\s+de)?\s+voluntarios?|sin\s+voluntarios|(?:se\s+)?(?:solicitan|requieren|necesitan)\s+voluntarios|falta(?:\s+de)?\s+dotacion|dotacion\s+incompleta)\b/.test(t);
+  const necesidadesPersonal = [
+    ...(requiereMaquinista ? ['sin maquinista'] : []),
+    ...(faltaVoluntarios ? ['falta de voluntarios'] : [])
+  ];
   const relatoEstado = /\b(?:situacion\s+controlada|regresa|retorna|se\s+retira|en\s+cuartel|disponible|queda\s+disponible|en\s+servicio|sale\s+de\s+cuartel)\b/.test(t);
   const cancelacion = /\b(?:sin\s+efecto|cancelad[oa]s?|suspendid[oa]s?|no\s+despachar|no\s+sale|no\s+concurrir|falsa\s+alarma|se\s+deja\s+sin\s+efecto)\b/.test(t);
   const simulacro = claves.includes('10-15') || /\b(?:simulacro|simulacion|mensaje\s+de\s+prueba|no\s+es\s+emergencia\s+real)\b/.test(t);
@@ -83,30 +89,40 @@ export function clasificarMensajeOperativo(texto) {
     llamadoGeneral,
     excluidas,
     estadosRadiales,
-    comunicacionesLogisticas
+    comunicacionesLogisticas,
+    necesidadesPersonal
   };
 
   // Nunca convertir cancelaciones, ejercicios o simulacros en alarmas.
   if (cancelacion) return {...base, estado: 'cancelacion'};
   if (simulacro) return {...base, estado: 'simulacro'};
 
-  // Los estados 6-* y las comunicaciones 6-6 / 12-10 no son nuevos despachos.
-  // Si conviven con una orden y un código de emergencia, requieren revisión humana.
-  if (estadosRadiales.length || comunicacionesLogisticas.length || logisticaMaquinista || relatoEstado) {
-    if (hayOrden && claves.length) return {...base, estado: 'requiere_revision'};
-    return {...base, estado: (comunicacionesLogisticas.length || logisticaMaquinista) ? 'comunicacion_logistica' : 'estado_operativo'};
+  // Estados y códigos radiales ambiguos nunca activan alertas automáticas por sí mismos.
+  if (estadosRadiales.length || comunicacionesLogisticas.length || relatoEstado) {
+    if ((b5 || llamadoGeneral) && (hayOrden || necesidadesPersonal.length) && (claves.length || necesidadesPersonal.length)) {
+      return {...base, estado: 'requiere_revision'};
+    }
+    return {...base, estado: comunicacionesLogisticas.length ? 'comunicacion_logistica' : 'estado_operativo'};
   }
 
-  // Un llamado general vigente sí es una convocatoria independiente.
+  // Un llamado general vigente convoca independientemente de la unidad.
   if (llamadoGeneral) return {...base, estado: 'alerta', motivo: 'llamado general'};
 
-  // Especialidades no asignadas, aun cuando mencionen B-5, no activan ntfy.
+  // Exclusiones del B-5 prevalecen sobre una solicitud de dotación.
   if (excluidas.length) {
     return {...base, estado: b5 ? 'requiere_revision' : 'especialidad_no_asignada'};
   }
+
+  // "Sin maquinista" y "falta de voluntarios" son pedidos de refuerzo.
+  // Con B-5 explícito alertan sin exigir que se repita el código 10-*.
+  // Sin unidad identificada requieren revisión: podrían aludir a otro carro.
+  if (necesidadesPersonal.length) {
+    if (b5) return {...base, estado: 'alerta', motivo: 'refuerzo de dotacion B-5'};
+    return {...base, estado: 'requiere_revision'};
+  }
   if (!b5) return {...base, estado: 'sin_asignacion_b5'};
 
-  // No basta con que aparezca B-5: hace falta una orden o una clave de emergencia completa.
+  // No basta una mención aislada: debe haber orden o clave de emergencia completa.
   if (!hayOrden && !claves.length) return {...base, estado: 'mencion_sin_despacho'};
   return {...base, estado: 'alerta', motivo: 'B-5'};
 }
@@ -135,6 +151,7 @@ export function avisoDeLaboratorio(evaluacion, topic) {
     topic,
     title: 'PRUEBA GERMANIA - NO EMERGENCIA REAL',
     message: 'SIMULACIÓN. NO ACUDIR. Detectado: ' + etiquetas.join(', ') + '. ' +
+      (evaluacion.necesidadesPersonal?.length ? 'Personal requerido: ' + evaluacion.necesidadesPersonal.join(' y ') + '. ' : '') +
       (evaluacion.direccion ? 'Dirección indicada: ' + evaluacion.direccion : 'Dirección no identificada.'),
     priority: 5,
     tags: ['test_tube']
