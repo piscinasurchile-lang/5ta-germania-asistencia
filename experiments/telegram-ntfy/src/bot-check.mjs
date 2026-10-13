@@ -1,8 +1,12 @@
 /**
  * Diagnóstico de solo lectura del bot existente.
  * No modifica webhooks, no consume actualizaciones y no escribe en Telegram.
- * Ejecutar localmente con Node 20+: node --env-file=.env src/bot-check.mjs
+ * Ejecutar localmente con Node 20.6+: node --env-file=.env src/bot-check.mjs
+ * Métodos usados (todos de lectura): getMe, getWebhookInfo, getChat, getChatMember.
+ * Del webhook solo se imprime el hostname; nunca la ruta, los parámetros ni el token.
  */
+import { hostnameSeguro } from './webhook-host.mjs';
+
 const expectedUsername = (process.env.TELEGRAM_BOT_USERNAME || 'Alerta5tavillarrica_bot').replace(/^@/, '');
 const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
 const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
@@ -37,6 +41,9 @@ console.log('Importante: el permiso de leer publicaciones de otros bots debe ver
 
 const webhook = await api('getWebhookInfo');
 console.log('Webhook ya configurado:', Boolean(webhook.url) ? 'sí (NO se modificará)' : 'no');
+if (webhook.url) {
+  console.log('Servidor receptor del webhook (solo hostname):', hostnameSeguro(webhook.url) ?? 'no interpretable (omitido)');
+}
 console.log('Actualizaciones pendientes en Telegram:', Number(webhook.pending_update_count || 0));
 console.log('Tipos de actualizaciones configuradas:', (webhook.allowed_updates || []).join(', ') || 'sin filtro declarado');
 console.log('Error reciente de entrega:', webhook.last_error_date ? 'sí: revisar servicio receptor' : 'no informado');
@@ -53,11 +60,16 @@ if (!chatId) {
 }
 if (!/^-?\d+$/.test(chatId)) throw new Error('TELEGRAM_CHAT_ID debe ser numérico');
 const chat = await api('getChat', {chat_id: chatId});
-console.log('ID de grupo consultado:', String(chat.id));
+console.log('ID de grupo consultado:', chatId);
+console.log('ID devuelto por getChat:', String(chat.id), '| tipo:', chat.type || '(sin tipo)');
+if (String(chat.id) !== chatId) {
+  throw new Error('getChat devolvió un ID distinto al configurado; conexión detenida');
+}
 console.log('Título obtenido:', chat.title || '(sin título)');
 if (String(chat.title || '').trim().toLocaleLowerCase('es') !== expectedTitle.toLocaleLowerCase('es')) {
   throw new Error('Este ID NO coincide con el título Despachos Villarrica 2023; conexión detenida');
 }
+console.log('ID comprobado con getChat: coincide con el título esperado (un ID copiado de Telegram Web no se da por válido sin esto).');
 const membership = await api('getChatMember', {chat_id: chatId, user_id: me.id});
 console.log('Estado del bot dentro del grupo:', membership.status);
 if (!['member', 'administrator', 'creator'].includes(membership.status)) {
