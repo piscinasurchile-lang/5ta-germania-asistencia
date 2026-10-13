@@ -75,16 +75,53 @@ function ponerVista(v){
 }
 
 /* ---------- Novedades (Inicio) ---------- */
+var novRendering=false, novVisible=[], novReadPending={};
+var novSeen=null, novAudio=null;
+document.addEventListener("pointerdown",function(){
+  try{var AC=window.AudioContext||window.webkitAudioContext;if(AC&&!novAudio) novAudio=new AC();if(novAudio&&novAudio.state==="suspended") novAudio.resume().catch(function(){});}catch(e){}
+});
+function novSound(lista){
+  var ids=lista.map(function(n){return n.id;});
+  var nuevos=novSeen!==null&&ids.some(function(id){return novSeen.indexOf(id)<0;});
+  novSeen=ids;
+  if(!nuevos||!novAudio||novAudio.state!=="running"||document.visibilityState!=="visible") return;
+  try{var o=novAudio.createOscillator(),g=novAudio.createGain(),t=novAudio.currentTime;o.frequency.value=660;g.gain.setValueAtTime(0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.connect(g);g.connect(novAudio.destination);o.start(t);o.stop(t+0.3);}catch(e){}
+}
+function novReadKey(id){ return "novedad-lecturas:"+id; }
 async function renderNovedades(){
-  var box=$("novedadesLista"); if(!box) return;
-  var lista=[]; try{ lista=await sGet(NOV_KEY,[]); }catch(e){}
-  if(!Array.isArray(lista)) lista=[];
-  lista=lista.slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); }).slice(0,NOV_MAX);
-  var of=esOficial(miembro())||esMando(miembro());
-  box.innerHTML=lista.length?lista.map(function(n){
-    var f=n.en?new Date(n.en).toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"}):"";
-    return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span>'+(n.autor?'<small>'+E(n.autor)+'</small>':"")+(of?'<button type="button" class="ha-del" data-nov-del="'+E(n.id)+'" aria-label="Quitar novedad">×</button>':"")+'</div>';
-  }).join(""):'<div class="ha-vacia">Sin novedades por ahora.</div>';
+  var box=$("novedadesLista"); if(!box||novRendering) return;
+  novRendering=true;
+  var m=miembro(), who=m?String(m.id):"";
+  try{
+    var lista=await sGet(NOV_KEY,[]);
+    if(!Array.isArray(lista)) lista=[];
+    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string";}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); }).slice(0,NOV_MAX);
+    var lecturas=await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
+    if((miembro()?String(miembro().id):"")!==who) return;
+    novVisible=lista; novSound(lista);
+    var of=esOficial(m)||esMando(m);
+    box.innerHTML=lista.length?lista.map(function(n,i){
+      var reads=Array.isArray(lecturas[i])?lecturas[i]:[];
+      var leido=reads.some(function(r){return r&&String(r.voluntarioId)===who;});
+      var f=n.en?new Date(n.en).toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"}):"";
+      var control=who?'<button type="button" class="btn small" data-nov-read="'+E(n.id)+'"'+(leido?' disabled':'')+'>'+(leido?'✓ Lectura confirmada':'✓ Leído')+'</button>':'<span>Elige tu nombre para confirmar lectura.</span>';
+      var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+(of?'<button type="button" class="ha-del" data-nov-del="'+E(n.id)+'" aria-label="Quitar novedad">×</button>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+    }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
+  }catch(e){
+    if(!box.children.length) box.textContent="No se pudieron cargar las novedades. Revisa tu conexión.";
+  }finally{novRendering=false;}
+}
+async function confirmarLectura(id,button){
+  var m=miembro();
+  if(!m||novReadPending[id]||!novVisible.some(function(n){return n.id===id;})) return;
+  novReadPending[id]=true; button.disabled=true; button.textContent="Guardando…";
+  try{
+    await sAddToList(novReadKey(id),{voluntarioId:String(m.id),en:new Date().toISOString()},{uniqueBy:"voluntarioId"});
+    button.textContent="✓ Lectura confirmada";
+    await renderNovedades();
+  }catch(e){button.disabled=false;button.textContent="Reintentar confirmar lectura";}
+  finally{delete novReadPending[id];}
 }
 async function publicarNovedad(){
   var inp=$("novedadTexto"), msg=$("novedadMsg"), texto=inp.value.trim();
@@ -92,7 +129,7 @@ async function publicarNovedad(){
   if(!texto){ msg.textContent="Escribe la novedad."; msg.classList.add("err"); return; }
   var m=miembro();
   try{
-    await sAddToList(NOV_KEY,{id:uid(),texto:texto.slice(0,280),en:new Date().toISOString(),autor:m?corto(m):""},{uniqueBy:"id"});
+    await sAddToList(NOV_KEY,{id:uid(),texto:texto.slice(0,2000),en:new Date().toISOString(),autor:m?corto(m):""},{uniqueBy:"id"});
     inp.value=""; msg.textContent="Publicada."; await renderNovedades();
   }catch(e){ msg.textContent="No se pudo publicar. Inténtalo de nuevo."; msg.classList.add("err"); }
 }
@@ -101,7 +138,7 @@ async function quitarNovedad(id){
   try{ var l=await sGet(NOV_KEY,[]); await sSet(NOV_KEY,(Array.isArray(l)?l:[]).filter(function(n){ return n.id!==id; })); await renderNovedades(); }catch(e){}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
-if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var b=ev.target.closest("[data-nov-del]"); if(b) quitarNovedad(b.dataset.novDel); });
+if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var b=ev.target.closest("[data-nov-del]"); if(b) quitarNovedad(b.dataset.novDel); var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
 
 /* ---------- Datos de la semana ---------- */
 async function leerPrefijo(pref){
@@ -952,7 +989,7 @@ setInterval(function(){
   var enInicio=!!inicio&&inicio.classList.contains("active");
   if((guardiaActiva()||enInicio)&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")){
     grRender(false).catch(function(){});
-    if(enInicio) misNochesInicio(false).catch(function(){});
+    if(enInicio){ misNochesInicio(false).catch(function(){}); renderNovedades(); }
   }
 },60000);
 cargarHorarios().then(function(){ misNochesInicio(false); });

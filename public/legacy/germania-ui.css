@@ -249,7 +249,7 @@ body:not([data-oficial="1"]) .tab[data-tab="config"]{display:none !important;}
 .ha-admin{margin-top:var(--sp-3);}
 .ha-admin label{color:#fff;}
 .ha-fila{display:flex;gap:var(--sp-2);flex-wrap:wrap;}
-.ha-fila input{flex:1 1 200px;min-width:0;min-height:var(--g-tap);padding:var(--sp-2) var(--sp-3);border-radius:var(--g-radius-sm);border:1.5px solid var(--g-line);background:#0b0f13;color:#fff;font-size:16px;}
+.ha-fila input,.ha-fila textarea{flex:1 1 200px;min-width:0;min-height:var(--g-tap);padding:var(--sp-2) var(--sp-3);border-radius:var(--g-radius-sm);border:1.5px solid var(--g-line);background:#0b0f13;color:#fff;font-size:16px;}
 
 .home-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3);}
 .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-2);min-height:96px;padding:var(--sp-3);background:var(--g-card-2);border:1px solid var(--g-line);border-radius:var(--g-radius);color:#fff;font:500 16px/1.2 'Oswald',sans-serif;text-align:center;cursor:pointer;}
@@ -442,3 +442,13 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
   #sub-hoja .hv-resumen-compacto .summary-item .big { font-size:26px; }
   #sub-hoja .hv-table-scroll th, #sub-hoja .hv-table-scroll td { padding:9px 10px; font-size:14px; white-space:nowrap; }
 }
+
+/* Confirmaciones de lectura: módulo de novedades existente. */
+.ha-texto{white-space:pre-wrap;}
+.nov-lectura{grid-column:1 / -1;min-width:0;}
+.nov-lectura button,.nov-confirmaciones summary{min-height:44px;}
+.nov-confirmaciones{margin-top:12px;}
+.nov-confirmaciones summary{cursor:pointer;padding:8px 0;}
+.nov-persona{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--g-line);overflow-wrap:anywhere;}
+#novedadTexto{width:100%;min-width:0;box-sizing:border-box;resize:vertical;font:inherit;}
+.ha-fila{flex-wrap:wrap;}
