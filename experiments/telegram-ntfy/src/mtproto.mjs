@@ -29,7 +29,7 @@ try {
     await client.connect();
     if (!(await client.getMe())) throw new Error('Sesión de Telegram no autorizada');
     if (comando === 'chats') {
-      const titulo = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Emergencias Villarrica 2022';
+      const titulo = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Despachos Villarrica 2023';
       let encontrados = 0;
       for await (const dialogo of client.iterDialogs({})) {
         if (String(dialogo.title || '').trim().toLocaleLowerCase('es') !== titulo.toLocaleLowerCase('es')) continue;
@@ -51,7 +51,7 @@ try {
         if (String(d.id) === chatId) { grupo = d; break; }
       }
       if (!grupo) throw new Error('La cuenta no tiene acceso al grupo solicitado');
-      const tituloEsperado = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Emergencias Villarrica 2022';
+      const tituloEsperado = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Despachos Villarrica 2023';
       if (String(grupo.title || '').trim().toLocaleLowerCase('es') !== tituloEsperado.toLocaleLowerCase('es')) {
         throw new Error('El ID de Telegram corresponde a un grupo diferente al configurado; no se inicia el lector');
       }
