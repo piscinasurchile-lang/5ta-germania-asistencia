@@ -209,3 +209,15 @@ test("esquema: un choque de migración simultánea no deja la app sin datos", as
   const h = await listHistory(sql, "roster:v8");
   assert.equal(h.length, 1);
 });
+
+
+test("guardia: suplentes se leen por semana sin mezclar titulares ni otras semanas", async () => {
+  const { sql } = await nuevaBase();
+  await writeState(sql, "guardia-maq-reserva:2026-10-14:517", [{ f: "2026-10-15" }]);
+  await writeState(sql, "guardia-maq-reserva:2026-10-21:517", [{ f: "2026-10-22" }]);
+  await writeState(sql, "guardia-maq:2026-10-14:518", [{ f: "2026-10-15" }]);
+  const suplentes = await listByPrefix(sql, "guardia-maq-reserva:2026-10-14:");
+  assert.deepEqual(suplentes, [{ key: "guardia-maq-reserva:2026-10-14:517", value: [{ f: "2026-10-15" }] }]);
+  await assert.rejects(() => listByPrefix(sql, "guardia-maq-reserva:%"), /invalid_prefix/);
+  await assert.rejects(() => listByPrefix(sql, "security:"), /invalid_prefix/);
+});

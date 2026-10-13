@@ -255,7 +255,12 @@ function resumenInfo(pn,D){
 function pintarInicioRoles(){
   var box=$("inicioRoles"); if(!box) return;
   var D=GR.Dmi, m=miembro();
-  if(!m||!D||!D.p||!D.abierto||D.error||!D.S){ box.innerHTML=""; GR.eligiendo=false; return; }
+  if(m&&D&&D.p&&D.abierto&&(D.error||!D.S)){
+    box.innerHTML='<section class="card"><h2>Inscripción de guardia</h2><p>No se pudo cargar la semana. Tus inscripciones guardadas se conservan.</p><button type="button" class="btn secondary" id="inicioGuardiaReintentar">Reintentar</button></section>';
+    $("inicioGuardiaReintentar").onclick=function(){grRender(true).catch(function(){});};
+    GR.eligiendo=false; return;
+  }
+  if(!m||!D||!D.p||!D.abierto||!D.S){ box.innerHTML=""; GR.eligiendo=false; return; }
   var conf=D.S.conf[D.who];
   // Al confirmar, desaparece el cuadro. No queda un módulo personal permanente.
   if(conf&&(conf.confirmadaEn||conf.cumple||conf.justificacion)){
