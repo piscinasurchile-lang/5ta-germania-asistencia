@@ -1,5 +1,7 @@
 # Diagnóstico privado del bot (solo lectura)
 
+**Estado (13-oct-2026):** diagnóstico pendiente de ejecución por el titular. **Lector detenido: `getUpdates` NO está autorizado y no se ha ejecutado.** No se contrata ni configura ningún servidor.
+
 Alcance: laboratorio aislado. **No integra Germania** (no usa ni modifica `/api/telegram/webhook` ni ninguna ruta de la app) y **no cambia Telegram**: no `setWebhook`, no `deleteWebhook`, no mensajes, no BotFather, no miembros.
 
 ## 1. Ejecutar en privado
@@ -28,6 +30,8 @@ La salida no contiene el token. Del webhook solo muestra el **hostname**. El ID 
 Pruebas locales (sin red ni token): `npm test` → 78/78. Cubren que solo se consultan getMe, getWebhookInfo, getChat y getChatMember, y que la salida nunca incluye token, ruta ni parámetros del webhook.
 
 ## 3. getUpdates: qué consulta y cuándo consume
+
+> **`DRY_RUN` y Telegram.** `DRY_RUN=1` impide **publicar en ntfy**. **No impide confirmar actualizaciones de Telegram**: el lector igualmente llama a `getUpdates` y, al pedir con un `offset` mayor, Telegram olvida las actualizaciones anteriores. Una "simulación" del lector sí consume. Solo el diagnóstico de este documento (secciones 1 y 2) no consume nada.
 
 Fuente oficial: https://core.telegram.org/bots/api (sección getUpdates; leída el 13-oct-2026).
 
@@ -78,3 +82,23 @@ Nada de esto se activa sin autorización.
 
 **C. Los despachos los publica un bot**
 - Aplica la limitación documentada de la sección 4. Revertirla exige cambios del dueño del grupo (administrador del bot) y de BotFather, fuera de alcance.
+
+## 6. Cómo leer la salida de `npm run bot:check`
+
+| Línea de la salida | Qué significa | Si es distinto |
+| --- | --- | --- |
+| `Identidad comprobada: @…` | El token es de `@Alerta5taVillarrica_bot`. | `Token de otro bot`: el token pegado es de otro bot. No continuar. |
+| `Lectura general de grupos según Telegram: habilitada` | La privacidad está desactivada (BotFather mostró DISABLED el 9-oct). | `no indicada / privacidad activa`: revisar `/setprivacy` en BotFather. No se cambia automáticamente. |
+| `Webhook ya configurado: no` | No hay receptor activo: el plan de la sección 5A es posible (aún sin autorizar). | `sí`: ver la fila siguiente. `getUpdates` no es posible. |
+| `Servidor receptor del webhook (solo hostname): …` | Quién recibe hoy las actualizaciones. Solo el nombre del servidor, nunca ruta ni parámetros. | `no interpretable`: no se identifica; averiguar quién lo configuró. |
+| `Actualizaciones pendientes en Telegram: N` | Solo tiene sentido con webhook: cuántas esperan entrega. Un N que crece junto con un error reciente indica un receptor que falla. | Sin webhook, el valor no informa nada. |
+| `Error reciente de entrega: …` | Indica si Telegram registró un fallo al entregar al webhook. | — |
+| `Grupo todavía no comprobado` | Falta `TELEGRAM_CHAT_ID`. Es la primera pasada. | Completar el ID y repetir. |
+| `ID devuelto por getChat … tipo: …` y `Título obtenido: …` | El ID **existe** y es el consultado. | `getChat … código 400`: el ID es incorrecto o el bot no está en ese chat. |
+| `Este ID NO coincide con el título…` | El ID corresponde a otro chat. Conexión detenida a propósito. | Buscar el ID correcto. |
+| `Estado del bot dentro del grupo: member` (o `administrator`) | El bot es miembro del grupo. | Otro estado: `No se confirmó membresía activa`. |
+| `Diagnóstico de acceso al grupo correcto…` | Identidad, ID y membresía están comprobados. **No** acredita que lleguen mensajes reales. | — |
+
+Ninguna de estas líneas contiene el token. Al pegar la salida puedes tapar el ID con `-100…`.
+
+**Con el resultado se decide el siguiente paso** (sección 5). Hasta entonces: sin `getUpdates`, sin servidor, sin cambios en Telegram, sin Germania. El objetivo sigue siendo probar únicamente en el teléfono del titular.

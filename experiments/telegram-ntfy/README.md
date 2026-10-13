@@ -2,6 +2,10 @@
 
 Estado: preparado como código de pruebas; no conectado a Telegram ni desplegado. Exclusivamente en la rama test/telegram-emergencias-villarrica-2022, bajo experiments/telegram-ntfy/. No cambia interfaz, Neon, Vercel, asistencia ni guardias de Germania.
 
+**Estado del lector (13-oct-2026): DETENIDO.** `getUpdates` no está autorizado y no se ha ejecutado contra Telegram. Primero se completa el diagnóstico privado de solo lectura (`DIAGNOSTICO-PRIVADO.md`). Referencia: `PROPUESTA-SERVICIO-OPERATIVO.md`.
+
+**Sobre `DRY_RUN` (lector con Bot API):** `DRY_RUN=1` impide publicar en ntfy, pero **no impide confirmar actualizaciones de Telegram**: `getUpdates` con un `offset` mayor hace que Telegram olvide las anteriores, sea o no simulación. El nombre de un tema ntfy difícil de adivinar tampoco equivale a un tema protegido con autenticación.
+
 ## Camino correcto: bot existente (solo lectura, sin intervenir Telegram)
 
 Se utilizará exclusivamente **@Alerta5tavillarrica_bot** en **Despachos Villarrica 2023**. **No crear bots nuevos ni iniciar una sesión personal.** El diagnóstico preparado en `src/bot-check.mjs` es de solo lectura: consulta `getMe`, `getWebhookInfo` y, si se conoce el ID, `getChat` y `getChatMember`. Nunca llama a `getUpdates`, `setWebhook` ni a métodos que envíen mensajes al grupo.
