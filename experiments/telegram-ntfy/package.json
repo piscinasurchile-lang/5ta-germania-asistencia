@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "bot:check": "node --env-file=.env src/bot-check.mjs",
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
     "auth": "node --env-file=.env src/mtproto.mjs auth",
