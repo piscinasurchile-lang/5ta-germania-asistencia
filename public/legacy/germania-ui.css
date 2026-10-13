@@ -442,3 +442,13 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
   #sub-hoja .hv-resumen-compacto .summary-item .big { font-size:26px; }
   #sub-hoja .hv-table-scroll th, #sub-hoja .hv-table-scroll td { padding:9px 10px; font-size:14px; white-space:nowrap; }
 }
+
+/* Confirmaciones de lectura: módulo de novedades existente. */
+.ha-texto{white-space:pre-wrap;}
+.nov-lectura{grid-column:1 / -1;min-width:0;}
+.nov-lectura button,.nov-confirmaciones summary{min-height:44px;}
+.nov-confirmaciones{margin-top:12px;}
+.nov-confirmaciones summary{cursor:pointer;padding:8px 0;}
+.nov-persona{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--g-line);overflow-wrap:anywhere;}
+#novedadTexto{width:100%;min-width:0;box-sizing:border-box;resize:vertical;font:inherit;}
+.ha-fila{flex-wrap:wrap;}
