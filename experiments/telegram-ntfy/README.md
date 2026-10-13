@@ -3,7 +3,7 @@
 Estado: preparado como código de pruebas; no conectado a Telegram ni desplegado. Exclusivamente en la rama test/telegram-emergencias-villarrica-2022, bajo experiments/telegram-ntfy/. No cambia interfaz, Neon, Vercel, asistencia ni guardias de Germania.
 
 ## Por qué se usa una sesión Telegram
-El grupo **Emergencias Villarrica 2022** no necesita recibir un bot nuevo. Se usa una sesión MTProto de una cuenta que ya tenga acceso al grupo, con credenciales y autorización de su titular. Este lector puede detectar mensajes enviados por personas u otros bots visibles para esa cuenta. Solo lee el grupo cuyo ID exacto se configure. No modifica mensajes ni miembros.
+El grupo **Despachos Villarrica 2023** no necesita recibir un bot nuevo. Se usa una sesión MTProto de una cuenta que ya tenga acceso al grupo, con credenciales y autorización de su titular. Este lector puede detectar mensajes enviados por personas u otros bots visibles para esa cuenta. Solo lee el grupo cuyo ID exacto se configure. No modifica mensajes ni miembros.
 
 ## Preparar en computador privado con Node 20+
 Obtener API_ID y API_HASH desde https://my.telegram.org/apps (guardar siempre en privado).
