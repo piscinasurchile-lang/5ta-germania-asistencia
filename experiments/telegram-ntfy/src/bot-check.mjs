@@ -58,19 +58,33 @@ if (!chatId) {
   console.log('El título por sí solo no identifica de forma inequívoca un grupo.');
   process.exit(0);
 }
-if (!/^-?\d+$/.test(chatId)) throw new Error('TELEGRAM_CHAT_ID debe ser numérico');
+const esNumerico = /^-?\d+$/.test(chatId);
+const esUsername = /^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(chatId);
+if (!esNumerico && !esUsername) throw new Error('TELEGRAM_CHAT_ID debe ser numérico (-100…) o un @usuario público del grupo');
 const chat = await api('getChat', {chat_id: chatId});
+const idNumerico = String(chat.id);
 console.log('ID de grupo consultado:', chatId);
-console.log('ID devuelto por getChat:', String(chat.id), '| tipo:', chat.type || '(sin tipo)');
-if (String(chat.id) !== chatId) {
+console.log('ID devuelto por getChat:', idNumerico, '| tipo:', chat.type || '(sin tipo)');
+if (!/^-?\d+$/.test(idNumerico)) throw new Error('getChat no devolvió un ID numérico; conexión detenida');
+if (esNumerico && idNumerico !== chatId) {
   throw new Error('getChat devolvió un ID distinto al configurado; conexión detenida');
+}
+if (esUsername) {
+  if (String(chat.username || '').toLowerCase() !== chatId.slice(1).toLowerCase()) {
+    throw new Error('getChat devolvió un @usuario distinto al consultado; conexión detenida');
+  }
+  console.log('@usuario resuelto por getChat:', '@' + chat.username);
 }
 console.log('Título obtenido:', chat.title || '(sin título)');
 if (String(chat.title || '').trim().toLocaleLowerCase('es') !== expectedTitle.toLocaleLowerCase('es')) {
   throw new Error('Este ID NO coincide con el título Despachos Villarrica 2023; conexión detenida');
 }
 console.log('ID comprobado con getChat: coincide con el título esperado (un ID copiado de Telegram Web no se da por válido sin esto).');
-const membership = await api('getChatMember', {chat_id: chatId, user_id: me.id});
+if (esUsername) {
+  console.log('ID numérico a usar después como TELEGRAM_CHAT_ID (devuelto por getChat, no supuesto):', idNumerico);
+}
+// La membresía se consulta siempre con el ID numérico devuelto, nunca con el @usuario.
+const membership = await api('getChatMember', {chat_id: idNumerico, user_id: me.id});
 console.log('Estado del bot dentro del grupo:', membership.status);
 if (!['member', 'administrator', 'creator'].includes(membership.status)) {
   throw new Error('No se confirmó membresía activa del bot en el grupo');

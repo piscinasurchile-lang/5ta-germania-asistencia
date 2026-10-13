@@ -12,8 +12,8 @@ Requisitos: Node 20.6 o superior (por `--env-file`). No se necesita `npm install
 2. Copiar `.env.example` a `.env` (está en `.gitignore`) y abrirlo en un editor local.
 3. Completar solo `TELEGRAM_BOT_TOKEN` (BotFather → `/mybots` → `@Alerta5taVillarrica_bot` → API Token). No escribirlo en la terminal ni en chats; no capturar la pantalla. Dejar vacíos `TELEGRAM_CHAT_ID`, `NTFY_TOPIC`, `TELEGRAM_API_ID` y `TELEGRAM_API_HASH`.
 4. Ejecutar `npm run bot:check` (primera pasada: identidad y webhook).
-5. Obtener el ID candidato del grupo desde Telegram Web (número `-100…` al final de la dirección). **Es solo un candidato**: no se da por válido hasta que `getChat` lo confirme.
-6. Pegarlo en `TELEGRAM_CHAT_ID` y repetir `npm run bot:check` (segunda pasada: getChat y getChatMember).
+5. Identificar el grupo. Telegram Web lo muestra como `@DespaVillarrica`; puede usarse tal cual. Si en cambio se copia un número `-100…` de la dirección, también sirve. **Ambos son solo candidatos**: no se dan por válidos hasta que `getChat` los confirme.
+6. Escribir en `.env` `TELEGRAM_CHAT_ID=@DespaVillarrica` (o el número) y repetir `npm run bot:check` (segunda pasada: getChat y getChatMember). Con `@usuario`, `getChat` resuelve el grupo, la salida muestra el **ID numérico devuelto** (`ID numérico a usar después como TELEGRAM_CHAT_ID…`) y la membresía del bot se consulta con ese número, no con el `@usuario`. Se verifica además que el `@usuario` devuelto coincida y que el título sea "Despachos Villarrica 2023".
 7. Antes de cualquier commit, comprobar con `git status` que `.env` no aparece.
 
 La salida no contiene el token. Del webhook solo muestra el **hostname**. El ID del grupo no es una credencial, pero conviene tratarlo como privado.
@@ -24,7 +24,7 @@ La salida no contiene el token. Del webhook solo muestra el **hostname**. El ID 
 | --- | --- |
 | El token pertenece a `@Alerta5taVillarrica_bot` (getMe). | Que el bot reciba mensajes reales. |
 | Si hay webhook, su hostname, las actualizaciones pendientes y si hubo error de entrega (getWebhookInfo). | Quién administra ese receptor. |
-| El ID existe, coincide con lo configurado y con el título "Despachos Villarrica 2023" (getChat). | Que quien publica los despachos no sea un bot. |
+| El ID o `@usuario` existe, coincide con lo configurado y con el título "Despachos Villarrica 2023" (getChat), y se obtiene el ID numérico real. | Que quien publica los despachos no sea un bot. |
 | El bot es miembro del grupo (getChatMember). | Que la alarma llegue al teléfono. |
 
 Pruebas locales (sin red ni token): `npm test` → 78/78. Cubren que solo se consultan getMe, getWebhookInfo, getChat y getChatMember, y que la salida nunca incluye token, ruta ni parámetros del webhook.
@@ -94,7 +94,7 @@ Nada de esto se activa sin autorización.
 | `Actualizaciones pendientes en Telegram: N` | Solo tiene sentido con webhook: cuántas esperan entrega. Un N que crece junto con un error reciente indica un receptor que falla. | Sin webhook, el valor no informa nada. |
 | `Error reciente de entrega: …` | Indica si Telegram registró un fallo al entregar al webhook. | — |
 | `Grupo todavía no comprobado` | Falta `TELEGRAM_CHAT_ID`. Es la primera pasada. | Completar el ID y repetir. |
-| `ID devuelto por getChat … tipo: …` y `Título obtenido: …` | El ID **existe** y es el consultado. | `getChat … código 400`: el ID es incorrecto o el bot no está en ese chat. |
+| `ID devuelto por getChat … tipo: …`, `@usuario resuelto por getChat: …` y `Título obtenido: …` | El grupo **existe** y es el consultado. Con `@usuario`, el ID numérico que aparece es el que Telegram devuelve. | `getChat … código 400`: el ID es incorrecto o el bot no está en ese chat. |
 | `Este ID NO coincide con el título…` | El ID corresponde a otro chat. Conexión detenida a propósito. | Buscar el ID correcto. |
 | `Estado del bot dentro del grupo: member` (o `administrator`) | El bot es miembro del grupo. | Otro estado: `No se confirmó membresía activa`. |
 | `Diagnóstico de acceso al grupo correcto…` | Identidad, ID y membresía están comprobados. **No** acredita que lleguen mensajes reales. | — |
