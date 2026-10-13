@@ -5,3 +5,4 @@
 .telegram-relay-state.json
 .telegram-relay-state.json.*.tmp
 node_modules/
+.telegram-relay-state.json.corrupto-*

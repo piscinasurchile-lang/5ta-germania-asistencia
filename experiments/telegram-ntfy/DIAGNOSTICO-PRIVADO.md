@@ -25,7 +25,7 @@ La salida no contiene el token. Del webhook solo muestra el **hostname**. El ID 
 | El ID existe, coincide con lo configurado y con el título "Despachos Villarrica 2023" (getChat). | Que quien publica los despachos no sea un bot. |
 | El bot es miembro del grupo (getChatMember). | Que la alarma llegue al teléfono. |
 
-Pruebas locales (sin red ni token): `npm test` → 45/45. Cubren que solo se consultan getMe, getWebhookInfo, getChat y getChatMember, y que la salida nunca incluye token, ruta ni parámetros del webhook.
+Pruebas locales (sin red ni token): `npm test` → 78/78. Cubren que solo se consultan getMe, getWebhookInfo, getChat y getChatMember, y que la salida nunca incluye token, ruta ni parámetros del webhook.
 
 ## 3. getUpdates: qué consulta y cuándo consume
 
@@ -66,7 +66,7 @@ Nada de esto se activa sin autorización.
 **A. No hay webhook**
 - El receptor experimental sería un proceso local con getUpdates como único lector, con las reglas de la sección 3: sin `offset` negativo, sin `allowed_updates`, y confirmando el `offset` solo después de que ntfy acepte el aviso (o el mensaje se descarte por el filtro).
 - Cada actualización pasa a `crearRelayBot().recibir(update)` (ya existe y está probado) y de ahí a un tema privado `germania-test-…`, al que solo se suscribe el teléfono del usuario. `DRY_RUN=1` por defecto.
-- **Falta escribir** ese proceso (hoy el laboratorio no tiene ninguno que alimente al relay) y necesita autorización explícita antes de usar getUpdates. Para funcionar 24/7 requiere un equipo encendido, no Vercel.
+- El lector ya está preparado y probado con simulaciones (`src/bot-reader.mjs`, ver `PROPUESTA-SERVICIO-OPERATIVO.md`), pero **no se ha ejecutado contra Telegram** y necesita autorización explícita antes de usar getUpdates. Para funcionar 24/7 requiere un equipo encendido, no Vercel.
 - Supuesto sin verificar: que nadie más lea este bot. El bot es de reciente creación y el token estaría solo con el usuario.
 
 **B. Hay webhook**

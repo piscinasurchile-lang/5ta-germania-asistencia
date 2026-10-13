@@ -9,7 +9,8 @@
     "demo": "node demo.mjs",
     "auth": "node --env-file=.env src/mtproto.mjs auth",
     "chats": "node --env-file=.env src/mtproto.mjs chats",
-    "watch": "node --env-file=.env src/mtproto.mjs watch"
+    "watch": "node --env-file=.env src/mtproto.mjs watch",
+    "reader": "node --env-file=.env src/bot-reader-cli.mjs"
   },
   "dependencies": {
     "input": "^1.0.1",

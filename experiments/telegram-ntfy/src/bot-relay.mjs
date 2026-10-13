@@ -2,11 +2,13 @@ import { evaluarMensaje, avisoDeLaboratorio } from './relay-core.mjs';
 import { publicarEnNtfy } from './alerta.mjs';
 
 /** Adaptador experimental. Recibe updates ya entregados; nunca llama a Telegram. */
-export function crearRelayBot({ chatId, topic, dryRun = true, publicar = publicarEnNtfy, ntfy = {}, now = Date.now } = {}) {
+export function crearRelayBot({ chatId, topic, dryRun = true, publicar = publicarEnNtfy, ntfy = {}, now = Date.now, ultimoIdInicial = 0 } = {}) {
   if (!/^-\d+$/.test(String(chatId || ''))) throw new Error('Se requiere TELEGRAM_CHAT_ID de grupo exacto');
   if (typeof dryRun !== 'boolean') throw new Error('dryRun debe ser booleano');
+  if (!Number.isSafeInteger(ultimoIdInicial) || ultimoIdInicial < 0) throw new Error('ultimoIdInicial inválido');
   if (!dryRun) avisoDeLaboratorio({ estado: 'alerta' }, topic);
-  let ultimoId = 0;
+  // ultimoIdInicial permite retomar la deduplicación tras un reinicio (el lector lo guarda en disco).
+  let ultimoId = ultimoIdInicial;
   let cola = Promise.resolve();
 
   async function procesar(update) {
@@ -34,6 +36,7 @@ export function crearRelayBot({ chatId, topic, dryRun = true, publicar = publica
   }
 
   return {
+    ultimoId: () => ultimoId,
     recibir(update) {
       // Serializar evita que dos entregas simultáneas publiquen el mismo mensaje.
       const resultado = cola.then(() => procesar(update));
