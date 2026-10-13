@@ -6,7 +6,7 @@
 const expectedUsername = (process.env.TELEGRAM_BOT_USERNAME || 'Alerta5tavillarrica_bot').replace(/^@/, '');
 const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
 const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
-const expectedTitle = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Emergencias Villarrica 2022';
+const expectedTitle = process.env.TELEGRAM_CHAT_TITLE?.trim() || 'Despachos Villarrica 2023';
 
 if (!token) throw new Error('Falta TELEGRAM_BOT_TOKEN en el .env privado (nunca compartirlo)');
 if (!/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Formato inválido de TELEGRAM_BOT_TOKEN');
@@ -50,7 +50,7 @@ const chat = await api('getChat', {chat_id: chatId});
 console.log('ID de grupo consultado:', String(chat.id));
 console.log('Título obtenido:', chat.title || '(sin título)');
 if (String(chat.title || '').trim().toLocaleLowerCase('es') !== expectedTitle.toLocaleLowerCase('es')) {
-  throw new Error('Este ID NO coincide con el título Emergencias Villarrica 2022; conexión detenida');
+  throw new Error('Este ID NO coincide con el título Despachos Villarrica 2023; conexión detenida');
 }
 const membership = await api('getChatMember', {chat_id: chatId, user_id: me.id});
 console.log('Estado del bot dentro del grupo:', membership.status);
