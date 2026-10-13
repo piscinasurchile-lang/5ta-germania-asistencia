@@ -249,7 +249,7 @@ body:not([data-oficial="1"]) .tab[data-tab="config"]{display:none !important;}
 .ha-admin{margin-top:var(--sp-3);}
 .ha-admin label{color:#fff;}
 .ha-fila{display:flex;gap:var(--sp-2);flex-wrap:wrap;}
-.ha-fila input{flex:1 1 200px;min-width:0;min-height:var(--g-tap);padding:var(--sp-2) var(--sp-3);border-radius:var(--g-radius-sm);border:1.5px solid var(--g-line);background:#0b0f13;color:#fff;font-size:16px;}
+.ha-fila input,.ha-fila textarea{flex:1 1 200px;min-width:0;min-height:var(--g-tap);padding:var(--sp-2) var(--sp-3);border-radius:var(--g-radius-sm);border:1.5px solid var(--g-line);background:#0b0f13;color:#fff;font-size:16px;}
 
 .home-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3);}
 .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-2);min-height:96px;padding:var(--sp-3);background:var(--g-card-2);border:1px solid var(--g-line);border-radius:var(--g-radius);color:#fff;font:500 16px/1.2 'Oswald',sans-serif;text-align:center;cursor:pointer;}
