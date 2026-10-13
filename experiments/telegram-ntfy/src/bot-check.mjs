@@ -14,7 +14,13 @@ if (!/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Formato inválido d
 async function api(method, params = {}) {
   const url = new URL('https://api.telegram.org/bot' + token + '/' + method);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const response = await fetch(url, {signal: AbortSignal.timeout(10000), redirect: 'error'});
+  let response;
+  try {
+    response = await fetch(url, {signal: AbortSignal.timeout(10000), redirect: 'error'});
+  } catch {
+    // No propagar errores de transporte que puedan incluir la URL con el token.
+    throw new Error(method + ': no se pudo consultar Telegram (red o tiempo de espera)');
+  }
   if (!response.ok) throw new Error(method + ': HTTP ' + response.status);
   const result = await response.json();
   if (!result.ok) throw new Error(method + ': Telegram rechazó la consulta, código ' + (result.error_code || 'desconocido'));
