@@ -2,7 +2,21 @@
 
 Estado: preparado como código de pruebas; no conectado a Telegram ni desplegado. Exclusivamente en la rama test/telegram-emergencias-villarrica-2022, bajo experiments/telegram-ntfy/. No cambia interfaz, Neon, Vercel, asistencia ni guardias de Germania.
 
-## Por qué se usa una sesión Telegram
+## Camino correcto: bot existente (solo lectura, sin intervenir Telegram)
+
+Se utilizará exclusivamente **@Alerta5tavillarrica_bot** en **Despachos Villarrica 2023**. **No crear bots nuevos ni iniciar una sesión personal.** El diagnóstico preparado en `src/bot-check.mjs` es de solo lectura: consulta `getMe`, `getWebhookInfo` y, si se conoce el ID, `getChat` y `getChatMember`. Nunca llama a `getUpdates`, `setWebhook` ni a métodos que envíen mensajes al grupo.
+
+Para ejecutar el diagnóstico localmente (solo con autorización y credenciales legítimas): dentro de `experiments/telegram-ntfy`, instalar dependencias con `npm install`, copiar `.env.example` a `.env`, guardar **privadamente** `TELEGRAM_BOT_TOKEN`, conservar `TELEGRAM_BOT_USERNAME=Alerta5tavillarrica_bot` y `TELEGRAM_CHAT_TITLE=Despachos Villarrica 2023`, e introducir `TELEGRAM_CHAT_ID` únicamente cuando se conozca el número real. Ejecutar `npm run bot:check`. Nunca compartir ni subir el token.
+
+Esto permite revisar identidad del bot, presencia de webhook y, con el ID, pertenencia al grupo. **No acredita recepción efectiva**: para eso habrá que observar la próxima publicación real que Telegram entregue al bot, sin pedir ni generar mensajes de prueba. Si la Central publica mediante otro bot, verificar condiciones de comunicación bot a bot (Bot-to-Bot Communication Mode y, según corresponda, permisos de administración o privacidad deshabilitada); no cambiar BotFather ni el grupo automáticamente.
+
+**Advertencia importante:** el receptor en `main` no está listo para despachos reales: actualmente `TELEGRAM_CHAT_ID` es opcional y, sin palabras configuradas, su filtro podría avisar sobre todos los mensajes. No se debe habilitar tal cual. El laboratorio sigue desconectado y no modifica producción ni envía alarmas reales.
+
+## Lector MTProto anterior: solo referencia, NO utilizar
+
+El apartado siguiente describe una vía histórica con cuenta personal (`auth/chats/watch`). Se conserva por trazabilidad, pero **no corresponde** al proyecto actual basado en el bot ya incorporado. No seguir esas instrucciones.
+
+## Por qué se usaba una sesión Telegram (heredado)
 El grupo **Despachos Villarrica 2023** no necesita recibir un bot nuevo. Se usa una sesión MTProto de una cuenta que ya tenga acceso al grupo, con credenciales y autorización de su titular. Este lector puede detectar mensajes enviados por personas u otros bots visibles para esa cuenta. Solo lee el grupo cuyo ID exacto se configure. No modifica mensajes ni miembros.
 
 ## Preparar en computador privado con Node 20+
