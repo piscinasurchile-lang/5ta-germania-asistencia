@@ -57,7 +57,7 @@ export async function POST(request){
   const emisor=String(body?.emisorId||"");
   if(!/^\d{1,10}$/.test(emisor))return err("emisor_invalido",400);
   let vence;try{vence=vencimientoAlPublicar(Date.now(),body.vence)}catch(e){return err(e.message||"fecha_invalida",400)}
-  if(Date.parse(vence)>Date.now()+48*60*60*1000+5000)return err("vigencia_maxima_48_horas",400);
+  if(Date.parse(vence)>Date.now()+30*24*60*60*1000+5000)return err("vigencia_maxima_30_dias",400);
   const sql=sqlClient();if(!sql)return err("database_not_configured",503);
   try{
     await ensureSchema(sql);
