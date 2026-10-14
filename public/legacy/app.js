@@ -4864,7 +4864,7 @@ async function refrescarIdentidadVoluntario(){
   const p=ROSTER.find(x=>String(x.id)===String(sel.value));
   if(!p){ nom.textContent="Voluntario"; cargo.textContent="Elige tu nombre"; img.src=fotoPlaceholder(); return; }
   nom.textContent=nombreCompleto(p);
-  cargo.textContent=p.cargo||"Voluntario";
+  cargo.textContent=p.conductor===true?"Voluntario / Maquinista":(p.cargo||"Voluntario");
   // El perfil de inicio consulta la foto canónica de la Hoja de Vida.
   const foto=await fotoUnificada(p);
   img.src=foto;
