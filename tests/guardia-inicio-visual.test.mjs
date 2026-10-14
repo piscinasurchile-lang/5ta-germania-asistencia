@@ -33,7 +33,8 @@ test("guardias deja de ser botón permanente; oficiales conserva acceso de mando
   assert.ok(!html.includes('data-go="guardia">Guardias'));
   assert.ok(!html.includes('data-go="guardia"><span class="tile-ico"'));
   assert.match(html,/id="btnOficialesGuardia"/);
-  assert.match(html,/class="card solo-oficiales solo-mando"/);
+  assert.match(html,/id="informacionesCard"/);
+  assert.match(html,/id="informacionesPublicarCard"/);
   assert.match(roles,/if\(!esMando\(miembro\(\)\)\) return;/);
 });
 
