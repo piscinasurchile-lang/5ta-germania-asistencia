@@ -215,7 +215,8 @@ export default function TabletB5(){
         </button>
 
         <div className={"conexion "+(conexion==="online"?"conectado":"desconectado")} role="status">
-          <strong>{conexion==="online"?(pendientes?"EN LÍNEA · Sincronizando pendientes":"EN LÍNEA · Sincronizado")
+          <strong>{conexion==="online"?(revision&&revision===pendientes?"EN LÍNEA · Hay registros para revisión":
+              pendientes?"EN LÍNEA · Sincronizando pendientes":"EN LÍNEA · Neon disponible")
             :conexion==="offline"?"SIN CONEXIÓN · Tomando datos en esta tablet"
             :"COMPROBANDO CONEXIÓN…"}</strong>
           <small>{conexion==="online"
