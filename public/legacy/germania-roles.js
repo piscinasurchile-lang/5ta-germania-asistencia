@@ -73,7 +73,7 @@ function ponerVista(v){
 
 /* ---------- Novedades (Inicio) ---------- */
 var novRendering=false, novVisible=[], novReadPending={};
-var novVista="pendientes", novHistorialOffset=0;
+var novVista="pendientes", novHistorialOffset=0, novRefreshPending=false;
 var NOV_PRUEBA=window.GermaniaInformacionesPrueba||null;
 
 var novExpiryTimer=null, novPrivateTimer=null;
@@ -118,7 +118,8 @@ function novPestanas(){
   });
 }
 async function renderNovedades(){
-  var box=$("novedadesLista"); if(!box||novRendering) return;
+  var box=$("novedadesLista"); if(!box)return;
+  if(novRendering){novRefreshPending=true;return;}
   novRendering=true;
   var m=miembro(), who=m?String(m.id):"";
   var historial=novVista==="historial", offset=novHistorialOffset;
@@ -157,7 +158,10 @@ async function renderNovedades(){
     box.innerHTML=(html||(historial?'<div class="ha-vacia">No hay avisos archivados en esta página.</div>':'<div class="ha-vacia">No tienes avisos pendientes. Puedes consultar el historial en cualquier momento.</div>'))+pagina;
   }catch(e){
     box.innerHTML='<div class="ha-vacia">No fue posible sincronizar los avisos. Comprueba la conexión.</div>';
-  }finally{novRendering=false;}
+  }finally{
+    novRendering=false;
+    if(novRefreshPending){novRefreshPending=false;renderNovedades();}
+  }
 }
 async function confirmarLectura(id,button){
   var m=miembro();
