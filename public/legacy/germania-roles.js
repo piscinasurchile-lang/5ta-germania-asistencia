@@ -376,6 +376,11 @@ async function cambiarSuplente(D,fecha,boton){
   }
 }
 async function guardarRol(D,kind){
+  // Validar nuevamente al guardar: la pantalla pudo quedar abierta cuando venció el plazo.
+  if(!D||!D.p||Date.now()>=gnInsCierreMs(D.p)||D.revision&&D.revision.estado==="aprobada"){
+    var aviso=$("grMsg-"+kind);if(aviso){aviso.textContent="🔒 Inscripción cerrada. No se guardaron cambios.";aviso.classList.add("err");}
+    return;
+  }
   if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind]||new Set(), previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
