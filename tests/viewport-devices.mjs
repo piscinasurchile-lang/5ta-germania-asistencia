@@ -58,7 +58,7 @@ async function check(browser,device){
         const panel=document.getElementById("panel-panel");
         const hasNav=typeof window.__mostrarPestana==="function";
         if(hasNav)window.__mostrarPestana("panel");
-        return {hasNav,active:!!panel?.classList.contains("active"),found:!!panel?.querySelector('[aria-label="Volver al inicio de Germania"]')};
+        return {url:location.href,title:document.title,ready:document.readyState,panelPresent:!!panel,panels:[...document.querySelectorAll(".panel")].map(x=>x.id).slice(0,15),hasNav,active:!!panel?.classList.contains("active"),found:!!panel?.querySelector('[aria-label="Volver al inicio de Germania"]')};
       });
       console.log(device.name+" diagnóstico navegación: "+JSON.stringify(nav));
       assert.ok(nav.hasNav,device.name+" navegación de panel sin inicializar");
