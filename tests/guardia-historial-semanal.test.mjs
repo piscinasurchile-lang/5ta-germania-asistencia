@@ -38,7 +38,7 @@ test("historial de siete noches es solo lectura y PDF no acredita asistencia",()
  assert.match(bloque,/return dias\.map\(fecha=>/);
  assert.match(bloque,/gnHistorialLeerPrefijo\(prefijo\)/);
  assert.match(bloque,/gnHistorialPdfHeader\(doc/);
- assert.match(bloque,/no certifica asistencia efectiva ni acreditación/);
+ assert.match(bloque,/[Nn]o certifica asistencia efectiva ni acreditación/);
  assert.doesNotMatch(bloque,/\bsSet\s*\(|\bgnSavePlan\s*\(|\bsetGuardia\s*\(/);
  assert.match(js,/document\.getElementById\("gnHasta"\)\.value=gnAdd\(semana,6\)/);
 });
