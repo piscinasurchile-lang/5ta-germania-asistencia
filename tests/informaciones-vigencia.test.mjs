@@ -43,6 +43,8 @@ test("la publicación se redacta en Oficiales; lectura con botón Leído en Inic
  assert.match(roles,/✓ Leído/);
  assert.match(roles,/novVigente\(n\)/);
  assert.match(roles,/!n\.destino\|\|n\.destino==="compania"/);
+ assert.doesNotMatch(html,/id="informacionesPin"/);
+ assert.doesNotMatch(html,/id="informacionesEntrar"/);
 });
 test("avisos de oficiales tienen una ruta separada, no se muestran en listado público",()=>{
  assert.match(html,/id="informacionesPrivadas"/);
@@ -50,5 +52,6 @@ test("avisos de oficiales tienen una ruta separada, no se muestran en listado p�
  assert.match(api,/if\(!isOfficial\(request\)\)return error\("acceso_oficial_requerido",403\)/);
  assert.match(api,/avisoEstaVigente\(n,ahora\)/);
  assert.match(api,/destino==="oficiales"\?KEY_OFICIALES:KEY_PUBLICA/);
- assert.match(roles,/Inicia sesión con la clave institucional de Oficialidad/);
+ assert.match(roles,/NOV_PRUEBA\.listar\("oficiales"\)/);
+ assert.match(roles,/NOV_PRUEBA\.publicar\(/);
 });
