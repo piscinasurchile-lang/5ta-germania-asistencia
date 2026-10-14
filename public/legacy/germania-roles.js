@@ -11,7 +11,7 @@ if(typeof ROSTER==="undefined"||typeof sGet!=="function"||typeof gnPlanes!=="fun
 
 /* Administradores mientras dura la prueba (claves de voluntario). Se cambia aquí. */
 var ADMINISTRADORES=["517"];
-var NOV_KEY="novedades:v1", NOV_MAX=5;
+var NOV_KEY="novedades:v1";
 
 function $(id){ return document.getElementById(id); }
 function norm(t){ return String(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase(); }
@@ -97,7 +97,7 @@ async function renderNovedades(){
   try{
     var lista=await sGet(NOV_KEY,[]);
     if(!Array.isArray(lista)) lista=[];
-    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); }).slice(0,NOV_MAX);
+    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
     var lecturas=await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
     if((miembro()?String(miembro().id):"")!==who) return;
     novVisible=lista; novSound(lista);
