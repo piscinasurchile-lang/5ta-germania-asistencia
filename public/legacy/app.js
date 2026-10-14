@@ -2696,6 +2696,21 @@ on("gnMes","click",()=>{
   document.getElementById("gnHasta").value=new Date(h.getFullYear(),h.getMonth()+1,0).toISOString().slice(0,10);
   renderGnLista();
 });
+on("gnHistorialVer","click",()=>{
+ const fecha=document.getElementById("gnHistorialSelect")?.value;
+ if(!fecha){alert("Selecciona una guardia registrada.");return;}
+ document.getElementById("gnDesde").value=fecha;
+ document.getElementById("gnHasta").value=fecha;
+ renderGnLista();
+ document.getElementById("gnLista")?.scrollIntoView({behavior:"smooth",block:"start"});
+});
+on("gnHistorialPdf","click",()=>{
+ const fecha=document.getElementById("gnHistorialSelect")?.value;
+ if(!fecha){alert("Selecciona una guardia registrada.");return;}
+ document.getElementById("gnDesde").value=fecha;
+ document.getElementById("gnHasta").value=fecha;
+ document.getElementById("gnPdfSemanal")?.click();
+});
 on("gnDesde","change",renderGnLista);
 on("gnHasta","change",renderGnLista);
 
@@ -2709,6 +2724,13 @@ async function renderGnLista(){
     if(res)res.innerHTML='<div class="empty">No se pudo verificar asistencia acreditada. Las estadísticas no se calcularon.</div>';
     if(box)box.innerHTML='<div class="empty">Reintenta la consulta de guardias. No se modificó ningún registro.</div>';
     return;
+  }
+  const selector=document.getElementById("gnHistorialSelect");
+  if(selector){
+    const previo=selector.value;
+    selector.innerHTML='<option value="">Selecciona una guardia registrada…</option>'+lista.map(g=>'<option value="'+esc(g.fechaIng)+'">'+esc(fmtDateLong(g.fechaIng))+'</option>').join("");
+    if(lista.some(g=>g.fechaIng===previo))selector.value=previo;
+    if(!lista.length)selector.innerHTML='<option value="">No hay guardias registradas</option>';
   }
   const {resumen,pares,revisiones}=verificacion, turnos=resumen.turnos;
   // La programación semanal no equivale a una guardia registrada ni acreditada.
