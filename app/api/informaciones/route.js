@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import {neon} from "@neondatabase/serverless";
 import {ensureSchema,readState,addToList} from "../../../lib/state-store.js";
+import {avisoEstaVigente,vencimientoAlPublicar} from "../../../lib/informaciones-vigencia.mjs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -32,11 +33,7 @@ export async function GET(request){
     await ensureSchema(sql);
     const r=await readState(sql,KEY_OFICIALES);
     const ahora=Date.now();
-    const items=(Array.isArray(r.value)?r.value:[]).filter(n=>{
-      const created=Date.parse(n?.en||"");
-      const end=n?.vence?Date.parse(n.vence):created+48*60*60*1000;
-      return Number.isFinite(created)&&Number.isFinite(end)&&end>ahora;
-    });
+    const items=(Array.isArray(r.value)?r.value:[]).filter(n=>avisoEstaVigente(n,ahora));
     return Response.json({items:items.slice(-100).reverse()},{headers:noStore});
   }catch(e){console.error("informaciones oficiales GET",e);return error("database_error",500)}
 }
@@ -50,18 +47,12 @@ export async function POST(request){
   if(!texto||texto.length>2000)return error("texto_invalido",400);
   if(destino!=="compania"&&destino!=="oficiales")return error("destino_invalido",400);
   const ahora=Date.now();
-  const solicitado=value?.vence;
-  let vencimiento=ahora+48*60*60*1000;
-  if(solicitado!==undefined&&solicitado!==null&&solicitado!==""){
-    if(typeof solicitado!=="string"||!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(solicitado)){
-      return error("fecha_hora_invalida",400);
-    }
-    vencimiento=Date.parse(solicitado);
-    if(!Number.isFinite(vencimiento)||vencimiento<=ahora)return error("vencimiento_debe_ser_futuro",400);
-  }
+  let vence;
+  try{vence=vencimientoAlPublicar(ahora,value?.vence)}
+  catch(e){return error(e.message||"fecha_hora_invalida",400)}
   const sql=db();
   if(!sql)return error("database_not_configured",503);
-  const entry={id:crypto.randomUUID(),texto,en:new Date(ahora).toISOString(),vence:new Date(vencimiento).toISOString(),autor:"Oficialidad",destino};
+  const entry={id:crypto.randomUUID(),texto,en:new Date(ahora).toISOString(),vence,autor:"Oficialidad",destino};
   try{
     await ensureSchema(sql);
     const result=await addToList(sql,destino==="oficiales"?KEY_OFICIALES:KEY_PUBLICA,entry,{uniqueBy:"id"});
