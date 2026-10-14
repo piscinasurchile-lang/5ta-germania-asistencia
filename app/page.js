@@ -19,7 +19,7 @@ export default function Page() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const solicitado = params.get("b5dest") || "";
-    const destino = ["lista", "servicio", "oficiales"].includes(solicitado) ? solicitado : "";
+    const destino = ["lista", "servicio"].includes(solicitado) ? solicitado : "";
     setDestinoB5(destino);
     let modo = null;
     try { modo = localStorage.getItem("germania:modo-dispositivo:v1"); } catch {}
@@ -78,21 +78,36 @@ export default function Page() {
       return;
     }
 
-    // Abrir solamente el módulo solicitado desde Inicio B-5.
+    // Únicamente cuando se navega desde Tablet B-5: Inicio siempre regresa
+    // al panel propio /b5 y nunca muestra el dashboard normal de voluntarios.
+    const esModuloB5 = destinoB5 === "lista" || destinoB5 === "servicio";
+    if (esModuloB5 && !doc.__b5InicioInterceptado) {
+      doc.__b5InicioInterceptado = true;
+      doc.addEventListener("click", (event) => {
+        const objetivo = event.target?.closest?.(
+          '[data-go="germania"], [data-tab="germania"], [data-nav="germania"], a[href="/"]'
+        );
+        if (!objetivo) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.location.assign("/b5");
+      }, true);
+    }
+
     const abrirModuloB5 = () => {
-      if (!destinoB5 || typeof win.__mostrarPestana !== "function") return;
-      if (destinoB5 === "lista" || destinoB5 === "servicio") {
-        win.__mostrarPestana(destinoB5);
-      } else {
-        win.__mostrarPestana("germania");
-        const home = doc.querySelector("#panel-germania .home-grid");
-        if (home && !doc.getElementById("b5OficialesAviso")) {
-          const mensaje = doc.createElement("div");
-          mensaje.id = "b5OficialesAviso";
-          mensaje.style.cssText = "grid-column:1/-1;padding:14px;border:1px solid #c5a850;background:#2a2615;border-radius:9px;color:#fff;";
-          mensaje.textContent = "Para entrar a Oficiales, selecciona tu nombre y pulsa Oficiales. La tablet B-5 no es una identidad de oficial.";
-          home.prepend(mensaje);
-        }
+      if (!esModuloB5 || typeof win.__mostrarPestana !== "function") return;
+      win.__mostrarPestana(destinoB5);
+      // Protege también las llamadas programáticas a "Inicio" en el modo B-5.
+      if (!win.__b5InicioEnrutado) {
+        const mostrarNormal = win.__mostrarPestana;
+        win.__mostrarPestana = function(nombre, ...args) {
+          if (nombre === "germania") {
+            window.location.assign("/b5");
+            return;
+          }
+          return mostrarNormal.call(this, nombre, ...args);
+        };
+        win.__b5InicioEnrutado = true;
       }
     };
 
@@ -107,6 +122,14 @@ export default function Page() {
         .card{width:100%!important}
       }
     `;
+    if (esModuloB5) {
+      // En la tablet operativa no exponer accesos a Oficiales u otras pantallas.
+      // No altera ni esconde estos controles en celulares de voluntarios.
+      style.textContent += `
+        #menuToggle,#mobileMenu,[data-go="config"],[data-tab="config"],.solo-oficiales{display:none!important}
+        #gBottomNav button[data-nav]:not([data-nav="germania"]){display:none!important}
+      `;
+    }
     doc.head.appendChild(style);
 
     // La Minuta de Disponibilidad se renderiza únicamente en legacy/app.js.
