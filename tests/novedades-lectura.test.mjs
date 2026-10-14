@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const source=fs.readFileSync('public/legacy/germania-roles.js','utf8');
 function setup(fail=false){
  const writes=[]; const member={id:517};
- const context={miembro:()=>member,novReadPending:{},novVisible:[{id:'aviso1'}],novReadKey:id=>'novedad-lecturas:'+id,sAddToList:async(...args)=>{writes.push(args);if(fail)throw Error('offline');},renderNovedades:async()=>{},Date};
+ const context={NOV_PRUEBA:null,miembro:()=>member,novReadPending:{},novVisible:[{id:'aviso1'}],novReadKey:id=>'novedad-lecturas:'+id,sAddToList:async(...args)=>{writes.push(args);if(fail)throw Error('offline');},renderNovedades:async()=>{},Date};
  vm.createContext(context);
  vm.runInContext(source.slice(source.indexOf('async function confirmarLectura('),source.indexOf('async function publicarNovedad(')),context);
  return {context,writes,member};
