@@ -73,6 +73,7 @@ function ponerVista(v){
 
 /* ---------- Novedades (Inicio) ---------- */
 var novRendering=false, novVisible=[], novReadPending={};
+var novVista="pendientes", novHistorialOffset=0, novRefreshPending=false;
 var NOV_PRUEBA=window.GermaniaInformacionesPrueba||null;
 
 var novExpiryTimer=null, novPrivateTimer=null;
@@ -109,33 +110,58 @@ function novVigente(n){
   const vence=n&&n.vence?Date.parse(n.vence):creado+48*60*60*1000;
   return Number.isFinite(creado)&&Number.isFinite(vence)&&Date.now()<vence;
 }
+function novPestanas(){
+  document.querySelectorAll("[data-nov-vista]").forEach(function(b){
+    var activa=b.dataset.novVista===novVista;
+    b.setAttribute("aria-pressed",activa?"true":"false");
+    b.classList.toggle("secondary",!activa);
+  });
+}
 async function renderNovedades(){
-  var box=$("novedadesLista"); if(!box||novRendering) return;
+  var box=$("novedadesLista"); if(!box)return;
+  if(novRendering){novRefreshPending=true;return;}
   novRendering=true;
   var m=miembro(), who=m?String(m.id):"";
+  var historial=novVista==="historial", offset=novHistorialOffset;
+  novPestanas();
   try{
-    var response=await fetch("/api/informaciones/prueba",{cache:"no-store"});
+    var url=historial?"/api/informaciones/prueba?historial=1&offset="+offset:"/api/informaciones/prueba";
+    var response=await fetch(url,{cache:"no-store"});
     if(!response.ok)throw new Error("No se pudieron consultar los avisos compartidos");
-    var remoto=await response.json(),lista=Array.isArray(remoto.items)?remoto.items:[];
-    if(!Array.isArray(lista)) lista=[];
-    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
-    var lecturas=lista.map(n=>Array.isArray(n.lecturas)?n.lecturas:[]);
-    if((miembro()?String(miembro().id):"")!==who) return;
-    novVisible=lista; novSound(lista); novProgramarVencimiento(lista,false);
+    var remoto=await response.json(), lista=Array.isArray(remoto.items)?remoto.items:[];
+    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&(historial||novVigente(n));});
+    if((miembro()?String(miembro().id):"")!==who||novVista!==(historial?"historial":"pendientes")||novHistorialOffset!==offset)return;
+    if(!historial){
+      novVisible=lista;
+      novSound(lista);
+      novProgramarVencimiento(lista,false);
+      lista=lista.filter(function(n){
+        return !(n.lecturas||[]).some(function(r){return r&&String(r.voluntarioId)===who;});
+      });
+    }
     var of=esOficial(m)||esMando(m);
-    box.innerHTML=lista.length?lista.map(function(n,i){
-      var reads=Array.isArray(lecturas[i])?lecturas[i]:[];
+    var html=lista.map(function(n){
+      var reads=Array.isArray(n.lecturas)?n.lecturas:[];
       var leido=reads.some(function(r){return r&&String(r.voluntarioId)===who;});
-      var f=n.en?new Date(n.en).toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"}):"";
-      var control=who?'<button type="button" class="btn small" data-nov-read="'+E(n.id)+'"'+(leido?' disabled':'')+'>'+(leido?'✓ Lectura confirmada':'✓ Leído')+'</button>':'<span>Elige tu nombre para confirmar lectura.</span>';
+      var vigente=novVigente(n);
+      var f=n.en?new Date(n.en).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
+      var control=historial?'<small>'+(leido?'✓ Lectura confirmada':vigente?'Pendiente de lectura':'Venció sin confirmación')+'</small>':
+        who?'<button type="button" class="btn small" data-nov-read="'+E(n.id)+'">✓ Leído</button>':'<span>Elige tu nombre para confirmar lectura.</span>';
       var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
       var venc=n.vence?new Date(n.vence):new Date(Date.parse(n.en)+48*60*60*1000);
-      var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
-      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+' · PRUEBA</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
-    }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
+      var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+' · PRUEBA</span><span class="ha-texto">'+E(n.texto)+'</span><small>'+(vigente?'Vigente hasta: ':'Venció el: ')+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+    }).join("");
+    var pagina=historial?'<div class="field-row" style="justify-content:space-between;gap:8px;margin-top:10px;">'
+      +(remoto.previousOffset!==null&&remoto.previousOffset!==undefined?'<button type="button" class="btn small secondary" data-nov-page="'+remoto.previousOffset+'">← Más recientes</button>':'<span></span>')
+      +(remoto.nextOffset!==null&&remoto.nextOffset!==undefined?'<button type="button" class="btn small secondary" data-nov-page="'+remoto.nextOffset+'">Más antiguos →</button>':'')+'</div>':'';
+    box.innerHTML=(html||(historial?'<div class="ha-vacia">No hay avisos archivados en esta página.</div>':'<div class="ha-vacia">No tienes avisos pendientes. Puedes consultar el historial en cualquier momento.</div>'))+pagina;
   }catch(e){
     box.innerHTML='<div class="ha-vacia">No fue posible sincronizar los avisos. Comprueba la conexión.</div>';
-  }finally{novRendering=false;}
+  }finally{
+    novRendering=false;
+    if(novRefreshPending){novRefreshPending=false;renderNovedades();}
+  }
 }
 async function confirmarLectura(id,button){
   var m=miembro();
@@ -211,7 +237,25 @@ async function renderInformacionesOficiales(){
   }catch(e){box.textContent=e.message||"No fue posible cargar los avisos.";}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
-if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
+document.querySelectorAll("[data-nov-vista]").forEach(function(b){
+  b.addEventListener("click",function(){
+    var vista=b.dataset.novVista;
+    if(vista!=="pendientes"&&vista!=="historial")return;
+    novVista=vista;
+    novHistorialOffset=0;
+    novPestanas();
+    renderNovedades();
+  });
+});
+if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){
+  var r=ev.target.closest("[data-nov-read]");
+  if(r){confirmarLectura(r.dataset.novRead,r);return;}
+  var pagina=ev.target.closest("[data-nov-page]");
+  if(pagina){
+    var n=Number(pagina.dataset.novPage);
+    if(Number.isSafeInteger(n)&&n>=0){novHistorialOffset=n;renderNovedades();}
+  }
+});
 
 /* ---------- Datos de la semana ---------- */
 async function leerPrefijo(pref){

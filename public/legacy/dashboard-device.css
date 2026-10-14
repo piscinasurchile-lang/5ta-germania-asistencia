@@ -1,0 +1,33 @@
+/* GERMANIA Dashboard V2 · adaptación táctil sin cambios de datos. */
+html{max-width:100%;overflow-x:clip}
+body{min-width:0;max-width:100%}
+.wrap{width:100%;min-width:0;padding:clamp(12px,2vw,22px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));padding-left:max(clamp(12px,2vw,22px),env(safe-area-inset-left,0px));padding-right:max(clamp(12px,2vw,22px),env(safe-area-inset-right,0px))}
+.head,.head>div,.status,.kpis,.k,.section,.chart-grid,.legend{min-width:0}
+.head h1,.head p,.k span{overflow-wrap:anywhere}
+.filters{gap:8px}
+.filters select,.filters button{min-height:44px;font-size:16px;touch-action:manipulation}
+.filters select{max-width:100%}
+.filters button:focus-visible,.filters select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.section{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain}
+#vols,#guardia{min-width:0}
+#vols table{min-width:490px}
+#guardia table{min-width:560px}
+td,th{overflow-wrap:anywhere}
+@media(max-width:720px){
+ .filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .filters select{grid-column:1/-1;width:100%}
+ .filters button{width:100%}
+ .chart-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+ .pie{max-width:100%}
+}
+@media(max-width:420px){
+ .wrap{padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+ .head h1{font-size:20px;line-height:1.2}
+ .badge{font-size:11px}
+ .kpis{gap:8px}
+ .k{padding:11px}
+ .k b{font-size:23px}
+ .section{padding:12px}
+ .section h2{font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}

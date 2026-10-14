@@ -1,0 +1,18 @@
+/* GERMANIA · avisos y consultas táctiles. No modifica navegación de otros módulos. */
+#inicioNovedades,#inicioNovedades .ha-lista{min-width:0}
+#inicioNovedades [data-nov-vista]{min-height:44px;touch-action:manipulation}
+#inicioNovedades .ha-item{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-width:0}
+#inicioNovedades .ha-texto{font-size:16px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+#inicioNovedades .ha-item small{overflow-wrap:anywhere}
+#inicioNovedades .nov-lectura{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
+#inicioNovedades .nov-lectura button{min-height:44px}
+#inicioNovedades .nov-confirmaciones{min-width:0;width:100%;max-width:100%}
+#inicioNovedades .nov-confirmaciones summary{cursor:pointer;overflow-wrap:anywhere}
+#inicioNovedades .nov-persona{min-width:0;overflow-wrap:anywhere}
+#inicioNovedades [data-nov-page]{min-height:44px;touch-action:manipulation}
+@media(max-width:700px){
+ #inicioNovedades .field-row:has([data-nov-vista]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #inicioNovedades [data-nov-vista]{width:100%;min-width:0;padding:8px;white-space:normal}
+ #inicioNovedades .ha-item{padding:12px}
+ #inicioNovedades [data-nov-page]{white-space:normal}
+}
