@@ -2795,8 +2795,8 @@ on("gnPdfSemanal","click",async()=>{
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
   pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");
   doc.setFontSize(9);
-  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} registros · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
-  doc.autoTable({startY:42,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
+  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} registros · emitido el ${new Date().toLocaleDateString("es-CL")}`,14,43);
+  doc.autoTable({startY:50,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
     styles:{fontSize:7,overflow:"linebreak"},
     head:[["Fecha","Horario","OBAC / oficial","Conductor","Voluntarios","Estado / novedades"]],
     body:siete.map(({fecha,g})=>{if(!g)return [fecha,"—","—","—","—","Sin registro de guardia"];
