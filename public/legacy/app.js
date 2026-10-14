@@ -1980,8 +1980,16 @@ async function renderGnTablaSemanal(){
   let rosterTabla=ROSTER;
   try { const actual=await sGet(ROSTER_KEY,null); if(Array.isArray(actual)&&actual.length) rosterTabla=actual; } catch(e) {}
   const nombreTabla=id=>{const p=rosterTabla.find(x=>String(x.id)===String(id));return p?nombreCompleto(p):gnNombreId(id);};
-  const cierreMs=gnInsCierreMs(p), revision=Date.now()>=cierreMs;
-  const revisionAviso=revision?'<div class="gn-period-box" style="margin-bottom:12px;"><b>Inscripción cerrada · revisión T3 pendiente</b><br><small>Revisa la dotación de las 7 noches. Completa voluntarios, conductor y OBAC antes del cierre definitivo.</small></div>':'';
+  const cierreMs=gnInsCierreMs(p), inscripcionCerrada=Date.now()>=cierreMs;
+  // Fuente institucional: al aprobarse la revisión semanal ya no se recalculan OBAC y conductor.
+  let revisionSemanal;
+  try{revisionSemanal=await sGet("guardia-revision:"+inicio,null);}
+  catch(e){
+    box.innerHTML='<div class="empty">No se pudo verificar la revisión semanal. Inténtalo de nuevo.</div>';
+    return;
+  }
+  const aprobada=revisionSemanal?.estado==="aprobada"&&revisionSemanal.noches&&
+    dias.every(f=>revisionSemanal.noches[f]&&Array.isArray(revisionSemanal.noches[f].vol));
   try{
     const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+inicio+":"),{cache:"no-store"});
     if(r.ok){
@@ -1995,23 +2003,32 @@ async function renderGnTablaSemanal(){
       }
     }
   }catch(e){}
-  /* Fuente única de verdad: inscritos + titular maquinista + precedencia. Esta tabla
-     NO tiene editor independiente y no genera ni modifica órdenes del día. */
-  const [maqs,precedencia]=await Promise.all([
+  /* Revisión aprobada > inscripciones. La tabla es solo lectura y no acredita cumplimientos. */
+  const [maqs,precedencia]=aprobada?[{},null]:await Promise.all([
     gnTablaRolSemana("guardia-maq:",inicio),
     sGet("precedencia:v1",null)
   ]);
   const orden=((precedencia&&precedencia.lista)||[]).map(x=>precBuscar(x.nombre)).filter(Boolean).map(x=>String(x.id));
   const datos=dias.map(f=>{
-    const voluntarios=[...new Set(inscritos[f]||[])], titulares=[...new Set(maqs[f]||[])];
-    const entradas=titulares.map(id=>({id,maquinista:true})).concat(
-      voluntarios.filter(id=>!titulares.includes(id)).map(id=>{
-        const persona=ROSTER.find(x=>String(x.id)===String(id));
-        return {id,habilitadoMaquinista:!!persona&&persona.activo!==false&&persona.conductor===true};
-      })
-    );
-    const roles=window.GermaniaObac?window.GermaniaObac.obacDeNoche({inscritos:entradas,orden}):null;
-    const m=roles?roles.maquinistas:[],o=roles&&roles.obac?[roles.obac]:[],v=roles?roles.voluntarios:[];
+    let m=[],o=[],v=[];
+    if(aprobada){
+      const turno=revisionSemanal.noches[f];
+      v=[...new Set(turno.vol.map(String))];
+      m=turno.maq?[String(turno.maq)]:[];
+      o=turno.obac?[String(turno.obac)]:[];
+    }else{
+      const voluntarios=[...new Set(inscritos[f]||[])], titulares=[...new Set(maqs[f]||[])];
+      const entradas=titulares.map(id=>({id,maquinista:true})).concat(
+        voluntarios.filter(id=>!titulares.includes(id)).map(id=>{
+          const persona=rosterTabla.find(x=>String(x.id)===String(id));
+          return {id,habilitadoMaquinista:!!persona&&persona.activo!==false&&persona.conductor===true};
+        })
+      );
+      const roles=window.GermaniaObac?window.GermaniaObac.obacDeNoche({inscritos:entradas,orden}):null;
+      m=roles?roles.maquinistas:[];
+      o=roles&&roles.obac?[roles.obac]:[];
+      v=roles?roles.voluntarios:[];
+    }
     const valid=window.GermaniaGuardiaReglas?window.GermaniaGuardiaReglas.evaluarDotacion({vol:v,maq:m,obac:o}):null;
     return {f,m,o,v,valid};
   });
@@ -2024,7 +2041,11 @@ async function renderGnTablaSemanal(){
       +'<td>'+esc(x.o.map(nombreTabla).join(" · ")||"—")+'</td>'
       +'<td><b>'+estado+'</b>'+(detalles?'<br><small>'+esc(detalles)+'</small>':'')+'</td></tr>';
   }).join("");
-  const nota=revision?'<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>':"";
+  const nota=aprobada
+    ? '<div class="gn-period-box" style="margin-bottom:12px;"><b>Dotación semanal aprobada.</b> Los nombres y cargos provienen de la revisión guardada. No acredita guardia cumplida.</div>'
+    : inscripcionCerrada
+      ? '<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>'
+      : "";
   box.innerHTML=nota+'<p class="sub">Los voluntarios de cada noche están ordenados por precedencia oficial. Los cargos administrativos no implican mando operativo.</p><div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
     +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
