@@ -1962,6 +1962,7 @@ async function gnTablaRolSemana(prefijo,inicio){
   }catch(e){}
   return out;
 }
+let gnTablaSemanaVisible="";
 async function renderGnTablaSemanal(){
   const box=document.getElementById("gnTablaSemanal"); if(!box) return;
   let p=gnPlanDraft&&gnPlanDraft.inicio?gnPlanDraft:null;
@@ -1972,7 +1973,8 @@ async function renderGnTablaSemanal(){
       p=planes.filter(x=>x.estado!=="anulada"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||planes.slice().sort((a,b)=>b.inicio.localeCompare(a.inicio))[0];
     }catch(e){}
   }
-  if(!p){ box.innerHTML='<div class="empty">No hay una semana programada.</div>'; return; }
+  if(!p){gnTablaSemanaVisible="";box.innerHTML='<div class="empty">No hay una semana programada.</div>';return;}
+  gnTablaSemanaVisible=p.inicio;
   const inicio=p.inicio, dias=gnWeek(inicio), inscritos={};
   // Refrescar nombres de la nómina sin alterar inscripciones ni el estado global.
   let rosterTabla=ROSTER;
@@ -2652,10 +2654,10 @@ async function gnResumenAcreditado(lista){
 }
 
 on("gnSemana","click",()=>{
-  const hoy=new Date();
-  const ini=new Date(hoy); ini.setDate(hoy.getDate()-6);
-  document.getElementById("gnDesde").value=ini.toISOString().slice(0,10);
-  document.getElementById("gnHasta").value=hoy.toISOString().slice(0,10);
+  const semana=gnHistorialSemana(todayISO());
+  if(!semana)return;
+  document.getElementById("gnDesde").value=semana;
+  document.getElementById("gnHasta").value=gnAdd(semana,6);
   renderGnLista();
 });
 on("gnMes","click",()=>{
@@ -2666,6 +2668,191 @@ on("gnMes","click",()=>{
 });
 on("gnDesde","change",renderGnLista);
 on("gnHasta","change",renderGnLista);
+
+/* Consulta semanal de Guardia: solo lectura. Nunca modifica inscripciones, revisiones ni acreditaciones. */
+function gnHistorialSemana(fecha){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||"")))return "";
+  const d=new Date(fecha+"T12:00:00Z");
+  if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==fecha)return "";
+  d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
+  return d.toISOString().slice(0,10);
+}
+function gnHistorialEtiqueta(inicio){
+  const fin=gnAdd(inicio,6),a=new Date(inicio+"T12:00:00"),z=new Date(fin+"T12:00:00");
+  const mes=d=>d.toLocaleDateString("es-CL",{month:"long"});
+  return a.getMonth()===z.getMonth()&&a.getFullYear()===z.getFullYear()
+   ? "Semana del "+a.getDate()+" al "+z.getDate()+" de "+mes(z)+" de "+z.getFullYear()
+   : "Semana del "+a.getDate()+" de "+mes(a)+" al "+z.getDate()+" de "+mes(z)+" de "+z.getFullYear();
+}
+async function gnHistorialLeerPrefijo(prefijo){
+  const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo),{cache:"no-store"});
+  if(!r.ok)throw new Error("No se pudo consultar la programación guardada.");
+  const j=await r.json();
+  if(!Array.isArray(j.items))throw new Error("La respuesta de programación es inválida.");
+  return j.items;
+}
+let gnHistorialInicioMostrado="",gnHistorialFilas=null,gnHistorialSolicitud=0;
+async function gnHistorialCargarOpciones(){
+  const sel=document.getElementById("gnHistorialSelect"),msg=document.getElementById("gnHistorialMsg");
+  if(!sel)return;
+  try{
+    const [planes,indice,revisiones]=await Promise.all([
+      gnPlanes(),idxGuardias(),gnHistorialLeerPrefijo("guardia-revision:")
+    ]);
+    const fechas=[...planes.filter(x=>x&&x.estado!=="anulada").map(x=>x.inicio),
+      ...indice.filter(x=>x&&x.fecha).map(x=>x.fecha),
+      ...revisiones.filter(x=>x&&x.value).map(x=>String(x.key||"").slice("guardia-revision:".length))];
+    const semanas=[...new Set(fechas.map(gnHistorialSemana).filter(Boolean))].sort();
+    const previo=sel.value;
+    sel.innerHTML='<option value="">Selecciona una semana registrada…</option>'+semanas.map(ini=>'<option value="'+esc(ini)+'">'+esc(gnHistorialEtiqueta(ini))+'</option>').join("");
+    if(semanas.includes(previo))sel.value=previo;
+    else{
+      const actual=gnHistorialSemana(todayISO());
+      if(semanas.includes(actual))sel.value=actual;
+    }
+    if(!semanas.length)sel.innerHTML='<option value="">No hay semanas de guardia registradas</option>';
+    if(msg)msg.textContent=semanas.length?"Semanas en orden cronológico · "+semanas.length+" registrada(s).":"No hay semanas registradas.";
+  }catch(e){
+    sel.innerHTML='<option value="">No se pudo cargar el historial</option>';
+    if(msg)msg.textContent="No fue posible consultar las semanas; intenta nuevamente.";
+  }
+}
+function gnHistorialNombre(id,nomina){
+  if(id===null||id===undefined||id==="")return "Sin asignar";
+  const p=nomina.find(x=>String(x.id)===String(id))||ROSTER.find(x=>String(x.id)===String(id))||
+    (window.GermaniaApoyoGuardia?window.GermaniaApoyoGuardia.buscar(id):null);
+  return p?nombreCompleto(p):"Sin identificar";
+}
+async function gnHistorialDatos(inicio){
+  if(!inicio||gnHistorialSemana(inicio)!==inicio)throw new Error("Selecciona un miércoles válido.");
+  const dias=gnWeek(inicio),prefijo="guardia-inscripcion:"+inicio+":";
+  const [revision,inscripciones,maqs,precedencia,nomina]=await Promise.all([
+    sGet("guardia-revision:"+inicio,null),
+    gnHistorialLeerPrefijo(prefijo),
+    gnTablaRolSemana("guardia-maq:",inicio),
+    sGet("precedencia:v1",null),
+    sGet(ROSTER_KEY,null)
+  ]);
+  const lista=Array.isArray(nomina)&&nomina.length?nomina:ROSTER;
+  const orden=((precedencia?.lista)||[]).map(x=>precBuscar(x.nombre)).filter(Boolean).map(x=>String(x.id));
+  const inscritos={};
+  for(const item of inscripciones){
+    const id=String(item.key||"").slice(prefijo.length);
+    for(const v of (Array.isArray(item.value)?item.value:[])){
+      const fecha=typeof v==="string"?v:v&&v.f;
+      if(dias.includes(fecha))(inscritos[fecha]||(inscritos[fecha]=[])).push(id);
+    }
+  }
+  return dias.map(fecha=>{
+    const r=revision?.noches?.[fecha];
+    let vol=[],maq=[],obac=[],fuente="Inscripción";
+    if(r&&Array.isArray(r.vol)){
+      vol=[...new Set(r.vol.map(String))];
+      maq=r.maq?[String(r.maq)]:[];
+      obac=r.obac?[String(r.obac)]:[];
+      fuente="Revisión "+String(revision.estado||"pendiente");
+    }else{
+      const voluntarios=[...new Set(inscritos[fecha]||[])],titulares=[...new Set(maqs[fecha]||[])];
+      const entradas=titulares.map(id=>({id,maquinista:true})).concat(
+        voluntarios.filter(id=>!titulares.includes(id)).map(id=>{
+          const p=lista.find(x=>String(x.id)===id);
+          return {id,habilitadoMaquinista:!!p&&p.activo!==false&&p.conductor===true};
+        })
+      );
+      const roles=window.GermaniaObac?.obacDeNoche({inscritos:entradas,orden});
+      vol=(roles?.voluntarios||[]).map(String);maq=(roles?.maquinistas||[]).map(String);
+      obac=roles?.obac?[String(roles.obac)]:[];
+    }
+    const valid=window.GermaniaGuardiaReglas?.evaluarDotacion({vol,maq,obac});
+    const nombre=id=>gnHistorialNombre(id,lista);
+    const apoyo=(id)=>revision?.noches?.[fecha]?.apoyoExterno?.id===id?
+      String(revision.noches[fecha].apoyoExterno.nombre||"Sin identificar"):nombre(id);
+    const falta=valid?.razones||[];
+    return {fecha,vol:vol.map(nombre),maq:maq.map(apoyo),obac:obac.map(nombre),
+      completa:valid?.completa===true,fuente,
+      motivo:valid?falta.join(" · "):"Dotación pendiente de verificar",
+      estadoRevision:revision?.estado||"sin revisión"};
+  });
+}
+function gnHistorialRenderDetalle(inicio,filas){
+  const box=document.getElementById("gnHistorialDetalle");
+  if(!box)return;
+  const cantidad=filas.filter(x=>x.completa).length;
+  box.hidden=false;
+  box.innerHTML='<h3>'+esc(gnHistorialEtiqueta(inicio))+'</h3>'+
+    '<p class="sub">Programación: '+cantidad+' de 7 noches con dotación completa. Esta vista no acredita asistencia ni reemplaza la revisión del Teniente Tercero.</p>'+
+    '<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Programación</th></tr></thead><tbody>'+
+    filas.map(g=>'<tr><td><b>'+esc(gnFmt(g.fecha))+'</b></td>'+
+      '<td>'+(g.vol.length?g.vol.map(x=>'<div><small>'+esc(x)+'</small></div>').join(""):'<small>Sin asignar</small>')+'</td>'+
+      '<td>'+esc(g.maq.join(" · ")||"Sin asignar")+'</td>'+
+      '<td>'+esc(g.obac.join(" · ")||"Sin asignar")+'</td>'+
+      '<td><b>'+esc(g.completa?"Completa":"Incompleta")+'</b><br><small>'+esc(g.fuente)+'</small>'+
+      (g.motivo?'<br><small>'+esc(g.motivo)+'</small>':"")+'</td></tr>').join("")+
+    '</tbody></table></div>';
+}
+async function gnHistorialMostrar(inicio){
+  const msg=document.getElementById("gnHistorialMsg"),sol=++gnHistorialSolicitud;
+  if(msg)msg.textContent="Consultando las siete noches…";
+  try{
+    const filas=await gnHistorialDatos(inicio);
+    if(sol!==gnHistorialSolicitud)return null;
+    gnHistorialInicioMostrado=inicio;gnHistorialFilas=filas;
+    gnHistorialRenderDetalle(inicio,filas);
+    if(msg)msg.textContent="Siete noches cargadas. No se modificó ningún registro.";
+    return filas;
+  }catch(e){if(sol===gnHistorialSolicitud&&msg)msg.textContent=e?.message||"No fue posible consultar la semana.";return null}
+}
+function gnHistorialPdfHeader(doc,titulo){
+  const ancho=doc.internal.pageSize.getWidth(),centro=ancho/2,margen=14,largo=centro-margen-17,derecha=centro+17;
+  for(const [dy,color] of [[0,[0,0,0]],[2,[190,0,0]],[4,[255,205,0]]]){
+    doc.setFillColor(...color);doc.rect(margen,5+dy,largo,2,"F");doc.rect(derecha,5+dy,largo,2,"F");
+  }
+  try{doc.addImage(LOGO_B64,"PNG",centro-7,3,14,15)}catch(e){}
+  doc.setTextColor(0);doc.setFont("helvetica","bold");doc.setFontSize(9);
+  doc.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",centro,23,{align:"center"});
+  doc.setFont("helvetica","normal");doc.setFontSize(8);
+  doc.text('Quinta Compañía de Bomberos "Germania" de Villarrica',centro,27,{align:"center"});
+  doc.text("Fundada el 5 de noviembre de 2025",centro,31,{align:"center"});
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(titulo,centro,38,{align:"center"});
+}
+async function gnHistorialDescargar(inicio){
+  const msg=document.getElementById("gnHistorialMsg");
+  try{
+    const filas=(gnHistorialInicioMostrado===inicio&&gnHistorialFilas)||await gnHistorialDatos(inicio);
+    if(!window.jspdf?.jsPDF)throw new Error("Generador PDF no disponible.");
+    const doc=new window.jspdf.jsPDF();
+    gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");
+    doc.setFont("helvetica","normal");doc.setFontSize(9);
+    doc.text(gnHistorialEtiqueta(inicio),105,44,{align:"center"});
+    if(!doc.autoTable)throw new Error("No se pudo cargar el módulo de tablas PDF.");
+    doc.autoTable({startY:51,margin:{top:49,bottom:18,left:11,right:11},
+      styles:{fontSize:7,cellPadding:2,overflow:"linebreak"},headStyles:{fillColor:[179,36,28]},
+      didDrawPage:({pageNumber})=>{if(pageNumber>1)gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");},
+      head:[["Fecha","Voluntarios","Maquinista","OBAC","Estado"]],
+      body:filas.map(g=>[g.fecha,g.vol.join("\n")||"Sin asignar",
+        g.maq.join("\n")||"Sin asignar",g.obac.join("\n")||"Sin asignar",
+        (g.completa?"Completa":"Incompleta")+"\n"+g.fuente])});
+    let y=doc.lastAutoTable.finalY+8;
+    if(y>272){doc.addPage();y=51;gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");}
+    doc.setFontSize(8);doc.setFont("helvetica","normal");
+    doc.text("Programación informativa. No certifica asistencia efectiva ni acreditación del Teniente Tercero.",12,y,{maxWidth:185});
+    doc.save("guardia_semana_"+inicio+"_a_"+gnAdd(inicio,6)+".pdf");
+    if(msg)msg.textContent="PDF semanal descargado. Incluye los siete días.";
+  }catch(e){if(msg)msg.textContent=e?.message||"No se pudo descargar PDF."}
+}
+function gnHistorialAbrirOdd(inicio){
+  if(!inicio){const msg=document.getElementById("gnHistorialMsg");if(msg)msg.textContent="Selecciona una semana.";return}
+  window.location.href="/odd-maestras?tipo=guardia&inicio="+encodeURIComponent(inicio);
+}
+on("gnHistorialSelect","change",()=>{
+  gnHistorialInicioMostrado="";gnHistorialFilas=null;
+  const box=document.getElementById("gnHistorialDetalle");if(box){box.hidden=true;box.innerHTML="";}
+});
+on("gnHistorialVer","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialMostrar(ini);});
+on("gnHistorialPdf","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialDescargar(ini);});
+on("gnHistorialOdd","click",()=>gnHistorialAbrirOdd(document.getElementById("gnHistorialSelect")?.value));
+on("gnTablaPdf","click",()=>{if(gnTablaSemanaVisible)gnHistorialDescargar(gnTablaSemanaVisible);else alert("Primero carga una semana de guardia.");});
+on("gnOddMaestras","click",()=>gnHistorialAbrirOdd(gnTablaSemanaVisible));
 
 async function renderGnLista(){
   const box=document.getElementById("gnLista"), res=document.getElementById("gnResumen");
@@ -5357,7 +5544,7 @@ function switchTabExtra(name){
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
       const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
-    renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error);
+    renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error); gnHistorialCargarOpciones().catch(console.error);
   }
   if(name==="config"){
     // Oficiales abre liviano: no consulta módulos secundarios hasta que el usuario los solicita.
