@@ -266,9 +266,10 @@ function cabecera(D){
   return '<div class="gr-quien"><img class="gr-foto" src="'+E(fotoVoluntario(m))+'" alt=""><div><strong>'+E(nombreCompleto(m))+'</strong><span>'+E(sem||"Sin semana abierta")+' · solo presencial</span></div></div>'+selectorSemana(D);
 }
 function pintarTarjeta(){
+  if(guardiaActiva()&&esMando(miembro())){GR.vista="gestion";$("panel-guardia").setAttribute("data-vista","gestion");if(GR.tab==="mis")GR.tab="info";}
   var box=$("gnRolCard"), D=GR.D; if(!box||!D) return;
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
-  var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+cabecera(D);
+  var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
   if(tabs.length>1) html+='<div class="gr-tabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" class="gr-tab'+(t===GR.tab?" on":"")+'" data-gr-tab="'+t+'" aria-selected="'+(t===GR.tab)+'"><span aria-hidden="true">'+GR_TABS[t][1]+'</span>'+GR_TABS[t][0]+'</button>'; }).join("")+'</div>';
   if(tabs.length) html+='<div id="grPanel"></div>';
@@ -917,7 +918,7 @@ document.addEventListener("click",function(ev){
 });
 if(typeof window.__mostrarPestana==="function"){
   var base=window.__mostrarPestana;
-  window.__mostrarPestana=function(nombre){ var r=base.apply(this,arguments); if(nombre==="guardia") grRender(true).catch(function(){}); if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="estado") misNochesCumplidas(true); return r; };
+  window.__mostrarPestana=function(nombre){ if(nombre==="guardia"&&esMando(miembro()))ponerVista("gestion");var r=base.apply(this,arguments); if(nombre==="guardia"){if(esMando(miembro()))ponerVista("gestion");grRender(true).catch(function(){});} if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="estado") misNochesCumplidas(true); return r; };
 }
 /* ---------- Estado actual en la tarjeta de identidad ---------- */
 async function pintarChipEstado(){
