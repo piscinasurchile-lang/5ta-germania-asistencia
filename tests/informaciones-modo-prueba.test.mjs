@@ -13,11 +13,11 @@ function app(){
   vm.runInContext(source,c);
   return window.GermaniaInformacionesPrueba;
 }
-test("modo prueba publica sin PIN solo en almacenamiento local",()=>{
+test("simulación interna para Oficiales sigue siendo local, sin clave",()=>{
  const d=app();
- const m=d.publicar({texto:"Prueba de comunicado",destino:"compania",autor:"Oficial prueba"});
- assert.equal(d.listar("compania").length,1);
- assert.equal(d.listar("oficiales").length,0);
+ const m=d.publicar({texto:"Prueba de comunicado",destino:"oficiales",autor:"Oficial prueba"});
+ assert.equal(d.listar("compania").length,0);
+ assert.equal(d.listar("oficiales").length,1);
  assert.equal(m.texto,"Prueba de comunicado");
  assert.ok(m.id.startsWith("demo-"));
  assert.equal(Date.parse(m.vence)-Date.parse(m.en),172800000);
@@ -43,8 +43,8 @@ test("vencimiento de prueba oculta aviso en la hora exacta",()=>{
  assert.equal(d.retirar(a.id),true);
  assert.equal(d.listar("compania").length,0);
 });
-test("la interfaz de prueba no solicita clave ni escribe a Neon",()=>{
- assert.match(html,/SIMULACIÓN LOCAL SIN CLAVE/);
+test("la interfaz de prueba no solicita clave; generales compartidos e internos locales",()=>{
+ assert.match(html,/PRUEBA SIN CLAVE/);
  assert.match(html,/germania-informaciones-prueba\.js\?v=/);
  assert.doesNotMatch(html,/id="informacionesPin"/);
  assert.doesNotMatch(html,/id="informacionesEntrar"/);
@@ -52,7 +52,8 @@ test("la interfaz de prueba no solicita clave ni escribe a Neon",()=>{
  const end=roles.indexOf("/* ---------- Datos de la semana ---------- */",start);
  const ui=roles.slice(start,end);
  assert.match(ui,/NOV_PRUEBA\.publicar/);
- assert.match(ui,/NOV_PRUEBA\.confirmar/);
- assert.match(ui,/NOV_PRUEBA\.retirar/);
+ assert.match(ui,/fetch\("\/api\/informaciones\/prueba"/);
+ assert.match(ui,/method:"PATCH"/);
+ assert.match(ui,/NOV_PRUEBA\.listar\("oficiales"\)/);
  assert.doesNotMatch(ui,/fetch\("\/api\/informaciones"/);
 });
