@@ -42,8 +42,11 @@ export async function GET(request){
     await ensureSchema(sql);
     const {value}=await readState(sql,REGISTRY_KEY);
     const encontrado=buscarDispositivo(value,token);
-    return encontrado?okRegistro(encontrado.id):Response.json(
+    if(!encontrado)return Response.json(
       {registrado:false,motivo:"registro_no_encontrado"},{headers:HEADERS});
+    const response=okRegistro(encontrado.id);
+    response.headers.append("Set-Cookie",MARKER_COOKIE+"=1; Path=/; Max-Age=31536000; Secure; SameSite=Lax");
+    return response;
   }catch(e){
     console.error("b5 device GET",e);
     return fail("database_error",503);
