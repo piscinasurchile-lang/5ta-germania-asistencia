@@ -2710,11 +2710,28 @@ on("gnMes","click",()=>{
   document.getElementById("gnHasta").value=new Date(h.getFullYear(),h.getMonth()+1,0).toISOString().slice(0,10);
   renderGnLista();
 });
+function gnSemanaDesde(fecha){
+ const d=new Date(fecha+"T12:00:00");
+ if(Number.isNaN(d.getTime()))return null;
+ d.setDate(d.getDate()-(d.getDay()+4)%7);
+ const iso=x=>[x.getFullYear(),String(x.getMonth()+1).padStart(2,"0"),String(x.getDate()).padStart(2,"0")].join("-");
+ const fin=new Date(d);fin.setDate(fin.getDate()+6);
+ return {inicio:iso(d),fin:iso(fin)};
+}
+function gnEtiquetaSemana(inicio,fin){
+ const a=new Date(inicio+"T12:00:00"),z=new Date(fin+"T12:00:00");
+ const mes=x=>x.toLocaleDateString("es-CL",{month:"long"});
+ return a.getMonth()===z.getMonth()&&a.getFullYear()===z.getFullYear()
+ ? "Semana del "+a.getDate()+" al "+z.getDate()+" de "+mes(z)+" de "+z.getFullYear()
+ : "Semana del "+a.getDate()+" de "+mes(a)+" al "+z.getDate()+" de "+mes(z)+" de "+z.getFullYear();
+}
 on("gnHistorialVer","click",()=>{
  const fecha=document.getElementById("gnHistorialSelect")?.value;
  if(!fecha){alert("Selecciona una guardia registrada.");return;}
- document.getElementById("gnDesde").value=fecha;
- document.getElementById("gnHasta").value=fecha;
+ const semana=gnSemanaDesde(fecha);
+ if(!semana)return;
+ document.getElementById("gnDesde").value=semana.inicio;
+ document.getElementById("gnHasta").value=semana.fin;
  renderGnLista();
  document.getElementById("gnLista")?.scrollIntoView({behavior:"smooth",block:"start"});
 });
@@ -2752,9 +2769,10 @@ async function renderGnLista(){
   const selector=document.getElementById("gnHistorialSelect");
   if(selector){
     const previo=selector.value;
-    selector.innerHTML='<option value="">Selecciona una guardia registrada…</option>'+lista.map(g=>'<option value="'+esc(g.fechaIng)+'">'+esc(fmtDateLong(g.fechaIng))+'</option>').join("");
-    if(lista.some(g=>g.fechaIng===previo))selector.value=previo;
-    if(!lista.length)selector.innerHTML='<option value="">No hay guardias registradas</option>';
+    const semanas=[...new Set(lista.map(g=>gnSemanaDesde(g.fechaIng)?.inicio).filter(Boolean))].sort();
+    selector.innerHTML='<option value="">Selecciona una semana registrada…</option>'+semanas.map(inicio=>{const semana=gnSemanaDesde(inicio);return '<option value="'+esc(inicio)+'">'+esc(gnEtiquetaSemana(semana.inicio,semana.fin))+'</option>';}).join("");
+    if(semanas.includes(previo))selector.value=previo;
+    if(!semanas.length)selector.innerHTML='<option value="">No hay semanas registradas</option>';
   }
   const {resumen,pares,revisiones}=verificacion, turnos=resumen.turnos;
   // La programación semanal no equivale a una guardia registrada ni acreditada.
