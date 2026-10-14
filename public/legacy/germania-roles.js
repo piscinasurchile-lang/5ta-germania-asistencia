@@ -85,6 +85,11 @@ function novSound(lista){
   try{var o=novAudio.createOscillator(),g=novAudio.createGain(),t=novAudio.currentTime;o.frequency.value=660;g.gain.setValueAtTime(0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.connect(g);g.connect(novAudio.destination);o.start(t);o.stop(t+0.3);}catch(e){}
 }
 function novReadKey(id){ return "novedad-lecturas:"+id; }
+function novVigente(n){
+  const creado=Date.parse(n&&n.en||"");
+  const vence=n&&n.vence?Date.parse(n.vence):creado+48*60*60*1000;
+  return Number.isFinite(creado)&&Number.isFinite(vence)&&Date.now()<vence;
+}
 async function renderNovedades(){
   var box=$("novedadesLista"); if(!box||novRendering) return;
   novRendering=true;
@@ -92,7 +97,7 @@ async function renderNovedades(){
   try{
     var lista=await sGet(NOV_KEY,[]);
     if(!Array.isArray(lista)) lista=[];
-    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string";}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); }).slice(0,NOV_MAX);
+    lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); }).slice(0,NOV_MAX);
     var lecturas=await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
     if((miembro()?String(miembro().id):"")!==who) return;
     novVisible=lista; novSound(lista);
@@ -103,7 +108,9 @@ async function renderNovedades(){
       var f=n.en?new Date(n.en).toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"}):"";
       var control=who?'<button type="button" class="btn small" data-nov-read="'+E(n.id)+'"'+(leido?' disabled':'')+'>'+(leido?'✓ Lectura confirmada':'✓ Leído')+'</button>':'<span>Elige tu nombre para confirmar lectura.</span>';
       var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
-      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+(of?'<button type="button" class="ha-del" data-nov-del="'+E(n.id)+'" aria-label="Quitar novedad">×</button>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+      var venc=n.vence?new Date(n.vence):new Date(Date.parse(n.en)+48*60*60*1000);
+      var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+(of?'<button type="button" class="ha-del" data-nov-del="'+E(n.id)+'" aria-label="Quitar información">×</button>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
     }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
   }catch(e){
     if(!box.children.length) box.textContent="No se pudieron cargar las novedades. Revisa tu conexión.";
@@ -121,20 +128,75 @@ async function confirmarLectura(id,button){
   finally{delete novReadPending[id];}
 }
 async function publicarNovedad(){
-  var inp=$("novedadTexto"), msg=$("novedadMsg"), texto=inp.value.trim();
+  var inp=$("novedadTexto"),msg=$("novedadMsg"),b=$("novedadAgregar");
+  var texto=inp?.value?.trim()||"",destino=$("informacionesDestino")?.value||"compania";
+  var venceTexto=$("informacionesVence")?.value||"";
+  if(!msg||!inp)return;
   msg.classList.remove("err");
-  if(!texto){ msg.textContent="Escribe la novedad."; msg.classList.add("err"); return; }
-  var m=miembro();
+  if(!texto){msg.textContent="Escribe una información antes de publicar.";msg.classList.add("err");return;}
+  if(!esOficial(miembro())&&!esMando(miembro())){msg.textContent="Solo oficiales pueden publicar.";msg.classList.add("err");return;}
+  var vence=null;
+  if(venceTexto){
+    var fin=new Date(venceTexto);
+    if(!Number.isFinite(fin.getTime())||fin.getTime()<=Date.now()){
+      msg.textContent="La fecha y hora de vencimiento deben ser futuras.";msg.classList.add("err");return;
+    }
+    vence=fin.toISOString();
+  }
+  if(b)b.disabled=true;
   try{
-    await sAddToList(NOV_KEY,{id:uid(),texto:texto.slice(0,2000),en:new Date().toISOString(),autor:m?corto(m):""},{uniqueBy:"id"});
-    inp.value=""; msg.textContent="Publicada."; await renderNovedades();
-  }catch(e){ msg.textContent="No se pudo publicar. Inténtalo de nuevo."; msg.classList.add("err"); }
+    var response=await fetch("/api/informaciones",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({texto,destino,vence})});
+    if(!response.ok){
+      if(response.status===403)throw new Error("Inicia sesión con la clave institucional de Oficialidad para publicar.");
+      throw new Error("No se pudo publicar la información. Inténtalo de nuevo.");
+    }
+    inp.value="";if($("informacionesVence"))$("informacionesVence").value="";
+    msg.textContent=destino==="oficiales"?"Información publicada solo para oficiales.":"Información publicada para los voluntarios.";
+    await renderNovedades();
+    await renderInformacionesOficiales();
+  }catch(e){msg.textContent=e.message||"No se pudo publicar.";msg.classList.add("err")}
+  finally{if(b)b.disabled=false;}
+}
+async function renderInformacionesOficiales(){
+  var box=$("informacionesPrivadas");if(!box)return;
+  var m=miembro(),visible=esOficial(m)||esMando(m);
+  box.hidden=!visible;
+  if(!visible){box.innerHTML="";return}
+  box.textContent="Consultando avisos entre oficiales…";
+  try{
+    var r=await fetch("/api/informaciones",{cache:"no-store"});
+    if(r.status===403){box.textContent="Avisos exclusivos: inicia sesión institucional para leerlos.";return}
+    if(!r.ok)throw new Error("No fue posible consultar los avisos internos.");
+    var data=await r.json(),items=Array.isArray(data.items)?data.items:[];
+    box.innerHTML=items.length?items.map(function(n){
+      var exp=new Date(n.vence||Date.parse(n.en)+48*60*60*1000);
+      var fecha=Number.isFinite(exp.getTime())?exp.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
+      return '<div class="ha-item"><strong>Solo oficiales</strong><p>'+E(n.texto)+'</p><small>Vence: '+E(fecha)+'</small></div>';
+    }).join(""):'<div class="ha-vacia">Sin informaciones internas vigentes.</div>';
+  }catch(e){box.textContent=e.message||"No fue posible cargar los avisos.";}
+}
+async function iniciarSesionInformaciones(){
+  var inp=$("informacionesPin"),msg=$("informacionesSesionMsg"),boton=$("informacionesEntrar");
+  if(!inp||!msg)return;
+  if(!esOficial(miembro())&&!esMando(miembro())){msg.textContent="Solo oficiales pueden iniciar sesión aquí.";return}
+  var pin=inp.value.trim();
+  if(!pin){msg.textContent="Ingresa la clave institucional.";return}
+  if(boton)boton.disabled=true;
+  try{
+    var r=await fetch("/api/auth/officiality",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});
+    if(!r.ok)throw new Error("No se pudo activar la sesión. Revisa la clave.");
+    inp.value="";msg.textContent="Sesión institucional activa. Puedes publicar información.";
+    await renderInformacionesOficiales();
+  }catch(e){msg.textContent=e.message||"No se pudo iniciar sesión.";}
+  finally{if(boton)boton.disabled=false}
 }
 async function quitarNovedad(id){
   if(!confirm("¿Quitar esta novedad?")) return;
   try{ var l=await sGet(NOV_KEY,[]); await sSet(NOV_KEY,(Array.isArray(l)?l:[]).filter(function(n){ return n.id!==id; })); await renderNovedades(); }catch(e){}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
+if($("informacionesEntrar")) $("informacionesEntrar").addEventListener("click",iniciarSesionInformaciones);
 if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var b=ev.target.closest("[data-nov-del]"); if(b) quitarNovedad(b.dataset.novDel); var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
 
 /* ---------- Datos de la semana ---------- */
@@ -1024,7 +1086,7 @@ document.addEventListener("click",function(ev){
 });
 if(typeof window.__mostrarPestana==="function"){
   var base=window.__mostrarPestana;
-  window.__mostrarPestana=function(nombre){ if(nombre==="guardia"&&esMando(miembro()))ponerVista("gestion");var r=base.apply(this,arguments); if(nombre==="guardia"){if(esMando(miembro()))ponerVista("gestion");grRender(true).catch(function(){});} if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="estado") misNochesCumplidas(true); return r; };
+  window.__mostrarPestana=function(nombre){ if(nombre==="guardia"&&esMando(miembro()))ponerVista("gestion");var r=base.apply(this,arguments); if(nombre==="guardia"){if(esMando(miembro()))ponerVista("gestion");grRender(true).catch(function(){});} if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="config"){ renderInformacionesOficiales(); } if(nombre==="estado") misNochesCumplidas(true); return r; };
 }
 /* ---------- Estado actual en la tarjeta de identidad ---------- */
 async function pintarChipEstado(){
@@ -1064,7 +1126,7 @@ function vigilarIdentidad(){
   var v=$("miVoluntario"); var id=v?v.value:"";
   if(id===ultimo) return; ultimo=id;
   ocultarSelector(false);
-  aplicarRol(); renderNovedades(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
+  aplicarRol(); renderNovedades(); renderInformacionesOficiales(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
   grRender(true).catch(function(){});
 }
 setInterval(vigilarIdentidad,700);
