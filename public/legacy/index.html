@@ -375,12 +375,7 @@
       <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
         <div class="ha-main">
           <span class="ha-ico" aria-hidden="true">✔</span>
-          <div><strong>SIN EMERGENCIAS</strong><span>Novedades de la Compañía</span></div>
-        </div>
-        <div id="novedadesLista" class="ha-lista"></div>
-        <div id="novedadesAdmin" class="ha-admin" hidden>
-          <div class="ha-fila"><textarea id="novedadTexto" maxlength="2000" rows="4" placeholder="Escribir o pegar un aviso…" aria-label="Nueva novedad para la Compañía"></textarea><button type="button" class="btn small" id="novedadAgregar">Publicar</button></div>
-          <div class="status-msg" id="novedadMsg"></div>
+          <div><strong>SIN EMERGENCIAS</strong><span>Los comunicados se consultan en Más → Informaciones</span></div>
         </div>
       </section>
 
@@ -783,11 +778,12 @@
   <!-- CONFIGURACIÓN -->
   <div class="panel" id="panel-config">
 
-    <div class="card solo-oficiales solo-mando" id="oficialesAccesoGuardia">
-      <h2>Guardias nocturnas</h2>
-      <p class="sub">Inscripciones, dotaciones, OBAC, maquinistas, reemplazos y ODD.</p>
-      <button type="button" class="btn" id="btnOficialesGuardia">Gestionar Guardias</button>
-    </div>
+    <section class="card" id="informacionesCard" aria-labelledby="informacionesTitulo">
+      <h2 id="informacionesTitulo">Informaciones</h2>
+      <p class="sub">Avisos de la oficialidad dirigidos a la Compañía. Lee aquí los comunicados, como los de Comandancia.</p>
+      <div id="novedadesLista" class="ha-lista" aria-live="polite"><p class="sub">Consultando informaciones…</p></div>
+      <div id="informacionesPrivadas" class="ha-lista" hidden aria-live="polite"></div>
+    </section>
 
     <div class="card" id="configCandado">
       <h2>Sección restringida</h2>
@@ -815,6 +811,23 @@
       </div>
     </div>
 
+    <section class="card solo-oficiales" id="informacionesPublicarCard">
+      <h2>Avisos de Oficiales</h2>
+      <p class="sub">Redacta la información y publícala solo cuando esté lista. Los avisos para oficiales requieren acceso institucional válido.</p>
+      <div id="novedadesAdmin" class="ha-admin" hidden>
+        <div class="field"><label for="informacionesDestino">Destinatarios</label>
+          <select id="informacionesDestino"><option value="compania">Todos los voluntarios</option><option value="oficiales">Solo oficiales</option></select>
+        </div>
+        <div class="field"><label for="novedadTexto">Información</label>
+          <textarea id="novedadTexto" maxlength="2000" rows="4" placeholder="Escribe una información…" aria-label="Información a publicar"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-start;margin-top:10px">
+          <button type="button" class="btn small" id="novedadAgregar">Publicar información</button>
+        </div>
+        <div class="status-msg" id="novedadMsg" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+
     <div class="card" id="buscadorPersona">
       <label for="buscadorInput" style="font-weight:600;">Buscar persona</label>
       <input type="text" id="buscadorInput" list="buscadorList" placeholder="Escribe un nombre o clave…" autocomplete="off">
@@ -834,7 +847,7 @@
         <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
         <div class="of-grupo-botones" aria-label="Guardia y ODD">
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
-          <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
+          <button class="subtab" type="button" id="btnOficialesGuardia">Gestionar Guardias</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
         </div>
