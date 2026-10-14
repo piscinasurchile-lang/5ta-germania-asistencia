@@ -74,3 +74,12 @@
   script.onerror=function(){console.error("No se pudo cargar el resumen de asistencia.");};
   document.body.appendChild(script);
 })();
+
+// Selector de perfil de dispositivo B-5 (independiente de la nómina).
+(function(){
+  if(!document.getElementById("miVoluntario"))return;
+  var script=document.createElement("script");
+  script.src="/legacy/germania-tablet-b5-selector.js?v=20261014a";
+  script.onerror=function(){console.error("No se pudo cargar el selector de Tablet B-5.");};
+  document.body.appendChild(script);
+})();
