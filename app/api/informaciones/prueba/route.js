@@ -13,7 +13,6 @@ export const dynamic="force-dynamic";
 const KEY="informaciones-prueba:v1";
 const LECTURAS="informaciones-prueba-lecturas:";
 const LIMIT_PER_HOUR=12;
-const MAX_RECORDS=100;
 const CACHE={"Cache-Control":"no-store"};
 const err=(code,status)=>Response.json({error:code},{status,headers:CACHE});
 function sameOrigin(request){
@@ -33,19 +32,29 @@ function publicMessage(entry,reads){
   return {id:entry.id,texto:entry.texto,en:entry.en,vence:entry.vence,
     autor:entry.autor,destino:"compania",lecturas:Array.isArray(reads)?reads.map(r=>({voluntarioId:String(r.voluntarioId),en:r.en})):[]};
 }
-export async function GET(){
+export async function GET(request){
+  const params=new URL(request?.url||"https://germania.local/api/informaciones/prueba").searchParams;
+  const historial=params.get("historial")==="1";
+  const offsetRaw=params.get("offset")||"0";
+  const offset=Number(offsetRaw);
+  if(!Number.isSafeInteger(offset)||offset<0||offset>100000)return err("offset_invalido",400);
   const sql=sqlClient();if(!sql)return err("database_not_configured",503);
   try{
     await ensureSchema(sql);
     const current=await readState(sql,KEY);
-    const items=(Array.isArray(current.value)?current.value:[]).filter(x=>avisoEstaVigente(x))
-      .slice(-30).reverse();
+    const todos=(Array.isArray(current.value)?current.value:[])
+      .filter(x=>x&&typeof x.id==="string"&&typeof x.texto==="string");
+    const items=historial
+      ?todos.slice().reverse().slice(offset,offset+30)
+      :todos.filter(x=>avisoEstaVigente(x)).slice(-30).reverse();
     const reads=await Promise.all(items.map(async n=>{
       const r=await readState(sql,LECTURAS+n.id);
       return r.value;
     }));
-    return Response.json({items:items.map((n,i)=>publicMessage(n,reads[i])),modo:"prueba_compartida"},
-      {headers:CACHE});
+    return Response.json({items:items.map((n,i)=>publicMessage(n,reads[i])),
+      nextOffset:historial&&offset+items.length<todos.length?offset+items.length:null,
+      previousOffset:historial&&offset>0?Math.max(0,offset-30):null,
+      modo:"prueba_compartida"},{headers:CACHE});
   }catch(e){console.error("informaciones prueba GET",e);return err("database_error",500)}
 }
 export async function POST(request){
@@ -70,7 +79,8 @@ export async function POST(request){
       const list=Array.isArray(v.value)?v.value:[];
       const recientes=list.filter(n=>Date.parse(n?.en||"")>now-60*60*1000);
       if(recientes.length>=LIMIT_PER_HOUR)return err("limite_de_pruebas_alcanzado",429);
-      const next=list.slice(-(MAX_RECORDS-1)).concat(item);
+      // No recortar avisos antiguos: son consultables en Historial, incluso después de vencer.
+      const next=list.concat(item);
       const r=await writeState(sql,KEY,next,{ifVersion:v.version});
       if(r.ok)return Response.json({ok:true,id:item.id,modo:"prueba_compartida"},{headers:CACHE});
     }
