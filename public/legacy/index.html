@@ -668,9 +668,14 @@
     </div>
 
     <div class="card solo-oficiales solo-gestion">
-      <h2>Informes de guardia</h2>
-      <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
-      <div class="gn-actions"><button class="btn gold" id="gnPdfSemanal">Informe del período</button><button class="btn gold" id="gnPdfEstad">Informe estadístico</button><button class="btn" id="gnInfo">Infografía de guardias</button></div>
+      <h2>Historial de guardias</h2>
+      <p class="sub">Selecciona una guardia registrada, desde la más antigua hasta la más reciente. La programación no equivale a asistencia acreditada.</p>
+      <div class="field-row"><div class="field" style="flex:1 1 220px"><label for="gnHistorialSelect">Guardias realizadas / registradas</label><select id="gnHistorialSelect"><option value="">Cargando guardias registradas…</option></select></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn small secondary" type="button" id="gnHistorialVer">Ver detalle</button>
+        <button class="btn small secondary" type="button" id="gnHistorialPdf">Descargar PDF</button>
+      </div>
+      <div style="display:none" aria-hidden="true"><input type="date" id="gnDesde"><input type="date" id="gnHasta"><button id="gnSemana">Última semana</button><button id="gnMes">Este mes</button><button id="gnPdfSemanal">Informe del período</button><button id="gnPdfEstad">Informe estadístico</button><button id="gnInfo">Infografía de guardias</button></div>
       <div class="summary-row" id="gnResumen" style="margin-top:16px"></div><div id="gnLista"></div>
     </div>
   </div>
