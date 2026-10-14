@@ -157,6 +157,10 @@ export default function CapturaB5(){
       const defecto=tipo==="servicio"?"no":"ausente";
       const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
       const datos={...form,records};
+      if(tipo==="lista"&&form.tipo==="Otro"){
+        if(!String(form.tipoPersonalizado||"").trim())throw new Error("Indica qué citación se está registrando.");
+        datos.tipo=String(form.tipoPersonalizado).trim();
+      }
       const item=await guardarBorrador(tipo,datos);
       guardadoRef.current=true;
       await borrarEdicion(tipo);
@@ -171,7 +175,8 @@ export default function CapturaB5(){
   const bloqueados=cola.filter(i=>i.estado==="revision");
   const confirmados=cola.filter(i=>i.estado==="sincronizado");
   const etiqueta=conexion==="online"?
-    (pendientes?"EN LÍNEA · Sincronizando registros pendientes":"EN LÍNEA · Neon disponible"):
+    (bloqueados.length&&pendientes===bloqueados.length?"EN LÍNEA · Registros para revisión":
+      pendientes?"EN LÍNEA · Sincronizando registros pendientes":"EN LÍNEA · Neon disponible"):
     conexion==="offline"?"SIN CONEXIÓN · Tomando datos en esta tablet":"COMPROBANDO LA CONEXIÓN…";
   return (
     <main className="capturaB5">
@@ -197,7 +202,8 @@ export default function CapturaB5(){
           {tipo==="servicio"?<>
             <label>Fecha<input type="date" value={form.svFecha||""} onChange={e=>actualizarCampo("svFecha",e.target.value)}/></label>
             <label>Tipo de actividad
-              <select value={form.svTipoAct||"Emergencia"} onChange={e=>actualizarCampo("svTipoAct",e.target.value)}>
+              <select value={form.svTipoAct||"Emergencia"} onChange={e=>setForm(d=>({...d,svTipoAct:e.target.value,
+                  registrarAsistencia:e.target.value==="Emergencia"||e.target.value==="Acto de servicio"}))}>
                 {SERVICIOS.map(x=><option key={x}>{x}</option>)}
               </select>
             </label>
