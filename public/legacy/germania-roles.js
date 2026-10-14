@@ -114,10 +114,12 @@ async function renderNovedades(){
   novRendering=true;
   var m=miembro(), who=m?String(m.id):"";
   try{
-    var lista=NOV_PRUEBA?NOV_PRUEBA.listar("compania"):await sGet(NOV_KEY,[]);
+    var response=await fetch("/api/informaciones/prueba",{cache:"no-store"});
+    if(!response.ok)throw new Error("No se pudieron consultar los avisos compartidos");
+    var remoto=await response.json(),lista=Array.isArray(remoto.items)?remoto.items:[];
     if(!Array.isArray(lista)) lista=[];
     lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
-    var lecturas=NOV_PRUEBA?lista.map(n=>n.lecturas||[]):await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
+    var lecturas=lista.map(n=>Array.isArray(n.lecturas)?n.lecturas:[]);
     if((miembro()?String(miembro().id):"")!==who) return;
     novVisible=lista; novSound(lista); novProgramarVencimiento(lista,false);
     var of=esOficial(m)||esMando(m);
@@ -129,10 +131,10 @@ async function renderNovedades(){
       var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
       var venc=n.vence?new Date(n.vence):new Date(Date.parse(n.en)+48*60*60*1000);
       var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
-      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+(of?'<button type="button" class="ha-del" data-nov-del="'+E(n.id)+'" aria-label="Quitar información">×</button>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
     }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
   }catch(e){
-    if(!box.children.length) box.textContent="No se pudieron cargar las novedades. Revisa tu conexión.";
+    box.innerHTML='<div class="ha-vacia">No fue posible sincronizar los avisos. Comprueba la conexión.</div>';
   }finally{novRendering=false;}
 }
 async function confirmarLectura(id,button){
@@ -140,8 +142,10 @@ async function confirmarLectura(id,button){
   if(!m||novReadPending[id]||!novVisible.some(function(n){return n.id===id;})) return;
   novReadPending[id]=true; button.disabled=true; button.textContent="Guardando…";
   try{
-    if(NOV_PRUEBA)NOV_PRUEBA.confirmar(id,String(m.id));
-    else await sAddToList(novReadKey(id),{voluntarioId:String(m.id),en:new Date().toISOString()},{uniqueBy:"voluntarioId"});
+    const resp=await fetch("/api/informaciones/prueba",{method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id,voluntarioId:String(m.id)})});
+    if(!resp.ok)throw new Error("No se pudo guardar la lectura.");
     button.textContent="✓ Lectura confirmada";
     await renderNovedades();
   }catch(e){button.disabled=false;button.textContent="Reintentar confirmar lectura";}
@@ -165,13 +169,27 @@ async function publicarNovedad(){
   }
   if(b)b.disabled=true;
   try{
-    if(!NOV_PRUEBA)throw new Error("Este módulo está disponible solo en simulación sin clave.");
     const m=miembro();
-    NOV_PRUEBA.publicar({texto,destino,vence,autor:m?corto(m):"Oficial de prueba"});
+    if(destino==="oficiales"){
+      if(!NOV_PRUEBA)throw new Error("Simulación interna no disponible");
+      NOV_PRUEBA.publicar({texto,destino,vence,autor:m?corto(m):"Oficial de prueba"});
+      msg.textContent="Mensaje interno SIMULADO en este teléfono; no se envía a otros oficiales.";
+      await renderInformacionesOficiales();
+    }else{
+      const respuesta=await fetch("/api/informaciones/prueba",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({texto,destino:"compania",vence,emisorId:String(m.id)})});
+      if(!respuesta.ok){
+        const e=await respuesta.json().catch(()=>({}));
+        if(e.error==="limite_de_pruebas_alcanzado")throw new Error("Se alcanzó el límite de avisos de prueba por hora.");
+        if(e.error==="vigencia_maxima_48_horas")throw new Error("Durante la prueba los avisos duran como máximo 48 horas.");
+        if(e.error==="emisor_no_oficial")throw new Error("Solo una ficha de Oficialidad puede publicar avisos generales.");
+        throw new Error("No se pudo compartir el aviso. Verifica la conexión y reintenta.");
+      }
+      msg.textContent="Aviso de PRUEBA enviado a Germania. Aparecerá en los teléfonos al sincronizar.";
+      await renderNovedades();
+    }
     inp.value="";if($("informacionesVence"))$("informacionesVence").value="";
-    msg.textContent="Simulación guardada en este dispositivo. NO se ha enviado a otros teléfonos.";
-    await renderNovedades();
-    await renderInformacionesOficiales();
   }catch(e){msg.textContent=e.message||"No se pudo simular.";msg.classList.add("err")}
   finally{if(b)b.disabled=false;}
 }
@@ -192,16 +210,8 @@ async function renderInformacionesOficiales(){
     }).join(""):'<div class="ha-vacia">Sin informaciones internas vigentes.</div>';
   }catch(e){box.textContent=e.message||"No fue posible cargar los avisos.";}
 }
-async function quitarNovedad(id){
-  if(!confirm("¿Quitar esta información de todos los voluntarios?"))return;
-  if(!esOficial(miembro())&&!esMando(miembro()))return;
-  try{
-    if(!NOV_PRUEBA||!NOV_PRUEBA.retirar(id))throw new Error("No se encontró el aviso de prueba.");
-    await renderNovedades();
-  }catch(e){alert(e.message||"No se pudo retirar la información.");}
-}
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
-if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var b=ev.target.closest("[data-nov-del]"); if(b) quitarNovedad(b.dataset.novDel); var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
+if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
 
 /* ---------- Datos de la semana ---------- */
 async function leerPrefijo(pref){
