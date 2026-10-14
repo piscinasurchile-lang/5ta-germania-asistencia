@@ -20,7 +20,7 @@ test("selecciones permanecen visibles mientras esperan revisión",()=>{
 
 test("franja usa guardias aprobadas, fecha local y cargo real; no inventa asistentes",()=>{
   assert.match(roles,/misNochesDatos\(String\(m\.id\),forzar\)/);
-  assert.match(roles,/GermaniaGuardiaFranja\.franjaAsignada\(entradas,Date\.now\(\)\)/);
+  assert.match(roles,/entradas\.filter\(function\(e\)\{return e\.finMs>Date\.now\(\);\}\)/);
   assert.match(roles,/finMs:finNoche\(e\.f\)/);
   assert.match(roles,/ROL_NOCHE\[e\.rol\]/);
   const inicio=roles.indexOf("async function misNochesInicio(");

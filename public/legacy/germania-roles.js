@@ -217,7 +217,7 @@ async function cargarD(m,p,abierto,lista){
 async function grRender(forzar){
   var box=$("gnRolCard"); if(!box) return;
   var m=miembro();
-  if(!m){ box.innerHTML='<h2>Mi guardia nocturna</h2><p class="sub">Primero elige tu nombre en <b>Inicio</b>.</p>'; var ir=$("inicioRoles"); if(ir) ir.innerHTML=""; return; }
+  if(!m){ box.innerHTML='<h2>Gestión de guardia</h2><p class="sub">Primero elige tu nombre en <b>Inicio</b>.</p>'; var ir=$("inicioRoles"); if(ir) ir.innerHTML=""; return; }
   if(GR.cargando&&!forzar) return;
   GR.cargando=true;
   try{
@@ -790,7 +790,7 @@ async function misNochesInicio(forzar){
   var entradas=d.prox.map(function(e){
     return Object.assign({},e,{finMs:finNoche(e.f)});
   });
-  var activas=window.GermaniaGuardiaFranja.franjaAsignada(entradas,Date.now());
+  var activas=entradas.filter(function(e){return e.finMs>Date.now();});
   if(!activas.length){ box.innerHTML=""; return; }
   var icono='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 10h18M8 14h3M14 14h3M8 18h3"/></svg>';
   box.innerHTML='<section class="card gn-franja" aria-label="Mis próximas guardias">'
