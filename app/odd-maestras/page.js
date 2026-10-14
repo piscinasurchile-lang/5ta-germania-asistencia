@@ -70,9 +70,9 @@ export default function Page(){
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
    const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
-   const institutionalHead=()=>{d.setFillColor(0,0,0);d.rect(20,10,68,3,"F");d.rect(122,10,68,3,"F");d.setFillColor(190,0,0);d.rect(20,13,68,3,"F");d.rect(122,13,68,3,"F");d.setFillColor(255,205,0);d.rect(20,16,68,3,"F");d.rect(122,16,68,3,"F");try{d.addImage(LOGO_B64,"PNG",95.5,7,19,24)}catch{}};
+   const institutionalHead=()=>{d.setFillColor(0,0,0);d.rect(20,8,68,2,"F");d.rect(122,8,68,2,"F");d.setFillColor(190,0,0);d.rect(20,10,68,2,"F");d.rect(122,10,68,2,"F");d.setFillColor(255,205,0);d.rect(20,12,68,2,"F");d.rect(122,12,68,2,"F");try{d.addImage(LOGO_B64,"PNG",97.5,4,15,20)}catch{}d.setTextColor(0);d.setFont("helvetica","bold");d.setFontSize(9);d.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",105,29,{align:"center",maxWidth:185});};
    institutionalHead(); y=35;
-   d.setFont("helvetica","bold"); d.setFontSize(12); d.text('Quinta Compañía de Bomberos "Germania" de Villarrica',105,y,{align:"center"}); y+=6;
+   d.setFont("helvetica","bold"); d.setFontSize(10); d.text('Quinta Compañía de Bomberos "Germania" de Villarrica',105,y,{align:"center"}); y+=6;
    d.setFont("helvetica","normal"); d.setFontSize(9); d.text("Fundada el 5 de noviembre de 2025",105,y,{align:"center"}); y+=5;
    d.text("Cuartel General · Valentín Letelier #630 · Villarrica · germaniacbv@gmail.com",105,y,{align:"center"}); y+=9;
    y+=4;
