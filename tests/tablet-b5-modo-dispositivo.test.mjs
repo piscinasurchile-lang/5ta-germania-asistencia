@@ -67,6 +67,15 @@ test("La selección de un voluntario no cambia el modo de la tablet",()=>{
   assert.equal(x.estado.has("germania:modo-dispositivo:v1"),false);
   assert.equal(x.navegado.length,0);
 });
+test("la imagen pública real del B-5 se muestra por defecto y preserva la personalización local",()=>{
+  const foto=fs.readFileSync(new URL("../public/legacy/carro-b5.webp",import.meta.url));
+  assert.equal(foto.toString("ascii",0,4),"RIFF");
+  assert.equal(foto.toString("ascii",8,12),"WEBP");
+  assert.ok(foto.length>4000 && foto.length<50000);
+  assert.match(inicio,/foto \|\| "\/legacy\/carro-b5\.webp"/);
+  assert.match(inicio,/setFoto\(localStorage\.getItem\(FOTO_KEY\)\)/);
+});
+
 test("Pantalla B-5 ofrece solo los tres destinos existentes",()=>{
   assert.match(inicio,/id:"servicio"/);
   assert.match(inicio,/id:"lista"/);
