@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
+import {guardarNómina,listarBorradores,contarPendientes,sincronizarBorradores} from "../../lib/b5-offline-browser.js";
 
 const MODO_KEY="germania:modo-dispositivo:v1";
 const FOTO_KEY="germania:b5-foto-dispositivo:v1";
@@ -48,9 +49,16 @@ export default function TabletB5(){
   const [cargandoFoto,setCargandoFoto]=useState(false);
   const [registro,setRegistro]=useState({estado:"comprobando",id:"",error:""});
   const [version,setVersion]=useState(null);
+  const [conexion,setConexion]=useState("comprobando");
+  const [pendientes,setPendientes]=useState(0);
+  const [revision,setRevision]=useState(0);
   const entradaFoto=useRef(null);
 
   useEffect(()=>{
+    // Activar PWA también si la tablet se abre directamente por /b5.
+    if("serviceWorker" in navigator && location.protocol==="https:"){
+      navigator.serviceWorker.register("/sw.js").catch(()=>{});
+    }
     try{
       localStorage.setItem(MODO_KEY,"b5");
       setFoto(localStorage.getItem(FOTO_KEY));
@@ -81,6 +89,52 @@ export default function TabletB5(){
     }
     reconocerTablet();
     return()=>{cancelado=true;};
+  },[]);
+
+  useEffect(()=>{
+    let activo=true;
+    let ocupado=false;
+    async function comprobar(){
+      if(ocupado||!activo)return;
+      ocupado=true;
+      try{
+        const lista=await listarBorradores();
+        if(activo){setPendientes(contarPendientes(lista));setRevision(lista.filter(x=>x.estado==="revision").length);}
+        if(!navigator.onLine)throw Error("Sin Internet");
+        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
+        let r;
+        try{r=await fetch("/api/b5/dispositivo?ping="+Date.now(),{cache:"no-store",credentials:"same-origin",signal:controller.signal});}
+        finally{clearTimeout(timer);}
+        if(!r.ok)throw Error("Servidor no disponible");
+        if(activo)setConexion("online");
+        // Se descarga una copia limitada de la nómina para seguir pasando lista sin Internet.
+        try{
+          const response=await fetch("/api/state/roster:v8",{cache:"no-store"});
+          if(response.ok){
+            const json=await response.json();
+            if(Array.isArray(json.value)&&json.value.length)await guardarNómina(json.value);
+          }
+        }catch{}
+        await sincronizarBorradores(async()=>{
+          const cambios=await listarBorradores();
+          if(activo){setPendientes(contarPendientes(cambios));setRevision(cambios.filter(x=>x.estado==="revision").length);}
+        });
+      }catch{
+        if(activo)setConexion("offline");
+      }finally{ocupado=false;}
+    }
+    comprobar();
+    const interval=setInterval(comprobar,18000);
+    window.addEventListener("online",comprobar);
+    window.addEventListener("offline",comprobar);
+    const vis=()=>{if(document.visibilityState==="visible")comprobar();};
+    document.addEventListener("visibilitychange",vis);
+    return()=>{
+      activo=false;clearInterval(interval);
+      window.removeEventListener("online",comprobar);
+      window.removeEventListener("offline",comprobar);
+      document.removeEventListener("visibilitychange",vis);
+    };
   },[]);
 
   useEffect(()=>{
@@ -122,7 +176,9 @@ export default function TabletB5(){
 
   function irA(destino){
     limpiarIdentidadAnterior();
-    window.location.assign("/?b5dest="+encodeURIComponent(destino));
+    // Captura local en los DOS accesos de esta tablet. El resto de Germania
+    // conserva su navegación y persistencia central originales.
+    window.location.assign("/b5/captura?tipo="+encodeURIComponent(destino));
   }
 
   function salir(){
@@ -158,6 +214,16 @@ export default function TabletB5(){
           {cargandoFoto?"Preparando fotografía…":foto?"Cambiar foto del carro":"Personalizar foto en esta tablet"}
         </button>
 
+        <div className={"conexion "+(conexion==="online"?"conectado":"desconectado")} role="status">
+          <strong>{conexion==="online"?(revision&&revision===pendientes?"EN LÍNEA · Hay registros para revisión":
+              pendientes?"EN LÍNEA · Sincronizando pendientes":"EN LÍNEA · Neon disponible")
+            :conexion==="offline"?"SIN CONEXIÓN · Tomando datos en esta tablet"
+            :"COMPROBANDO CONEXIÓN…"}</strong>
+          <small>{conexion==="online"
+            ?"Los registros locales se envían solos al recuperar Internet."
+            :"Los datos se guardan aquí. Se enviarán automáticamente cuando vuelva Internet."}</small>
+          {!!pendientes&&<small>{pendientes} registros pendientes · {revision} para revisión</small>}
+        </div>
         <div className="actions" aria-label="Funciones de la tablet B-5">
           {DESTINOS.map(x=>
             <button key={x.id} className="action" style={{"--accent":x.color}} onClick={()=>irA(x.id)}>
@@ -206,6 +272,10 @@ export default function TabletB5(){
         .photoButton{display:block;margin:11px auto 20px;background:#192a38;
           border:1px solid #506476;padding:8px 16px;border-radius:8px;color:#d4e4ed;font-size:13px}
         .photoButton:disabled{opacity:.65;cursor:wait}
+        .conexion{padding:13px 16px;border-radius:11px;margin:0 0 16px;display:grid;gap:4px}
+        .conexion strong{font-size:15px}.conexion small{font-size:12px;line-height:1.45}
+        .conexion.conectado{background:#153329;border:2px solid #58a686}
+        .conexion.desconectado{background:#51320b;border:2px solid #ffbd4d}
         .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
         .action{min-height:124px;display:flex;flex-direction:column;align-items:center;
           justify-content:center;gap:7px;border:2px solid var(--accent);background:#1b2c3d;

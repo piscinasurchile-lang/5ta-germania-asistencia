@@ -85,7 +85,11 @@ test("Pantalla B-5 ofrece exclusivamente Emergencias y Asistencia",()=>{
   assert.match(inicio,/Foto del carro/);
   assert.match(inicio,/localStorage\.setItem\(MODO_KEY,"b5"\)/);
   assert.match(inicio,/limpiarIdentidadAnterior\(\)/);
-  assert.doesNotMatch(inicio,/\/api\/state\//);
+  // El hub puede LEER roster:v8 para disponer de nómina sin red.
+  // Sigue sin escribir estado institucional directamente: eso exige confirmación del servidor.
+  assert.match(inicio,/fetch\("\/api\/state\/roster:v8",\{cache:"no-store"\}\)/);
+  assert.doesNotMatch(inicio,/method:"PUT"/);
+  assert.doesNotMatch(inicio,/method:"PATCH"/);
 });
 test("El acceso B-5 evita descargar el iframe completo al reabrir y conserva la vuelta",()=>{
   assert.match(principal,/if \(modo === "b5" && !destino\)/);
