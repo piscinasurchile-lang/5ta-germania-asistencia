@@ -298,7 +298,7 @@ function guardiaTurnoPendiente(fecha){
  var fin=new Date(fecha+"T12:00:00Z");
  fin.setUTCDate(fin.getUTCDate()+1);
  var finFecha=fin.toISOString().slice(0,10);
- var finMs=Date.parse(finFecha+"T06:00:00"+(new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",timeZoneName:"shortOffset"}).formatToParts(new Date(finFecha+"T12:00:00Z")).find(function(p){return p.type==="timeZoneName";})||{value:"GMT-3"}).value.replace("GMT","").replace(/^([+-])(\d)$/,"$10$2")+":00");
+ var finMs=typeof instanteChile==="function"?instanteChile(finFecha,"06:00"):NaN;
  return Number.isFinite(finMs)?Date.now()<finMs:true;
 }
 function panelVol(pn,D){
