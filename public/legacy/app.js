@@ -5246,8 +5246,7 @@ async function guardiaDeHoy(){
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
-  const d=await getDisponibilidadVigente(), guardia=await guardiaDeHoy();
-  const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
+  const d=await getDisponibilidadVigente();
   const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
 
   const apellido=(p)=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
@@ -5286,8 +5285,7 @@ async function renderDisponibilidad(){
       <td class="name-col">${esc(nombreCompleto(p))}</td>
       <td>${declarado?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span class="dot sin"></span>Sin marcar'}</td>
       <td>${desde}</td>
-      <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
-      <td style="text-align:center;">${guardianes.has(String(p.id))?"🛡":"—"}</td></tr>`;
+      <td style="text-align:center;">${p.conductor?"🚒":"—"}</td></tr>`;
   }).join("");
 
   if(body.innerHTML!==html) body.innerHTML=html;
