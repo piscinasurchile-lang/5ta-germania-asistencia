@@ -10,3 +10,7 @@
 - La dotación y los datos de guardias existentes no se modifican durante pruebas.
 
 Estado: especificación pendiente de implementación y pruebas. No habilitar como operativa antes de verificar permisos y notificaciones.
+
+## Condición obligatoria antes de habilitar escritura
+
+La identificación por nombre/código y la validación de origen HTTP no autentican al voluntario. No exponer POST de novedades ni cierre hasta disponer de una sesión autenticada y comprobar en el servidor que el actor coincide con `guardia-revision:<miércoles>.noches[fecha].obac` de una revisión aprobada. Los reportes serán de solo lectura para los tres destinatarios autorizados. Mantener la bitácora inmutable y un cierre único por noche. No enviar alertas de madrugada. Un proceso programado deberá entregar el resumen después de las 08:30 de Chile y marcar cada entrega para evitar duplicados. Probar únicamente con base aislada; nunca sobre el turno vigente.
