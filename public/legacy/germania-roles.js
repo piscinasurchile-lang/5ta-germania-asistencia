@@ -295,9 +295,9 @@ function filaCupos(c){
 function panelVol(pn,D){
  var who=D.who,saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[],ck=D.p.inicio+":"+who;
  if(GN_INS_CLAVE!==ck){GN_INS_CLAVE=ck;GN_INS_SEL=new Set(saved);}
- var sel=GN_INS_SEL,editable=D.abierto;
+ var sel=GN_INS_SEL,editable=D.abierto,pendientes=new Set(saved);
  var h='<h3 class="gr-t">Elige tus noches · '+(editable?'Semana abierta':'En revisión')+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p><p class="sub">Debes elegir mínimo 2 noches.</p><div class="gu-dias">';
- h+=D.cov.map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));return '<button type="button" class="gu-dia'+(selected?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||saved.indexOf(c.f)>=0?'disabled':'')+'><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span></button>';}).join('')+'</div>';
+ h+=D.cov.map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=pendientes.has(c.f);return '<button type="button" class="gu-dia'+(selected?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
  if(editable)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">Enviar a revisión ('+sel.size+')</button>';
  else h+='<p class="sub">Tus días permanecen amarillos hasta la aprobación del Teniente Tercero.</p>';
  pn.innerHTML=h;
