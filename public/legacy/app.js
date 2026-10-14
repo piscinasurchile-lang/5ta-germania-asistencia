@@ -2013,13 +2013,13 @@ async function renderGnTablaSemanal(){
     const estado=x.valid&&x.valid.completa?"Completa":"Incompleta";
     const detalles=x.valid?x.valid.razones.join(" · "):"No se pudo verificar la dotación";
     return '<tr><td><b>'+esc(gnFmt(x.f))+'</b></td>'
-      +'<td>'+x.v.length+'/'+GN_DOTACION_MIN.voluntarios+'<br><small>'+esc(x.v.map(gnNombreId).join(" · ")||"Sin voluntarios")+'</small></td>'
+      +'<td>'+x.v.length+'/'+GN_DOTACION_MIN.voluntarios+'<div style="display:grid;gap:4px;margin-top:6px;">'+(x.v.length?x.v.slice().sort((a,b)=>{const ia=orden.indexOf(String(a)),ib=orden.indexOf(String(b));return (ia<0?9999:ia)-(ib<0?9999:ib);}).map((id,i)=>'<div><small>'+(i+1)+'. '+esc(gnNombreId(id))+'</small></div>').join(''):'<small>Sin voluntarios</small>')+'</div></td>'
       +'<td>'+esc(x.m.map(gnNombreId).join(" · ")||"—")+'</td>'
       +'<td>'+esc(x.o.map(gnNombreId).join(" · ")||"—")+'</td>'
       +'<td><b>'+estado+'</b>'+(detalles?'<br><small>'+esc(detalles)+'</small>':'')+'</td></tr>';
   }).join("");
   const nota=revision?'<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>':"";
-  box.innerHTML=nota+'<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
+  box.innerHTML=nota+'<p class="sub">Los voluntarios de cada noche están ordenados por precedencia oficial. Los cargos administrativos no implican mando operativo.</p><div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
     +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
