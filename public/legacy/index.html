@@ -642,9 +642,13 @@
     <div class="card solo-oficiales solo-gestion">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
         <div><h2 style="margin-bottom:4px;">Tabla semanal de Guardia</h2><p class="sub">Resumen de inscripción vigente. Solo lectura: no modifica inscripciones, ODD ni historial.</p></div>
-        <button type="button" class="btn small secondary" id="gnTablaActualizar">Actualizar</button>
       </div>
       <div id="gnTablaSemanal"><div class="empty">Selecciona o programa una semana para ver su dotación.</div></div>
+      <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
+        <button type="button" class="btn small secondary" id="gnTablaActualizar">Actualizar</button>
+        <button type="button" class="btn small secondary" id="gnTablaPdf">PDF semanal</button>
+        <button type="button" class="btn small secondary" id="gnOddMaestras">Generar ODD</button>
+      </div>
     </div>
 
     <div class="card" id="gnRolCard" aria-live="polite"></div>
@@ -666,11 +670,23 @@
       <div class="status-msg" id="gnMsg"></div>
     </div>
 
-    <div class="card solo-oficiales solo-gestion">
-      <h2>Informes de guardia</h2>
-      <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
-      <div class="gn-actions"><button class="btn gold" id="gnPdfSemanal">Informe del período</button><button class="btn gold" id="gnPdfEstad">Informe estadístico</button><button class="btn" id="gnInfo">Infografía de guardias</button></div>
-      <div class="summary-row" id="gnResumen" style="margin-top:16px"></div><div id="gnLista"></div>
+    <div class="card solo-oficiales solo-gestion" id="gnHistorialCard">
+      <h2>Historial de guardias</h2>
+      <p class="sub">Selecciona una semana de miércoles a martes, desde la primera hasta la última. La programación no equivale a asistencia acreditada.</p>
+      <div class="field-row"><div class="field" style="flex:1 1 260px"><label for="gnHistorialSelect">Semanas registradas</label><select id="gnHistorialSelect"><option value="">Consultando semanas…</option></select></div></div>
+      <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn small secondary" type="button" id="gnHistorialVer">Ver detalle</button>
+        <button class="btn small secondary" type="button" id="gnHistorialPdf">Descargar PDF</button>
+        <button class="btn small secondary" type="button" id="gnHistorialOdd">Generar ODD</button>
+      </div>
+      <div class="status-msg" id="gnHistorialMsg" role="status" aria-live="polite"></div>
+      <div id="gnHistorialDetalle" hidden style="margin-top:12px"></div>
+      <details style="margin-top:14px" id="gnInformesAvanzados">
+        <summary style="cursor:pointer">Informes adicionales y estadísticas</summary>
+        <div class="field-row"><div class="field"><label for="gnDesde">Desde</label><input type="date" id="gnDesde"></div><div class="field"><label for="gnHasta">Hasta</label><input type="date" id="gnHasta"></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnSemana">Última semana</button></div><div class="field" style="flex:0 0 auto;justify-content:flex-end"><label>&nbsp;</label><button class="btn small secondary" id="gnMes">Este mes</button></div></div>
+        <div class="gn-actions"><button class="btn small secondary" id="gnPdfSemanal">Informe del período</button><button class="btn small secondary" id="gnPdfEstad">Informe estadístico</button><button class="btn small secondary" id="gnInfo">Infografía de guardias</button></div>
+        <div class="summary-row" id="gnResumen" style="margin-top:16px"></div><div id="gnLista"></div>
+      </details>
     </div>
   </div>
 
