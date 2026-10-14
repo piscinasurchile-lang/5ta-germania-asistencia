@@ -195,7 +195,7 @@ function faltan(c){
 
 /* ---------- Estado de la tarjeta ---------- */
 var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",eligiendo:false,eleccionClave:"",cargando:false};
-var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["2 · Inscripciones","📋"],rev:["3 · Revisión","🛠"],rep:["4 · Reemplazos","🔁"]};
+var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["Tabla semanal","📋"],rev:["Revisión y aprobación","🛠"],rep:["Reemplazos","🔁"]};
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
 function tabsPermitidas(m,abierto){
@@ -271,6 +271,7 @@ function pintarTarjeta(){
   if(GR.vista!=="gestion"){box.innerHTML="";return;}
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
   var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
+  if(GR.vista==="gestion"&&esTenienteTercero(D.m))html+='<div class="gr-nota info"><p><b>Teniente Tercero:</b> revisa las siete noches en <b>Revisión y aprobación</b>. Allí encontrarás «Modificar dotación / registrar novedad» y «Aprobar guardias de la semana». La aprobación no acredita asistencia.</p></div>';
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
   if(tabs.length>1) html+='<div class="gr-tabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" class="gr-tab'+(t===GR.tab?" on":"")+'" data-gr-tab="'+t+'" aria-selected="'+(t===GR.tab)+'"><span aria-hidden="true">'+GR_TABS[t][1]+'</span>'+GR_TABS[t][0]+'</button>'; }).join("")+'</div>';
   if(tabs.length) html+='<div id="grPanel"></div>';
