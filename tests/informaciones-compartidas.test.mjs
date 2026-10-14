@@ -25,7 +25,7 @@ test("texto vacío, excesivo y remitentes no válidos no llegan a Neon",async()=
  assert.equal(r.status,400);
  r=await POST(req({body:{destino:"compania",texto:"x".repeat(501),emisorId:"517"}}));
  assert.equal(r.status,400);
- r=await POST(req({body:{destino:"compania",texto:"ensayo",emisorId:"otro"}}));
+ r=await POST(req({body:{destino:"compania",texto:"ensayo",emisorId:"falso/id"}}));
  assert.equal(r.status,400);
 });
 test("la fecha explícita de prueba admite más de 48 horas, hasta un máximo de 30 días",async()=>{
@@ -37,7 +37,7 @@ test("la fecha explícita de prueba admite más de 48 horas, hasta un máximo de
 test("sin id de aviso y voluntario válido no hay confirmación",async()=>{
  let r=await PATCH(req({body:{id:"fake",voluntarioId:"517"}}));
  assert.equal(r.status,400);
- r=await PATCH(req({body:{id:"93bbfdee-b5c7-446b-9f1c-5b8f0ab4b36a",voluntarioId:"otro"}}));
+ r=await PATCH(req({body:{id:"93bbfdee-b5c7-446b-9f1c-5b8f0ab4b36a",voluntarioId:"otro/id"}}));
  assert.equal(r.status,400);
 });
 test("API de prueba usa almacén aislado y bloquea acceso genérico",()=>{
@@ -54,4 +54,11 @@ test("no se generan avisos de prueba de manera automática desde el servidor",()
  const src=readFileSync(new URL("../app/api/informaciones/prueba/route.js",import.meta.url),"utf8");
  assert.doesNotMatch(src,/setInterval|setTimeout|cron:/);
  assert.match(src,/export async function POST\(request\)/);
+});
+
+test("admite identificadores UUID reales de la nómina aunque el voluntario tenga clave numérica",()=>{
+ const route=readFileSync(new URL("../app/api/informaciones/prueba/route.js",import.meta.url),"utf8");
+ assert.match(route,/\[a-zA-Z0-9_-\]\{1,80\}/);
+ assert.match(route,/String\(m\.id\)===emisor/);
+ assert.match(route,/String\(m\.id\)===lector/);
 });
