@@ -8,8 +8,7 @@ const VOL_KEY="germania:voluntario-dispositivo:v2";
 
 const DESTINOS=[
   {id:"servicio",titulo:"Emergencias B-5",detalle:"Hoja de servicio del carro",color:"#ee5757",simbolo:"🚒"},
-  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"},
-  {id:"oficiales",titulo:"Oficiales",detalle:"Gestión de la compañía",color:"#e5c45b",simbolo:"★"}
+  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"}
 ];
 
 function limpiarIdentidadAnterior(){
@@ -141,7 +140,7 @@ export default function TabletB5(){
             </button>
           )}
         </div>
-        <p className="note">Los registros siguen en Germania. Oficiales solicita seleccionar a un oficial; la tablet no representa a una persona.</p>
+        <p className="note">Los registros de la unidad B-5 y de asistencia continúan guardándose en Germania.</p>
         {mensaje&&<p className="message" role="status">{mensaje}</p>}
       </section>
 
@@ -175,7 +174,7 @@ export default function TabletB5(){
         .photoButton{display:block;margin:11px auto 20px;background:#192a38;
           border:1px solid #506476;padding:8px 16px;border-radius:8px;color:#d4e4ed;font-size:13px}
         .photoButton:disabled{opacity:.65;cursor:wait}
-        .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+        .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
         .action{min-height:124px;display:flex;flex-direction:column;align-items:center;
           justify-content:center;gap:7px;border:2px solid var(--accent);background:#1b2c3d;
           color:#fff;border-radius:14px;padding:12px 8px;transition:background .15s}
