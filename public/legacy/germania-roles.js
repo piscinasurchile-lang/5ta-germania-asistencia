@@ -24,6 +24,7 @@ function esOficial(m){ return !!m&&/capitan|teniente|ayudante|director|secretari
 function esMando(m){ return !!m&&(/^capitan/.test(cargoDe(m))||/teniente (tercero|3)/.test(cargoDe(m))||ADMINISTRADORES.indexOf(String(m.clave))>=0); }
 function esMaquinista(m){ return !!m&&m.conductor===true; }
 function esTenienteTercero(m){ return !!m&&/teniente\s*(tercero|3)/.test(cargoDe(m)); }
+function esAdminGuardia(m){ return !!m&&ADMINISTRADORES.indexOf(String(m.clave))>=0; }
 var PREC=null;
 async function cargarPrec(){
   var d=null; try{ d=await sGet(PRECEDENCIA_KEY,null); }catch(e){}
@@ -195,11 +196,11 @@ function faltan(c){
 
 /* ---------- Estado de la tarjeta ---------- */
 var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",eligiendo:false,eleccionClave:"",cargando:false};
-var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["2 · Inscripciones","📋"],rev:["3 · Revisión","🛠"],rep:["4 · Reemplazos","🔁"]};
+var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["Tabla semanal","📋"],rev:["Revisión y aprobación","🛠"],rep:["Reemplazos","🔁"]};
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
 function tabsPermitidas(m,abierto){
-  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rev","rep"]:esMando(m)?["info"]:[];
+  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rev","rep"]:esAdminGuardia(m)?["info","rev","rep"]:esMando(m)?["info"]:[];
   return ["mis"];   /* elegir noches se hace en las tarjetas de Inicio */
 }
 function guardiaActiva(){ var p=$("panel-guardia"); return !!p&&p.classList.contains("active"); }
@@ -251,11 +252,19 @@ function resumenInfo(pn,D){
 }
 function pintarInicioRoles(){
  var box=$("inicioRoles"),D=GR.Dmi,m=miembro();if(!box)return;
- if(!m||!D||!D.p||D.error||!D.S||(D.revision&&D.revision.estado==="aprobada")){box.innerHTML="";return;}
+ if(!m||!D||!D.p||D.error||!D.S){box.innerHTML="";return;}
+ if(D.revision&&D.revision.estado==="aprobada"){box.innerHTML="";return;}
  box.innerHTML='<section class="card gn-inicio-inscripcion" aria-label="Mis días de guardia"><div id="gnInicioVol"></div></section>';
  panelVol($("gnInicioVol"),D);
 }
 
+function estadoCandadoInscripcion(D){
+ if(!D||!D.p)return "";
+ var cerrado=Date.now()>=gnInsCierreMs(D.p),aprobada=!!(D.revision&&D.revision.estado==="aprobada");
+ var titulo=cerrado?"🔒 Inscripción cerrada":"🔓 Inscripción abierta";
+ var detalle=cerrado?"Plazo finalizado. Los voluntarios no pueden cambiar sus noches; el Teniente Tercero conserva la gestión operativa.":"Los voluntarios pueden inscribirse hasta el cierre programado.";
+ return '<div role="status" class="gr-nota info" style="margin:10px 0;overflow-wrap:anywhere"><span aria-hidden="true">'+(cerrado?'🔒':'🔓')+'</span><p><b>'+titulo+'</b><br>'+detalle+(aprobada?' La semana está aprobada.':'')+'</p></div>';
+}
 function selectorSemana(D){
   if(GR.vista!=="gestion"||!D.lista||D.lista.length<2) return "";
   return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+D.lista.map(function(x){ return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+(Date.now()<gnInsCierreMs(x)?" · elección abierta":" · elección cerrada")+'</option>'; }).join("")+'</select>';
@@ -271,6 +280,8 @@ function pintarTarjeta(){
   if(GR.vista!=="gestion"){box.innerHTML="";return;}
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
   var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
+  if(GR.vista==='gestion')html+=estadoCandadoInscripcion(D);
+  if(GR.vista==="gestion"&&(esTenienteTercero(D.m)||esAdminGuardia(D.m)))html+='<div class="gr-nota info"><p><b>Administrador / Teniente Tercero:</b> revisa las siete noches en <b>Revisión y aprobación</b>. Allí encontrarás «Modificar dotación / registrar novedad» y «Aprobar guardias de la semana». La aprobación no acredita asistencia.</p></div>';
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
   if(tabs.length>1) html+='<div class="gr-tabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" class="gr-tab'+(t===GR.tab?" on":"")+'" data-gr-tab="'+t+'" aria-selected="'+(t===GR.tab)+'"><span aria-hidden="true">'+GR_TABS[t][1]+'</span>'+GR_TABS[t][0]+'</button>'; }).join("")+'</div>';
   if(tabs.length) html+='<div id="grPanel"></div>';
@@ -292,16 +303,31 @@ function filaCupos(c){
   return '<span class="gr-gente" aria-hidden="true">'+gente+'</span><span class="gr-cupo'+(ok?" ok":"")+'">'+n+' / '+DOT.voluntarios+' voluntarios'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+'</span>'
     +'<span class="gr-mini">MAQ: '+c.maq.length+' · OBAC: '+c.obac.length+'</span>';
 }
+/* Fin de guardia en hora local de Villarrica: 06:00 del día siguiente.
+   Se oculta la tarjeta, no se borra el turno ni su acreditación. */
+function guardiaTurnoPendiente(fecha){
+ /* Compara la fecha y hora civiles de Chile; no depende de la zona horaria del teléfono. */
+ var dia=new Date(fecha+"T12:00:00Z");
+ if(!Number.isFinite(dia.getTime()))return false;
+ dia.setUTCDate(dia.getUTCDate()+1);
+ var limite=dia.toISOString().slice(0,10)+"T06:00";
+ var partes=new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+ var val=function(k){var x=partes.find(function(p){return p.type===k;});return x?x.value:"";};
+ var ahora=val("year")+"-"+val("month")+"-"+val("day")+"T"+val("hour")+":"+val("minute");
+ return ahora<limite;
+}
 function panelVol(pn,D){
  var who=D.who,saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[],ck=D.p.inicio+":"+who;
  if(GN_INS_CLAVE!==ck){GN_INS_CLAVE=ck;GN_INS_SEL=new Set(saved);}
- var sel=GN_INS_SEL,editable=D.abierto,pendientes=new Set(saved),soloAsignados=pendientes.size>0;
- var h='<h3 class="gr-t">'+(soloAsignados?'Mis noches · Pendientes de revisión':'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
- if(soloAsignados)h+='<div role="status" style="background:#facc15;color:#422006;border:2px solid #ca8a04;border-radius:8px;padding:12px;margin:10px 0;font-weight:800;text-align:center;overflow-wrap:anywhere">ENVIADOS A REVISIÓN DEL TENIENTE TERCERO</div>';
+ var sel=GN_INS_SEL,aprobada=!!(D.revision&&D.revision.estado==="aprobada"),nochesAprobadas=D.revision&&D.revision.noches||{};
+ var asignadas=new Set(Object.keys(nochesAprobadas).filter(function(f){var n=nochesAprobadas[f];return n&&(n.obac===who||n.maq===who||(n.vol||[]).includes(who));}));
+ var editable=D.abierto&&!aprobada,pendientes=new Set(saved),proximas=Array.from(asignadas).filter(guardiaTurnoPendiente),soloAsignados=aprobada?proximas.length>0:pendientes.size>0;
+ var h='<h3 class="gr-t">'+(soloAsignados?(aprobada?'Mis guardias aprobadas':'Mis noches · Pendientes de revisión') :aprobada?'Sin próximas guardias':'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(aprobada?'':soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
+ if(soloAsignados&&!aprobada)h+='<div role="status" style="background:#facc15;color:#422006;border:2px solid #ca8a04;border-radius:8px;padding:12px;margin:10px 0;font-weight:800;text-align:center;overflow-wrap:anywhere">ENVIADOS A REVISIÓN DEL TENIENTE TERCERO</div>';
  h+='<div class="gu-dias"'+(soloAsignados?' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,115px),1fr));gap:10px;width:100%;min-width:0"':'')+'>';
- h+=D.cov.filter(function(c){return !soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=pendientes.has(c.f);return '<button type="button" class="gu-dia'+(selected?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
- if(editable&&!soloAsignados)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">Enviar a revisión ('+sel.size+')</button>';
- else h+='<p class="sub">Tus días inscritos permanecen amarillos y bloqueados hasta la revisión del Teniente Tercero.</p>';
+ h+=D.cov.filter(function(c){return aprobada?(asignadas.has(c.f)&&guardiaTurnoPendiente(c.f)):!soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f),disponible=editable&&!pendiente&&!selected;return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable?'disabled':'')+' style="'+(confirmada?'background:#991b1b;color:#fff;border:3px solid #ef4444;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':disponible?'background:#166534;color:#fff;border:3px solid #22c55e;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">'+(nochesAprobadas[c.f]&&String(nochesAprobadas[c.f].obac)===String(who)?'ERES OBAC · ':'')+'✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
+ if(editable)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">'+(soloAsignados?'Actualizar noches elegidas':'Enviar a revisión')+' ('+sel.size+')</button>';
+ else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00; la acreditación permanece a cargo del Teniente Tercero.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
  pn.innerHTML=h;
  pn.querySelectorAll('[data-gr-vol]').forEach(function(b){b.onclick=function(){var f=b.dataset.grVol;if(sel.has(f))sel.delete(f);else sel.add(f);panelVol(pn,D);};});
  var b=$("giConfirmar");if(b)b.onclick=function(){gnInsConfirmar(D.p,who);};
@@ -350,6 +376,11 @@ async function cambiarSuplente(D,fecha,boton){
   }
 }
 async function guardarRol(D,kind){
+  // Validar nuevamente al guardar: la pantalla pudo quedar abierta cuando venció el plazo.
+  if(!D||!D.p||Date.now()>=gnInsCierreMs(D.p)||D.revision&&D.revision.estado==="aprobada"){
+    var aviso=$("grMsg-"+kind);if(aviso){aviso.textContent="🔒 Inscripción cerrada. No se guardaron cambios.";aviso.classList.add("err");}
+    return;
+  }
   if(vistaPrueba(D.m,kind)) return;
   var msg=$("grMsg-"+kind), sel=GR.sel[kind]||new Set(), previos=regs(D.S[kind][D.who]), ahora=new Date().toISOString();
   var recs=[...sel].sort().map(function(f){ var p=previos.filter(function(x){ return x.f===f; })[0]; return {f:f,t:(p&&p.t)||ahora}; });
@@ -422,10 +453,44 @@ function alertaConductor(id){
  if(/david\\s+briones/i.test(nombre))return '<div role="status" style="margin:8px 0;padding:10px;border:2px solid #16a34a;border-radius:8px;background:#14532d;color:white;font-weight:800">✓ CUARTELERO DE APOYO ASIGNADO · Pendiente de acreditación</div>';
  return '';
 }
+async function historialInscripciones(D){
+ var out=$("grHistInsRes");if(!out)return;
+ out.textContent="Consultando inscripciones históricas…";
+ try{
+  var planes=(await gnPlanes()).filter(function(p){return p&&p.inicio&&p.confirmado!==false&&p.estado!=="borrador"&&Date.now()>=gnInsCierreMs(p);});
+  var semanas=planes.slice().sort(function(a,b){return a.inicio.localeCompare(b.inicio);});
+  var datos=await Promise.all([leerPrefijo("guardia-inscripcion:"),leerPrefijo("guardia-maq:")]);
+  var ins=new Set(datos[0].map(function(x){return x.key;})),maq=new Set(datos[1].map(function(x){return x.key;}));
+  var activos=ROSTER.filter(function(x){return x.activo!==false;});
+  var filas=activos.map(function(m){
+   var id=String(m.id),si=0,no=0,meses={};
+   semanas.forEach(function(p){
+    var k=p.inicio+":"+id;
+    var participo=ins.has("guardia-inscripcion:"+k)||maq.has("guardia-maq:"+k);
+    // Solo se cuenta inscripción con noches efectivamente elegidas.
+    var v=datos[0].find(function(x){return x.key==="guardia-inscripcion:"+k;});
+    var t=datos[1].find(function(x){return x.key==="guardia-maq:"+k;});
+    participo=!!((v&&Array.isArray(v.value)&&v.value.length)||(t&&regs(t.value).length));
+    if(participo)si++;else no++;
+    var mes=p.inicio.slice(0,7),x=meses[mes]||(meses[mes]={si:0,no:0});x[participo?"si":"no"]++;
+   });
+   return {m:m,si:si,no:no,meses:meses};
+  });
+  var tot=filas.reduce(function(a,x){return a+x.no;},0);
+  var html='<h4>Historial de inscripción · '+semanas.length+' semana(s) cerrada(s)</h4><p class="sub">Solo semanas con convocatoria cerrada. No mide asistencia ni cumplimiento de guardias.</p>';
+  if(!semanas.length){out.innerHTML=html+'<p>No hay convocatorias cerradas disponibles.</p>';return;}
+  html+='<details class="gr-det"><summary>Semanas consultadas: '+semanas.length+'</summary>'+semanas.map(function(p){return '<p>'+E(p.inicio)+'</p>';}).join("")+'</details>';
+  html+='<div class="gr-lista">'+filas.sort(function(a,b){return b.no-a.no;}).map(function(x){
+   var meses=Object.keys(x.meses).sort().reverse().map(function(k){var y=x.meses[k];return k+': '+y.no+' sin inscripción / '+(y.si+y.no)+' semanas';}).join(' · ');
+   return '<div class="gr-nc-fila"><b>'+E(nombreCompleto(x.m))+'</b><div>'+x.si+' inscritas · '+x.no+' sin inscripción · '+Math.round(100*x.si/semanas.length)+'% de inscripción</div><small>'+E(meses)+'</small></div>';
+  }).join("")+'</div><p class="sub">Consulta informativa. No se envían avisos ni se crean sanciones.</p>';
+  out.innerHTML=html;
+ }catch(e){out.textContent="No se pudo consultar el historial. No se modificaron registros.";}
+}
 function panelInfo(pn,D){
   var DOT=GN_DOTACION_MIN, completas=D.cov.filter(function(c){ return c.completa; }).length;
   var activos=ROSTER.filter(function(x){ return x.activo!==false; });
-  var sinConf=activos.filter(function(x){ var id=String(x.id), c=D.S.conf[id]; return !(c&&(c.cumple||c.justificacion))&&!regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
+  var sinConf=activos.filter(function(x){ var id=String(x.id); return !regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
   var h='<h3 class="gr-t">Cobertura de la semana</h3><div class="gr-nota info"><span aria-hidden="true">👥</span><p>Cada noche debe contar con <b>'+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC</b>. El OBAC se calcula solo: es el inscrito de mayor precedencia de esa noche (si no hay maquinista, el Capitán pasa a maquinista y el OBAC es el siguiente). Los voluntarios de más son refuerzos. <b>'+completas+' de '+D.cov.length+' noches completas.</b></p></div>';
   h+='<div class="gr-lista">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mt=c.maq[0]?corto(porId(c.maq[0].id)):null, ot=c.obac[0]?corto(porId(c.obac[0].id)):null;
@@ -439,10 +504,13 @@ function panelInfo(pn,D){
       +(c.empate?'<small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC de esta noche debe confirmarlo el Teniente 3° en la Revisión.</small>':'')
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
-  h+='<details class="gr-det"><summary>Sin elegir noches: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><p>'+(sinConf.length?sinConf.map(function(x){ return E(corto(x)); }).join(" · "):"Todos eligieron sus noches.")+'</p></details>';
+  h+='<details class="gr-det"><summary>No se inscribieron: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><div class="gr-lista">'+(sinConf.length?sinConf.map(function(x){var nombre=[x.nombre,x.apellidoPaterno,x.apellidoMaterno].filter(Boolean).join(" ");return '<div class="gr-nc-fila" style="display:flex;align-items:center;gap:10px;min-width:0"><img src="'+E(fotoVoluntario(x))+'" alt="" loading="lazy" style="width:36px;height:36px;min-width:36px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="min-width:0"><b>'+E(nombre||corto(x))+'</b><small class="sub" style="display:block">Sin inscripción registrada esta semana</small></span></div>';}).join(""):'<p>Todos registraron inscripción esta semana.</p>')+'</div></details>';
+  h+='<div class="gr-nota info"><p><b>Estadística de inscripción:</b> '+(activos.length-sinConf.length)+' de '+activos.length+' voluntarios activos se inscribieron ('+(activos.length?Math.round(100*(activos.length-sinConf.length)/activos.length):0)+'%). '+sinConf.length+' no se inscribieron. Esto no equivale a inasistencia ni incumplimiento.</p></div>';
+  h+='<button type="button" class="btn secondary" id="grHistIns">Consultar historial de inscripciones</button><div id="grHistInsRes" aria-live="polite"></div>';
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';
   pn.innerHTML=h;
+  var hi=$("grHistIns"); if(hi) hi.onclick=function(){ historialInscripciones(D); };
   var hg=$("hrGuardar"); if(hg) hg.onclick=function(){ guardarHorario(D); };
 }
 async function guardarHorario(D){
@@ -538,6 +606,9 @@ var ROL_TXT={vol:"voluntario",maq:"maquinista",obac:"OBAC"};
 function textoCambio(c){
   var n=nombreNoche(c.f||c.fecha), dia=n.w+" "+n.d, h=new Date(c.en).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
   var q;
+  if(c.rol==="obac"&&c.motivo&&c.motivo.indexOf("Reasignación automática")===0){
+    return "<b>"+E(dia)+"</b> · OBAC recalculado: "+E(nom(c.antesId))+" → "+E(nom(c.personaId))+" · "+E(c.por)+" · "+E(h)+" · "+E(c.motivo);
+  }
   if(c.accion==="agrega") q="agregó a <b>"+E(nom(c.personaId))+"</b> como "+ROL_TXT[c.rol];
   else if(c.accion==="quita") q="quitó a <b>"+E(nom(c.personaId||c.antesId))+"</b> ("+ROL_TXT[c.rol]+")";
   else if(c.accion==="cambia") q="cambió "+ROL_TXT[c.rol]+": <b>"+E(nom(c.personaId))+"</b> reemplaza a "+E(nom(c.antesId));
@@ -547,7 +618,7 @@ function textoCambio(c){
   return '<b>'+E(dia)+'</b> · '+q+' · '+E(c.por)+' · '+E(h);
 }
 async function panelRev(pn,D){
-  if(!esTenienteTercero(D.m)){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero.</p>";return;}
+  if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m))){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero y administrador.</p>";return;}
   if(RV.clave!==D.p.inicio||(RV.doc===null&&!RV.ocupado)){ pn.innerHTML='<p class="sub">Cargando…</p>'; try{ await revCargar(D); }catch(e){ pn.innerHTML='<div class="empty">No se pudo leer la revisión. <button type="button" class="btn small secondary" id="rvReint">Reintentar</button></div>'; var r=$("rvReint"); if(r) r.onclick=function(){ RV.clave=""; panelRev(pn,D); }; return; } }
   if(D.abierto){pn.innerHTML="<p>Cierra las inscripciones de esta semana antes de revisarla y aprobarla.</p>";return;}
   var doc=RV.doc, DOT=GN_DOTACION_MIN;
@@ -571,13 +642,14 @@ async function panelRev(pn,D){
     var nn=nombreNoche(c.f), o=ocup(c.f);
     var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
     var personas=(c.n.maq?[{id:c.n.maq,rol:"Maquinista"}]:[]).concat(c.n.obac?[{id:c.n.obac,rol:"OBAC"}]:[],c.n.vol.map(function(id){return {id:id,rol:"Voluntario"};}));
-    var chips=personas.map(function(x){var attr='data-rv-persona="'+c.f+'|'+E(x.id)+'"';return '<div class="gu-persona"><b>'+E(nom(x.id))+'</b><span>'+x.rol+'</span><div class="gu-acciones"><button type="button" disabled>'+(aprobada?'Aprobado':'Pendiente')+'</button><button type="button" '+attr+' data-operacion="mover" '+(aprobada?'disabled':'')+'>Modificar</button><button type="button" '+attr+' data-operacion="quitar" '+(aprobada?'disabled':'')+'>Eliminar</button><button type="button" '+attr+' data-operacion="cambiar" '+(aprobada?'disabled':'')+'>Cambiar</button></div></div>';}).join('')||'<span class="falta">Sin asignar</span>';
+    var chips=personas.map(function(x){var attr='data-rv-persona="'+c.f+'|'+E(x.id)+'"';return '<div class="gu-persona"><b>'+E(nom(x.id))+'</b><span>'+x.rol+' · '+(aprobada?'Aprobado':'Pendiente')+'</span>'+(aprobada?'':'<div class="gu-acciones" style="display:block;width:100%;max-width:100%"><button type="button" class="btn secondary" style="width:100%;max-width:100%;white-space:normal;overflow-wrap:anywhere" '+attr+' data-operacion="gestionar">Gestionar</button></div>')+'</div>';}).join('')||'<span class="falta">Sin asignar</span>';
 
     var optV='<option value="">+ Agregar voluntario</option>'+activos.filter(function(x){ return !o[String(x.id)]; }).map(function(x){ return '<option value="'+E(x.id)+'">'+E(corto(x))+'</option>'; }).join("");
     var optM=function(lista,cur,rol){ var l=lista.slice(); if(cur&&!l.some(function(x){ return String(x.id)===cur; })){ var m=porId(cur); if(m) l.unshift(m); } return '<option value="">— sin asignar —</option>'+l.map(function(x){ var id=String(x.id); var bloq=o[id]&&id!==cur&&rol!=="maq"; return '<option value="'+E(id)+'"'+(id===cur?" selected":"")+(bloq?" disabled":"")+'>'+(rol==="obac"&&rangoPrec(x)!=null?"N° "+rangoPrec(x)+" · ":"")+E(corto(x))+(bloq?" (ya asignado)":"")+'</option>'; }).join(""); };
     return '<div class="gr-nc rv'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body">'
       +'<div class="gr-nc-top"><b>'+c.n.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
       +'<div class="rv-chips">'+chips+'</div>'
+      +(aprobada?'':'<button type="button" class="btn secondary" data-rv-novedad="'+c.f+'">Modificar dotación / registrar novedad</button>')
       +(aprobada?'':'<select class="rv-sel" data-rv-add="'+c.f+'" aria-label="Agregar voluntario el '+E(nn.w+" "+nn.d)+'">'+optV+'</select>')
       +'<label class="rv-lbl">🚒 Maquinista</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.maq?'<b>'+E(nom(c.n.maq))+'</b>':'<span class="falta">falta</span>')+'</div>':'<select class="rv-sel" data-rv-rol="'+c.f+'|maq">'+optM(maqs,c.n.maq,"maq")+'</select>')
       +(!aprobada&&!c.n.maq?'<button type="button" class="btn secondary" data-rv-david="'+c.f+'">Programar a David Briones · cuartelero del Cuerpo</button>':'')
@@ -596,7 +668,7 @@ async function panelRev(pn,D){
   h+='<details class="gr-det" '+(cam.length?"open":"")+'><summary>Cambios hechos: '+cam.length+'</summary>'+(cam.length?'<ul class="rv-cambios">'+cam.map(function(c){ return '<li>'+textoCambio(c)+'</li>'; }).join("")+'</ul>':'<p>Todavía no hay cambios.</p>')+'</details>';
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
-  else h+='<button type="button" class="btn gr-grande" id="rvAprobar">Aprobar dotación</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
+  else h+='<div class="gr-nota info"><p><b>Último paso del Teniente Tercero:</b> revisa las siete noches y aprueba la dotación. Esta aprobación no acredita asistencia.</p></div><button type="button" class="btn gr-grande" id="rvAprobar">✓ APROBAR GUARDIAS DE LA SEMANA</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
   if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista"><p class="sub">Cargando acreditaciones…</p></div>';
   pn.innerHTML=h;
   if(aprobada && esTenienteTercero(D.m)) pintarAcreditacionReal(D,doc).catch(function(){
@@ -605,14 +677,48 @@ async function panelRev(pn,D){
   var guardarOp=async function(op){
     if(RV.ocupado) return; RV.ocupado=true; var nuevo=clonar(doc);
     try{revAplicar(nuevo,D,op);}catch(e){RV.msg=e.message;RV.err=true;RV.ocupado=false;panelRev(pn,D);return;}
-    Object.keys(nuevo.noches).forEach(function(f){revReordenar(nuevo.noches[f]);});
+    if(op.motivo && nuevo.cambios.length>doc.cambios.length){
+      var registro=nuevo.cambios[nuevo.cambios.length-1];
+      registro.motivo=op.motivo;registro.horaEfectiva=op.horaEfectiva;
+    }
+    Object.keys(nuevo.noches).forEach(function(f){
+      var anterior=doc.noches[f]&&doc.noches[f].obac||null;
+      revReordenar(nuevo.noches[f]);
+      var actual=nuevo.noches[f].obac||null;
+      if(anterior!==actual){
+        revLog(nuevo,D,f,"obac",actual?(anterior?"cambia":"agrega"):"quita",actual,anterior);
+        nuevo.cambios[nuevo.cambios.length-1].motivo="Reasignación automática por precedencia tras modificar la dotación";
+      }
+    });
     try{ await revGuardar(D,nuevo); RV.msg=""; RV.err=false; }
     catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. Se cargó lo último; repite tu cambio.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){} }
     RV.ocupado=false; panelRev(pn,D);
   };
+  pn.querySelectorAll('[data-rv-novedad]').forEach(function(b){b.onclick=function(){
+    var f=b.dataset.rvNovedad,n=doc.noches[f],personas=n.vol.concat(n.obac?[n.obac]:[],n.maq?[n.maq]:[]);
+    var opciones=personas.map(function(id){return '<option value="'+E(id)+'">'+E(nom(id))+(n.maq===id?' · Maquinista':n.obac===id?' · OBAC':' · Voluntario')+'</option>';}).join('');
+    var modal=modalOdd('<h2>Registrar novedad de guardia</h2><p>'+E(gnFmt(f))+'</p><label for="rvSale">¿Quién sale?</label><select id="rvSale" class="rv-sel">'+opciones+'</select><label for="rvMotivo">¿Por qué?</label><select id="rvMotivo" class="rv-sel"><option>No se presentó</option><option>Se retiró durante el servicio</option><option>Motivo personal</option><option>Motivo de salud</option><option>Necesidad del servicio</option></select><label for="rvEntra">¿Quién reemplaza?</label><select id="rvEntra" class="rv-sel"><option value="">Sin reemplazante por ahora</option></select><label for="rvHora">Hora efectiva (HH:MM)</label><input id="rvHora" type="time" class="rv-sel" required><p class="sub">El OBAC se recalcula por precedencia entre los presentes. Una ausencia sin reemplazo puede dejar la dotación incompleta.</p><button type="button" class="btn" id="rvConfirmarNovedad">Guardar novedad</button><button type="button" class="btn secondary" id="rvCancelarNovedad">Cancelar</button>');
+    if(!personas.length){modal.querySelector('#rvConfirmarNovedad').disabled=true;}
+    var sale=modal.querySelector('#rvSale'),entra=modal.querySelector('#rvEntra'),hora=modal.querySelector('#rvHora');
+    var now=new Date();hora.value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    function refrescar(){
+      var id=sale.value,esConductor=n.maq===id,ocupados=personas.filter(function(x){return x!==id;});
+      entra.innerHTML='<option value="">Sin reemplazante por ahora</option>'+activos.filter(function(m){return !ocupados.includes(String(m.id))&&String(m.id)!==id&&(!esConductor||esMaquinista(m));}).map(function(m){return '<option value="'+E(m.id)+'">'+E(corto(m))+'</option>';}).join('');
+    }
+    sale.onchange=refrescar;refrescar();
+    modal.querySelector('#rvCancelarNovedad').onclick=cerrarModalOdd;
+    modal.querySelector('#rvConfirmarNovedad').onclick=function(){
+      var id=sale.value,reemplazo=entra.value,motivo=modal.querySelector('#rvMotivo').value,h=hora.value;
+      if(!id||!/^[0-2][0-9]:[0-5][0-9]$/.test(h)||Number(h.slice(0,2))>23){alert('Indica la persona y una hora válida.');return;}
+      if(!confirm('¿Registrar la novedad de '+nom(id)+' el '+gnFmt(f)+'?'))return;
+      cerrarModalOdd();
+      guardarOp({t:reemplazo?'cambiarPersona':'quitarPersona',f:f,id:id,reemplazo:reemplazo,motivo:motivo,horaEfectiva:h});
+    };
+  };});
   pn.querySelectorAll('[data-rv-david]').forEach(function(b){b.onclick=function(){if(confirm('¿Programar a David Briones como maquinista de apoyo del Cuerpo el '+gnFmt(b.dataset.rvDavid)+'?'))guardarOp({t:'apoyoCuerpo',f:b.dataset.rvDavid});};});
   pn.querySelectorAll('[data-rv-persona]').forEach(function(b){b.onclick=function(){
     var v=b.dataset.rvPersona.split('|'),f=v[0],id=v[1],op=b.dataset.operacion;
+    if(op==='gestionar'){var eleccion=prompt('Gestionar '+nom(id)+'\\n1. Modificar día\\n2. Eliminar de la noche\\n3. Cambiar por otra persona\\nCancelar: dejar vacío','');if(eleccion==='1')op='mover';else if(eleccion==='2')op='quitar';else if(eleccion==='3')op='cambiar';else return;}
     if(op==='quitar'){if(confirm('¿Quitar a '+nom(id)+' de '+gnFmt(f)+'?'))guardarOp({t:'quitarPersona',f:f,id:id});return;}
     var n=doc.noches[f],conductor=n.maq===id,ocupados=n.vol.concat(n.obac?[n.obac]:[],n.maq?[n.maq]:[]);
     var opciones=op==='mover'?D.noches.filter(function(d){var t=doc.noches[d];return d!==f&&!t.vol.includes(id)&&t.obac!==id&&t.maq!==id&&(!conductor||!t.maq);}):activos.filter(function(m){return !ocupados.includes(String(m.id))&&(!conductor||esMaquinista(m));}).map(function(m){return String(m.id);});
@@ -638,7 +744,7 @@ async function panelRev(pn,D){
   };
 }
 async function aprobarRevision(pn,D){
-  if(!esTenienteTercero(D.m))return;
+  if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m)))return;
   var doc=RV.doc, cov=revCov(doc), malas=cov.filter(function(c){ return !c.completa; });
   if(malas.length){RV.msg="Completa las siete noches antes de aprobar (1 OBAC, 1 maquinista y 2 voluntarios).";RV.err=true;panelRev(pn,D);return;}
   var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
@@ -810,9 +916,9 @@ async function misNochesInicio(forzar){
       var n=nombreNoche(e.f),rol=ROL_NOCHE[e.rol]||"Voluntario";
       var aviso=e.aviso&&e.aviso.estado!=="cubierto"?' <span class="gn-franja-aviso">Avisaste que no puedes</span>':"";
       return '<button type="button" class="gn-franja-dia" data-gn-noche="'+E(e.f)+'"'
-        +' aria-label="'+E(n.w+" "+n.d+", "+rol+". Ver detalles y avisar si no puedes")+'">'
+        +' style="background:#991b1b;color:#fff;border:2px solid #ef4444" aria-label="'+E(n.w+" "+n.d+", "+rol+". Guardia aprobada. Ver detalles y avisar si no puedes")+'">'
         +'<span class="gn-franja-semana">'+E(n.w)+'</span><strong>'+E(n.d)+'</strong>'
-        +'<span class="gn-franja-cargo">'+E(rol)+'</span>'+aviso+'</button>';
+        +'<span class="gn-franja-cargo">'+(e.rol==="obac"?"ERES OBAC · ":"")+E(rol)+'</span>'+aviso+'</button>';
     }).join("")
     +'</div><p class="gn-franja-nota">Solo tus noches asignadas. Toca una fecha para ver detalles.</p></section>';
   box.querySelectorAll("[data-gn-noche]").forEach(function(b){

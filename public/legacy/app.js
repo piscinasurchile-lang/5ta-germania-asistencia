@@ -2648,7 +2648,7 @@ async function gnResumenAcreditado(lista){
   const resumen=window.GermaniaGuardiaEstadisticas.calcularResumen({
     guardias:lista,acreditaciones:pares,rosterIds:ROSTER.map(p=>String(p.id)),ahoraChile
   });
-  return {resumen,pares};
+  return {resumen,pares,revisiones};
 }
 
 on("gnSemana","click",()=>{
@@ -2678,18 +2678,29 @@ async function renderGnLista(){
     if(box)box.innerHTML='<div class="empty">Reintenta la consulta de guardias. No se modificó ningún registro.</div>';
     return;
   }
-  const {resumen,pares}=verificacion, turnos=resumen.turnos;
+  const {resumen,pares,revisiones}=verificacion, turnos=resumen.turnos;
+  // La programación semanal no equivale a una guardia registrada ni acreditada.
+  const {d:desde,h:hasta}=rangoGn();
+  const programadas=new Set();
+  for(const rev of revisiones.values()){
+    if(!rev||rev.estado!=="aprobada"||!rev.noches)continue;
+    for(const [fecha,noche] of Object.entries(rev.noches)){
+      if((desde&&fecha<desde)||(hasta&&fecha>hasta))continue;
+      if(noche&&(noche.maq||noche.obac||(Array.isArray(noche.vol)&&noche.vol.length)))programadas.add(fecha);
+    }
+  }
   const acreditadas=Object.values(resumen.por).reduce((s,x)=>s+x.hechas,0);
   const inasistencias=Object.values(resumen.por).reduce((s,x)=>s+x.falto,0);
   const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
   res.innerHTML=
+    '<div class="summary-item"><div class="big">'+programadas.size+'</div><div class="lbl">Noches programadas (aprobadas, no acreditadas)</div></div>'+
     '<div class="summary-item"><div class="big">'+turnos+'</div><div class="lbl">Guardias registradas</div></div>'+
     '<div class="summary-item"><div class="big">'+acreditadas+'</div><div class="lbl">Asistencias acreditadas</div></div>'+
     '<div class="summary-item"><div class="big">'+resumen.pendientes+'</div><div class="lbl">Noches por acreditar</div></div>'+
     '<div class="summary-item"><div class="big">'+inasistencias+'</div><div class="lbl">Ausencias verificadas</div></div>'+
     '<div class="summary-item"><div class="big">'+resumen.reemp+'</div><div class="lbl">Reemplazos registrados</div></div>'+
     '<div class="summary-item"><div class="big">'+conNov+'</div><div class="lbl">Con novedad</div></div>';
-  if(!turnos){box.innerHTML='<div class="empty">No hay guardias registradas en este período.</div>';return;}
+  if(!turnos){box.innerHTML='<div class="empty">'+(programadas.size?'Hay '+programadas.size+' noche(s) programada(s) y aprobada(s) en el período, pero aún no hay registros de guardia efectiva. Las asistencias se contabilizan solo después de su acreditación.':'No hay guardias registradas ni noches aprobadas en este período.')+'</div>';return;}
   box.innerHTML=lista.slice().reverse().map(g=>{
     const r=pares[g.fechaIng],n=r?.revision?.noches?.[g.fechaIng];
     const ac=window.GermaniaGuardiaReglas.acreditacionVigente(r?.acta,r?.revision,g.fechaIng)?r.acta:null;
