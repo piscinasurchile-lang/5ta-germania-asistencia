@@ -73,6 +73,8 @@ function ponerVista(v){
 
 /* ---------- Novedades (Inicio) ---------- */
 var novRendering=false, novVisible=[], novReadPending={};
+var NOV_PRUEBA=window.GermaniaInformacionesPrueba||null;
+
 var novExpiryTimer=null, novPrivateTimer=null;
 function novProgramarVencimiento(lista,privado){
   const actual=privado?novPrivateTimer:novExpiryTimer;
@@ -112,10 +114,10 @@ async function renderNovedades(){
   novRendering=true;
   var m=miembro(), who=m?String(m.id):"";
   try{
-    var lista=await sGet(NOV_KEY,[]);
+    var lista=NOV_PRUEBA?NOV_PRUEBA.listar("compania"):await sGet(NOV_KEY,[]);
     if(!Array.isArray(lista)) lista=[];
     lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
-    var lecturas=await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
+    var lecturas=NOV_PRUEBA?lista.map(n=>n.lecturas||[]):await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
     if((miembro()?String(miembro().id):"")!==who) return;
     novVisible=lista; novSound(lista); novProgramarVencimiento(lista,false);
     var of=esOficial(m)||esMando(m);
@@ -138,7 +140,8 @@ async function confirmarLectura(id,button){
   if(!m||novReadPending[id]||!novVisible.some(function(n){return n.id===id;})) return;
   novReadPending[id]=true; button.disabled=true; button.textContent="Guardando…";
   try{
-    await sAddToList(novReadKey(id),{voluntarioId:String(m.id),en:new Date().toISOString()},{uniqueBy:"voluntarioId"});
+    if(NOV_PRUEBA)NOV_PRUEBA.confirmar(id,String(m.id));
+    else await sAddToList(novReadKey(id),{voluntarioId:String(m.id),en:new Date().toISOString()},{uniqueBy:"voluntarioId"});
     button.textContent="✓ Lectura confirmada";
     await renderNovedades();
   }catch(e){button.disabled=false;button.textContent="Reintentar confirmar lectura";}
@@ -162,17 +165,14 @@ async function publicarNovedad(){
   }
   if(b)b.disabled=true;
   try{
-    var response=await fetch("/api/informaciones",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({texto,destino,vence})});
-    if(!response.ok){
-      if(response.status===403)throw new Error("Inicia sesión con la clave institucional de Oficialidad para publicar.");
-      throw new Error("No se pudo publicar la información. Inténtalo de nuevo.");
-    }
+    if(!NOV_PRUEBA)throw new Error("Este módulo está disponible solo en simulación sin clave.");
+    const m=miembro();
+    NOV_PRUEBA.publicar({texto,destino,vence,autor:m?corto(m):"Oficial de prueba"});
     inp.value="";if($("informacionesVence"))$("informacionesVence").value="";
-    msg.textContent=destino==="oficiales"?"Información publicada solo para oficiales.":"Información publicada para los voluntarios.";
+    msg.textContent="Simulación guardada en este dispositivo. NO se ha enviado a otros teléfonos.";
     await renderNovedades();
     await renderInformacionesOficiales();
-  }catch(e){msg.textContent=e.message||"No se pudo publicar.";msg.classList.add("err")}
+  }catch(e){msg.textContent=e.message||"No se pudo simular.";msg.classList.add("err")}
   finally{if(b)b.disabled=false;}
 }
 async function renderInformacionesOficiales(){
@@ -180,12 +180,10 @@ async function renderInformacionesOficiales(){
   var m=miembro(),visible=esOficial(m)||esMando(m);
   box.hidden=!visible;
   if(!visible){box.innerHTML="";return}
-  box.textContent="Consultando avisos entre oficiales…";
+  box.textContent="Consultando mensajes simulados…";
   try{
-    var r=await fetch("/api/informaciones",{cache:"no-store"});
-    if(r.status===403){box.textContent="Avisos exclusivos: inicia sesión institucional para leerlos.";return}
-    if(!r.ok)throw new Error("No fue posible consultar los avisos internos.");
-    var data=await r.json(),items=Array.isArray(data.items)?data.items:[];
+    if(!NOV_PRUEBA)throw new Error("Simulación no disponible");
+    var items=NOV_PRUEBA.listar("oficiales");
     novProgramarVencimiento(items,true);
     box.innerHTML=items.length?items.map(function(n){
       var exp=new Date(n.vence||Date.parse(n.en)+48*60*60*1000);
@@ -194,33 +192,15 @@ async function renderInformacionesOficiales(){
     }).join(""):'<div class="ha-vacia">Sin informaciones internas vigentes.</div>';
   }catch(e){box.textContent=e.message||"No fue posible cargar los avisos.";}
 }
-async function iniciarSesionInformaciones(){
-  var inp=$("informacionesPin"),msg=$("informacionesSesionMsg"),boton=$("informacionesEntrar");
-  if(!inp||!msg)return;
-  if(!esOficial(miembro())&&!esMando(miembro())){msg.textContent="Solo oficiales pueden iniciar sesión aquí.";return}
-  var pin=inp.value.trim();
-  if(!pin){msg.textContent="Ingresa la clave institucional.";return}
-  if(boton)boton.disabled=true;
-  try{
-    var r=await fetch("/api/auth/officiality",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});
-    if(!r.ok)throw new Error("No se pudo activar la sesión. Revisa la clave.");
-    inp.value="";msg.textContent="Sesión institucional activa. Puedes publicar información.";
-    await renderInformacionesOficiales();
-  }catch(e){msg.textContent=e.message||"No se pudo iniciar sesión.";}
-  finally{if(boton)boton.disabled=false}
-}
 async function quitarNovedad(id){
   if(!confirm("¿Quitar esta información de todos los voluntarios?"))return;
   if(!esOficial(miembro())&&!esMando(miembro()))return;
   try{
-    const r=await fetch("/api/informaciones",{method:"DELETE",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({id})});
-    if(!r.ok)throw new Error(r.status===403?"Inicia sesión institucional para retirar información.":"No se pudo retirar. Reintenta.");
+    if(!NOV_PRUEBA||!NOV_PRUEBA.retirar(id))throw new Error("No se encontró el aviso de prueba.");
     await renderNovedades();
   }catch(e){alert(e.message||"No se pudo retirar la información.");}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
-if($("informacionesEntrar")) $("informacionesEntrar").addEventListener("click",iniciarSesionInformaciones);
 if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var b=ev.target.closest("[data-nov-del]"); if(b) quitarNovedad(b.dataset.novDel); var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
 
 /* ---------- Datos de la semana ---------- */
