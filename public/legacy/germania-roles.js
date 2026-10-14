@@ -549,7 +549,7 @@ function textoCambio(c){
 async function panelRev(pn,D){
   if(!esTenienteTercero(D.m)){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero.</p>";return;}
   if(RV.clave!==D.p.inicio||(RV.doc===null&&!RV.ocupado)){ pn.innerHTML='<p class="sub">Cargando…</p>'; try{ await revCargar(D); }catch(e){ pn.innerHTML='<div class="empty">No se pudo leer la revisión. <button type="button" class="btn small secondary" id="rvReint">Reintentar</button></div>'; var r=$("rvReint"); if(r) r.onclick=function(){ RV.clave=""; panelRev(pn,D); }; return; } }
-  if(D.abierto){pn.innerHTML="<p>Cierra las inscripciones de esta semana antes de revisarla y aprobarla.</p>";return;}
+  if(D.abierto){pn.innerHTML='<div class="gr-nota info"><p><b>Paso 1 · Cerrar inscripciones</b>. La semana sigue abierta. Ve a Programación de Guardia y utiliza «Cerrar inscripción / Asignación». Luego regresa a Oficiales → Revisión para modificar y aprobar la dotación. No anules la semana.</p></div>';return;}
   var doc=RV.doc, DOT=GN_DOTACION_MIN;
   if(!doc){
     pn.innerHTML='<h3 class="gr-t">Revisión de la dotación</h3><div class="gr-nota info"><span aria-hidden="true">🛠</span><p>Aquí revisas y corriges quién queda cada noche antes de la ODD. Parte de lo que se inscribió; cada cambio queda registrado.</p></div>'
@@ -604,7 +604,7 @@ async function panelRev(pn,D){
   });
   var guardarOp=async function(op){
     if(RV.ocupado) return; RV.ocupado=true; var nuevo=clonar(doc);
-    try{revAplicar(nuevo,D,op);}catch(e){RV.msg=e.message;RV.err=true;RV.ocupado=false;panelRev(pn,D);return;}
+    try{revAplicar(nuevo,D,op); if(op.motivo){var ult=nuevo.cambios[nuevo.cambios.length-1];if(ult)ult.motivo=op.motivo;}}catch(e){RV.msg=e.message;RV.err=true;RV.ocupado=false;panelRev(pn,D);return;}
     Object.keys(nuevo.noches).forEach(function(f){revReordenar(nuevo.noches[f]);});
     try{ await revGuardar(D,nuevo); RV.msg=""; RV.err=false; }
     catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. Se cargó lo último; repite tu cambio.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){} }
@@ -613,11 +613,11 @@ async function panelRev(pn,D){
   pn.querySelectorAll('[data-rv-david]').forEach(function(b){b.onclick=function(){if(confirm('¿Programar a David Briones como maquinista de apoyo del Cuerpo el '+gnFmt(b.dataset.rvDavid)+'?'))guardarOp({t:'apoyoCuerpo',f:b.dataset.rvDavid});};});
   pn.querySelectorAll('[data-rv-persona]').forEach(function(b){b.onclick=function(){
     var v=b.dataset.rvPersona.split('|'),f=v[0],id=v[1],op=b.dataset.operacion;
-    if(op==='quitar'){if(confirm('¿Quitar a '+nom(id)+' de '+gnFmt(f)+'?'))guardarOp({t:'quitarPersona',f:f,id:id});return;}
+    if(op==='quitar'){if(confirm('¿Quitar a '+nom(id)+' de '+gnFmt(f)+'?')){var motivo=prompt('Motivo del retiro (ej.: salud, personal, otro). No incluyas diagnósticos ni información médica privada:','Motivo personal');if(motivo!==null&&motivo.trim())guardarOp({t:'quitarPersona',f:f,id:id,motivo:motivo.trim()});}return;}
     var n=doc.noches[f],conductor=n.maq===id,ocupados=n.vol.concat(n.obac?[n.obac]:[],n.maq?[n.maq]:[]);
     var opciones=op==='mover'?D.noches.filter(function(d){var t=doc.noches[d];return d!==f&&!t.vol.includes(id)&&t.obac!==id&&t.maq!==id&&(!conductor||!t.maq);}):activos.filter(function(m){return !ocupados.includes(String(m.id))&&(!conductor||esMaquinista(m));}).map(function(m){return String(m.id);});
-    var modal=modalOdd('<h2>'+E(op==='mover'?'Modificar noche':'Cambiar persona')+'</h2><p>'+E(nom(id))+' · '+E(gnFmt(f))+'</p><label for="guDestino">'+(op==='mover'?'Noche de destino':'Reemplazante')+'</label><select id="guDestino" class="rv-sel">'+opciones.map(function(x){return '<option value="'+E(x)+'">'+E(op==='mover'?gnFmt(x):nom(x))+'</option>';}).join('')+'</select><button type="button" class="btn" id="guGuardar">Guardar cambio</button><button type="button" class="btn secondary" id="guCancelar">Cancelar</button>');
-    modal.querySelector('#guCancelar').onclick=cerrarModalOdd;var g=modal.querySelector('#guGuardar');g.disabled=!opciones.length;g.onclick=function(){var valor=modal.querySelector('#guDestino').value;cerrarModalOdd();guardarOp(op==='mover'?{t:'moverPersona',f:f,id:id,destino:valor}:{t:'cambiarPersona',f:f,id:id,reemplazo:valor});};
+    var modal=modalOdd('<h2>'+E(op==='mover'?'Modificar noche':'Cambiar persona')+'</h2><p>'+E(nom(id))+' · '+E(gnFmt(f))+'</p><label for="guDestino">'+(op==='mover'?'Noche de destino':'Reemplazante')+'</label><select id="guDestino" class="rv-sel">'+opciones.map(function(x){return '<option value="'+E(x)+'">'+E(op==='mover'?gnFmt(x):nom(x))+'</option>';}).join('')+'</select><label for="guMotivo">Motivo del cambio (sin datos médicos privados)</label><select id="guMotivo" class="rv-sel"><option value="Motivo personal">Motivo personal</option><option value="Ausencia por salud">Ausencia por salud</option><option value="Necesidad de servicio">Necesidad de servicio</option><option value="Otro">Otro</option></select><button type="button" class="btn" id="guGuardar">Guardar cambio</button><button type="button" class="btn secondary" id="guCancelar">Cancelar</button>');
+    modal.querySelector('#guCancelar').onclick=cerrarModalOdd;var g=modal.querySelector('#guGuardar');g.disabled=!opciones.length;g.onclick=function(){var valor=modal.querySelector('#guDestino').value;cerrarModalOdd();var motivo=modal.querySelector('#guMotivo').value;cerrarModalOdd();guardarOp(op==='mover'?{t:'moverPersona',f:f,id:id,destino:valor,motivo:motivo}:{t:'cambiarPersona',f:f,id:id,reemplazo:valor,motivo:motivo});};
   };});
   pn.querySelectorAll("[data-rv-del]").forEach(function(b){ b.onclick=function(){ var p=b.dataset.rvDel.split("|"); guardarOp({t:"delVol",f:p[0],id:p[1]}); }; });
   pn.querySelectorAll("[data-rv-add]").forEach(function(sel){ sel.onchange=function(){ if(sel.value) guardarOp({t:"addVol",f:sel.dataset.rvAdd,id:sel.value}); }; });
