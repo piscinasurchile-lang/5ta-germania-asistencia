@@ -192,8 +192,14 @@ async function iniciarSesionInformaciones(){
   finally{if(boton)boton.disabled=false}
 }
 async function quitarNovedad(id){
-  if(!confirm("¿Quitar esta novedad?")) return;
-  try{ var l=await sGet(NOV_KEY,[]); await sSet(NOV_KEY,(Array.isArray(l)?l:[]).filter(function(n){ return n.id!==id; })); await renderNovedades(); }catch(e){}
+  if(!confirm("¿Quitar esta información de todos los voluntarios?"))return;
+  if(!esOficial(miembro())&&!esMando(miembro()))return;
+  try{
+    const r=await fetch("/api/informaciones",{method:"DELETE",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id})});
+    if(!r.ok)throw new Error(r.status===403?"Inicia sesión institucional para retirar información.":"No se pudo retirar. Reintenta.");
+    await renderNovedades();
+  }catch(e){alert(e.message||"No se pudo retirar la información.");}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
 if($("informacionesEntrar")) $("informacionesEntrar").addEventListener("click",iniciarSesionInformaciones);
