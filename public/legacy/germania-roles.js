@@ -295,11 +295,15 @@ function filaCupos(c){
 /* Fin de guardia en hora local de Villarrica: 06:00 del día siguiente.
    Se oculta la tarjeta, no se borra el turno ni su acreditación. */
 function guardiaTurnoPendiente(fecha){
- var fin=new Date(fecha+"T12:00:00Z");
- fin.setUTCDate(fin.getUTCDate()+1);
- var finFecha=fin.toISOString().slice(0,10);
- var finMs=typeof instanteChile==="function"?instanteChile(finFecha,"06:00"):NaN;
- return Number.isFinite(finMs)?Date.now()<finMs:true;
+ /* Compara la fecha y hora civiles de Chile; no depende de la zona horaria del teléfono. */
+ var dia=new Date(fecha+"T12:00:00Z");
+ if(!Number.isFinite(dia.getTime()))return false;
+ dia.setUTCDate(dia.getUTCDate()+1);
+ var limite=dia.toISOString().slice(0,10)+"T06:00";
+ var partes=new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+ var val=function(k){var x=partes.find(function(p){return p.type===k;});return x?x.value:"";};
+ var ahora=val("year")+"-"+val("month")+"-"+val("day")+"T"+val("hour")+":"+val("minute");
+ return ahora<limite;
 }
 function panelVol(pn,D){
  var who=D.who,saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[],ck=D.p.inicio+":"+who;
