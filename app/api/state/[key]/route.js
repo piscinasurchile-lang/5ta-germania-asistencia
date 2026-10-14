@@ -51,6 +51,7 @@ export async function PUT(request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+  if (key === "novedades:v1") return Response.json({ error: "ruta_informaciones_requerida" }, { status: 409, headers: { "Cache-Control": "no-store" } });
   // Inscripción titular exclusiva y acreditación real solo por rutas dedicadas.
   if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
     return Response.json({error:"ruta_especializada_requerida"},{status:409,headers:{"Cache-Control":"no-store"}});
@@ -92,6 +93,7 @@ export async function PATCH(request, { params }) {
   const { key } = await params;
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
+  if (key === "novedades:v1") return Response.json({ error: "ruta_informaciones_requerida" }, { status: 409, headers: { "Cache-Control": "no-store" } });
   // Inscripción titular exclusiva y acreditación real solo por rutas dedicadas.
   if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
     return Response.json({error:"ruta_especializada_requerida"},{status:409,headers:{"Cache-Control":"no-store"}});
