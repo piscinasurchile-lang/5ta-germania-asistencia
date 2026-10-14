@@ -440,10 +440,44 @@ function alertaConductor(id){
  if(/david\\s+briones/i.test(nombre))return '<div role="status" style="margin:8px 0;padding:10px;border:2px solid #16a34a;border-radius:8px;background:#14532d;color:white;font-weight:800">✓ CUARTELERO DE APOYO ASIGNADO · Pendiente de acreditación</div>';
  return '';
 }
+async function historialInscripciones(D){
+ var out=$("grHistInsRes");if(!out)return;
+ out.textContent="Consultando inscripciones históricas…";
+ try{
+  var planes=(await gnPlanes()).filter(function(p){return p&&p.inicio&&p.confirmado!==false&&p.estado!=="borrador"&&Date.now()>=gnInsCierreMs(p);});
+  var semanas=planes.slice().sort(function(a,b){return a.inicio.localeCompare(b.inicio);});
+  var datos=await Promise.all([leerPrefijo("guardia-inscripcion:"),leerPrefijo("guardia-maq:")]);
+  var ins=new Set(datos[0].map(function(x){return x.key;})),maq=new Set(datos[1].map(function(x){return x.key;}));
+  var activos=ROSTER.filter(function(x){return x.activo!==false;});
+  var filas=activos.map(function(m){
+   var id=String(m.id),si=0,no=0,meses={};
+   semanas.forEach(function(p){
+    var k=p.inicio+":"+id;
+    var participo=ins.has("guardia-inscripcion:"+k)||maq.has("guardia-maq:"+k);
+    // Solo se cuenta inscripción con noches efectivamente elegidas.
+    var v=datos[0].find(function(x){return x.key==="guardia-inscripcion:"+k;});
+    var t=datos[1].find(function(x){return x.key==="guardia-maq:"+k;});
+    participo=!!((v&&Array.isArray(v.value)&&v.value.length)||(t&&regs(t.value).length));
+    if(participo)si++;else no++;
+    var mes=p.inicio.slice(0,7),x=meses[mes]||(meses[mes]={si:0,no:0});x[participo?"si":"no"]++;
+   });
+   return {m:m,si:si,no:no,meses:meses};
+  });
+  var tot=filas.reduce(function(a,x){return a+x.no;},0);
+  var html='<h4>Historial de inscripción · '+semanas.length+' semana(s) cerrada(s)</h4><p class="sub">Solo semanas con convocatoria cerrada. No mide asistencia ni cumplimiento de guardias.</p>';
+  if(!semanas.length){out.innerHTML=html+'<p>No hay convocatorias cerradas disponibles.</p>';return;}
+  html+='<details class="gr-det"><summary>Semanas consultadas: '+semanas.length+'</summary>'+semanas.map(function(p){return '<p>'+E(p.inicio)+'</p>';}).join("")+'</details>';
+  html+='<div class="gr-lista">'+filas.sort(function(a,b){return b.no-a.no;}).map(function(x){
+   var meses=Object.keys(x.meses).sort().reverse().map(function(k){var y=x.meses[k];return k+': '+y.no+' sin inscripción / '+(y.si+y.no)+' semanas';}).join(' · ');
+   return '<div class="gr-nc-fila"><b>'+E(nombreCompleto(x.m))+'</b><div>'+x.si+' inscritas · '+x.no+' sin inscripción · '+Math.round(100*x.si/semanas.length)+'% de inscripción</div><small>'+E(meses)+'</small></div>';
+  }).join("")+'</div><p class="sub">Consulta informativa. No se envían avisos ni se crean sanciones.</p>';
+  out.innerHTML=html;
+ }catch(e){out.textContent="No se pudo consultar el historial. No se modificaron registros.";}
+}
 function panelInfo(pn,D){
   var DOT=GN_DOTACION_MIN, completas=D.cov.filter(function(c){ return c.completa; }).length;
   var activos=ROSTER.filter(function(x){ return x.activo!==false; });
-  var sinConf=activos.filter(function(x){ var id=String(x.id), c=D.S.conf[id]; return !(c&&(c.cumple||c.justificacion))&&!regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
+  var sinConf=activos.filter(function(x){ var id=String(x.id); return !regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
   var h='<h3 class="gr-t">Cobertura de la semana</h3><div class="gr-nota info"><span aria-hidden="true">👥</span><p>Cada noche debe contar con <b>'+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC</b>. El OBAC se calcula solo: es el inscrito de mayor precedencia de esa noche (si no hay maquinista, el Capitán pasa a maquinista y el OBAC es el siguiente). Los voluntarios de más son refuerzos. <b>'+completas+' de '+D.cov.length+' noches completas.</b></p></div>';
   h+='<div class="gr-lista">'+D.cov.map(function(c){
     var nn=nombreNoche(c.f), mt=c.maq[0]?corto(porId(c.maq[0].id)):null, ot=c.obac[0]?corto(porId(c.obac[0].id)):null;
@@ -457,7 +491,9 @@ function panelInfo(pn,D){
       +(c.empate?'<small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC de esta noche debe confirmarlo el Teniente 3° en la Revisión.</small>':'')
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
-  h+='<details class="gr-det"><summary>Sin elegir noches: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><div class="gr-lista">'+(sinConf.length?sinConf.map(function(x){var nombre=[x.nombre,x.apellidoPaterno,x.apellidoMaterno].filter(Boolean).join(" ");return '<div class="gr-nc-fila" style="display:flex;align-items:center;gap:10px;min-width:0"><img src="'+E(fotoVoluntario(x))+'" alt="" loading="lazy" style="width:36px;height:36px;min-width:36px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="min-width:0"><b>'+E(nombre||corto(x))+'</b><small class="sub" style="display:block">Cumplimiento: sin historial acreditado todavía</small></span></div>';}).join(""):'<p>Todos eligieron sus noches.</p>')+'</div></details>';
+  h+='<details class="gr-det"><summary>No se inscribieron: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><div class="gr-lista">'+(sinConf.length?sinConf.map(function(x){var nombre=[x.nombre,x.apellidoPaterno,x.apellidoMaterno].filter(Boolean).join(" ");return '<div class="gr-nc-fila" style="display:flex;align-items:center;gap:10px;min-width:0"><img src="'+E(fotoVoluntario(x))+'" alt="" loading="lazy" style="width:36px;height:36px;min-width:36px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="min-width:0"><b>'+E(nombre||corto(x))+'</b><small class="sub" style="display:block">Sin inscripción registrada esta semana</small></span></div>';}).join(""):'<p>Todos registraron inscripción esta semana.</p>')+'</div></details>';
+  h+='<div class="gr-nota info"><p><b>Estadística de inscripción:</b> '+(activos.length-sinConf.length)+' de '+activos.length+' voluntarios activos se inscribieron ('+(activos.length?Math.round(100*(activos.length-sinConf.length)/activos.length):0)+'%). '+sinConf.length+' no se inscribieron. Esto no equivale a inasistencia ni incumplimiento.</p></div>';
+  h+='<button type="button" class="btn secondary" id="grHistIns">Consultar historial de inscripciones</button><div id="grHistInsRes" aria-live="polite"></div>';
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';
   pn.innerHTML=h;
