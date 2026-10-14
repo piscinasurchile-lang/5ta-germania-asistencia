@@ -54,10 +54,18 @@ async function check(browser,device){
     for(const b of notice.controls)assert.ok(b.height>=43.5,device.name+" botón de avisos demasiado pequeño "+JSON.stringify(b));
     assert.ok(notice.scrollWidth<=notice.boxWidth+2,device.name+" avisos desbordados "+JSON.stringify(notice));
     if(device.width>=701){
+      const nav=await page.evaluate(()=>{
+        const panel=document.getElementById("panel-panel");
+        const hasNav=typeof window.__mostrarPestana==="function";
+        if(hasNav)window.__mostrarPestana("panel");
+        return {hasNav,active:!!panel?.classList.contains("active"),found:!!panel?.querySelector('[aria-label="Volver al inicio de Germania"]')};
+      });
+      console.log(device.name+" diagnóstico navegación: "+JSON.stringify(nav));
+      assert.ok(nav.hasNav,device.name+" navegación de panel sin inicializar");
+      assert.ok(nav.active,device.name+" navegación no activó Informes");
+      assert.ok(nav.found,device.name+" botón Inicio inexistente");
       const button=page.locator('#panel-panel [aria-label="Volver al inicio de Germania"]');
-      await page.evaluate(()=>window.__mostrarPestana?.("panel"));
-      await button.waitFor({state:"visible",timeout:12000});
-      assert.ok((await button.boundingBox()).height>=43.5,device.name+" botón de Inicio insuficiente");
+      assert.ok((await button.boundingBox())?.height>=43.5,device.name+" botón de Inicio insuficiente");
     }
     snapshots.push(device.name+" OK: "+JSON.stringify({dash,notice}));
   }finally{await ctx.close();}
