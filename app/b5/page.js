@@ -46,6 +46,7 @@ export default function TabletB5(){
   const [foto,setFoto]=useState(null);
   const [mensaje,setMensaje]=useState("");
   const [cargandoFoto,setCargandoFoto]=useState(false);
+  const [registro,setRegistro]=useState({estado:"comprobando",id:"",error:""});
   const [version,setVersion]=useState(null);
   const entradaFoto=useRef(null);
 
@@ -56,6 +57,30 @@ export default function TabletB5(){
     }catch{setMensaje("Este navegador no pudo recordar el modo B-5. Revisa el almacenamiento del equipo.");}
     // La tablet compartida nunca debe atribuir una acción al voluntario anterior.
     limpiarIdentidadAnterior();
+  },[]);
+
+  useEffect(()=>{
+    let cancelado=false;
+    async function reconocerTablet(){
+      setRegistro({estado:"comprobando",id:"",error:""});
+      try{
+        // Primero verificar la instalación ya registrada; no se duplica el alta.
+        let respuesta=await fetch("/api/b5/dispositivo",{cache:"no-store",credentials:"same-origin"});
+        let datos=await respuesta.json().catch(()=>null);
+        if(!respuesta.ok)throw new Error("No se pudo verificar la identificación digital.");
+        if(!datos?.registrado){
+          respuesta=await fetch("/api/b5/dispositivo",{method:"POST",credentials:"same-origin",cache:"no-store"});
+          datos=await respuesta.json().catch(()=>null);
+          if(!respuesta.ok)throw new Error(datos?.error==="limite_dispositivos"||datos?.error==="limite_diario"
+            ?"El registro de nuevas tablets está temporalmente limitado.":"No se pudo registrar la tablet.");
+        }
+        if(!cancelado)setRegistro({estado:"registrado",id:datos.id||"",error:""});
+      }catch(error){
+        if(!cancelado)setRegistro({estado:"error",id:"",error:error?.message||"Sin conexión al registro digital."});
+      }
+    }
+    reconocerTablet();
+    return()=>{cancelado=true;};
   },[]);
 
   useEffect(()=>{
@@ -102,6 +127,8 @@ export default function TabletB5(){
 
   function salir(){
     try{localStorage.removeItem(MODO_KEY);}catch{}
+    // Al salir voluntariamente no volver a abrir B-5 solo por la cookie de registro.
+    document.cookie="germania_b5_registrado=; Max-Age=0; Path=/; SameSite=Lax";
     limpiarIdentidadAnterior();
     window.location.assign("/");
   }
@@ -141,6 +168,11 @@ export default function TabletB5(){
           )}
         </div>
         <p className="note">Los registros de la unidad B-5 y de asistencia continúan guardándose en Germania.</p>
+        <p className="deviceStatus" role="status">
+          {registro.estado==="registrado"?"Identificación digital registrada · B-5 #"+registro.id
+            :registro.estado==="comprobando"?"Reconociendo esta tablet…"
+            :"Registro digital pendiente · "+registro.error}
+        </p>
         {mensaje&&<p className="message" role="status">{mensaje}</p>}
       </section>
 
@@ -183,6 +215,7 @@ export default function TabletB5(){
         .action strong{font-size:clamp(14px,2.1vw,21px);text-align:center;line-height:1.1}
         .action small{color:#c1d0dc;font-size:12px;text-align:center}
         .note{color:#bacbd8;font-size:13px;line-height:1.5;margin:16px 1px 0}
+        .deviceStatus{color:#a9c3d6;font-size:12px;line-height:1.4;margin:8px 1px 0}
         .message{font-size:13px;color:#ffdd73}
         .foot{max-width:990px;margin:19px auto 0;display:flex;gap:16px;
           justify-content:space-between;align-items:center;flex-wrap:wrap;color:#9db3c5;font-size:12px}

@@ -27,6 +27,22 @@ export default function Page() {
       window.location.replace("/b5");
       return;
     }
+    // Recuperación si se perdió localStorage, pero la cookie de identificación
+    // y el marcador de esta instalación siguen presentes. Ninguna consulta extra
+    // en teléfonos de voluntarios que no tienen el marcador B-5.
+    const marcador = document.cookie.split(";").some(x => x.trim() === "germania_b5_registrado=1");
+    if (!destino && marcador) {
+      fetch("/api/b5/dispositivo", {cache:"no-store",credentials:"same-origin"})
+        .then(x => x.ok ? x.json() : null)
+        .then(d => {
+          if (d?.registrado) {
+            try { localStorage.setItem("germania:modo-dispositivo:v1", "b5"); } catch {}
+            window.location.replace("/b5");
+          } else setInicioB5Comprobado(true);
+        })
+        .catch(() => setInicioB5Comprobado(true));
+      return;
+    }
     setInicioB5Comprobado(true);
   }, []);
 
