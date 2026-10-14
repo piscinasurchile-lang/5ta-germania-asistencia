@@ -905,7 +905,7 @@ async function misNochesInicio(forzar){
       var n=nombreNoche(e.f),rol=ROL_NOCHE[e.rol]||"Voluntario";
       var aviso=e.aviso&&e.aviso.estado!=="cubierto"?' <span class="gn-franja-aviso">Avisaste que no puedes</span>':"";
       return '<button type="button" class="gn-franja-dia" data-gn-noche="'+E(e.f)+'"'
-        +' aria-label="'+E(n.w+" "+n.d+", "+rol+". Ver detalles y avisar si no puedes")+'">'
+        +' style="background:#991b1b;color:#fff;border:2px solid #ef4444" aria-label="'+E(n.w+" "+n.d+", "+rol+". Guardia aprobada. Ver detalles y avisar si no puedes")+'">'
         +'<span class="gn-franja-semana">'+E(n.w)+'</span><strong>'+E(n.d)+'</strong>'
         +'<span class="gn-franja-cargo">'+E(rol)+'</span>'+aviso+'</button>';
     }).join("")
