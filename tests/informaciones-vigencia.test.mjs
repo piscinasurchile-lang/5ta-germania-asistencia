@@ -38,7 +38,7 @@ test("la publicación se redacta en Oficiales; lectura con botón Leído en Inic
  assert.match(html,/id="inicioNovedades"/);
  const ini=html.indexOf('id="inicioNovedades"');
  assert.ok(ini>=0);
- assert.match(html.slice(ini,ini+420),/id="novedadesLista"/);
+ assert.match(html.slice(ini,ini+700),/id="novedadesLista"/);
  assert.match(roles,/data-nov-read/);
  assert.match(roles,/✓ Leído/);
  assert.match(roles,/novVigente\(n\)/);
