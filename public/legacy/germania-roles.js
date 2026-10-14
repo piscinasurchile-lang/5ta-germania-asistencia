@@ -414,6 +414,12 @@ async function guardarRol(D,kind){
 }
 
 /* ---------- Información (Capitán, Teniente 3° y administrador) ---------- */
+function alertaConductor(id){
+ if(!id)return '<div role="alert" style="margin:8px 0;padding:10px;border:2px solid #dc2626;border-radius:8px;background:#450a0a;color:white;font-weight:800">⚠ SIN MAQUINISTA · Teniente Tercero: asignar cuartelero de apoyo</div>';
+ var m=porId(id), nombre=m?corto(m):String(id);
+ if(/david\\s+briones/i.test(nombre))return '<div role="status" style="margin:8px 0;padding:10px;border:2px solid #16a34a;border-radius:8px;background:#14532d;color:white;font-weight:800">✓ CUARTELERO DE APOYO ASIGNADO · Pendiente de acreditación</div>';
+ return '';
+}
 function panelInfo(pn,D){
   var DOT=GN_DOTACION_MIN, completas=D.cov.filter(function(c){ return c.completa; }).length;
   var activos=ROSTER.filter(function(x){ return x.activo!==false; });
@@ -426,7 +432,8 @@ function panelInfo(pn,D){
     return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
       +'<div class="gr-nc-fila"><span aria-hidden="true">🚒</span> Maquinista: '+(mt?'<b>'+E(mt)+'</b>':'<span class="falta">falta</span>')+'</div>'
       +'<div class="gr-nc-fila"><span aria-hidden="true">🎧</span> OBAC: '+(ot?'<b>'+E(ot)+'</b>':'<span class="falta">falta</span>')+'</div>'
-      +(suplentes.length?'<div class="gr-nc-fila"><span>Suplentes disponibles (no titulares):</span> '+E(suplentes.join(" · "))+'</div>':"")
+      +alertaConductor(c.maq[0]&&c.maq[0].id)
+       +(suplentes.length?'<div class="gr-nc-fila"><span>Suplentes disponibles (no titulares):</span> '+E(suplentes.join(" · "))+'</div>':"")
       +(c.empate?'<small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC de esta noche debe confirmarlo el Teniente 3° en la Revisión.</small>':'')
       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
   }).join("")+'</div>';
@@ -573,7 +580,8 @@ async function panelRev(pn,D){
       +'<label class="rv-lbl">🚒 Maquinista</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.maq?'<b>'+E(nom(c.n.maq))+'</b>':'<span class="falta">falta</span>')+'</div>':'<select class="rv-sel" data-rv-rol="'+c.f+'|maq">'+optM(maqs,c.n.maq,"maq")+'</select>')
       +(!aprobada&&!c.n.maq?'<button type="button" class="btn secondary" data-rv-david="'+c.f+'">Programar a David Briones · cuartelero del Cuerpo</button>':'')
       +'<label class="rv-lbl">🎧 OBAC</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.obac?'<b>'+E(nom(c.n.obac))+'</b>':'<span class="falta">falta</span>')+'</div>':'<div class="gr-nc-fila">'+E(nom(c.n.obac))+' · por precedencia</div>')
-      +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}))+'</small>':'')
+      +alertaConductor(c.n.maq)
+       +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}))+'</small>':'')
       +'</div></div>';
   }).join("")+'</div>';
   /* Resultado (así quedará, en el orden de la ODD) */
