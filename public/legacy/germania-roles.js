@@ -272,7 +272,7 @@ function pintarTarjeta(){
   if(GR.vista!=="gestion"){box.innerHTML="";return;}
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
   var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
-  if(GR.vista==="gestion"&&esTenienteTercero(D.m))html+='<div class="gr-nota info"><p><b>Teniente Tercero:</b> revisa las siete noches en <b>Revisión y aprobación</b>. Allí encontrarás «Modificar dotación / registrar novedad» y «Aprobar guardias de la semana». La aprobación no acredita asistencia.</p></div>';
+  if(GR.vista==="gestion"&&(esTenienteTercero(D.m)||esAdminGuardia(D.m)))html+='<div class="gr-nota info"><p><b>Administrador / Teniente Tercero:</b> revisa las siete noches en <b>Revisión y aprobación</b>. Allí encontrarás «Modificar dotación / registrar novedad» y «Aprobar guardias de la semana». La aprobación no acredita asistencia.</p></div>';
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
   if(tabs.length>1) html+='<div class="gr-tabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" class="gr-tab'+(t===GR.tab?" on":"")+'" data-gr-tab="'+t+'" aria-selected="'+(t===GR.tab)+'"><span aria-hidden="true">'+GR_TABS[t][1]+'</span>'+GR_TABS[t][0]+'</button>'; }).join("")+'</div>';
   if(tabs.length) html+='<div id="grPanel"></div>';
@@ -284,7 +284,7 @@ function pintarPanel(){
   if(GR.tab==="mis"){ panelMis(pn,D); return; }
   if(!D.p){ pn.innerHTML='<div class="empty">No hay una semana publicada. Selecciona un miércoles en el calendario para prepararla.</div>'; return; }
   if(D.error||!D.S){ pn.innerHTML='<div class="empty">No se pudo leer la semana. <button type="button" class="btn small secondary" id="grReintentar">Reintentar</button></div>'; var r=$("grReintentar"); if(r) r.onclick=function(){ grRender(true); }; return; }
-  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") (esAdminGuardia(D.m)&&!esTenienteTercero(D.m)?panelRevAdminLectura(pn,D):panelRev(pn,D)); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
+  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") panelRev(pn,D); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
 }
 
 /* ---------- Voluntario ---------- */
@@ -563,18 +563,8 @@ function textoCambio(c){
   else return '<b>Rehízo la propuesta desde las inscripciones</b> · '+E(c.por)+' · '+E(h);
   return '<b>'+E(dia)+'</b> · '+q+' · '+E(c.por)+' · '+E(h);
 }
-async function panelRevAdminLectura(pn,D){
- var doc=D.revision, h='<h3 class="gr-t">Revisión de guardia · solo lectura</h3><p class="sub">Como administrador puedes consultar permanentemente la dotación y su aprobación. Modificar, aprobar y acreditar corresponde exclusivamente al Teniente Tercero.</p>';
- if(!doc||!doc.noches){pn.innerHTML=h+'<div class="empty">Esta semana aún no tiene revisión registrada.</div>';return;}
- h+='<p><b>Estado:</b> '+(doc.estado==="aprobada"?"Aprobada":"Pendiente de aprobación")+'</p><div class="gr-lista">';
- Object.keys(doc.noches).sort().forEach(function(f){
-  var n=doc.noches[f], dia=nombreNoche(f);
-  h+='<div class="gr-nc"><b>'+E(dia.w+" "+dia.d)+'</b><div class="gr-nc-fila">Maquinista: '+E(n.maq?nom(n.maq):"Sin asignar")+'</div><div class="gr-nc-fila">OBAC: '+E(n.obac?nom(n.obac):"Sin asignar")+'</div><div class="gr-nc-fila">Voluntarios: '+E((n.vol||[]).map(nom).join(", ")||"Sin asignar")+'</div></div>';
- });
- pn.innerHTML=h+'</div>';
-}
-function panelRev(pn,D){
-  if(!esTenienteTercero(D.m)){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero.</p>";return;}
+async function panelRev(pn,D){
+  if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m))){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero y administrador.</p>";return;}
   if(RV.clave!==D.p.inicio||(RV.doc===null&&!RV.ocupado)){ pn.innerHTML='<p class="sub">Cargando…</p>'; try{ await revCargar(D); }catch(e){ pn.innerHTML='<div class="empty">No se pudo leer la revisión. <button type="button" class="btn small secondary" id="rvReint">Reintentar</button></div>'; var r=$("rvReint"); if(r) r.onclick=function(){ RV.clave=""; panelRev(pn,D); }; return; } }
   if(D.abierto){pn.innerHTML="<p>Cierra las inscripciones de esta semana antes de revisarla y aprobarla.</p>";return;}
   var doc=RV.doc, DOT=GN_DOTACION_MIN;
@@ -691,7 +681,7 @@ function panelRev(pn,D){
   };
 }
 async function aprobarRevision(pn,D){
-  if(!esTenienteTercero(D.m))return;
+  if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m)))return;
   var doc=RV.doc, cov=revCov(doc), malas=cov.filter(function(c){ return !c.completa; });
   if(malas.length){RV.msg="Completa las siete noches antes de aprobar (1 OBAC, 1 maquinista y 2 voluntarios).";RV.err=true;panelRev(pn,D);return;}
   var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
