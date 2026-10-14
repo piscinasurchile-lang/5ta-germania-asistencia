@@ -2032,6 +2032,33 @@ async function renderGnTablaSemanal(){
     +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
+on("gnOddMaestras","click",()=>{window.location.href="/odd-maestras";});
+on("gnTablaPdf","click",async()=>{
+ const box=document.getElementById("gnTablaSemanal");
+ const tabla=box&&box.querySelector("table");
+ if(!tabla){alert("Primero selecciona una semana y actualiza la tabla.");return;}
+ if(!window.jspdf||!window.jspdf.jsPDF){alert("No se pudo cargar el generador de PDF.");return;}
+ const {jsPDF}=window.jspdf, doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+ doc.setFont("helvetica","bold");doc.setFontSize(15);
+ doc.text("GERMANIA · Guardia nocturna · Tabla semanal",12,14);
+ doc.setFont("helvetica","normal");doc.setFontSize(9);
+ doc.text("Documento informativo. No constituye una Orden del Dia ni acredita cumplimiento.",12,21);
+ const filas=[...tabla.querySelectorAll("tbody tr")].map(tr=>[...tr.cells].map(td=>td.innerText.replace(/\\s+/g," ").trim()));
+ const encabezados=["Noche","Voluntarios","Maquinista","OBAC","Estado"];
+ const anchos=[30,104,51,51,35];let y=30;
+ const nuevaPagina=()=>{doc.addPage();y=15;};
+ const fila=(celdas,cabecera=false)=>{
+  const lineas=celdas.map((t,i)=>doc.splitTextToSize(String(t||"—"),anchos[i]-4));
+  const h=Math.max(9,...lineas.map(l=>l.length*4+4));
+  if(y+h>195)nuevaPagina();
+  doc.setFont("helvetica",cabecera?"bold":"normal");doc.setFontSize(8);
+  let x=12;celdas.forEach((_,i)=>{doc.rect(x,y,anchos[i],h);doc.text(lineas[i],x+2,y+5);x+=anchos[i];});
+  y+=h;
+ };
+ fila(encabezados,true);filas.forEach(c=>fila(c));
+ doc.save("Germania_Guardia_Semanal_"+new Date().toISOString().slice(0,10)+".pdf");
+});
+
 
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
