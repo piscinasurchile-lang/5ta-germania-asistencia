@@ -182,7 +182,7 @@ async function publicarNovedad(){
       if(!respuesta.ok){
         const e=await respuesta.json().catch(()=>({}));
         if(e.error==="limite_de_pruebas_alcanzado")throw new Error("Se alcanzó el límite de avisos de prueba por hora.");
-        if(e.error==="vigencia_maxima_48_horas")throw new Error("Durante la prueba los avisos duran como máximo 48 horas.");
+        if(e.error==="vigencia_maxima_30_dias")throw new Error("Durante la prueba, selecciona una fecha de vencimiento dentro de los próximos 30 días.");
         if(e.error==="emisor_no_oficial")throw new Error("Solo una ficha de Oficialidad puede publicar avisos generales.");
         throw new Error("No se pudo compartir el aviso. Verifica la conexión y reintenta.");
       }
