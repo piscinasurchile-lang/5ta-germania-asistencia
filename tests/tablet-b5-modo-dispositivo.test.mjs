@@ -76,10 +76,12 @@ test("la imagen pública real del B-5 se muestra por defecto y preserva la perso
   assert.match(inicio,/setFoto\(localStorage\.getItem\(FOTO_KEY\)\)/);
 });
 
-test("Pantalla B-5 ofrece solo los tres destinos existentes",()=>{
+test("Pantalla B-5 ofrece exclusivamente Emergencias y Asistencia",()=>{
   assert.match(inicio,/id:"servicio"/);
   assert.match(inicio,/id:"lista"/);
-  assert.match(inicio,/id:"oficiales"/);
+  assert.doesNotMatch(inicio,/id:"oficiales"/);
+  assert.doesNotMatch(inicio,/titulo:"Oficiales"/);
+  assert.match(inicio,/repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(inicio,/Foto del carro/);
   assert.match(inicio,/localStorage\.setItem\(MODO_KEY,"b5"\)/);
   assert.match(inicio,/limpiarIdentidadAnterior\(\)/);
@@ -90,7 +92,15 @@ test("El acceso B-5 evita descargar el iframe completo al reabrir y conserva la 
   assert.match(principal,/window\.location\.replace\("\/b5"\)/);
   assert.match(principal,/if \(!inicioB5Comprobado\)/);
   assert.match(principal,/win\.__mostrarPestana\(destinoB5\)/);
-  assert.match(principal,/La tablet B-5 no es una identidad de oficial/);
+  assert.match(principal,/const esModuloB5 = destinoB5 === "lista" \|\| destinoB5 === "servicio"/);
+  assert.match(principal,/doc\.addEventListener\("click", \(event\) =>/);
+  assert.match(principal,/\[data-go="germania"\]/);
+  assert.match(principal,/\[data-nav="germania"\]/);
+  assert.match(principal,/event\.stopImmediatePropagation\(\)/);
+  assert.match(principal,/window\.location\.assign\("\/b5"\)/);
+  assert.match(principal,/if \(nombre === "germania"\)/);
+  assert.match(principal,/if \(esModuloB5\) \{/);
+  assert.doesNotMatch(principal,/\["lista", "servicio", "oficiales"\]/);
   assert.match(principal,/Volver a B-5/);
   assert.match(cargador,/germania-tablet-b5-selector\.js/);
 });
