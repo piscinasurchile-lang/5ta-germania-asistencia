@@ -292,18 +292,27 @@ function filaCupos(c){
   return '<span class="gr-gente" aria-hidden="true">'+gente+'</span><span class="gr-cupo'+(ok?" ok":"")+'">'+n+' / '+DOT.voluntarios+' voluntarios'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+'</span>'
     +'<span class="gr-mini">MAQ: '+c.maq.length+' · OBAC: '+c.obac.length+'</span>';
 }
+/* Fin de guardia en hora local de Villarrica: 06:00 del día siguiente.
+   Se oculta la tarjeta, no se borra el turno ni su acreditación. */
+function guardiaTurnoPendiente(fecha){
+ var fin=new Date(fecha+"T12:00:00Z");
+ fin.setUTCDate(fin.getUTCDate()+1);
+ var finFecha=fin.toISOString().slice(0,10);
+ var finMs=Date.parse(finFecha+"T06:00:00"+(new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",timeZoneName:"shortOffset"}).formatToParts(new Date(finFecha+"T12:00:00Z")).find(function(p){return p.type==="timeZoneName";})||{value:"GMT-3"}).value.replace("GMT","").replace(/^([+-])(\d)$/,"$10$2")+":00");
+ return Number.isFinite(finMs)?Date.now()<finMs:true;
+}
 function panelVol(pn,D){
  var who=D.who,saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[],ck=D.p.inicio+":"+who;
  if(GN_INS_CLAVE!==ck){GN_INS_CLAVE=ck;GN_INS_SEL=new Set(saved);}
  var sel=GN_INS_SEL,aprobada=!!(D.revision&&D.revision.estado==="aprobada"),nochesAprobadas=D.revision&&D.revision.noches||{};
  var asignadas=new Set(Object.keys(nochesAprobadas).filter(function(f){var n=nochesAprobadas[f];return n&&(n.obac===who||n.maq===who||(n.vol||[]).includes(who));}));
- var editable=D.abierto&&!aprobada,pendientes=new Set(saved),soloAsignados=aprobada?asignadas.size>0:pendientes.size>0;
- var h='<h3 class="gr-t">'+(soloAsignados?(aprobada?'Mis guardias aprobadas':'Mis noches · Pendientes de revisión'):'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
+ var editable=D.abierto&&!aprobada,pendientes=new Set(saved),proximas=Array.from(asignadas).filter(guardiaTurnoPendiente),soloAsignados=aprobada?proximas.length>0:pendientes.size>0;
+ var h='<h3 class="gr-t">'+(soloAsignados?(aprobada?'Mis guardias aprobadas':'Mis noches · Pendientes de revisión') :aprobada?'Sin próximas guardias':'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
  if(soloAsignados&&!aprobada)h+='<div role="status" style="background:#facc15;color:#422006;border:2px solid #ca8a04;border-radius:8px;padding:12px;margin:10px 0;font-weight:800;text-align:center;overflow-wrap:anywhere">ENVIADOS A REVISIÓN DEL TENIENTE TERCERO</div>';
  h+='<div class="gu-dias"'+(soloAsignados?' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,115px),1fr));gap:10px;width:100%;min-width:0"':'')+'>';
- h+=D.cov.filter(function(c){return !soloAsignados||(aprobada?asignadas.has(c.f):pendientes.has(c.f));}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f);return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(confirmada?'background:#166534;color:#fff;border:3px solid #22c55e;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
+ h+=D.cov.filter(function(c){return aprobada?(asignadas.has(c.f)&&guardiaTurnoPendiente(c.f)):!soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f);return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(confirmada?'background:#991b1b;color:#fff;border:3px solid #ef4444;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
  if(editable&&!soloAsignados)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">Enviar a revisión ('+sel.size+')</button>';
- else h+='<p class="sub">'+(aprobada?'Verde: tus guardias aprobadas por el Teniente Tercero. No significa guardia cumplida.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
+ else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00; la acreditación permanece a cargo del Teniente Tercero.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
  pn.innerHTML=h;
  pn.querySelectorAll('[data-gr-vol]').forEach(function(b){b.onclick=function(){var f=b.dataset.grVol;if(sel.has(f))sel.delete(f);else sel.add(f);panelVol(pn,D);};});
  var b=$("giConfirmar");if(b)b.onclick=function(){gnInsConfirmar(D.p,who);};
