@@ -11,6 +11,24 @@ export default function Page() {
   const [updating, setUpdating] = useState(false);
   const versionRef = useRef(null);
   const reintentoAuto = useRef(false);
+  const [inicioB5Comprobado, setInicioB5Comprobado] = useState(false);
+  const [destinoB5, setDestinoB5] = useState("");
+
+  // Modo B-5 solo en el dispositivo que se seleccionó: evitar cargar el iframe
+  // completo antes de mostrar la pantalla ligera.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const solicitado = params.get("b5dest") || "";
+    const destino = ["lista", "servicio", "oficiales"].includes(solicitado) ? solicitado : "";
+    setDestinoB5(destino);
+    let modo = null;
+    try { modo = localStorage.getItem("germania:modo-dispositivo:v1"); } catch {}
+    if (modo === "b5" && !destino) {
+      window.location.replace("/b5");
+      return;
+    }
+    setInicioB5Comprobado(true);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), 8000);
@@ -60,6 +78,24 @@ export default function Page() {
       return;
     }
 
+    // Abrir solamente el módulo solicitado desde Inicio B-5.
+    const abrirModuloB5 = () => {
+      if (!destinoB5 || typeof win.__mostrarPestana !== "function") return;
+      if (destinoB5 === "lista" || destinoB5 === "servicio") {
+        win.__mostrarPestana(destinoB5);
+      } else {
+        win.__mostrarPestana("germania");
+        const home = doc.querySelector("#panel-germania .home-grid");
+        if (home && !doc.getElementById("b5OficialesAviso")) {
+          const mensaje = doc.createElement("div");
+          mensaje.id = "b5OficialesAviso";
+          mensaje.style.cssText = "grid-column:1/-1;padding:14px;border:1px solid #c5a850;background:#2a2615;border-radius:9px;color:#fff;";
+          mensaje.textContent = "Para entrar a Oficiales, selecciona tu nombre y pulsa Oficiales. La tablet B-5 no es una identidad de oficial.";
+          home.prepend(mensaje);
+        }
+      }
+    };
+
     const style = doc.createElement("style");
     style.textContent = `
       html,body{width:100%!important;min-height:100%!important;overflow-x:hidden!important}
@@ -98,6 +134,7 @@ export default function Page() {
       if (isLoaded()) {
         clearInterval(interval);
         reintentoAuto.current = false;
+        abrirModuloB5();
         setReady(true);
         setFailed(false);
         return;
@@ -116,6 +153,7 @@ export default function Page() {
       if (elapsed >= 6000 && !recoveryStarted && iniciada()) {
         recoveryStarted = true;
         loading()?.classList.add("hidden");
+        abrirModuloB5();
         setReady(true);
         setFailed(false);
         // El inicio de legacy/app.js ya realiza estas cargas. No repetirlas
@@ -138,8 +176,16 @@ export default function Page() {
     setFrameKey(k => k + 1);
   };
 
+  if (!inicioB5Comprobado) {
+    return <main role="status" style={{minHeight:"100dvh",background:"#07090b",color:"#d7dce0",display:"grid",placeItems:"center",fontFamily:"system-ui"}}>Abriendo Germania…</main>;
+  }
+
   return (
     <main style={{ margin: 0, width: "100vw", height: "100dvh", overflow: "hidden", background: "#07090b", position: "relative" }}>
+      {destinoB5 && <div style={{height:48,background:"#152332",color:"#fff",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",fontFamily:"system-ui",fontSize:14}}>
+        <strong>GERMANIA · B-5</strong>
+        <button type="button" onClick={() => window.location.assign("/b5")} style={{minHeight:34,padding:"6px 13px",color:"#fff",background:"#263a4b",border:"1px solid #516579",borderRadius:8,fontWeight:700}}>Volver a B-5</button>
+      </div>}
       {!ready && (
         <div role="status" aria-live="polite" style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#07090b", color: "#fff", fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: 24, textAlign: "center" }}>
           <div>
@@ -156,7 +202,7 @@ export default function Page() {
         title="GERMANIA · Quinta Compañía"
         src={`/legacy/index.html?v=20261001-2&reload=${frameKey}`}
         onLoad={onFrameLoad}
-        style={{ border: 0, width: "100vw", height: "100dvh", display: "block", background: "#07090b" }}
+        style={{ border: 0, width: "100vw", height: destinoB5 ? "calc(100dvh - 48px)" : "100dvh", display: "block", background: "#07090b" }}
       />
     </main>
   );
