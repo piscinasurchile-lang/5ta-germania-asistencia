@@ -497,6 +497,7 @@ function panelInfo(pn,D){
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'. Cambia la hora de inicio de una noche si hace falta.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   h+='<p class="gr-nota-pie">Este resumen es solo informativo. La ODD y los cambios los gestionan los oficiales desde Oficiales.</p>';
   pn.innerHTML=h;
+  var hi=$("grHistIns"); if(hi) hi.onclick=function(){ historialInscripciones(D); };
   var hg=$("hrGuardar"); if(hg) hg.onclick=function(){ guardarHorario(D); };
 }
 async function guardarHorario(D){
