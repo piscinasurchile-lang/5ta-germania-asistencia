@@ -65,3 +65,12 @@
   setInterval(revisar,30000);
   document.addEventListener("visibilitychange",revisar);
 })();
+
+// Resumen independiente de Asistencia. La carga diferida no afecta el actualizador PWA.
+(function(){
+  if(!document.getElementById("panel-lista"))return;
+  var script=document.createElement("script");
+  script.src="/legacy/germania-resumen-asistencia.js?v=20261014a";
+  script.onerror=function(){console.error("No se pudo cargar el resumen de asistencia.");};
+  document.body.appendChild(script);
+})();
