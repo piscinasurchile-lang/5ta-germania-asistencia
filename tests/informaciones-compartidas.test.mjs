@@ -28,11 +28,11 @@ test("texto vacío, excesivo y remitentes no válidos no llegan a Neon",async()=
  r=await POST(req({body:{destino:"compania",texto:"ensayo",emisorId:"otro"}}));
  assert.equal(r.status,400);
 });
-test("prueba compartida no admite mensajes que duren más de 48 horas",async()=>{
+test("la fecha explícita de prueba admite más de 48 horas, hasta un máximo de 30 días",async()=>{
  const r=await POST(req({body:{destino:"compania",texto:"ensayo",emisorId:"517",
-  vence:new Date(Date.now()+72*60*60*1000).toISOString()}}));
+  vence:new Date(Date.now()+40*24*60*60*1000).toISOString()}}));
  assert.equal(r.status,400);
- assert.equal((await r.json()).error,"vigencia_maxima_48_horas");
+ assert.equal((await r.json()).error,"vigencia_maxima_30_dias");
 });
 test("sin id de aviso y voluntario válido no hay confirmación",async()=>{
  let r=await PATCH(req({body:{id:"fake",voluntarioId:"517"}}));
