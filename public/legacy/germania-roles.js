@@ -73,6 +73,23 @@ function ponerVista(v){
 
 /* ---------- Novedades (Inicio) ---------- */
 var novRendering=false, novVisible=[], novReadPending={};
+var novExpiryTimer=null, novPrivateTimer=null;
+function novProgramarVencimiento(lista,privado){
+  const actual=privado?novPrivateTimer:novExpiryTimer;
+  if(actual)clearTimeout(actual);
+  const ahora=Date.now();
+  const plazos=(lista||[]).map(n=>n?.vence?Date.parse(n.vence):Date.parse(n?.en||"")+48*60*60*1000)
+    .filter(t=>Number.isFinite(t)&&t>ahora);
+  const cercano=plazos.length?Math.min(...plazos):null;
+  if(cercano===null)return;
+  const espera=Math.max(1,Math.min(cercano-ahora+100,24*60*60*1000));
+  const temporizador=setTimeout(function(){
+    if(privado)renderInformacionesOficiales();
+    else renderNovedades();
+  },espera);
+  if(privado)novPrivateTimer=temporizador;
+  else novExpiryTimer=temporizador;
+}
 var novSeen=null, novAudio=null;
 document.addEventListener("pointerdown",function(){
   try{var AC=window.AudioContext||window.webkitAudioContext;if(AC&&!novAudio) novAudio=new AC();if(novAudio&&novAudio.state==="suspended") novAudio.resume().catch(function(){});}catch(e){}
@@ -100,7 +117,7 @@ async function renderNovedades(){
     lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
     var lecturas=await Promise.all(lista.map(function(n){ return sGet(novReadKey(n.id),[]); }));
     if((miembro()?String(miembro().id):"")!==who) return;
-    novVisible=lista; novSound(lista);
+    novVisible=lista; novSound(lista); novProgramarVencimiento(lista,false);
     var of=esOficial(m)||esMando(m);
     box.innerHTML=lista.length?lista.map(function(n,i){
       var reads=Array.isArray(lecturas[i])?lecturas[i]:[];
@@ -169,6 +186,7 @@ async function renderInformacionesOficiales(){
     if(r.status===403){box.textContent="Avisos exclusivos: inicia sesión institucional para leerlos.";return}
     if(!r.ok)throw new Error("No fue posible consultar los avisos internos.");
     var data=await r.json(),items=Array.isArray(data.items)?data.items:[];
+    novProgramarVencimiento(items,true);
     box.innerHTML=items.length?items.map(function(n){
       var exp=new Date(n.vence||Date.parse(n.en)+48*60*60*1000);
       var fecha=Number.isFinite(exp.getTime())?exp.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
@@ -1089,6 +1107,12 @@ document.addEventListener("click",function(ev){
   if(v){ ponerVista(v.dataset.gv); pintarTarjeta(); return; }
   var t=ev.target.closest("[data-gr-tab]"); if(!t||!$("gnRolCard")||!$("gnRolCard").contains(t)) return;
   GR.tab=t.dataset.grTab; pintarTarjeta();
+});
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible"){
+    renderNovedades();
+    if(esOficial(miembro())||esMando(miembro()))renderInformacionesOficiales();
+  }
 });
 if(typeof window.__mostrarPestana==="function"){
   var base=window.__mostrarPestana;
