@@ -29,13 +29,35 @@ test("anexo real incluye siete noches, OBAC, maquinista y dos voluntarios distin
   assert.deepEqual(filas[0].people.map(p=>p.name),["Ana Müller","Luis Pérez"]);
   assert.ok(filas.every(n=>n.complete));
 });
-test("sin aprobación no se permite construir ODD oficial",()=>{
-  const borrador={...revision(),estado:"borrador"};
-  assert.throws(()=>proyectarSemanaODD(inicio,borrador,nomina),/aprobada/);
+test("semana incompleta no bloquea: se muestran siete noches y faltantes",()=>{
+  const r=revision();
+  delete r.noches["2026-10-19"];
+  r.noches["2026-10-15"]={vol:["v1"],obac:null,maq:null};
+  const filas=proyectarSemanaODD(inicio,r,nomina);
+  assert.equal(filas.length,7);
+  assert.equal(filas[5].date,"2026-10-19");
+  assert.equal(filas[5].registrado,false);
+  assert.equal(filas[5].obac,"Sin asignar");
+  assert.equal(filas[5].driver,"Sin asignar");
+  assert.equal(filas[5].faltantesVoluntarios,2);
+  assert.ok(filas[5].faltan.includes("Sin registro de dotación"));
+  assert.equal(filas[1].complete,false);
+  assert.ok(filas[1].faltan.includes("Conductor sin asignar"));
+  assert.ok(filas[1].faltan.includes("OBAC sin asignar"));
 });
-test("una noche sin registro impide crear anexo semanal falso",()=>{
-  const r=revision();delete r.noches["2026-10-19"];
-  assert.throws(()=>proyectarSemanaODD(inicio,r,nomina),/Falta la dotación/);
+test("la semana en borrador también permite emitir con estado visible",()=>{
+  const borrador={...revision(),estado:"borrador"};
+  const filas=proyectarSemanaODD(inicio,borrador,nomina);
+  assert.equal(filas.length,7);
+  assert.equal(filas[0].estadoRevision,"borrador");
+});
+test("sin revisión la semana muestra siete noches sin inventar personal",()=>{
+  const filas=proyectarSemanaODD(inicio,null,nomina);
+  assert.equal(filas.length,7);
+  assert.ok(filas.every(x=>!x.complete && x.estadoRevision==="sin revisión" && !x.registrado));
+});
+test("la revisión de otra semana no se puede mezclar con el período",()=>{
+  assert.throws(()=>proyectarSemanaODD(inicio,{...revision(),inicio:"2026-10-21"},nomina),/otra semana/);
 });
 test("cuatro roles no pueden duplicar una misma persona",()=>{
   const r=revision();r.noches["2026-10-15"].maq="v1";
@@ -51,9 +73,18 @@ test("apoyo externo aparece como conductor, sin incorporarlo a nómina",()=>{
   assert.equal(filas[3].complete,true);
   assert.equal(nomina.length,4);
 });
-test("un integrante no reconocido queda marcado pendiente y no habilita emisión",()=>{
+test("integrante no reconocido queda marcado pendiente sin impedir la emisión",()=>{
   const r=revision();r.noches["2026-10-18"].obac="inexistente";
   const filas=proyectarSemanaODD(inicio,r,nomina);
   assert.equal(filas[4].complete,false);
   assert.equal(filas[4].obac,"Sin identificar");
+});
+
+test("la dotación vacía puede figurar sin inventar ocupantes",()=>{
+  const r=revision();r.noches["2026-10-20"]={vol:[],obac:null,maq:null};
+  const filas=proyectarSemanaODD(inicio,r,nomina);
+  assert.equal(filas[6].total,0);
+  assert.equal(filas[6].faltantesVoluntarios,2);
+  assert.equal(filas[6].complete,false);
+  assert.deepEqual(filas[6].people,[]);
 });
