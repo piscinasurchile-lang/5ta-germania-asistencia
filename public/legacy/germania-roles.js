@@ -492,18 +492,6 @@ function panelInfo(pn,D){
   var activos=ROSTER.filter(function(x){ return x.activo!==false; });
   var sinConf=activos.filter(function(x){ var id=String(x.id); return !regs(D.S.maq[id]).length&&!(Array.isArray(D.S.vol[id])&&D.S.vol[id].length); });
   var h='<h3 class="gr-t">Cobertura de la semana</h3><div class="gr-nota info"><span aria-hidden="true">👥</span><p>Cada noche debe contar con <b>'+DOT.voluntarios+' voluntarios + '+DOT.conductor+' maquinista + '+DOT.obac+' OBAC</b>. El OBAC se calcula solo: es el inscrito de mayor precedencia de esa noche (si no hay maquinista, el Capitán pasa a maquinista y el OBAC es el siguiente). Los voluntarios de más son refuerzos. <b>'+completas+' de '+D.cov.length+' noches completas.</b></p></div>';
-  h+='<div class="gr-lista">'+D.cov.map(function(c){
-    var nn=nombreNoche(c.f), mt=c.maq[0]?corto(porId(c.maq[0].id)):null, ot=c.obac[0]?corto(porId(c.obac[0].id)):null;
-    var suplentes=Object.keys(D.S.reserva||{}).filter(function(id){return tiene(D.S.reserva[id],c.f)&&!c.maq.some(function(q){return String(q.id)===String(id);});}).map(function(id){return corto(porId(id));});
-    var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
-    return '<div class="gr-nc'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+c.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
-      +'<div class="gr-nc-fila"><span aria-hidden="true">🚒</span> Maquinista: '+(mt?'<b>'+E(mt)+'</b>':'<span class="falta">falta</span>')+'</div>'
-      +'<div class="gr-nc-fila"><span aria-hidden="true">🎧</span> OBAC: '+(ot?'<b>'+E(ot)+'</b>':'<span class="falta">falta</span>')+'</div>'
-      +alertaConductor(c.maq[0]&&c.maq[0].id)
-       +(suplentes.length?'<div class="gr-nc-fila"><span>Suplentes disponibles (no titulares):</span> '+E(suplentes.join(" · "))+'</div>':"")
-      +(c.empate?'<small class="gr-falta">⚠ Hay voluntarios sin posición en la lista de precedencia: el OBAC de esta noche debe confirmarlo el Teniente 3° en la Revisión.</small>':'')
-      +(!c.completa&&!c.nada?'<small class="gr-falta">'+E(faltan(c))+'</small>':'')+'</div></div>';
-  }).join("")+'</div>';
   h+='<details class="gr-det"><summary>No se inscribieron: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><div class="gr-lista">'+(sinConf.length?sinConf.map(function(x){var nombre=[x.nombre,x.apellidoPaterno,x.apellidoMaterno].filter(Boolean).join(" ");return '<div class="gr-nc-fila" style="display:flex;align-items:center;gap:10px;min-width:0"><img src="'+E(fotoVoluntario(x))+'" alt="" loading="lazy" style="width:36px;height:36px;min-width:36px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="min-width:0"><b>'+E(nombre||corto(x))+'</b><small class="sub" style="display:block">Sin inscripción registrada esta semana</small></span></div>';}).join(""):'<p>Todos registraron inscripción esta semana.</p>')+'</div></details>';
   h+='<div class="gr-nota info"><p><b>Estadística de inscripción:</b> '+(activos.length-sinConf.length)+' de '+activos.length+' voluntarios activos se inscribieron ('+(activos.length?Math.round(100*(activos.length-sinConf.length)/activos.length):0)+'%). '+sinConf.length+' no se inscribieron. Esto no equivale a inasistencia ni incumplimiento.</p></div>';
   h+='<button type="button" class="btn secondary" id="grHistIns">Consultar historial de inscripciones</button><div id="grHistInsRes" aria-live="polite"></div>';
@@ -920,7 +908,7 @@ async function misNochesInicio(forzar){
         +'<span class="gn-franja-semana">'+E(n.w)+'</span><strong>'+E(n.d)+'</strong>'
         +'<span class="gn-franja-cargo">'+(e.rol==="obac"?"ERES OBAC · ":"")+E(rol)+'</span>'+aviso+'</button>';
     }).join("")
-    +'</div><p class="gn-franja-nota">Solo tus noches asignadas. Toca una fecha para ver detalles.</p></section>';
+    +'</div></section>';
   box.querySelectorAll("[data-gn-noche]").forEach(function(b){
     b.onclick=function(){
       ponerVista("mi"); GR.tab="mis";
