@@ -1974,6 +1974,10 @@ async function renderGnTablaSemanal(){
   }
   if(!p){ box.innerHTML='<div class="empty">No hay una semana programada.</div>'; return; }
   const inicio=p.inicio, dias=gnWeek(inicio), inscritos={};
+  // Refrescar nombres de la nómina sin alterar inscripciones ni el estado global.
+  let rosterTabla=ROSTER;
+  try { const actual=await sGet(ROSTER_KEY,null); if(Array.isArray(actual)&&actual.length) rosterTabla=actual; } catch(e) {}
+  const nombreTabla=id=>{const p=rosterTabla.find(x=>String(x.id)===String(id));return p?nombreCompleto(p):gnNombreId(id);};
   const cierreMs=gnInsCierreMs(p), revision=Date.now()>=cierreMs;
   const revisionAviso=revision?'<div class="gn-period-box" style="margin-bottom:12px;"><b>Inscripción cerrada · revisión T3 pendiente</b><br><small>Revisa la dotación de las 7 noches. Completa voluntarios, conductor y OBAC antes del cierre definitivo.</small></div>':'';
   try{
@@ -2013,9 +2017,9 @@ async function renderGnTablaSemanal(){
     const estado=x.valid&&x.valid.completa?"Completa":"Incompleta";
     const detalles=x.valid?x.valid.razones.join(" · "):"No se pudo verificar la dotación";
     return '<tr><td><b>'+esc(gnFmt(x.f))+'</b></td>'
-      +'<td>'+x.v.length+'/'+GN_DOTACION_MIN.voluntarios+'<div style="display:grid;gap:4px;margin-top:6px;">'+(x.v.length?x.v.slice().sort((a,b)=>{const ia=orden.indexOf(String(a)),ib=orden.indexOf(String(b));return (ia<0?9999:ia)-(ib<0?9999:ib);}).map((id,i)=>'<div><small>'+(i+1)+'. '+esc(gnNombreId(id))+'</small></div>').join(''):'<small>Sin voluntarios</small>')+'</div></td>'
-      +'<td>'+esc(x.m.map(gnNombreId).join(" · ")||"—")+'</td>'
-      +'<td>'+esc(x.o.map(gnNombreId).join(" · ")||"—")+'</td>'
+      +'<td>'+x.v.length+'/'+GN_DOTACION_MIN.voluntarios+'<div style="display:grid;gap:4px;margin-top:6px;">'+(x.v.length?x.v.slice().sort((a,b)=>{const ia=orden.indexOf(String(a)),ib=orden.indexOf(String(b));return (ia<0?9999:ia)-(ib<0?9999:ib);}).map((id,i)=>'<div><small>'+(i+1)+'. '+esc(nombreTabla(id))+'</small></div>').join(''):'<small>Sin voluntarios</small>')+'</div></td>'
+      +'<td>'+esc(x.m.map(nombreTabla).join(" · ")||"—")+'</td>'
+      +'<td>'+esc(x.o.map(nombreTabla).join(" · ")||"—")+'</td>'
       +'<td><b>'+estado+'</b>'+(detalles?'<br><small>'+esc(detalles)+'</small>':'')+'</td></tr>';
   }).join("");
   const nota=revision?'<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>':"";
