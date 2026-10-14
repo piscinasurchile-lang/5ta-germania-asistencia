@@ -255,6 +255,9 @@ export default function CapturaB5(){
           {guardando?"Guardando en la tablet…":"Guardar en esta tablet"}
         </button>
         <p className="explicacion">Primero se guarda en la memoria de la tablet. Solo aparecerá como sincronizado cuando Neon confirme la recepción y asigne el número oficial. No borres los datos del navegador si hay pendientes.</p>
+        {conexion==="online"&&<a className="formularioCompleto" href={"/?b5dest="+tipo}>
+          Abrir formulario completo y PDF (solo con Internet)
+        </a>}
         {cola.length>0&&<section className="historial">
           <h3>Registros de esta tablet</h3>
           {cola.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>
@@ -298,6 +301,8 @@ export default function CapturaB5(){
         .check input{width:20px;height:20px}
         .guardar{background:#196c43;color:#fff;border:1px solid #94d4af;border-radius:10px;padding:17px 20px;width:100%;font-size:18px;font-weight:800;margin-top:19px}
         .guardar:disabled{opacity:.45}.explicacion{font-size:13px;color:#b2c4d5;line-height:1.55}
+        .formularioCompleto{display:inline-block;border:1px solid #688299;border-radius:8px;padding:11px 14px;
+          color:#d9e8f8;background:#223246;text-decoration:none;margin:5px 0 12px;font-size:13px}
         .historial{margin-top:20px}.historial h3{font-size:16px}
         .registro{padding:10px 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #3e5267}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
