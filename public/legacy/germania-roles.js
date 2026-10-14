@@ -131,7 +131,7 @@ async function renderNovedades(){
       var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
       var venc=n.vence?new Date(n.vence):new Date(Date.parse(n.en)+48*60*60*1000);
       var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
-      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+'</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+' · PRUEBA</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
     }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
   }catch(e){
     box.innerHTML='<div class="ha-vacia">No fue posible sincronizar los avisos. Comprueba la conexión.</div>';
