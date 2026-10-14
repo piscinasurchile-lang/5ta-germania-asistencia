@@ -642,9 +642,10 @@
     <div class="card solo-oficiales solo-gestion">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
         <div><h2 style="margin-bottom:4px;">Tabla semanal de Guardia</h2><p class="sub">Resumen de inscripción vigente. Solo lectura: no modifica inscripciones, ODD ni historial.</p></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn small secondary" id="gnTablaActualizar">Actualizar</button><button type="button" class="btn small secondary" id="gnTablaPdf">Descargar PDF de guardia</button><button type="button" class="btn small secondary" id="gnOddMaestras" title="Consultar ODD existentes. No genera ni publica una ODD de guardia.">Consultar ODD</button></div>
+        
       </div>
       <div id="gnTablaSemanal"><div class="empty">Selecciona o programa una semana para ver su dotación.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;" aria-label="Acciones de la tabla semanal"><button type="button" class="btn small secondary" id="gnTablaActualizar">Actualizar</button><button type="button" class="btn small secondary" id="gnTablaPdf">Descargar PDF de guardia</button><button type="button" class="btn small secondary" id="gnOddMaestras" title="Abrir ODD Maestras con la semana seleccionada.">Consultar ODD</button></div>
     </div>
 
     <div class="card" id="gnRolCard" aria-live="polite"></div>
