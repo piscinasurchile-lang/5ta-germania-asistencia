@@ -2781,24 +2781,27 @@ async function renderGnLista(){
 
 on("gnPdfSemanal","click",async()=>{
   const lista=await guardiasEnRango(); const {d,h}=rangoGn();
-  if(!lista.length){ alert("No hay guardias registradas en ese período."); return; }
+  if(!d||!h){alert("Selecciona un período válido.");return;}
+  const porFecha=new Map(lista.map(g=>[g.fechaIng,g]));
+  const siete=[];const inicio=new Date(d+"T12:00:00");
+  for(let i=0;i<7;i++){const fecha=new Date(inicio);fecha.setDate(inicio.getDate()+i);const iso=[fecha.getFullYear(),String(fecha.getMonth()+1).padStart(2,"0"),String(fecha.getDate()).padStart(2,"0")].join("-");if(iso<=h)siete.push({fecha:iso,g:porFecha.get(iso)||null});}
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
   pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");
   doc.setFontSize(9);
-  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} guardias · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
+  doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} registros · emitido el ${new Date().toLocaleDateString("es-CL")}`,35,33);
   doc.autoTable({startY:42,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    columnStyles:{3:{cellWidth:58}},
-    head:[["Fecha","Horario","Oficial designado","Voluntarios designados","Avisos de ausencia","Novedades"]],
-    body:lista.map(g=>{
+    styles:{fontSize:7,overflow:"linebreak"},
+    head:[["Fecha","Horario","OBAC / oficial","Conductor","Voluntarios","Estado / novedades"]],
+    body:siete.map(({fecha,g})=>{if(!g)return [fecha,"—","—","—","—","Sin registro de guardia"];
       const t=normalizaTurno(g.guardianes);
       const faltas=t.filter(x=>x.estado==="no").map(x=>
         nombrePorId(x.id)+" ("+(x.motivo||"sin motivo")+(x.correo?", justificó":"")+
         (x.reemplazo?"; reemplaza "+nombrePorId(x.reemplazo):"; sin reemplazo")+")");
-      return [g.fechaIng,(g.horaIng||"")+" a "+(g.horaSal||""),
+      return [fecha,(g.horaIng||"")+" a "+(g.horaSal||""),
         g.oficial?nombrePorId(g.oficial):"—",
-        cubrenGuardia(g.guardianes).map(id=>nombrePorId(id)).join(", "),
-        faltas.length?faltas.join(" | "):"—",
-        g.novedades||"Sin novedad"];
+        g.conductor?nombrePorId(g.conductor):"Sin conductor registrado",
+        cubrenGuardia(g.guardianes).filter(id=>String(id)!==String(g.conductor)&&String(id)!==String(g.oficial)).map(id=>nombrePorId(id)).join(", ")||"—",
+        (faltas.length?faltas.join(" | ")+" · ":"")+(g.novedades||"Sin novedad")];
     })});
   // Este informe describe programación y avisos; nunca reemplaza la acreditación T3.
   const notaY=doc.lastAutoTable.finalY+7;
