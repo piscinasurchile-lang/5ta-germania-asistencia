@@ -25,5 +25,5 @@ test("ofrecerse como suplente no modifica guardia-maq ni crea segunda plaza",()=
 test("solo titulares reales bloquean la elección, no el Capitán de respaldo provisional",()=>{
   assert.match(fuente,/ocupada=esM&&!!tit&&!tit\.respaldo&&!soyTit/);
   assert.match(fuente,/Ofrecerme como suplente/);
-  assert.match(fuente,/Suplentes disponibles \(no titulares\)/);
+  assert.match(fuente,/suplente=esM&&tiene\(D\.S\.reserva&&D\.S\.reserva\[who\],c\.f\)/);
 });
