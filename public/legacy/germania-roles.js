@@ -268,6 +268,7 @@ function cabecera(D){
 function pintarTarjeta(){
   if(guardiaActiva()&&esMando(miembro())){GR.vista="gestion";$("panel-guardia").setAttribute("data-vista","gestion");if(GR.tab==="mis")GR.tab="info";}
   var box=$("gnRolCard"), D=GR.D; if(!box||!D) return;
+  if(GR.vista!=="gestion"){box.innerHTML="";return;}
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
   var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
@@ -279,7 +280,7 @@ function pintarTarjeta(){
 function pintarPanel(){
   var pn=$("grPanel"), D=GR.D; if(!pn||!D) return;
   if(GR.tab==="mis"){ panelMis(pn,D); return; }
-  if(!D.p){ pn.innerHTML='<div class="empty">No hay una semana con inscripción abierta. Cuando el Capitán la abra, la verás aquí.</div>'; return; }
+  if(!D.p){ pn.innerHTML='<div class="empty">No hay una semana publicada. Selecciona un miércoles en el calendario para prepararla.</div>'; return; }
   if(D.error||!D.S){ pn.innerHTML='<div class="empty">No se pudo leer la semana. <button type="button" class="btn small secondary" id="grReintentar">Reintentar</button></div>'; var r=$("grReintentar"); if(r) r.onclick=function(){ grRender(true); }; return; }
   if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") panelRev(pn,D); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
 }
