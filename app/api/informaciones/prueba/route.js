@@ -55,7 +55,7 @@ export async function POST(request){
   const texto=typeof body.texto==="string"?body.texto.trim():"";
   if(!texto||texto.length>500)return err("texto_invalido",400);
   const emisor=String(body?.emisorId||"");
-  if(!/^\d{1,10}$/.test(emisor))return err("emisor_invalido",400);
+  if(!/^[a-zA-Z0-9_-]{1,80}$/.test(emisor))return err("emisor_invalido",400);
   let vence;try{vence=vencimientoAlPublicar(Date.now(),body.vence)}catch(e){return err(e.message||"fecha_invalida",400)}
   if(Date.parse(vence)>Date.now()+30*24*60*60*1000+5000)return err("vigencia_maxima_30_dias",400);
   const sql=sqlClient();if(!sql)return err("database_not_configured",503);
@@ -82,7 +82,7 @@ export async function PATCH(request){
   let body;try{body=await request.json()}catch{return err("invalid_json",400)}
   if(!uuid(body?.id))return err("id_invalido",400);
   const lector=String(body?.voluntarioId||"");
-  if(!/^\d{1,10}$/.test(lector))return err("voluntario_invalido",400);
+  if(!/^[a-zA-Z0-9_-]{1,80}$/.test(lector))return err("voluntario_invalido",400);
   const sql=sqlClient();if(!sql)return err("database_not_configured",503);
   try{
     await ensureSchema(sql);
