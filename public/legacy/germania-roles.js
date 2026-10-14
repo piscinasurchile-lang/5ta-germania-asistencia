@@ -253,6 +253,7 @@ function resumenInfo(pn,D){
 function pintarInicioRoles(){
  var box=$("inicioRoles"),D=GR.Dmi,m=miembro();if(!box)return;
  if(!m||!D||!D.p||D.error||!D.S){box.innerHTML="";return;}
+ if(D.revision&&D.revision.estado==="aprobada"){box.innerHTML="";return;}
  box.innerHTML='<section class="card gn-inicio-inscripcion" aria-label="Mis días de guardia"><div id="gnInicioVol"></div></section>';
  panelVol($("gnInicioVol"),D);
 }
@@ -588,7 +589,7 @@ async function panelRev(pn,D){
     var nn=nombreNoche(c.f), o=ocup(c.f);
     var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
     var personas=(c.n.maq?[{id:c.n.maq,rol:"Maquinista"}]:[]).concat(c.n.obac?[{id:c.n.obac,rol:"OBAC"}]:[],c.n.vol.map(function(id){return {id:id,rol:"Voluntario"};}));
-    var chips=personas.map(function(x){var attr='data-rv-persona="'+c.f+'|'+E(x.id)+'"';return '<div class="gu-persona"><b>'+E(nom(x.id))+'</b><span>'+x.rol+'</span><div class="gu-acciones"><button type="button" disabled>'+(aprobada?'Aprobado':'Pendiente')+'</button><button type="button" '+attr+' data-operacion="mover" '+(aprobada?'disabled':'')+'>Modificar</button><button type="button" '+attr+' data-operacion="quitar" '+(aprobada?'disabled':'')+'>Eliminar</button><button type="button" '+attr+' data-operacion="cambiar" '+(aprobada?'disabled':'')+'>Cambiar</button></div></div>';}).join('')||'<span class="falta">Sin asignar</span>';
+    var chips=personas.map(function(x){var attr='data-rv-persona="'+c.f+'|'+E(x.id)+'"';return '<div class="gu-persona"><b>'+E(nom(x.id))+'</b><span>'+x.rol+' · '+(aprobada?'Aprobado':'Pendiente')+'</span>'+(aprobada?'':'<div class="gu-acciones" style="display:block;width:100%;max-width:100%"><button type="button" class="btn secondary" style="width:100%;max-width:100%;white-space:normal;overflow-wrap:anywhere" '+attr+' data-operacion="gestionar">Gestionar</button></div>')+'</div>';}).join('')||'<span class="falta">Sin asignar</span>';
 
     var optV='<option value="">+ Agregar voluntario</option>'+activos.filter(function(x){ return !o[String(x.id)]; }).map(function(x){ return '<option value="'+E(x.id)+'">'+E(corto(x))+'</option>'; }).join("");
     var optM=function(lista,cur,rol){ var l=lista.slice(); if(cur&&!l.some(function(x){ return String(x.id)===cur; })){ var m=porId(cur); if(m) l.unshift(m); } return '<option value="">— sin asignar —</option>'+l.map(function(x){ var id=String(x.id); var bloq=o[id]&&id!==cur&&rol!=="maq"; return '<option value="'+E(id)+'"'+(id===cur?" selected":"")+(bloq?" disabled":"")+'>'+(rol==="obac"&&rangoPrec(x)!=null?"N° "+rangoPrec(x)+" · ":"")+E(corto(x))+(bloq?" (ya asignado)":"")+'</option>'; }).join(""); };
@@ -656,6 +657,7 @@ async function panelRev(pn,D){
   pn.querySelectorAll('[data-rv-david]').forEach(function(b){b.onclick=function(){if(confirm('¿Programar a David Briones como maquinista de apoyo del Cuerpo el '+gnFmt(b.dataset.rvDavid)+'?'))guardarOp({t:'apoyoCuerpo',f:b.dataset.rvDavid});};});
   pn.querySelectorAll('[data-rv-persona]').forEach(function(b){b.onclick=function(){
     var v=b.dataset.rvPersona.split('|'),f=v[0],id=v[1],op=b.dataset.operacion;
+    if(op==='gestionar'){var eleccion=prompt('Gestionar '+nom(id)+'\\n1. Modificar día\\n2. Eliminar de la noche\\n3. Cambiar por otra persona\\nCancelar: dejar vacío','');if(eleccion==='1')op='mover';else if(eleccion==='2')op='quitar';else if(eleccion==='3')op='cambiar';else return;}
     if(op==='quitar'){if(confirm('¿Quitar a '+nom(id)+' de '+gnFmt(f)+'?'))guardarOp({t:'quitarPersona',f:f,id:id});return;}
     var n=doc.noches[f],conductor=n.maq===id,ocupados=n.vol.concat(n.obac?[n.obac]:[],n.maq?[n.maq]:[]);
     var opciones=op==='mover'?D.noches.filter(function(d){var t=doc.noches[d];return d!==f&&!t.vol.includes(id)&&t.obac!==id&&t.maq!==id&&(!conductor||!t.maq);}):activos.filter(function(m){return !ocupados.includes(String(m.id))&&(!conductor||esMaquinista(m));}).map(function(m){return String(m.id);});
