@@ -54,18 +54,17 @@ async function check(browser,device){
     for(const b of notice.controls)assert.ok(b.height>=43.5,device.name+" botón de avisos demasiado pequeño "+JSON.stringify(b));
     assert.ok(notice.scrollWidth<=notice.boxWidth+2,device.name+" avisos desbordados "+JSON.stringify(notice));
     if(device.width>=701){
-      const nav=await page.evaluate(()=>{
-        const panel=document.getElementById("panel-panel");
-        const hasNav=typeof window.__mostrarPestana==="function";
-        if(hasNav)window.__mostrarPestana("panel");
-        return {url:location.href,title:document.title,ready:document.readyState,panelPresent:!!panel,panels:[...document.querySelectorAll(".panel")].map(x=>x.id).slice(0,15),hasNav,active:!!panel?.classList.contains("active"),found:!!panel?.querySelector('[aria-label="Volver al inicio de Germania"]')};
-      });
-      console.log(device.name+" diagnóstico navegación: "+JSON.stringify(nav));
-      assert.ok(nav.hasNav,device.name+" navegación de panel sin inicializar");
-      assert.ok(nav.active,device.name+" navegación no activó Informes");
-      assert.ok(nav.found,device.name+" botón Inicio inexistente");
-      const button=page.locator('#panel-panel [aria-label="Volver al inicio de Germania"]');
-      assert.ok((await button.boundingBox())?.height>=43.5,device.name+" botón de Inicio insuficiente");
+      const hasNav=await page.evaluate(()=>typeof window.__mostrarPestana==="function");
+      assert.ok(hasNav,device.name+" navegación de Informes no inicializada");
+      await Promise.all([
+        page.waitForURL("**/legacy/dashboard-preview.html",{timeout:12000}),
+        page.evaluate(()=>window.__mostrarPestana("panel"))
+      ]);
+      const button=page.locator("#volver");
+      await button.waitFor({state:"visible",timeout:12000});
+      assert.ok((await button.boundingBox())?.height>=43.5,device.name+" botón Inicio de Dashboard V2 insuficiente");
+      await Promise.all([page.waitForURL(BASE+"/",{timeout:12000}),button.click()]);
+      console.log(device.name+" navegación Dashboard V2 → Inicio OK");
     }
     snapshots.push(device.name+" OK: "+JSON.stringify({dash,notice}));
   }finally{await ctx.close();}
