@@ -24,6 +24,7 @@ function esOficial(m){ return !!m&&/capitan|teniente|ayudante|director|secretari
 function esMando(m){ return !!m&&(/^capitan/.test(cargoDe(m))||/teniente (tercero|3)/.test(cargoDe(m))||ADMINISTRADORES.indexOf(String(m.clave))>=0); }
 function esMaquinista(m){ return !!m&&m.conductor===true; }
 function esTenienteTercero(m){ return !!m&&/teniente\s*(tercero|3)/.test(cargoDe(m)); }
+function esAdminGuardia(m){ return !!m&&ADMINISTRADORES.indexOf(String(m.clave))>=0; }
 var PREC=null;
 async function cargarPrec(){
   var d=null; try{ d=await sGet(PRECEDENCIA_KEY,null); }catch(e){}
@@ -199,7 +200,7 @@ var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinist
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
 function tabsPermitidas(m,abierto){
-  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rev","rep"]:esMando(m)?["info"]:[];
+  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rev","rep"]:esAdminGuardia(m)?["info","rev","rep"]:esMando(m)?["info"]:[];
   return ["mis"];   /* elegir noches se hace en las tarjetas de Inicio */
 }
 function guardiaActiva(){ var p=$("panel-guardia"); return !!p&&p.classList.contains("active"); }
@@ -283,7 +284,7 @@ function pintarPanel(){
   if(GR.tab==="mis"){ panelMis(pn,D); return; }
   if(!D.p){ pn.innerHTML='<div class="empty">No hay una semana publicada. Selecciona un miércoles en el calendario para prepararla.</div>'; return; }
   if(D.error||!D.S){ pn.innerHTML='<div class="empty">No se pudo leer la semana. <button type="button" class="btn small secondary" id="grReintentar">Reintentar</button></div>'; var r=$("grReintentar"); if(r) r.onclick=function(){ grRender(true); }; return; }
-  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") panelRev(pn,D); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
+  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") (esAdminGuardia(D.m)&&!esTenienteTercero(D.m)?panelRevAdminLectura(pn,D):panelRev(pn,D)); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
 }
 
 /* ---------- Voluntario ---------- */
@@ -562,7 +563,17 @@ function textoCambio(c){
   else return '<b>Rehízo la propuesta desde las inscripciones</b> · '+E(c.por)+' · '+E(h);
   return '<b>'+E(dia)+'</b> · '+q+' · '+E(c.por)+' · '+E(h);
 }
-async function panelRev(pn,D){
+async function panelRevAdminLectura(pn,D){
+ var doc=D.revision, h='<h3 class="gr-t">Revisión de guardia · solo lectura</h3><p class="sub">Como administrador puedes consultar permanentemente la dotación y su aprobación. Modificar, aprobar y acreditar corresponde exclusivamente al Teniente Tercero.</p>';
+ if(!doc||!doc.noches){pn.innerHTML=h+'<div class="empty">Esta semana aún no tiene revisión registrada.</div>';return;}
+ h+='<p><b>Estado:</b> '+(doc.estado==="aprobada"?"Aprobada":"Pendiente de aprobación")+'</p><div class="gr-lista">';
+ Object.keys(doc.noches).sort().forEach(function(f){
+  var n=doc.noches[f], dia=nombreNoche(f);
+  h+='<div class="gr-nc"><b>'+E(dia.w+" "+dia.d)+'</b><div class="gr-nc-fila">Maquinista: '+E(n.maq?nom(n.maq):"Sin asignar")+'</div><div class="gr-nc-fila">OBAC: '+E(n.obac?nom(n.obac):"Sin asignar")+'</div><div class="gr-nc-fila">Voluntarios: '+E((n.vol||[]).map(nom).join(", ")||"Sin asignar")+'</div></div>';
+ });
+ pn.innerHTML=h+'</div>';
+}
+function panelRev(pn,D){
   if(!esTenienteTercero(D.m)){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero.</p>";return;}
   if(RV.clave!==D.p.inicio||(RV.doc===null&&!RV.ocupado)){ pn.innerHTML='<p class="sub">Cargando…</p>'; try{ await revCargar(D); }catch(e){ pn.innerHTML='<div class="empty">No se pudo leer la revisión. <button type="button" class="btn small secondary" id="rvReint">Reintentar</button></div>'; var r=$("rvReint"); if(r) r.onclick=function(){ RV.clave=""; panelRev(pn,D); }; return; } }
   if(D.abierto){pn.innerHTML="<p>Cierra las inscripciones de esta semana antes de revisarla y aprobarla.</p>";return;}
