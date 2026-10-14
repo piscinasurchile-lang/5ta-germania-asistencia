@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {readFileSync} from "node:fs";
-import {GET,POST} from "../app/api/informaciones/route.js";
+import {GET,POST,DELETE} from "../app/api/informaciones/route.js";
+import {PUT as statePut,PATCH as statePatch} from "../app/api/state/[key]/route.js";
 
 const cookieValue=crypto.createHmac("sha256","test-secret-no-real").update("5ta-germania-oficialidad").digest("hex");
 function request({origin="https://germania.example",cookie="",json=()=>({texto:"Prueba local, no se publica",destino:"oficiales"})}={}){
@@ -46,4 +47,22 @@ test("canal privado no es accesible mediante API genérica /api/state",()=>{
  assert.match(store,/export const PREFIJOS_LECTURA = \[/);
  const prefixes=store.slice(store.indexOf("export const PREFIJOS_LECTURA"),store.indexOf("export async function listByPrefix"));
  assert.doesNotMatch(prefixes,/security:/);
+});
+
+test("DELETE rechaza usuarios sin sesión y orígenes ajenos sin tocar datos",async()=>{
+  const env=process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET="test-secret-no-real";
+  try{
+    assert.equal((await DELETE(request())).status,403);
+    assert.equal((await DELETE(request({origin:"https://atacante.example",cookie:cookieValue}))).status,403);
+    assert.equal((await DELETE(request({cookie:cookieValue,json:()=>({id:""} )}))).status,400);
+  }finally{if(env===undefined)delete process.env.SESSION_SECRET;else process.env.SESSION_SECRET=env}
+});
+test("la API genérica conserva GET pero bloquea PUT/PATCH de novedades:v1",async()=>{
+  const req=request();
+  const key={params:Promise.resolve({key:"novedades:v1"})};
+  for(const result of [await statePut(req,key),await statePatch(req,key)]){
+    assert.equal(result.status,409);
+    assert.equal((await result.json()).error,"ruta_informaciones_requerida");
+  }
 });
