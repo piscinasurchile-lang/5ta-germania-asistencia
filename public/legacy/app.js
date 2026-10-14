@@ -2032,7 +2032,7 @@ async function renderGnTablaSemanal(){
     +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
-on("gnOddMaestras","click",()=>{window.location.href="/odd-maestras";});
+on("gnOddMaestras","click",()=>{const inicio=gnPlanDraft&&gnPlanDraft.inicio?gnPlanDraft.inicio:"";window.location.href="/odd-maestras?tipo=guardia"+(inicio?"&inicio="+encodeURIComponent(inicio):"");});
 on("gnTablaPdf","click",async()=>{
  const box=document.getElementById("gnTablaSemanal");
  const tabla=box&&box.querySelector("table");
