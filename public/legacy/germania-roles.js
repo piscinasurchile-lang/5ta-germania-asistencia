@@ -678,7 +678,15 @@ async function panelRev(pn,D){
       var registro=nuevo.cambios[nuevo.cambios.length-1];
       registro.motivo=op.motivo;registro.horaEfectiva=op.horaEfectiva;
     }
-    Object.keys(nuevo.noches).forEach(function(f){revReordenar(nuevo.noches[f]);});
+    Object.keys(nuevo.noches).forEach(function(f){
+      var anterior=doc.noches[f]&&doc.noches[f].obac||null;
+      revReordenar(nuevo.noches[f]);
+      var actual=nuevo.noches[f].obac||null;
+      if(anterior!==actual){
+        revLog(nuevo,D,f,"obac",actual?(anterior?"cambia":"agrega"):"quita",actual,anterior);
+        nuevo.cambios[nuevo.cambios.length-1].motivo="Reasignación automática por precedencia tras modificar la dotación";
+      }
+    });
     try{ await revGuardar(D,nuevo); RV.msg=""; RV.err=false; }
     catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. Se cargó lo último; repite tu cambio.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){} }
     RV.ocupado=false; panelRev(pn,D);
