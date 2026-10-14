@@ -1378,14 +1378,21 @@ function mostrarConfirmarParte(date,tipo){
 
 /* ============ PDF ============ */
 function pdfHeader(doc,titulo){
-  try{ doc.addImage(LOGO_B64,"PNG",14,10,15,19); }catch(e){}
-  doc.setFont("helvetica","bold"); doc.setFontSize(14);
-  doc.text(titulo,35,18);
-  doc.setFont("helvetica","normal"); doc.setFontSize(10);
-  doc.text('Quinta Compañía de Bomberos "Germania" de Villarrica',35,24);
-  doc.setFontSize(8);
-  doc.text("Fundada como Brigada el 21 de junio de 2023 · Compañía desde el 5 de noviembre de 2025",35,28.5);
-  doc.setFontSize(10);
+  // Encabezado institucional único. No incluye firmas ni acredita asistencia.
+  const w=doc.internal.pageSize.getWidth(),cx=w/2;
+  const side=Math.max(12,(w-36)/2-13),left=12,right=w-12-side;
+  for(const [y,color] of [[8,[0,0,0]],[10.5,[205,0,0]],[13,[255,205,0]]]){
+    doc.setFillColor(...color);doc.rect(left,y,side,2.5,"F");doc.rect(right,y,side,2.5,"F");
+  }
+  try{doc.addImage(LOGO_B64,"PNG",cx-7,4,14,18)}catch(e){}
+  doc.setTextColor(0);doc.setFont("helvetica","bold");doc.setFontSize(9);
+  doc.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",cx,24,{align:"center",maxWidth:w-24});
+  doc.setFont("helvetica","normal");doc.setFontSize(8);
+  doc.text('Quinta Compañía de Bomberos "Germania" de Villarrica',cx,28,{align:"center",maxWidth:w-24});
+  doc.setFontSize(7);doc.text("Fundada el 5 de noviembre de 2025",cx,31.5,{align:"center"});
+  doc.setFont("helvetica","bold");doc.setFontSize(10);
+  doc.text(titulo,cx,36,{align:"center",maxWidth:w-22});
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
 }
 function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
