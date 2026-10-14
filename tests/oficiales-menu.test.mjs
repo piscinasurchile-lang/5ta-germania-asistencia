@@ -27,8 +27,10 @@ test("mantiene los destinos, IDs de subpaneles y cargas bajo demanda existentes"
     assert.ok(menu.includes('data-sub="'+destino+'"'),"Falta acceso "+destino);
     assert.ok(html.includes('id="sub-'+destino+'"'),"Falta subpanel "+destino);
   }
-  for(const nav of ["'/odd-maestras'","'guardia'","'panel'","'historial'"])
+  for(const nav of ["'/odd-maestras'","'panel'","'historial'"])
     assert.ok(menu.includes(nav),"Falta navegación "+nav);
+  assert.ok(menu.includes('id="btnOficialesGuardia"'),"Falta gestionar guardias desde Oficiales");
+  assert.ok(fuente("../public/legacy/germania-roles.js").includes('var botonGestion=$("btnOficialesGuardia")'),"Falta listener existente de guardia");
   assert.ok(app.includes('document.querySelectorAll(".subtab").forEach(s=>{'));
   assert.ok(app.includes('if(!s.dataset.sub) return;'));
   assert.ok(app.includes('if(s.dataset.sub==="nomina")'));

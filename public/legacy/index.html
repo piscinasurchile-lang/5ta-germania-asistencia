@@ -375,13 +375,9 @@
       <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
         <div class="ha-main">
           <span class="ha-ico" aria-hidden="true">✔</span>
-          <div><strong>SIN EMERGENCIAS</strong><span>Novedades de la Compañía</span></div>
+          <div><strong>INFORMACIONES</strong><span>Avisos de la oficialidad para los voluntarios</span></div>
         </div>
-        <div id="novedadesLista" class="ha-lista"></div>
-        <div id="novedadesAdmin" class="ha-admin" hidden>
-          <div class="ha-fila"><textarea id="novedadTexto" maxlength="2000" rows="4" placeholder="Escribir o pegar un aviso…" aria-label="Nueva novedad para la Compañía"></textarea><button type="button" class="btn small" id="novedadAgregar">Publicar</button></div>
-          <div class="status-msg" id="novedadMsg"></div>
-        </div>
+        <p class="sub"><strong>Prueba compartida:</strong> los avisos generales aparecen en todos los teléfonos al abrir o sincronizar Germania. Toca «Leído» para confirmar su recepción.</p><div id="novedadesLista" class="ha-lista" aria-live="polite"></div>
       </section>
 
 
@@ -783,11 +779,11 @@
   <!-- CONFIGURACIÓN -->
   <div class="panel" id="panel-config">
 
-    <div class="card solo-oficiales solo-mando" id="oficialesAccesoGuardia">
-      <h2>Guardias nocturnas</h2>
-      <p class="sub">Inscripciones, dotaciones, OBAC, maquinistas, reemplazos y ODD.</p>
-      <button type="button" class="btn" id="btnOficialesGuardia">Gestionar Guardias</button>
-    </div>
+    <section class="card solo-oficiales" id="informacionesCard" aria-labelledby="informacionesTitulo">
+      <h2 id="informacionesTitulo">Informaciones entre oficiales</h2>
+      <p class="sub">Mensajes dirigidos exclusivamente a oficiales. Los avisos para voluntarios se leen en Inicio.</p>
+      <div id="informacionesPrivadas" class="ha-lista" hidden aria-live="polite"></div>
+    </section>
 
     <div class="card" id="configCandado">
       <h2>Sección restringida</h2>
@@ -815,6 +811,28 @@
       </div>
     </div>
 
+    <section class="card solo-oficiales" id="informacionesPublicarCard">
+      <h2>Avisos de Oficiales</h2>
+      <p class="sub"><strong>PRUEBA SIN CLAVE.</strong> «Todos los voluntarios» envía un aviso de prueba a los teléfonos que abran Germania; la sincronización funciona mientras la app está abierta. «Solo oficiales» continúa como simulación local. No escribas información confidencial ni alertas de emergencia.</p>
+      <div id="novedadesAdmin" class="ha-admin" hidden>
+        <div class="field"><label for="informacionesDestino">Destinatarios</label>
+          <select id="informacionesDestino"><option value="compania">Todos los voluntarios</option><option value="oficiales">Solo oficiales</option></select>
+        </div>
+        <div class="field"><label for="informacionesVence">Vence el (día y hora, opcional)</label>
+          <input id="informacionesVence" type="datetime-local" aria-describedby="informacionesCaducidad"/>
+          <small id="informacionesCaducidad" class="sub">Sin fecha y hora: el aviso desaparece 48 horas después de publicarse.</small>
+        </div>
+        <div class="field"><label for="novedadTexto">Información</label>
+          <textarea id="novedadTexto" maxlength="500" rows="4" placeholder="Escribe una información…" aria-label="Información a publicar"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-start;margin-top:10px">
+          <button type="button" class="btn small" id="novedadAgregar">Publicar información</button>
+        </div>
+        <div class="status-msg" id="novedadMsg" role="status" aria-live="polite"></div>
+
+      </div>
+    </section>
+
     <div class="card" id="buscadorPersona">
       <label for="buscadorInput" style="font-weight:600;">Buscar persona</label>
       <input type="text" id="buscadorInput" list="buscadorList" placeholder="Escribe un nombre o clave…" autocomplete="off">
@@ -834,7 +852,7 @@
         <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
         <div class="of-grupo-botones" aria-label="Guardia y ODD">
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
-          <button class="subtab" type="button" onclick="window.__mostrarPestana('guardia')">Guardia</button>
+          <button class="subtab" type="button" id="btnOficialesGuardia">Gestionar Guardias</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
         </div>
@@ -1452,7 +1470,8 @@
 <script src="./germania-obac.js?v=20261009a"></script>
 <script src="./germania-guardia-franja.js?v=20261010a"></script>
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
-<script src="./germania-roles.js?v=20261014guardia1"></script>
+<script src="./germania-informaciones-prueba.js?v=20261014prueba1"></script>
+<script src="./germania-roles.js?v=20261014informaciones3"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
