@@ -605,9 +605,9 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia" data-vista="mi">
-    <div class="gr-vista" id="gnVistaSel" role="tablist" aria-label="Vista de guardia"><button type="button" role="tab" class="on" data-gv="mi">Mi guardia</button><button type="button" role="tab" data-gv="gestion">Gestión de guardia</button></div>
+    <div class="gr-vista solo-oficiales" id="gnVistaSel"><h2>Gestión de guardia</h2></div>
     <div class="card gn-planner-card solo-oficiales solo-gestion">
-      <div class="gn-head"><div><h2>1 · Programación de Guardia</h2><p class="sub">Cada noche termina a las 08:00. Parte a las 23:00 (domingo 19:00, modificable). 7 turnos por semana.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
+      <div class="gn-head"><div><h2>1 · Programación de Guardia</h2><p class="sub">7 noches, de miércoles a martes. Horario: 22:45 a 06:00.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
       <div class="gn-layout">
         <section>
           <div class="gn-cal-head"><button class="btn small secondary" id="gnPrevMes">‹</button><strong id="gnMesTitulo"></strong><button class="btn small secondary" id="gnNextMes">›</button></div>
@@ -630,7 +630,7 @@
             <div class="seg"><button type="button" data-gn-lugar="domicilio" class="active">Domicilio</button><button type="button" data-gn-lugar="cuartel">Cuartel</button></div>
             <div id="gnActividadWrap" style="display:none;margin-top:10px"><label for="gnActividad">Actividad en cuartel</label><input id="gnActividad" placeholder="Mantención B-5, revisión de equipos, marcado de herramientas…"></div>
           </div>
-          <div class="gn-actions"><button class="btn secondary" id="gnBorrarSemana">Borrar semana</button><button class="btn secondary" id="gnCerrarInscripcion">Cerrar inscripción / Asignación</button><button class="btn secondary" id="gnSuspenderPeriodo">Suspender por Comandancia</button><label for="gnCierrePeriodo" style="display:block;margin:10px 0 4px;font-size:13px;">Cierre de la inscripción (fecha y hora futuras; por defecto el martes anterior, 19:00)</label><input type="datetime-local" id="gnCierrePeriodo" style="padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;margin-bottom:10px;">
+          <div class="gn-actions"><button class="btn secondary" id="gnLimpiarSeleccion" type="button">Limpiar selección</button><button class="btn secondary" id="gnBorrarSemana">Anular semana publicada</button><button class="btn secondary" id="gnCerrarInscripcion">Cerrar inscripción / Asignación</button><button class="btn secondary" id="gnSuspenderPeriodo">Suspender por Comandancia</button><label for="gnCierrePeriodo" style="display:block;margin:10px 0 4px;font-size:13px;">Inscripciones abiertas hasta (fecha y hora editables)</label><input type="datetime-local" id="gnCierrePeriodo" style="padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;margin-bottom:10px;">
         <button class="btn" id="gnConfirmarPeriodo">Confirmar período</button></div>
           <div class="status-msg" id="gnPlanMsg"></div>
         </section>
@@ -1433,6 +1433,7 @@
 <script src="./germania-ui.js?v=20261008f"></script>
 <script src="./germania-obac.js?v=20261009a"></script>
 <script src="./germania-guardia-franja.js?v=20261010a"></script>
+<script src="./germania-apoyo-guardia.js?v=20261013a"></script>
 <script src="./germania-roles.js?v=20261013lectura1"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>

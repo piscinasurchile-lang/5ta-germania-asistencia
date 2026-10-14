@@ -12,12 +12,10 @@ test("pantalla aprobada conserva nombre, foto y estado del voluntario",()=>{
     assert.ok(html.includes('id="'+id+'"'),id);
 });
 
-test("banner no es permanente y al confirmar desaparece",()=>{
+test("selecciones permanecen visibles mientras esperan revisión",()=>{
   assert.match(roles,/function pintarInicioRoles\(\)/);
-  assert.match(roles,/if\(conf&&\(conf\.confirmadaEn\|\|conf\.cumple\|\|conf\.justificacion\)\)/);
-  assert.match(roles,/box\.innerHTML=""; GR\.eligiendo=false; return;/);
-  assert.match(roles,/D\.abierto/);
-  assert.match(roles,/panelVol\(vol,D\)/);
+  assert.match(roles,/panelVol\(\$\("gnInicioVol"\),D\)/);
+  assert.match(roles,/Tus días permanecen amarillos/);
 });
 
 test("franja usa guardias aprobadas, fecha local y cargo real; no inventa asistentes",()=>{
