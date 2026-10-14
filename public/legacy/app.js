@@ -1378,20 +1378,27 @@ function mostrarConfirmarParte(date,tipo){
 
 /* ============ PDF ============ */
 function pdfHeader(doc,titulo){
-  // Encabezado institucional único. No incluye firmas ni acredita asistencia.
-  const w=doc.internal.pageSize.getWidth(),cx=w/2;
-  const side=Math.max(12,(w-36)/2-13),left=12,right=w-12-side;
-  for(const [y,color] of [[8,[0,0,0]],[10.5,[205,0,0]],[13,[255,205,0]]]){
-    doc.setFillColor(...color);doc.rect(left,y,side,2.5,"F");doc.rect(right,y,side,2.5,"F");
+  // Encabezado institucional compacto y único para los informes PDF de legacy.
+  // Mantener el contenido desde y=36 para no superponer tablas ni textos.
+  const ancho=doc.internal.pageSize.getWidth();
+  const centro=ancho/2, margen=14, escudoAncho=13, franjaCentro=17;
+  const franjaLargo=Math.max(12,centro-margen-franjaCentro);
+  const derecha=centro+franjaCentro;
+  for(const [dy,color] of [[0,[0,0,0]],[1.8,[190,0,0]],[3.6,[255,205,0]]]){
+    doc.setFillColor(...color);
+    doc.rect(margen,5+dy,franjaLargo,1.8,"F");
+    doc.rect(derecha,5+dy,franjaLargo,1.8,"F");
   }
-  try{doc.addImage(LOGO_B64,"PNG",cx-7,4,14,18)}catch(e){}
-  doc.setTextColor(0);doc.setFont("helvetica","bold");doc.setFontSize(9);
-  doc.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",cx,24,{align:"center",maxWidth:w-24});
+  try{doc.addImage(LOGO_B64,"PNG",centro-escudoAncho/2,2.5,escudoAncho,13.5)}catch(e){}
+  doc.setTextColor(0);
+  doc.setFont("helvetica","bold");doc.setFontSize(9);
+  doc.text("Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica",centro,19,{align:"center",maxWidth:ancho-20});
   doc.setFont("helvetica","normal");doc.setFontSize(8);
-  doc.text('Quinta Compañía de Bomberos "Germania" de Villarrica',cx,28,{align:"center",maxWidth:w-24});
-  doc.setFontSize(7);doc.text("Fundada el 5 de noviembre de 2025",cx,31.5,{align:"center"});
+  doc.text('Quinta Compañía de Bomberos "Germania" de Villarrica',centro,23,{align:"center",maxWidth:ancho-20});
+  doc.setFontSize(7.5);
+  doc.text("Fundada el 5 de noviembre de 2025",centro,26.5,{align:"center"});
   doc.setFont("helvetica","bold");doc.setFontSize(10);
-  doc.text(titulo,cx,36,{align:"center",maxWidth:w-22});
+  doc.text(String(titulo||""),centro,32,{align:"center",maxWidth:ancho-28});
   doc.setFont("helvetica","normal");doc.setFontSize(9);
 }
 function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio){
