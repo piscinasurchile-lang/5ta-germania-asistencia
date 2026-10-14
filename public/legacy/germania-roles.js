@@ -606,6 +606,9 @@ var ROL_TXT={vol:"voluntario",maq:"maquinista",obac:"OBAC"};
 function textoCambio(c){
   var n=nombreNoche(c.f||c.fecha), dia=n.w+" "+n.d, h=new Date(c.en).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
   var q;
+  if(c.rol==="obac"&&c.motivo&&c.motivo.indexOf("Reasignación automática")===0){
+    return "<b>"+E(dia)+"</b> · OBAC recalculado: "+E(nom(c.antesId))+" → "+E(nom(c.personaId))+" · "+E(c.por)+" · "+E(h)+" · "+E(c.motivo);
+  }
   if(c.accion==="agrega") q="agregó a <b>"+E(nom(c.personaId))+"</b> como "+ROL_TXT[c.rol];
   else if(c.accion==="quita") q="quitó a <b>"+E(nom(c.personaId||c.antesId))+"</b> ("+ROL_TXT[c.rol]+")";
   else if(c.accion==="cambia") q="cambió "+ROL_TXT[c.rol]+": <b>"+E(nom(c.personaId))+"</b> reemplaza a "+E(nom(c.antesId));
