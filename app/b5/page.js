@@ -121,18 +121,15 @@ export default function TabletB5(){
         </div>
 
         <div className="photoArea">
-          {foto
-            ? <img className="carPhoto" src={foto} alt="Fotografía del carro B-5"/>
-            : <div className="placeholder">
-                <img src="/legacy/escudo-5ta-germania.png" width="82" height="82" alt="Escudo Quinta Compañía"/>
-                <strong>Carro B-5</strong>
-                <small>Fotografía pendiente de incorporar</small>
-              </div>
-          }
+          <img
+            className="carPhoto"
+            src={foto || "/legacy/carro-b5.webp"}
+            alt="Fotografía del carro B-5 de la Quinta Compañía Germania junto al lago"
+          />
         </div>
         <input ref={entradaFoto} type="file" accept="image/*" onChange={actualizarFoto} hidden aria-label="Elegir fotografía del B-5"/>
         <button className="photoButton" disabled={cargandoFoto} onClick={()=>entradaFoto.current?.click()}>
-          {cargandoFoto?"Preparando fotografía…":foto?"Cambiar foto del carro":"Agregar foto del carro"}
+          {cargandoFoto?"Preparando fotografía…":foto?"Cambiar foto del carro":"Personalizar foto en esta tablet"}
         </button>
 
         <div className="actions" aria-label="Funciones de la tablet B-5">
