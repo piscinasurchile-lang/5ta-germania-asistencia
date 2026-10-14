@@ -2803,8 +2803,8 @@ on("gnPdfSemanal","click",async()=>{
   pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");
   doc.setFontSize(9);
   doc.text(`Período ${d||"inicio"} al ${h||"hoy"} · ${lista.length} registros · emitido el ${new Date().toLocaleDateString("es-CL")}`,14,43);
-  doc.autoTable({startY:50,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    styles:{fontSize:7,overflow:"linebreak"},
+  doc.autoTable({startY:50,margin:{top:38,bottom:20,left:12,right:12},styles:{fontSize:7,overflow:"linebreak",cellPadding:2},headStyles:{fillColor:[179,36,28]},
+    didDrawPage:({pageNumber})=>{if(pageNumber>1)pdfHeader(doc,"GUARDIAS NOCTURNAS · DOTACIÓN PROGRAMADA");},
     head:[["Fecha","Horario","OBAC / oficial","Conductor","Voluntarios","Estado / novedades"]],
     body:siete.map(({fecha,g})=>{if(!g)return [fecha,"—","—","—","—","Sin registro de guardia"];
       const t=normalizaTurno(g.guardianes);
