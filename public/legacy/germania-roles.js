@@ -251,7 +251,7 @@ function resumenInfo(pn,D){
 }
 function pintarInicioRoles(){
  var box=$("inicioRoles"),D=GR.Dmi,m=miembro();if(!box)return;
- if(!m||!D||!D.p||D.error||!D.S||(D.revision&&D.revision.estado==="aprobada")){box.innerHTML="";return;}
+ if(!m||!D||!D.p||D.error||!D.S){box.innerHTML="";return;}
  box.innerHTML='<section class="card gn-inicio-inscripcion" aria-label="Mis días de guardia"><div id="gnInicioVol"></div></section>';
  panelVol($("gnInicioVol"),D);
 }
@@ -295,13 +295,15 @@ function filaCupos(c){
 function panelVol(pn,D){
  var who=D.who,saved=Array.isArray(D.S.vol[who])?D.S.vol[who]:[],ck=D.p.inicio+":"+who;
  if(GN_INS_CLAVE!==ck){GN_INS_CLAVE=ck;GN_INS_SEL=new Set(saved);}
- var sel=GN_INS_SEL,editable=D.abierto,pendientes=new Set(saved),soloAsignados=pendientes.size>0;
- var h='<h3 class="gr-t">'+(soloAsignados?'Mis noches · Pendientes de revisión':'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
- if(soloAsignados)h+='<div role="status" style="background:#facc15;color:#422006;border:2px solid #ca8a04;border-radius:8px;padding:12px;margin:10px 0;font-weight:800;text-align:center;overflow-wrap:anywhere">ENVIADOS A REVISIÓN DEL TENIENTE TERCERO</div>';
+ var sel=GN_INS_SEL,aprobada=!!(D.revision&&D.revision.estado==="aprobada"),nochesAprobadas=D.revision&&D.revision.noches||{};
+ var asignadas=new Set(Object.keys(nochesAprobadas).filter(function(f){var n=nochesAprobadas[f];return n&&(n.obac===who||n.maq===who||(n.vol||[]).includes(who));}));
+ var editable=D.abierto&&!aprobada,pendientes=new Set(saved),soloAsignados=aprobada?asignadas.size>0:pendientes.size>0;
+ var h='<h3 class="gr-t">'+(soloAsignados?(aprobada?'Mis guardias aprobadas':'Mis noches · Pendientes de revisión'):'Elige tus noches · '+(editable?'Semana abierta':'En revisión'))+'</h3><p class="sub">Horario de guardia: 22:45 a 06:00</p>'+(soloAsignados?'':'<p class="sub">Debes elegir mínimo 2 noches.</p>');
+ if(soloAsignados&&!aprobada)h+='<div role="status" style="background:#facc15;color:#422006;border:2px solid #ca8a04;border-radius:8px;padding:12px;margin:10px 0;font-weight:800;text-align:center;overflow-wrap:anywhere">ENVIADOS A REVISIÓN DEL TENIENTE TERCERO</div>';
  h+='<div class="gu-dias"'+(soloAsignados?' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,115px),1fr));gap:10px;width:100%;min-width:0"':'')+'>';
- h+=D.cov.filter(function(c){return !soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=pendientes.has(c.f);return '<button type="button" class="gu-dia'+(selected?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
+ h+=D.cov.filter(function(c){return !soloAsignados||(aprobada?asignadas.has(c.f):pendientes.has(c.f));}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f);return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable||pendiente?'disabled':'')+' style="'+(confirmada?'background:#166534;color:#fff;border:3px solid #22c55e;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
  if(editable&&!soloAsignados)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">Enviar a revisión ('+sel.size+')</button>';
- else h+='<p class="sub">Tus días inscritos permanecen amarillos y bloqueados hasta la revisión del Teniente Tercero.</p>';
+ else h+='<p class="sub">'+(aprobada?'Verde: tus guardias aprobadas por el Teniente Tercero. No significa guardia cumplida.':'Amarillo: tus días enviados a revisión del Teniente Tercero.')+'</p>';
  pn.innerHTML=h;
  pn.querySelectorAll('[data-gr-vol]').forEach(function(b){b.onclick=function(){var f=b.dataset.grVol;if(sel.has(f))sel.delete(f);else sel.add(f);panelVol(pn,D);};});
  var b=$("giConfirmar");if(b)b.onclick=function(){gnInsConfirmar(D.p,who);};
@@ -597,7 +599,7 @@ async function panelRev(pn,D){
   h+='<details class="gr-det" '+(cam.length?"open":"")+'><summary>Cambios hechos: '+cam.length+'</summary>'+(cam.length?'<ul class="rv-cambios">'+cam.map(function(c){ return '<li>'+textoCambio(c)+'</li>'; }).join("")+'</ul>':'<p>Todavía no hay cambios.</p>')+'</details>';
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
-  else h+='<button type="button" class="btn gr-grande" id="rvAprobar">Aprobar dotación</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
+  else h+='<div class="gr-nota info"><p><b>Último paso del Teniente Tercero:</b> revisa las siete noches y aprueba la dotación. Esta aprobación no acredita asistencia.</p></div><button type="button" class="btn gr-grande" id="rvAprobar">✓ APROBAR GUARDIAS DE LA SEMANA</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
   if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista"><p class="sub">Cargando acreditaciones…</p></div>';
   pn.innerHTML=h;
   if(aprobada && esTenienteTercero(D.m)) pintarAcreditacionReal(D,doc).catch(function(){
