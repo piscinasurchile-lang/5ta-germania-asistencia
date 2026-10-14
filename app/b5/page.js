@@ -55,6 +55,10 @@ export default function TabletB5(){
   const entradaFoto=useRef(null);
 
   useEffect(()=>{
+    // Activar PWA también si la tablet se abre directamente por /b5.
+    if("serviceWorker" in navigator && location.protocol==="https:"){
+      navigator.serviceWorker.register("/sw.js").catch(()=>{});
+    }
     try{
       localStorage.setItem(MODO_KEY,"b5");
       setFoto(localStorage.getItem(FOTO_KEY));
