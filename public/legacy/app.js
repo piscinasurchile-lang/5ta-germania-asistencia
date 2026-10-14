@@ -2704,11 +2704,21 @@ on("gnHistorialVer","click",()=>{
  renderGnLista();
  document.getElementById("gnLista")?.scrollIntoView({behavior:"smooth",block:"start"});
 });
+on("gnHistorialOdd","click",()=>{
+ const fecha=document.getElementById("gnHistorialSelect")?.value;
+ if(!fecha){alert("Selecciona una guardia registrada.");return;}
+ const d=new Date(fecha+"T12:00:00");d.setDate(d.getDate()-(d.getDay()+4)%7);
+ const inicio=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+ window.location.href="/odd-maestras?tipo=guardia&inicio="+encodeURIComponent(inicio);
+});
 on("gnHistorialPdf","click",()=>{
  const fecha=document.getElementById("gnHistorialSelect")?.value;
  if(!fecha){alert("Selecciona una guardia registrada.");return;}
- document.getElementById("gnDesde").value=fecha;
- document.getElementById("gnHasta").value=fecha;
+ const d=new Date(fecha+"T12:00:00");d.setDate(d.getDate()-(d.getDay()+4)%7);
+ const ini=new Date(d),fin=new Date(d);fin.setDate(fin.getDate()+6);
+ const iso=x=>[x.getFullYear(),String(x.getMonth()+1).padStart(2,"0"),String(x.getDate()).padStart(2,"0")].join("-");
+ document.getElementById("gnDesde").value=iso(ini);
+ document.getElementById("gnHasta").value=iso(fin);
  document.getElementById("gnPdfSemanal")?.click();
 });
 on("gnDesde","change",renderGnLista);
