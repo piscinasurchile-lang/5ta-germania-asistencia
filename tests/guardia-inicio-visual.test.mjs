@@ -12,17 +12,15 @@ test("pantalla aprobada conserva nombre, foto y estado del voluntario",()=>{
     assert.ok(html.includes('id="'+id+'"'),id);
 });
 
-test("banner no es permanente y al confirmar desaparece",()=>{
+test("selecciones permanecen visibles mientras esperan revisión",()=>{
   assert.match(roles,/function pintarInicioRoles\(\)/);
-  assert.match(roles,/if\(conf&&\(conf\.confirmadaEn\|\|conf\.cumple\|\|conf\.justificacion\)\)/);
-  assert.match(roles,/box\.innerHTML=""; GR\.eligiendo=false; return;/);
-  assert.match(roles,/D\.abierto/);
-  assert.match(roles,/panelVol\(vol,D\)/);
+  assert.match(roles,/panelVol\(\$\("gnInicioVol"\),D\)/);
+  assert.match(roles,/Tus días permanecen amarillos/);
 });
 
 test("franja usa guardias aprobadas, fecha local y cargo real; no inventa asistentes",()=>{
   assert.match(roles,/misNochesDatos\(String\(m\.id\),forzar\)/);
-  assert.match(roles,/GermaniaGuardiaFranja\.franjaAsignada\(entradas,Date\.now\(\)\)/);
+  assert.match(roles,/entradas\.filter\(function\(e\)\{return e\.finMs>Date\.now\(\);\}\)/);
   assert.match(roles,/finMs:finNoche\(e\.f\)/);
   assert.match(roles,/ROL_NOCHE\[e\.rol\]/);
   const inicio=roles.indexOf("async function misNochesInicio(");
@@ -48,7 +46,7 @@ test("seis tarjetas de inicio tienen sus rutas y novedades conserva su contenido
 });
 
 test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
-  assert.match(html,/germania-inicio\.css\?v=20261010e/);
+  assert.match(html,/germania-inicio\.css\?v=20261014guardia1/);
   assert.match(html,/germania-guardia-franja\.js\?v=20261010a/);
   assert.match(css,/#panel-germania \.home-tiles/);
   assert.match(css,/#panel-germania \.gn-franja/);

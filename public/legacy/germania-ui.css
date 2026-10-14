@@ -452,3 +452,5 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 .nov-persona{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--g-line);overflow-wrap:anywhere;}
 #novedadTexto{width:100%;min-width:0;box-sizing:border-box;resize:vertical;font:inherit;}
 .ha-fila{flex-wrap:wrap;}
+/* Guardia unificada: siete noches compactas, estados legibles. */
+.gu-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:10px 0}.gu-dia{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:66px;min-width:0;padding:6px 1px;background:#133424;border:1px solid #1ebc62;border-radius:9px;color:#fff;font-size:11px}.gu-dia.elegido{background:#4c3e09;border-color:#ffcc00;color:#fff}.gu-dia:disabled{opacity:1}.gu-dia span{white-space:nowrap}

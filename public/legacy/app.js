@@ -1875,16 +1875,30 @@ async function gnElegirSemana(iso){
  if(guardada&&guardada.estado!=="anulada"){ gnPlanDraft={...guardada,guardada:true}; msg.textContent="Semana ya programada ("+({abierta:"inscripción abierta",suspendida:"suspendida",asignacion:"en asignación"}[guardada.estado]||guardada.estado)+")."; }
  else { gnPlanDraft={inicio:iso,fin:gnAdd(iso,7),domingoDiurno:false,lugarDomingo:"domicilio",actividad:"",estado:"planificacion",confirmado:false}; msg.textContent=""; }
  const cv=document.getElementById("gnCierrePeriodo");
- if(cv){ const ms=gnPlanDraft.cierre?Date.parse(gnPlanDraft.cierre):instanteChile(gnAdd(iso,-1),"19:00"); cv.value=gnLocalInput(ms); }
+ if(cv){ const ms=gnPlanDraft.cierre?Date.parse(gnPlanDraft.cierre):instanteChile(gnAdd(iso,-1),"19:00"); cv.value=gnLocalInput(Math.max(ms,Date.now()+60*60*1000)); }
  document.getElementById("gnDomingoDiurno").checked=!!gnPlanDraft.domingoDiurno; document.getElementById("gnDomingoOpciones").style.display=gnPlanDraft.domingoDiurno?"block":"none"; renderGnPlanner();
 }
 function renderGnPeriodo(){
  const box=document.getElementById("gnPeriodoResumen"); if(!box) return;
+ const anular=document.getElementById("gnBorrarSemana");
+ if(anular){anular.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);anular.textContent="Anular semana publicada";}
+ ["gnCerrarInscripcion","gnSuspenderPeriodo"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);});
+ const publicar=document.getElementById("gnConfirmarPeriodo");if(publicar){publicar.disabled=!gnPlanDraft;publicar.textContent=gnPlanDraft&&gnPlanDraft.guardada?"Actualizar plazo de inscripción":"Publicar semana";}
+ const limpiar=document.getElementById("gnLimpiarSeleccion"); if(limpiar) limpiar.disabled=!gnPlanDraft;
+ const cierre=document.getElementById("gnCierrePeriodo"); if(cierre&&!gnPlanDraft&&!cierre.value)cierre.value=gnLocalInput(Date.now()+60*60*1000);
  if(!gnPlanDraft){box.textContent="Toca un miércoles para seleccionar la semana.";return;}
- box.innerHTML=`<b>Período seleccionado</b><br>${gnFmt(gnPlanDraft.inicio)} 23:00 → ${gnFmt(gnPlanDraft.fin)} 08:00<br><small>7 turnos de Guardia Nocturna${gnPlanDraft.domingoDiurno?" + Guardia Diurna domingo":""}</small>`;
+ box.innerHTML=`<b>Período seleccionado</b><br>${gnFmt(gnPlanDraft.inicio)} → ${gnFmt(gnAdd(gnPlanDraft.inicio,6))}<br><small>Horario de guardia: 22:45 a 06:00</small><br><small>7 turnos de Guardia Nocturna${gnPlanDraft.domingoDiurno?" + Guardia Diurna domingo":""}</small>`;
 }
-on("gnPrevMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()-1,1);renderGnPlanner();});
-on("gnNextMes","click",()=>{gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()+1,1);renderGnPlanner();});
+on("gnPrevMes","click",()=>{gnLimpiarBorrador();gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()-1,1);renderGnPlanner();});
+on("gnNextMes","click",()=>{gnLimpiarBorrador();gnPlanMes=new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth()+1,1);renderGnPlanner();});
+function gnLimpiarBorrador(){
+ gnPlanDraft=null;
+ document.getElementById("gnDomingoDiurno").checked=false;
+ document.getElementById("gnDomingoOpciones").style.display="none";
+ const cierre=document.getElementById("gnCierrePeriodo"); if(cierre)cierre.value=gnLocalInput(Date.now()+60*60*1000);
+ document.getElementById("gnPlanMsg").textContent="Selección limpiada. No se modificó ninguna semana publicada.";
+}
+on("gnLimpiarSeleccion","click",()=>{gnLimpiarBorrador();renderGnPlanner();});
 on("gnBorrarSemana","click",async()=>{
  const msg=document.getElementById("gnPlanMsg");
  if(gnPlanDraft&&gnPlanDraft.guardada){
@@ -1920,7 +1934,8 @@ on("gnConfirmarPeriodo","click",async()=>{
   const cierreMs=cv?instanteChile(cv.slice(0,10),cv.slice(11,16)):instanteChile(gnAdd(gnPlanDraft.inicio,-1),"19:00");   /* por omisión: el martes anterior, 19:00 */
   if(!(cierreMs>Date.now())){ msg.textContent="La fecha de cierre ya pasó ("+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"). Elige una fecha y hora futuras: así los voluntarios pueden elegir sus noches."; return; }
   const cierre=new Date(cierreMs).toISOString();
-  const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"23:00",horaFin:"08:00",cierre};
+  const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"22:45",horaFin:"06:00",cierre};
+ if(!confirm("¿Publicar la semana "+gnFmt(p.inicio)+" al "+gnFmt(gnAdd(p.inicio,6))+"? Los voluntarios podrán elegir noches hasta "+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"."))return;
  await gnSavePlan(p); gnPlanDraft=null; msg.textContent="Período confirmado. Inscripción abierta."; await renderGnPlanner();
 });
 /* Tabla semanal consolidada: lectura solamente sobre la fuente vigente guardia-plan/guardia-inscripcion.
@@ -1952,7 +1967,8 @@ async function renderGnTablaSemanal(){
   let p=gnPlanDraft&&gnPlanDraft.inicio?gnPlanDraft:null;
   if(!p){
     try{
-      const planes=await gnPlanes(), hoy=todayISO();
+      const mes=gnISO(new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth(),1)).slice(0,7);
+      const planes=(await gnPlanes()).filter(x=>x.inicio.startsWith(mes)), hoy=todayISO();
       p=planes.filter(x=>x.estado!=="anulada"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||planes.slice().sort((a,b)=>b.inicio.localeCompare(a.inicio))[0];
     }catch(e){}
   }
@@ -2010,7 +2026,7 @@ on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
 
 /* ============ INSCRIPCIÓN A LA GUARDIA · cuadro individual del voluntario ============
    Cada voluntario ve solo sus 7 noches. Confirma con «¿Estás seguro?» y el cuadro desaparece.
-   Mínimo sugerido: 2 noches; si marca una sola puede agregar otra, confirmar así o justificar por correo (no se bloquea nada). */
+   Mínimo sugerido: 2 noches; si marca una sola puede agregar otra, justificar por correo (no se bloquea nada). */
 let GN_INS_SEL=new Set(), GN_INS_CLAVE="", GN_INS_CACHE=null;
 function gnInsCierreMs(p){ const t=p.cierre?Date.parse(p.cierre):NaN; return Number.isNaN(t)?instanteChile(gnAdd(p.inicio,-1),"19:00"):t; }
 async function gnInsDatos(who,forzar){
@@ -2084,9 +2100,10 @@ async function gnInsConfirmar(p,who){
   const sel=[...GN_INS_SEL].sort(), nVol=sel.length, nom=iso=>new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short"}).replace(".","")+" "+iso.slice(8);
   if(!nVol){ gnInsAviso("Elige al menos una noche, o justifica por correo."); return; }
   const rolN=await gnNochesRol(p,who), n=new Set([...sel,...rolN]).size;
+  if(n<GN_NOCHES_MIN){gnInsAviso("Debes elegir mínimo "+GN_NOCHES_MIN+" noches antes de enviar a revisión.");return;}
   const confirmar=async(just)=>{ try{ await gnInsGuardar(p,who,sel,just); cerrarModalOdd(); gnInsToast("Noches confirmadas: "+sel.map(nom).join(" · ")); await renderGnInscripcionCard(true); }catch(e){ cerrarModalOdd(); gnInsAviso((e&&e.message)||"No se pudo guardar."); } };
   const c=modalOdd(n===1
-    ?`<h2 style="margin:0 0 8px;">Marcaste solo 1 noche</h2><p>El mínimo sugerido es 2 noches. Puedes agregar otra, confirmar así o justificar por correo.</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button type="button" class="btn" id="giOtra">Agregar otra noche</button><button type="button" class="btn secondary" id="giSolo">Confirmar solo 1</button><button type="button" class="btn secondary" id="giJust">Justificar por correo</button></div>`
+    ?`<h2 style="margin:0 0 8px;">Marcaste solo 1 noche</h2><p>El mínimo sugerido es 2 noches. Puedes agregar otra, justificar por correo.</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button type="button" class="btn" id="giOtra">Agregar otra noche</button><button type="button" class="btn secondary" id="giSolo">Confirmar solo 1</button><button type="button" class="btn secondary" id="giJust">Justificar por correo</button></div>`
     :`<h2 style="margin:0 0 8px;">¿Estás seguro?</h2><p>Vas a confirmar estas noches de guardia:</p><p style="font-size:17px;"><b>${esc(sel.map(nom).join(" · "))}</b></p><p style="color:#9aa0a8;font-size:14px;">Podrás agregar más noches mientras la elección siga abierta. Para dejar una noche ya confirmada, avisa que no puedes.</p><div style="display:flex;gap:8px;margin-top:12px;"><button type="button" class="btn" id="giSi">Sí, confirmar</button><button type="button" class="btn secondary" id="giVolver">Volver</button></div>`);
   const q=id=>c.querySelector("#"+id);
   if(n===1){ q("giOtra").onclick=cerrarModalOdd; q("giSolo").onclick=()=>confirmar(null); q("giJust").onclick=()=>{ cerrarModalOdd(); gnInsJustificar(p,who); }; }
@@ -2529,7 +2546,7 @@ on("gnGuardarBtn","click",async()=>{
   }finally{ btn.disabled=false; }
 });
 
-function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id); return m?nombreCompleto(m):"—"; }
+function nombrePorId(id){ const m=ROSTER.find(x=>x.id===id)||(window.GermaniaApoyoGuardia?window.GermaniaApoyoGuardia.buscar(id):null); return m?nombreCompleto(m):"—"; }
 
 function gnDocumento(reg){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
@@ -3171,7 +3188,7 @@ async function guardiasEnRangoPanel(desde,hasta,activos){
     });
     if(cobertura<GN_DOTACION_MIN.voluntarios)incompletas++; if(cobertura>GN_DOTACION_MIN.voluntarios)sobreDotacion++;
     if(g.oficial&&por[g.oficial]){por[g.oficial].obac++;hechos.add(g.oficial);}else sinObac++;
-    if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}else sinConductor++;
+    if(g.conductor&&por[g.conductor]){por[g.conductor].conductor++;hechos.add(g.conductor);}else if(!(window.GermaniaApoyoGuardia&&window.GermaniaApoyoGuardia.buscar(g.conductor)))sinConductor++;
     hechos.forEach(id=>{if(por[id])por[id].total++;});
   }
   Object.values(por).forEach(x=>{x.cumplimiento=x.asignadas?pct(x.propias,x.asignadas):0;x.adicionales=x.reemplazos;});
