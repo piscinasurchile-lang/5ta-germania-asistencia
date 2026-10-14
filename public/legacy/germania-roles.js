@@ -578,6 +578,7 @@ async function panelRev(pn,D){
     return '<div class="gr-nc rv'+(c.completa?" ok":"")+'"><span class="gr-dia"><b>'+E(nn.w)+'</b><i>'+E(nn.d)+'</i></span><div class="gr-nc-body">'
       +'<div class="gr-nc-top"><b>'+c.n.vol.length+' / '+DOT.voluntarios+' voluntarios</b>'+(c.refuerzos?' <em>+'+c.refuerzos+' refuerzo'+(c.refuerzos===1?"":"s")+'</em>':'')+est+'</div>'
       +'<div class="rv-chips">'+chips+'</div>'
+      +(aprobada?'':'<button type="button" class="btn secondary" data-rv-novedad="'+c.f+'">Modificar dotación / registrar novedad</button>')
       +(aprobada?'':'<select class="rv-sel" data-rv-add="'+c.f+'" aria-label="Agregar voluntario el '+E(nn.w+" "+nn.d)+'">'+optV+'</select>')
       +'<label class="rv-lbl">🚒 Maquinista</label>'+(aprobada?'<div class="gr-nc-fila">'+(c.n.maq?'<b>'+E(nom(c.n.maq))+'</b>':'<span class="falta">falta</span>')+'</div>':'<select class="rv-sel" data-rv-rol="'+c.f+'|maq">'+optM(maqs,c.n.maq,"maq")+'</select>')
       +(!aprobada&&!c.n.maq?'<button type="button" class="btn secondary" data-rv-david="'+c.f+'">Programar a David Briones · cuartelero del Cuerpo</button>':'')
@@ -605,11 +606,36 @@ async function panelRev(pn,D){
   var guardarOp=async function(op){
     if(RV.ocupado) return; RV.ocupado=true; var nuevo=clonar(doc);
     try{revAplicar(nuevo,D,op);}catch(e){RV.msg=e.message;RV.err=true;RV.ocupado=false;panelRev(pn,D);return;}
+    if(op.motivo && nuevo.cambios.length>doc.cambios.length){
+      var registro=nuevo.cambios[nuevo.cambios.length-1];
+      registro.motivo=op.motivo;registro.horaEfectiva=op.horaEfectiva;
+    }
     Object.keys(nuevo.noches).forEach(function(f){revReordenar(nuevo.noches[f]);});
     try{ await revGuardar(D,nuevo); RV.msg=""; RV.err=false; }
     catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. Se cargó lo último; repite tu cambio.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){} }
     RV.ocupado=false; panelRev(pn,D);
   };
+  pn.querySelectorAll('[data-rv-novedad]').forEach(function(b){b.onclick=function(){
+    var f=b.dataset.rvNovedad,n=doc.noches[f],personas=n.vol.concat(n.obac?[n.obac]:[],n.maq?[n.maq]:[]);
+    var opciones=personas.map(function(id){return '<option value="'+E(id)+'">'+E(nom(id))+(n.maq===id?' · Maquinista':n.obac===id?' · OBAC':' · Voluntario')+'</option>';}).join('');
+    var modal=modalOdd('<h2>Registrar novedad de guardia</h2><p>'+E(gnFmt(f))+'</p><label for="rvSale">¿Quién sale?</label><select id="rvSale" class="rv-sel">'+opciones+'</select><label for="rvMotivo">¿Por qué?</label><select id="rvMotivo" class="rv-sel"><option>No se presentó</option><option>Se retiró durante el servicio</option><option>Motivo personal</option><option>Motivo de salud</option><option>Necesidad del servicio</option></select><label for="rvEntra">¿Quién reemplaza?</label><select id="rvEntra" class="rv-sel"><option value="">Sin reemplazante por ahora</option></select><label for="rvHora">Hora efectiva (HH:MM)</label><input id="rvHora" type="time" class="rv-sel" required><p class="sub">El OBAC se recalcula por precedencia entre los presentes. Una ausencia sin reemplazo puede dejar la dotación incompleta.</p><button type="button" class="btn" id="rvConfirmarNovedad">Guardar novedad</button><button type="button" class="btn secondary" id="rvCancelarNovedad">Cancelar</button>');
+    if(!personas.length){modal.querySelector('#rvConfirmarNovedad').disabled=true;}
+    var sale=modal.querySelector('#rvSale'),entra=modal.querySelector('#rvEntra'),hora=modal.querySelector('#rvHora');
+    var now=new Date();hora.value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    function refrescar(){
+      var id=sale.value,esConductor=n.maq===id,ocupados=personas.filter(function(x){return x!==id;});
+      entra.innerHTML='<option value="">Sin reemplazante por ahora</option>'+activos.filter(function(m){return !ocupados.includes(String(m.id))&&String(m.id)!==id&&(!esConductor||esMaquinista(m));}).map(function(m){return '<option value="'+E(m.id)+'">'+E(corto(m))+'</option>';}).join('');
+    }
+    sale.onchange=refrescar;refrescar();
+    modal.querySelector('#rvCancelarNovedad').onclick=cerrarModalOdd;
+    modal.querySelector('#rvConfirmarNovedad').onclick=function(){
+      var id=sale.value,reemplazo=entra.value,motivo=modal.querySelector('#rvMotivo').value,h=hora.value;
+      if(!id||!/^[0-2][0-9]:[0-5][0-9]$/.test(h)||Number(h.slice(0,2))>23){alert('Indica la persona y una hora válida.');return;}
+      if(!confirm('¿Registrar la novedad de '+nom(id)+' el '+gnFmt(f)+'?'))return;
+      cerrarModalOdd();
+      guardarOp({t:reemplazo?'cambiarPersona':'quitarPersona',f:f,id:id,reemplazo:reemplazo,motivo:motivo,horaEfectiva:h});
+    };
+  };});
   pn.querySelectorAll('[data-rv-david]').forEach(function(b){b.onclick=function(){if(confirm('¿Programar a David Briones como maquinista de apoyo del Cuerpo el '+gnFmt(b.dataset.rvDavid)+'?'))guardarOp({t:'apoyoCuerpo',f:b.dataset.rvDavid});};});
   pn.querySelectorAll('[data-rv-persona]').forEach(function(b){b.onclick=function(){
     var v=b.dataset.rvPersona.split('|'),f=v[0],id=v[1],op=b.dataset.operacion;
