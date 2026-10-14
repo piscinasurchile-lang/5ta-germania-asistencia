@@ -21,7 +21,9 @@ test("dashboard muestra nombre y dos apellidos reales de la nómina",()=>{
   assert.match(dashboard,/escapeHtml\(nombre\(m\)\)/);
 });
 test("Informes y Dashboard V2 tienen regreso directo al Inicio, sin abrir un segundo dashboard",()=>{
-  assert.match(home,/id="panel-panel"[\s\S]*?data-go="germania" aria-label="Volver al inicio de Germania"/);
+  const fixes=readFileSync(new URL("../public/legacy/germania-fixes-20261002.js",import.meta.url),"utf8");
+  assert.match(fixes,/location\.href=destino/);
+  assert.match(fixes,/legacy\.remove\(\)/);
   assert.match(dashboard,/id="volver">← Inicio/);
   assert.match(dashboard,/window\.top\.location\.href='\/'/);
 });
