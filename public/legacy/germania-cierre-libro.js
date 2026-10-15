@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
+let actual="",items=[],t3=false,capitan=false,admin=false,adminSemana="",cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -22,7 +22,7 @@ function esMando(m){return /teniente\s*(tercero|3)/i.test(rol(m))||/^\s*capit[a�
 function fotoUrl(f){return "/api/guardia/libro?foto=1&fecha="+encodeURIComponent(f)+"&actorId="+encodeURIComponent(actual);}
 async function cargar(forzar){
  const m=elegido(),id=m?String(m.id):"";
- if(!id){actual="";items=[];limpiar();return;}
+ if(!id){actual="";items=[];admin=false;adminSemana="";limpiar();return;}
  if(cargando||(!forzar&&Date.now()-ultimaCarga<12000&&actual===id))return;
  cargando=true;
  try {
@@ -30,15 +30,18 @@ async function cargar(forzar){
   if(!r.ok)throw Error("No se pudo consultar el libro.");
   const d=await r.json();
   if(elegido()&&String(elegido().id)===id){
-   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.esT3;capitan=!!d.esCapitan;
-   ultimaCarga=Date.now();pintarOBAC();pintarOficial();
+   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.esT3;capitan=!!d.esCapitan;admin=!!d.esAdmin;
+   ultimaCarga=Date.now();pintarOBAC();pintarOficial();pintarControlAdmin();
   }
- }catch(e){if(esMando(m)&&$("lgnRatif"))$("lgnRatif").innerHTML='<p class="sub">No fue posible sincronizar los cierres. Intenta actualizar.</p>';}
+ }catch(e){if((esMando(m)||String(m?.clave)==="517")&&$("lgnRatif"))$("lgnRatif").innerHTML='<p class="sub">No fue posible sincronizar los cierres. Intenta actualizar.</p>';}
  finally{cargando=false;}
 }
 function limpiar(){
  if($("lgnObacHome"))$("lgnObacHome").innerHTML="";
  if($("lgnMandoHome"))$("lgnMandoHome").innerHTML="";
+ if($("lgnAdminHome"))$("lgnAdminHome").innerHTML="";
+ if($("lgnAdminPanel")){$("lgnAdminPanel").hidden=true;$("lgnAdminPanel").innerHTML="";}
+ if($("btnAdminGuardia"))$("btnAdminGuardia").hidden=true;
  if($("lgnRatif")){$("lgnRatif").hidden=true;$("lgnRatif").innerHTML="";}
  if($("btnOficialesAcreditar"))$("btnOficialesAcreditar").hidden=true;
 }
@@ -107,6 +110,118 @@ async function enviar(fecha){
 function participantes(n){
  return [{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(id=>({id,rol:"Voluntario"}))).filter(x=>x.id!=null);
 }
+
+/* Vista administrativa independiente. Solo consulta; jamás transmite modificaciones. */
+function semanaDe(fecha){
+ const d=new Date(fecha+"T12:00:00Z");
+ if(Number.isNaN(d.getTime()))return "";
+ d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
+ return d.toISOString().slice(0,10);
+}
+function clasificarControl(x){
+ if(x.acreditacionVigente)return {texto:"Acreditada",clase:"ok"};
+ if(x.cierre)return {texto:"Pendiente de ratificación T3",clase:"pend"};
+ if(x.finalizada)return {texto:"Falta cierre OBAC",clase:"falta"};
+ return {texto:"Programada / en curso",clase:""};
+}
+function abrirControlAdmin(){
+ if(!admin)return;
+ if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("guardia");
+ setTimeout(()=>{const caja=$("lgnAdminPanel");if(caja&&!caja.hidden)caja.scrollIntoView({behavior:"smooth",block:"start"});},80);
+}
+function pintarControlAdmin(){
+ const boton=$("btnAdminGuardia"),home=$("lgnAdminHome"),panel=$("lgnAdminPanel");
+ if(boton)boton.hidden=!admin;
+ if(!admin){
+  if(home)home.innerHTML="";
+  if(panel){panel.hidden=true;panel.innerHTML="";}
+  return;
+ }
+ const semanas=[...new Set(items.map(x=>semanaDe(x.fecha)).filter(Boolean))].sort().reverse();
+ if(!semanas.includes(adminSemana))adminSemana=semanas[0]||"";
+ const noches=items.filter(x=>semanaDe(x.fecha)===adminSemana).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const resumen={programadas:0,falta:0,pendiente:0,acreditadas:0};
+ for(const x of noches){
+  if(x.acreditacionVigente)resumen.acreditadas++;
+  else if(x.cierre)resumen.pendiente++;
+  else if(x.finalizada)resumen.falta++;
+  else resumen.programadas++;
+ }
+ const encabezado='<h2>Mi panel de control · Guardia nocturna</h2>'+
+  '<p class="sub">Supervisión del administrador · solo lectura. El Teniente Tercero es quien ratifica las noches.</p>';
+ const indicadores='<div class="lgn-control-totales">'+[
+  [resumen.programadas,"Programadas"],[resumen.falta,"Sin cierre OBAC"],
+  [resumen.pendiente,"Por ratificar"],[resumen.acreditadas,"Acreditadas"]
+ ].map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
+ if(home){
+  home.innerHTML='<section class="card" aria-label="Mi panel de control de Germania">'+encabezado+
+   '<p class="lgn-control-nota">Semana desde el '+escHtml(adminSemana||"sin programación")+'</p>'+
+   indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir mi panel de control</button></section>';
+  const abrir=$("lgnAdminAbrir");if(abrir)abrir.onclick=abrirControlAdmin;
+ }
+ if(!panel)return;
+ panel.hidden=false;
+ let html=encabezado;
+ if(!semanas.length){
+  panel.innerHTML=html+'<p class="sub">Todavía no se encontraron semanas de guardia aprobadas.</p>';
+  return;
+ }
+ html+='<div class="field"><label for="lgnAdminSemana">Seleccionar semana aprobada</label>'+
+  '<select id="lgnAdminSemana" class="lgn-control-plantilla">'+semanas.map(inicio=>
+    '<option value="'+escHtml(inicio)+'"'+(inicio===adminSemana?' selected':'')+
+    '>Semana '+escHtml(inicio)+'</option>').join("")+'</select></div>';
+ html+=indicadores;
+ html+='<p class="lgn-control-nota">Abre cada día para consultar dotación, fotografía, novedades y acreditación. Ninguna acción de esta pantalla modifica registros.</p>';
+ for(const x of noches){
+  const estado=clasificarControl(x),foto=!!x.cierre?.fotoClave;
+  html+='<details class="lgn-control-dia"><summary>'+
+   '<strong>'+escHtml(fechaBonita(x.fecha))+'</strong>'+
+   '<span class="lgn-control-estado '+estado.clase+'">'+escHtml(estado.texto)+'</span>'+
+   '</summary><div class="lgn-dia-detalle">';
+  html+='<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
+   '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>';
+  html+='<p><strong>Voluntarios programados:</strong> '+(Array.isArray(x.dotacion?.vol)&&x.dotacion.vol.length?
+   x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
+  if(x.cierre){
+   const fechaEnvio=x.cierre.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha";
+   html+='<p><strong>Cierre enviado:</strong> '+escHtml(fechaEnvio)+
+    ' · por '+escHtml(x.cierre.obacNombre||nombre(x.dotacion?.obac))+'</p>'+
+    '<p><strong>Novedades:</strong> '+escHtml(x.cierre.novedades||"No registradas")+'</p>';
+   if(foto)html+='<p><a class="btn secondary" href="'+fotoUrl(x.fecha)+
+    '" target="_blank" rel="noopener">Ver foto del libro</a></p>';
+  }else if(x.finalizada){
+   html+='<p class="sub">Noche terminada. Esperando fotografía y novedades del OBAC.</p>';
+  }else{
+   html+='<p class="sub">La noche aún está programada o en curso.</p>';
+  }
+  if(x.acreditacionVigente&&x.acreditacion){
+   const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
+   html+='<p><strong>Ratificación T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+    (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
+    '<p><strong>Asistencia acreditada:</strong></p>';
+   for(const p of participantes(x.dotacion)){
+    const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
+    html+='<p>'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+' — '+(presente?'Asistió':'No asistió')+'</p>';
+   }
+  }else if(x.cierre){
+   html+='<p class="sub">Pendiente de acreditación exclusiva del Teniente Tercero. No suma estadísticas todavía.</p>';
+  }
+  html+='</div></details>';
+ }
+ html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+
+  '<button type="button" class="btn secondary small" id="lgnAdminActualizar">Actualizar control</button>'+
+  '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a Inicio</button></div>';
+ panel.innerHTML=html;
+ const selector=$("lgnAdminSemana");
+ if(selector)selector.onchange=()=>{adminSemana=selector.value;pintarControlAdmin();};
+ const ref=$("lgnAdminActualizar");
+ if(ref)ref.onclick=()=>cargar(true);
+ const inicio=$("lgnAdminInicio");
+ if(inicio)inicio.onclick=()=>{
+  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");
+ };
+}
+
 function pintarResumenMando(){
  const host=$("lgnMandoHome");if(!host)return;
  if(!t3&&!capitan){host.innerHTML="";return;}
@@ -209,6 +324,11 @@ async function ratificar(fecha,boton){
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }
 function init(){
+ const adminBtn=$("btnAdminGuardia");
+ if(adminBtn&&!adminBtn.dataset.lgnReady){
+  adminBtn.dataset.lgnReady="1";
+  adminBtn.onclick=abrirControlAdmin;
+ }
  const btn=$("btnOficialesAcreditar");
  if(btn&&!btn.dataset.lgnReady){
   btn.dataset.lgnReady="1";btn.onclick=function(){
@@ -219,6 +339,6 @@ function init(){
  if(id!==actual){formAbierto=false;ultimaCarga=0;cargar(true);}
 }
 init();
-setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||soyObacReciente))cargar(false);},5000);
+setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||soyObacReciente))cargar(false);},5000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!editando&&!formAbierto)cargar(true);});
 })();
