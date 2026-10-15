@@ -103,6 +103,23 @@
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 18px 20px;margin-bottom:18px;}
   .card h2{font-family:'Oswald',sans-serif;font-size:16px;font-weight:600;margin:0 0 4px;}
+  /* Control de guardias: tarjetas compactas, accesibles en teléfono y tablet */
+  .lgn-control-totales{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0;}
+  .lgn-control-cifra{border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--panel-2);}
+  .lgn-control-cifra b{display:block;font-size:24px;line-height:1.1;color:var(--text);}
+  .lgn-control-cifra span{display:block;margin-top:4px;font-size:12px;color:var(--muted);}
+  .lgn-control-dia{margin:9px 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel-2);}
+  .lgn-control-dia summary{cursor:pointer;padding:12px;display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap;}
+  .lgn-control-dia summary:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;}
+  .lgn-control-dia .lgn-dia-detalle{padding:8px 13px 14px;border-top:1px solid var(--line);font-size:13px;line-height:1.5;}
+  .lgn-control-estado{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#273038;color:#fff;border:1px solid #58636d;}
+  .lgn-control-estado.ok{background:#214734;color:#c6f5d7;border-color:#44785a;}
+  .lgn-control-estado.pend{background:#493c15;color:#ffecae;border-color:#77622c;}
+  .lgn-control-estado.falta{background:#4d2222;color:#ffd2d2;border-color:#8d4848;}
+  .lgn-control-plantilla{width:100%;min-height:42px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:7px;padding:8px;}
+  .lgn-control-nota{font-size:12px;color:var(--muted);margin:10px 0;}
+  @media(min-width:680px){.lgn-control-totales{grid-template-columns:repeat(4,minmax(0,1fr));}}
+
   .card h3{font-family:'Oswald',sans-serif;font-size:14px;font-weight:500;margin:18px 0 8px;color:var(--gold);}
   .card .sub{color:var(--muted);font-size:13px;margin:0 0 16px;}
 
@@ -372,6 +389,7 @@
       <div id="misNochesInicio" style="grid-column:1 / -1;min-width:0;"></div>
       <div id="lgnObacHome" style="grid-column:1 / -1;min-width:0;" aria-live="polite"></div>
       <div id="lgnMandoHome" style="grid-column:1 / -1;min-width:0;" aria-live="polite"></div>
+      <div id="lgnAdminHome" style="grid-column:1 / -1;min-width:0;" aria-live="polite"></div>
 
 
       <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
@@ -605,6 +623,7 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia" data-vista="mi">
+    <section class="card solo-oficiales" id="lgnAdminPanel" aria-label="Panel de control del administrador" hidden></section>
     <section class="card solo-oficiales" id="lgnRatif" aria-label="Ratificación de noches de guardia" hidden></section>
     <div class="gr-vista solo-oficiales" id="gnVistaSel"><h2>Gestión de guardia</h2></div>
     <div class="card gn-planner-card solo-oficiales solo-gestion">
@@ -852,10 +871,11 @@
     </div>
     <div class="subtabs of-menu" id="ofMenuAgrupado" aria-label="Herramientas de Oficiales">
       <details class="of-grupo of-grupo-guardias" data-of-grupo="guardias">
-        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">5</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">6</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
         <div class="of-grupo-botones" aria-label="Guardia y ODD">
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
           <button class="subtab" type="button" id="btnOficialesGuardia">Gestionar Guardias</button>
+          <button class="subtab" type="button" id="btnAdminGuardia" hidden>Mi panel de control</button>
           <button class="subtab" type="button" id="btnOficialesAcreditar" hidden>Acreditación de guardia / Novedades</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
@@ -1476,7 +1496,7 @@
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
 <script src="./germania-informaciones-prueba.js?v=20261014prueba1"></script>
 <script src="./germania-roles.js?v=20261014informaciones3"></script>
-<script src="./germania-cierre-libro.js?v=20261015cierre2"></script>
+<script src="./germania-cierre-libro.js?v=20261015cierre3"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
