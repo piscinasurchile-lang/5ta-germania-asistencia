@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { redactRoster, preserveMedical } from "../../../../lib/medical-access.js";
 import { ensureSchema, readState, writeState, addToList, voluntariosQuitados } from "../../../../lib/state-store.js";
+import {difundir,esEnvioGeneralActivo} from "../../../../lib/germania-webpush.mjs";
 
 export const runtime = "nodejs";
 function officialSession(request) {
@@ -72,6 +73,7 @@ export async function PUT(request, { params }) {
   try {
     await ensureSchema(sql);
     let actual;
+    if (key === "odd-avisos:v1" && esEnvioGeneralActivo()) actual = await readState(sql, key);
     if (key === "roster:v8") {
       actual = await readState(sql, key);
       const faltan = voluntariosQuitados(actual.value, body.value, body.permitirQuitar);
@@ -82,6 +84,29 @@ export async function PUT(request, { params }) {
     const safeValue = key === "roster:v8" && !officialSession(request) ? preserveMedical(actual.value, body.value) : body.value;
     const r = await writeState(sql, key, safeValue, { ifVersion });
     if (r.conflict) return Response.json({ error: "version_conflict", version: r.version, value: key === "roster:v8" && !officialSession(request) ? redactRoster(r.value) : r.value }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    // La API legacy publica ODD mediante esta clave. Solo avisar nuevas
+    // publicaciones o versiones explícitas, nunca una lectura o recarga.
+    if (key === "odd-avisos:v1" && esEnvioGeneralActivo()) {
+      try {
+        const previos = Array.isArray(actual?.value) ? actual.value : [];
+        const prevPorId = new Map(previos.map(odd => [odd?.id, odd]));
+        const ahora = Date.now();
+        const nuevas = Array.isArray(body.value) ? body.value.filter(odd => {
+          if (!odd || odd.anulada || !odd.pdf || odd.tipo !== "disposicion") return false;
+          if (!Array.isArray(odd.destinatarios) || !odd.destinatarios.includes("voluntarios")) return false;
+          const previo = prevPorId.get(odd.id);
+          if (previo && (Number(odd.version)||0) <= (Number(previo.version)||0)) return false;
+          const fecha = Date.parse(odd.modificadaEn || odd.publicadaEn || "");
+          return Number.isFinite(fecha) && Math.abs(ahora-fecha) < 5*60*1000
+            && Date.parse(odd.visibleHasta || "") > ahora;
+        }).slice(-3) : [];
+        for (const odd of nuevas) {
+          await difundir({tipo:"odd",titulo:odd.titulo || "Orden del Día",
+            id:String(odd.id)+":"+String(odd.version||1),
+            origen:new URL(request.url).origin});
+        }
+      } catch (err) { console.error("webpush publicacion ODD",err); }
+    }
     return Response.json({ ok: true, version: r.version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("state PUT failed", error);
