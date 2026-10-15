@@ -129,7 +129,7 @@ export default function ConfiguracionAvisos(){
     <section style={{maxWidth:500,margin:"0 auto"}}>
       <a href="/" style={{color:"#ffcc00",textDecoration:"none",fontSize:14}}>← Volver a Germania</a>
       <h1 style={{fontSize:25,margin:"27px 0 12px",color:"#ffcc00"}}>Avisos de Germania</h1>
-      <p style={{fontSize:15,lineHeight:1.6,color:"#d3d9de"}}>Recibe un aviso cuando Oficiales publique una ODD o una información para toda la compañía. El punto sobre el ícono no lleva números.</p>
+      <p style={{fontSize:15,lineHeight:1.6,color:"#d3d9de"}}>Recibe un aviso cuando Oficiales publique una ODD o una información para toda la compañía. En algunos teléfonos, como Xiaomi, el círculo rojo puede mostrar el número de notificaciones.</p>
       <div role="status" aria-live="polite" style={{border:"1px solid #496072",borderRadius:12,padding:"14px",margin:"18px 0 14px",fontSize:14,lineHeight:1.5,background:"#14202a"}}>{estado}</div>
       <button type="button" disabled={ocupado||!soportado||habilitado} onClick={activar}
         style={{width:"100%",minHeight:50,border:"1px solid #ffcc00",borderRadius:9,background:habilitado?"#27362d":"#9e131d",color:"#fff",fontSize:15,fontWeight:700,padding:12,opacity:ocupado?.65:1}}>
