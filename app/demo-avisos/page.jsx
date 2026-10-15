@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PruebaNotificacion, { limpiarAvisosLocales } from "./PruebaNotificacion";
 
 const DEMO = "PRUEBA GERMANIA — Aviso de prueba. No corresponde a una emergencia ni a una ODD oficial.";
 
@@ -24,6 +25,7 @@ export default function DemoAvisosPage() {
   function abrir() {
     setPantalla("germania");
     setPendiente(false);
+    void limpiarAvisosLocales();
   }
 
   function volver() {
@@ -118,6 +120,7 @@ export default function DemoAvisosPage() {
             <b>{pendiente ? "Aviso pendiente en el ícono" : mensajes.length ? "Aviso limpiado automáticamente" : "Esperando publicación de prueba"}</b>
             <span>{paso ? `Publicaciones simuladas: ${paso}. ` : ""}No se guardan ni transmiten datos.</span>
           </div>
+          <PruebaNotificacion />
           <p className="aclaracion">Esta página muestra el diseño de manera interactiva. No modifica la app oficial, no envía Web Push y no contacta a voluntarios. El aspecto exacto de los distintivos lo controla cada teléfono.</p>
         </aside>
       </div>
