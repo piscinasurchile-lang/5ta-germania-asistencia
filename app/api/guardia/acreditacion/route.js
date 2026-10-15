@@ -53,7 +53,7 @@ export async function POST(req) {
       asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
     if (error) return Response.json({error},{status:409});
     if (!oficialNombre) return Response.json({error:"identidad_nombre_no_disponible"},{status:409});
-    const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"08:00";
+    const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"06:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
     const ids=integrantesNoche(revision.noches[fecha]);
