@@ -1,8 +1,10 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
 import "./odd.css";
+import PlantillaGuardia from "./PlantillaGuardia";
 import {LOGO_B64} from "../../lib/logo";
 import {fechasSemanaGuardia,proyectarSemanaODD} from "../../lib/guardia-odd-semana.mjs";
+import {validarODDGuardia} from "../../lib/odd-guardia-063-validacion.mjs";
 const TYPES=[["citacion","Citación / Academia / Ejercicio"],["guardia","Guardia Nocturna"],["nomina","Nómina y Claves"],["disposicion","Informativa / Disposición General"]];
 const today=new Date().toISOString().slice(0,10);
 export default function Page(){
@@ -14,18 +16,44 @@ export default function Page(){
  const[guardDate,setGuardDate]=useState("");
  const guardEndDate=useMemo(()=>{try{return fechasSemanaGuardia(guardDate).at(-1)}catch{return ""}},[guardDate]);
  const[guardWeek,setGuardWeek]=useState([]);
+ const[originalDisponible,setOriginalDisponible]=useState(false);
+ const[subiendoOriginal,setSubiendoOriginal]=useState(false);
  const[loading,setLoading]=useState(false);
  const[pdfUrl,setPdfUrl]=useState("");
  const[signers,setSigners]=useState({capitan:true,ayudante:true});
  const[officials,setOfficials]=useState({capitan:null,ayudante:null});
  const[annexes,setAnnexes]=useState([]);
- const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
+ const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:"",oddAnterior:"063/2026"});
  useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);const ini=new URLSearchParams(window.location.search).get("inicio");if(q==="guardia"&&ini){try{fechasSemanaGuardia(ini);setGuardDate(ini);setF(x=>({...x,title:x.title||"Guardia Nocturna"}));setStatus("Semana seleccionada desde Guardia. Pulsa Cargar siete noches para revisar la programación.")}catch{setStatus("La semana recibida no comienza un miércoles.")}}setArchive(JSON.parse(localStorage.getItem("germania:odd-maestras:v1")||"[]"));fetch("/api/state/odd:maestras:v1",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{if(Array.isArray(x.value)){setArchive(x.value);localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(x.value))}}).catch(()=>{})}catch{}
    fetch("/api/state/roster:v8",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{
      const list=Array.isArray(x.value)?x.value.filter(p=>p.activo!==false):[];
      setRoster(list);setSelected(list.map(p=>String(p.clave)));setOfficials({capitan:list.find(p=>String(p.cargo||"").toLowerCase().includes("capit"))||null,ayudante:list.find(p=>String(p.cargo||"").toLowerCase().includes("ayud"))||null});
    }).catch(()=>setStatus("La nómina central no está disponible en este entorno de prueba."));
  },[]);
+ useEffect(()=>{
+   fetch("/api/odd-maestras/plantilla-guardia?info=1",{cache:"no-store"})
+     .then(r=>setOriginalDisponible(r.ok))
+     .catch(()=>setOriginalDisponible(false));
+ },[]);
+ const subirOriginal=async(event)=>{
+   const file=event.target.files?.[0];event.target.value="";
+   if(!file)return;
+   setSubiendoOriginal(true);setStatus("Verificando original ODD 063/2026…");
+   try{
+     if(file.size>2_000_000||file.type!=="application/pdf")throw Error("Selecciona el PDF original ODD 063/2026");
+     const bytes=new Uint8Array(await file.arrayBuffer());let binary="";
+     for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384));
+     const response=await fetch("/api/odd-maestras/plantilla-guardia",{
+       method:"POST",headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({confirmacion:"GUARDAR_ORIGINAL_ODD_063_2026",base64:btoa(binary)})
+     });
+     const out=await response.json();
+     if(!response.ok||!out.ok)throw Error(out.error||"No fue posible guardar el original");
+     setOriginalDisponible(true);
+     setStatus("Documento 063/2026 verificado y archivado para futuras guardias.");
+   }catch(e){setStatus(e.message||"Error al guardar original ODD");}
+   finally{setSubiendoOriginal(false);}
+ };
  const fullName=p=>[p.nombre,p.apellidoPaterno||p.ap,p.apellidoMaterno||p.am].filter(Boolean).join(" ");
  const selectedRoster=useMemo(()=>roster.filter(p=>selected.includes(String(p.clave))),[roster,selected]);
  const toggleMember=code=>setSelected(x=>x.includes(code)?x.filter(v=>v!==code):[...x,code]);
@@ -60,7 +88,12 @@ export default function Page(){
    if(estado==="emitida"&&type==="nomina"&&!selectedRoster.length){setStatus("No se puede emitir una nómina sin voluntarios seleccionados.");return false}
    if(estado==="emitida"&&type==="disposicion"&&(!f.seen.trim()||!f.considering.trim()||!f.provisions.trim())){setStatus("Completa VISTOS, CONSIDERANDO y SE DISPONE antes de emitir.");return false}
    if(estado==="emitida"&&type==="citacion"&&(!f.eventDate||!f.time||!f.place.trim()||!f.topic.trim())){setStatus("Completa fecha, hora, lugar y tema de la citación antes de emitir.");return false}
-   if(estado==="emitida"&&type==="guardia"&&guardWeek.length!==7){setStatus("Selecciona y carga la semana de siete noches antes de emitir.");return false}
+   if(estado==="emitida"&&type==="guardia"){
+     try{
+       if(!originalDisponible)throw Error("Falta guardar el original ODD 063/2026");
+       validarODDGuardia({semana:guardWeek,year:f.year,number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+     }catch(e){setStatus(e.message);return false;}
+   }
    const key=String(f.year)+"-"+String(f.number).padStart(3,"0");
    if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
    if(estado==="emitida"&&type==="citacion"){
@@ -70,6 +103,21 @@ export default function Page(){
        const x=await r.json(); if(!r.ok)throw new Error(x.error||"asistencia");
      }catch{setStatus("No se emitió la ODD: no fue posible crear su registro oficial de asistencia.");return false}
    }
+   if(estado==="emitida"&&type==="guardia"){
+     try{
+       const bytes=await pdf();
+       if(!(bytes instanceof Uint8Array))throw Error("No se produjo el documento oficial");
+       let binary="";
+       for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384));
+       const r=await fetch("/api/odd-maestras/odd-guardia-emitida",{
+         method:"POST",headers:{"Content-Type":"application/json"},
+         body:JSON.stringify({year:String(f.year),number:String(f.number),
+           confirmacion:"EMITIR_ODD_GUARDIA",base64:btoa(binary)})
+       });
+       const x=await r.json();
+       if(!r.ok||!x.ok)throw Error(x.error||"No se pudo almacenar PDF emitido");
+     }catch(e){setStatus(e.message||"No se pudo archivar el PDF. La ODD no se emitió.");return false;}
+   }
    const rec={key,type,estado,form:{...f},naturaleza:type==="citacion"?"citacion":"informativa",generaAsistencia:type==="citacion",guardSnapshot:type==="guardia"?guardWeek.map(x=>({...x,people:x.people.map(p=>({...p}))})):null,rosterSnapshot:(type==="nomina"||type==="citacion")?selectedRoster.map(p=>({...p})):null,annexSnapshot:annexes.map(({data,...a})=>a),signerSnapshot:{...signers},updatedAt:new Date().toISOString()};
    const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
    localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next); fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})}).catch(()=>{});
@@ -77,6 +125,16 @@ export default function Page(){
  };
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
+   if(type==="guardia"){
+     if(!originalDisponible)throw Error("Falta la plantilla original ODD 063/2026.");
+     validarODDGuardia({semana:guardWeek,year:f.year,number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+     const respuesta=await fetch("/api/odd-maestras/plantilla-guardia",{cache:"no-store"});
+     if(!respuesta.ok)throw Error("No se pudo cargar el original ODD 063/2026.");
+     const original=new Uint8Array(await respuesta.arrayBuffer());
+     const {generarGuardiaDesdeOriginal}=await import("../../lib/odd-guardia-063-pdf.mjs");
+     return generarGuardiaDesdeOriginal({original,semana:guardWeek,year:f.year,
+       number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+   }
    const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
    const institutionalHead=()=>{d.setFillColor(0,0,0);d.rect(20,10,68,3,"F");d.rect(122,10,68,3,"F");d.setFillColor(190,0,0);d.rect(20,13,68,3,"F");d.rect(122,13,68,3,"F");d.setFillColor(255,205,0);d.rect(20,16,68,3,"F");d.rect(122,16,68,3,"F");try{d.addImage(LOGO_B64,"PNG",95.5,7,19,24)}catch{}};
    institutionalHead(); y=35;
@@ -132,10 +190,17 @@ export default function Page(){
    const pages=d.getNumberOfPages();for(let p=1;p<=pages;p++){d.setPage(p);d.setDrawColor(190);d.line(30,284,180,284);d.setFont("helvetica","normal");d.setFontSize(6);d.setTextColor(130);d.text('2025-2026 Fünfte Deutsche Feuerwehrkompanie Stadt Villarrica | Quinta Compañía de Bomberos "Germania" de Villarrica',105,287,{align:"center"});d.text("Cuartel General del Cuerpo de Bomberos de Villarrica · Valentín Letelier #630 · Villarrica · Chile · germaniacbv@gmail.com",105,290,{align:"center"});}
    return d;
  };
- const previewPdf=async()=>{try{const d=await pdf();if(!d)return;const blob=d.output("blob");if(pdfUrl)URL.revokeObjectURL(pdfUrl);const url=URL.createObjectURL(blob);setPdfUrl(url);setStatus("Vista previa PDF actualizada.");}catch(e){setStatus("No fue posible generar la vista previa PDF.")}};
- const guardReady=()=>type!=="guardia"||guardWeek.length===7;
- const downloadPdf=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;d.save("ODD_"+odd.replace("/","_")+".pdf");setStatus("PDF descargado."+(type==="guardia"&&guardWeek.some(x=>!x.complete)?" La dotación incompleta está señalada en el documento.":""))}catch(e){setStatus("No fue posible generar el PDF.")}};
- const share=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;const blob=d.output("blob"),file=new File([blob],"ODD_"+odd.replace("/","_")+".pdf",{type:"application/pdf"});if(navigator.canShare?.({files:[file]})){await navigator.share({title:"ODD "+odd,files:[file]})}else if(navigator.share){await navigator.share({title:"ODD "+odd,text:f.title})}else{setStatus("Compartir no está disponible en este navegador.")}}catch(e){if(e?.name!=="AbortError")setStatus("No fue posible compartir.")}};
+ const asBlob=d=>d instanceof Uint8Array?new Blob([d],{type:"application/pdf"}):d.output("blob");
+ const previewPdf=async()=>{try{const d=await pdf();if(!d)return;const blob=asBlob(d);if(pdfUrl)URL.revokeObjectURL(pdfUrl);const url=URL.createObjectURL(blob);setPdfUrl(url);setStatus("Vista previa PDF actualizada.");}catch(e){setStatus("No fue posible generar la vista previa PDF.")}};
+ const guardReady=()=>type!=="guardia"||(originalDisponible&&guardWeek.length===7&&guardWeek.every(g=>g.complete&&g.estadoRevision==="aprobada"&&g.people.length>=3));
+ const downloadPdf=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;if(d instanceof Uint8Array){
+   const ref=URL.createObjectURL(asBlob(d));
+   const anchor=document.createElement("a");
+   anchor.href=ref;anchor.download="ODD_"+odd.replace("/","_")+".pdf";
+   document.body.append(anchor);anchor.click();anchor.remove();
+   setTimeout(()=>URL.revokeObjectURL(ref),30000);
+  }else d.save("ODD_"+odd.replace("/","_")+".pdf");setStatus("PDF descargado."+(type==="guardia"&&guardWeek.some(x=>!x.complete)?" La dotación incompleta está señalada en el documento.":""))}catch(e){setStatus("No fue posible generar el PDF.")}};
+ const share=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;const blob=asBlob(d),file=new File([blob],"ODD_"+odd.replace("/","_")+".pdf",{type:"application/pdf"});if(navigator.canShare?.({files:[file]})){await navigator.share({title:"ODD "+odd,files:[file]})}else if(navigator.share){await navigator.share({title:"ODD "+odd,text:f.title})}else{setStatus("Compartir no está disponible en este navegador.")}}catch(e){if(e?.name!=="AbortError")setStatus("No fue posible compartir.")}};
  const odd=useMemo(()=>String(f.number||"___").padStart(3,"0")+"/"+f.year,[f.number,f.year]);
  return <main className="oddShell"><header className="oddTop"><div><b>GERMANIA</b><span> · ODD Maestras</span></div><a href="/">Volver a GERMANIA</a></header>
  <section className="oddIntro"><div><h1>ODD Maestras</h1><p>Genera Órdenes del Día con plantillas oficiales de la Quinta Compañía.</p></div><div className="topActions"><button onClick={previewPdf}>◉ Vista previa</button><button className="pdfTop" onClick={downloadPdf}>↓ Descargar PDF</button><button onClick={share}>↗ Compartir</button></div></section>
@@ -144,7 +209,7 @@ export default function Page(){
  <h3 className="sectionTitle">1. Datos generales</h3><div className="row"><Field label="Año"><input type="number" value={f.year} onChange={e=>set("year",e.target.value)}/></Field><Field label="Nº ODD"><input inputMode="numeric" value={f.number} onChange={e=>set("number",e.target.value)}/></Field><Field label="Fecha emisión"><input type="date" value={f.issueDate} onChange={e=>set("issueDate",e.target.value)}/></Field></div>
  <Field label="Asunto / título"><input value={f.title} onChange={e=>set("title",e.target.value)} placeholder="Ej.: Academia · Estabilización vehicular"/></Field>
  {type==="citacion"&&<><h3 className="sectionTitle">2. Citación</h3><div className="row"><Field label="Fecha actividad"><input type="date" value={f.eventDate} onChange={e=>set("eventDate",e.target.value)}/></Field><Field label="Hora"><input type="time" value={f.time} onChange={e=>set("time",e.target.value)}/></Field></div><h3 className="sectionTitle">3. Detalles de la actividad</h3><Field label="Lugar"><input value={f.place} onChange={e=>set("place",e.target.value)}/></Field><div className="row"><Field label="Actividad"><select value={f.activity} onChange={e=>set("activity",e.target.value)}><option>Academia</option><option>Ejercicio</option><option>Capacitación</option><option>Ceremonia / formación</option></select></Field><Field label="Tema"><input value={f.topic} onChange={e=>set("topic",e.target.value)}/></Field></div><Field label="Vestimenta"><input value={f.clothing} onChange={e=>set("clothing",e.target.value)}/></Field><h3 className="sectionTitle">4. Instrucciones adicionales</h3><div className="row"><Field label="Puntualidad"><input value={f.punctuality} onChange={e=>set("punctuality",e.target.value)}/></Field><Field label="Excusas al correo"><input type="email" value={f.excuses} onChange={e=>set("excuses",e.target.value)}/></Field></div><h3 className="sectionTitle">5. Voluntarios citados</h3><p className="hint">Solo estos voluntarios generan obligación de asistencia. La identificación se guarda por ID interno, no por nombre.</p><div className="rosterTools"><button type="button" onClick={()=>setSelected(roster.map(p=>String(p.clave)))}>Citar a toda la Compañía</button><button type="button" onClick={()=>setSelected([])}>Limpiar</button><b>{selectedRoster.length} citados</b></div><div className="rosterList">{roster.map(p=>{const code=String(p.clave);return <label key={code}><input type="checkbox" checked={selected.includes(code)} onChange={()=>toggleMember(code)}/><span><b>{code}</b> · {fullName(p)} <small>{p.cargo||"Voluntario"}</small></span></label>})}</div></>}
- {type==="guardia"&&<><div className="row"><Field label="Semana de guardia (miércoles)"><input type="date" value={guardDate} onChange={e=>{setGuardDate(e.target.value);setGuardWeek([]);setPdfUrl("")}}/></Field><Field label="Término de semana (martes)"><input type="text" value={guardEndDate||"Selecciona un miércoles"} readOnly/></Field><label className="field loadField"><span>&nbsp;</span><button type="button" onClick={loadGuard} disabled={loading}>{loading?"Cargando…":"Cargar siete noches aprobadas"}</button></label></div>{guardWeek.length>0&&<><div className="guardGate"><b>Resumen de dotación · solo informativo</b><p className="guardHint">Si faltan voluntarios, OBAC o conductor, se señala la noche incompleta, pero no se bloquea la ODD.</p><span className={guardWeek.every(g=>g.complete)?"ok":"bad"}>Dotación mínima {guardWeek.every(g=>g.complete)?"✓":"pendiente"}</span><span className={guardWeek.every(g=>g.obac!=="Sin asignar")?"ok":"bad"}>OBAC {guardWeek.every(g=>g.obac!=="Sin asignar")?"✓":"pendiente"}</span><span className={guardWeek.every(g=>g.driver!=="Sin asignar")?"ok":"bad"}>Conductor {guardWeek.every(g=>g.driver!=="Sin asignar")?"✓":"pendiente"}</span><div><a href="/guardia/completar">Completar Guardia</a><a href="/guardia/obac">Asignar OBAC</a><a href="/guardia/conductor">Resolver conductor</a></div></div><div className="guardWeek">{guardWeek.map(g=><div className={"guardNight "+((g.obac==="Sin asignar"||g.driver==="Sin asignar"||!g.complete)?"pending":"ok")} key={g.date}><b>{g.date}</b><span>OBAC: {g.obac}</span><span>Conductor: {g.driver}</span><small>{g.total} voluntarios · {g.complete?"Dotación completa":"Dotación incompleta (no bloquea ODD)"}</small>{g.people.map((p,i)=><small key={g.date+p.code+i}>{p.code} · {p.name}</small>)}{g.faltantesVoluntarios>0&&<small>Voluntarios sin asignar: {g.faltantesVoluntarios}</small>}{g.faltan.length>0&&<small className="guardIssues">{g.faltan.join(" · ")}</small>}</div>)}</div></>}<Field label="Período / instrucciones"><textarea rows={7} value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Período, horarios, dotación mínima e instrucciones generales"/></Field><p className="hint">La nómina de la noche se lee desde Guardia; ODD Maestras no crea una segunda lista.</p></>}
+ {type==="guardia"&&<><PlantillaGuardia disponible={originalDisponible} subiendo={subiendoOriginal} onUpload={subirOriginal} anterior={f.oddAnterior} onAnterior={v=>set("oddAnterior",v)}/><div className="row"><Field label="Semana de guardia (miércoles)"><input type="date" value={guardDate} onChange={e=>{setGuardDate(e.target.value);setGuardWeek([]);setPdfUrl("")}}/></Field><Field label="Término de semana (martes)"><input type="text" value={guardEndDate||"Selecciona un miércoles"} readOnly/></Field><label className="field loadField"><span>&nbsp;</span><button type="button" onClick={loadGuard} disabled={loading}>{loading?"Cargando…":"Cargar siete noches aprobadas"}</button></label></div>{guardWeek.length>0&&<><div className="guardGate"><b>Resumen de dotación · solo informativo</b><p className="guardHint">La ODD solo se emite cuando las siete noches están aprobadas y cuentan con OBAC, conductor y al menos tres voluntarios.</p><span className={guardWeek.every(g=>g.complete)?"ok":"bad"}>Dotación mínima {guardWeek.every(g=>g.complete)?"✓":"pendiente"}</span><span className={guardWeek.every(g=>g.obac!=="Sin asignar")?"ok":"bad"}>OBAC {guardWeek.every(g=>g.obac!=="Sin asignar")?"✓":"pendiente"}</span><span className={guardWeek.every(g=>g.driver!=="Sin asignar")?"ok":"bad"}>Conductor {guardWeek.every(g=>g.driver!=="Sin asignar")?"✓":"pendiente"}</span><div><a href="/guardia/completar">Completar Guardia</a><a href="/guardia/obac">Asignar OBAC</a><a href="/guardia/conductor">Resolver conductor</a></div></div><div className="guardWeek">{guardWeek.map(g=><div className={"guardNight "+((g.obac==="Sin asignar"||g.driver==="Sin asignar"||!g.complete)?"pending":"ok")} key={g.date}><b>{g.date}</b><span>OBAC: {g.obac}</span><span>Conductor: {g.driver}</span><small>{g.total} voluntarios · {g.complete?"Dotación completa":"Dotación incompleta (no bloquea ODD)"}</small>{g.people.map((p,i)=><small key={g.date+p.code+i}>{p.code} · {p.name}</small>)}{g.faltantesVoluntarios>0&&<small>Voluntarios sin asignar: {g.faltantesVoluntarios}</small>}{g.faltan.length>0&&<small className="guardIssues">{g.faltan.join(" · ")}</small>}</div>)}</div></>}<Field label="Período / instrucciones"><textarea rows={7} value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Período, horarios, dotación mínima e instrucciones generales"/></Field><p className="hint">La nómina de la noche se lee desde Guardia; ODD Maestras no crea una segunda lista.</p></>}
  {type==="nomina"&&<><p className="hint">Nómina activa leída desde GERMANIA. Selecciona quiénes aparecerán en esta ODD.</p><div className="rosterTools"><button type="button" onClick={()=>setSelected(roster.map(p=>String(p.clave)))}>Seleccionar todos</button><button type="button" onClick={()=>setSelected([])}>Limpiar</button><b>{selectedRoster.length} seleccionados</b></div><div className="rosterList">{roster.length?roster.map(p=>{const code=String(p.clave);return <label key={code}><input type="checkbox" checked={selected.includes(code)} onChange={()=>toggleMember(code)}/><span><b>{code}</b> · {fullName(p)} <small>{p.cargo||"Voluntario"}</small></span></label>}):<p className="hint">Sin nómina disponible.</p>}</div><Field label="Observación / vigencia"><textarea rows={4} value={f.notes} onChange={e=>set("notes",e.target.value)}/></Field></>}
  {type==="disposicion"&&<><Field label="VISTOS"><textarea rows={4} value={f.seen} onChange={e=>set("seen",e.target.value)}/></Field><Field label="CONSIDERANDO"><textarea rows={4} value={f.considering} onChange={e=>set("considering",e.target.value)}/></Field><Field label="SE DISPONE"><textarea rows={7} value={f.provisions} onChange={e=>set("provisions",e.target.value)} placeholder={"1. ...\\n2. ..."}/></Field></>}
  <h3 className="sectionTitle">5. Firmas, anexos y distribución</h3><div className="signControls"><label><input type="checkbox" checked={signers.ayudante} onChange={e=>setSigners(x=>({...x,ayudante:e.target.checked}))}/> Francisco Vega Lara · AYUDANTE</label><label><input type="checkbox" checked={signers.capitan} onChange={e=>setSigners(x=>({...x,capitan:e.target.checked}))}/> Fernando Jerez Pantoja · CAPITÁN</label></div><Field label="Anexos (referencia del documento)"><input type="file" multiple accept="image/*,.pdf" onChange={addAnnex}/></Field>{annexes.length>0&&<div className="annexList">{annexes.map((a,i)=><span key={a.name+i}>Anexo {i+1}: {a.name}<button type="button" onClick={()=>setAnnexes(x=>x.filter((_,n)=>n!==i))}>×</button></span>)}</div>}<Field label="Distribución / destinatarios"><input value={f.recipients} onChange={e=>set("recipients",e.target.value)}/></Field>
