@@ -18,7 +18,7 @@ GERMANIA posee asistencia histórica en Neon (claves parte:* y partes:index:v1).
 - Guardia y ODD quedan totalmente excluidas.
 
 ## Validación obligatoria
-1. Archivo oficial V2 recibido: FÜNFTE ASISTENCIAS 2026 V2 CBV.xlsx. Una hoja «2026», 107 actividades (columnas K:DO), 30 voluntarios en filas 15–44 y Esthefani Ojeda en fila 48. Encabezados: fila 8 número institucional, fila 9 actividad/categoría por relleno (amarillo Compañía, rojo Emergencia, naranjo Comandancia), fila 10 clave, fila 11 fecha. Estados A/F y blancos para incorporación posterior. 17 actividades en julio, 10 en agosto, 10 en septiembre (hasta el 22). Comparar sin guardar. No subir el Excel personal al repositorio.
+1. Archivo oficial V2 recibido: FÜNFTE ASISTENCIAS 2026 V2 CBV.xlsx. Una hoja «2026», 107 actividades (columnas K:DM), 30 voluntarios en filas 15–44 y Esthefani Ojeda en fila 48. Encabezados: fila 8 número institucional, fila 9 actividad/categoría por relleno (amarillo Compañía, rojo Emergencia, naranjo Comandancia), fila 10 clave, fila 11 fecha. Estados A/F y blancos para incorporación posterior. 17 actividades en julio, 10 en agosto, 10 en septiembre (hasta el 22). Comparar sin guardar. No subir el Excel personal al repositorio.
 2. Probar reimportación exacta (cero nuevos), agregado de mes, edición de asistente, dos llamados mismo día, cambio de nómina, miembro ambiguo y reintento concurrente.
 3. Ejecutar npm test y npm run build; validar interfaz Android, PC y tablet B-5.
 4. Revisar partes:index:v1 frente a partes efectivamente presentes y confirmar estadística individual.
