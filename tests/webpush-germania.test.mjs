@@ -74,6 +74,7 @@ test("suscripción rechaza HTTP, claves falsas y acepta claves válidas",()=>{
   const valid=validarSuscripcion(subscription);
   assert.match(valid.endpointHash,/^[0-9a-f]{64}$/);
   assert.throws(()=>validarSuscripcion({...subscription,endpoint:"http://localhost:8000"}));
+  assert.throws(()=>validarSuscripcion({...subscription,endpoint:"https://example.com/api/notificar"}));
   assert.throws(()=>validarSuscripcion({...subscription,keys:{...subscription.keys,auth:"invalid"}}));
 });
 
