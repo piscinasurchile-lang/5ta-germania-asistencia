@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,admin=false,adminSemana="",cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
+let actual="",items=[],t3=false,capitan=false,admin=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -33,7 +33,7 @@ function esMando(m){return /teniente\s*(tercero|3)/i.test(rol(m))||/^\s*capit[a�
 function fotoUrl(f){return "/api/guardia/libro?foto=1&fecha="+encodeURIComponent(f)+"&actorId="+encodeURIComponent(actual);}
 async function cargar(forzar){
  const m=elegido(),id=m?String(m.id):"";
- if(!id){actual="";items=[];admin=false;adminSemana="";limpiar();return;}
+ if(!id){actual="";items=[];admin=false;limpiar();return;}
  if(cargando||(!forzar&&Date.now()-ultimaCarga<12000&&actual===id))return;
  cargando=true;
  try {
@@ -137,7 +137,7 @@ function clasificarControl(x){
 }
 function abrirControlAdmin(){
  if(!admin)return;
- if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("guardia");
+ if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("control-guardia-diaria");
  setTimeout(()=>{const caja=$("lgnAdminPanel");if(caja&&!caja.hidden)caja.scrollIntoView({behavior:"smooth",block:"start"});},80);
 }
 function pintarControlAdmin(){
@@ -148,75 +148,72 @@ function pintarControlAdmin(){
   if(panel){panel.hidden=true;panel.innerHTML="";}
   return;
  }
- const semanas=[...new Set(items.map(x=>semanaDe(x.fecha)).filter(Boolean))].sort().reverse();
- if(!semanas.includes(adminSemana))adminSemana=semanas[0]||"";
- const noches=items.filter(x=>semanaDe(x.fecha)===adminSemana).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
- const resumen={programadas:0,falta:0,pendiente:0,acreditadas:0};
- for(const x of noches){
+ // Cada noche se agrega visualmente al concluir su turno, a las 06:00 del día siguiente.
+ // No se muestran turnos futuros como cumplidos, ni se altera el archivo al cambiar de semana.
+ const terminadas=items.filter(x=>x.finalizada).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const resumen={falta:0,pendiente:0,acreditadas:0};
+ for(const x of terminadas){
   if(x.acreditacionVigente)resumen.acreditadas++;
   else if(x.cierre)resumen.pendiente++;
-  else if(x.finalizada)resumen.falta++;
-  else resumen.programadas++;
+  else resumen.falta++;
  }
- const encabezado='<h2>Mi panel de control · Guardia nocturna</h2>'+
-  '<p class="sub">Supervisión del administrador · solo lectura. El Teniente Tercero es quien ratifica las noches.</p>';
+ const encabezado='<h2>Control Guardia Diaria</h2>'+
+  '<p class="sub">Registro cronológico de las noches terminadas. Se agrega una tarjeta al terminar cada guardia (06:00 del día siguiente). El Teniente Tercero es el único que ratifica.</p>';
  const indicadores='<div class="lgn-control-totales">'+[
-  [resumen.programadas,"Programadas"],[resumen.falta,"Sin cierre OBAC"],
+  [terminadas.length,"Noches registradas"],[resumen.falta,"Sin cierre OBAC"],
   [resumen.pendiente,"Por ratificar"],[resumen.acreditadas,"Acreditadas"]
  ].map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
-  home.innerHTML='<section class="card" aria-label="Mi panel de control de Germania">'+encabezado+
-   '<p class="lgn-control-nota">Semana del '+escHtml(adminSemana?fechaBonita(adminSemana):"sin programación")+'</p>'+
-   indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir mi panel de control</button></section>';
+  home.innerHTML='<section class="card" aria-label="Control Guardia Diaria">'+encabezado+
+   indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir Control Guardia Diaria</button></section>';
   const abrir=$("lgnAdminAbrir");if(abrir)abrir.onclick=abrirControlAdmin;
  }
  if(!panel)return;
  panel.hidden=false;
- let html=encabezado;
- if(!semanas.length){
-  panel.innerHTML=html+'<p class="sub">Todavía no se encontraron semanas de guardia aprobadas.</p>';
-  return;
+ let html=encabezado+indicadores+
+  '<p class="lgn-control-nota">Cada noche tiene su día y fecha, OBAC, dotación, foto, novedades y estado de acreditación. Las ausencias ratificadas se destacan en rojo. Este módulo es solo de consulta.</p>';
+ if(!terminadas.length){
+  html+='<p class="sub">Aún no hay noches terminadas. El primer registro aparecerá al concluir la guardia, desde las 06:00.</p>';
  }
- html+='<div class="field"><label for="lgnAdminSemana">Seleccionar semana aprobada</label>'+
-  '<select id="lgnAdminSemana" class="lgn-control-plantilla">'+semanas.map(inicio=>
-    '<option value="'+escHtml(inicio)+'"'+(inicio===adminSemana?' selected':'')+
-    '>Semana del '+escHtml(fechaBonita(inicio))+'</option>').join("")+'</select></div>';
- html+=indicadores;
- html+='<p class="lgn-control-nota">Abre cada día para consultar dotación, fotografía, novedades y acreditación. Ninguna acción de esta pantalla modifica registros.</p>';
- for(const x of noches){
+ let grupoAnterior="";
+ for(const x of terminadas){
+  const semana=semanaDe(x.fecha);
+  if(semana!==grupoAnterior){
+   grupoAnterior=semana;
+   html+='<h3 class="lgn-control-semana">Semana del '+escHtml(fechaBonita(semana))+'</h3>';
+  }
   const estado=clasificarControl(x),foto=!!x.cierre?.fotoClave;
   html+='<details class="lgn-control-dia"><summary>'+
    '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
    '<span class="lgn-control-estado '+estado.clase+'">'+escHtml(estado.texto)+'</span>'+
    '</summary><div class="lgn-dia-detalle">';
-  html+='<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · desde las 22:45 hasta las 06:00 del día siguiente.</p>'+
+  html+='<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+
+   ' · 22:45 a 06:00 del día siguiente.</p>'+
    '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
-   '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>';
-  html+='<p><strong>Voluntarios programados:</strong> '+(Array.isArray(x.dotacion?.vol)&&x.dotacion.vol.length?
-   x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
+   '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>'+
+   '<p><strong>Voluntarios programados:</strong> '+
+   ((x.dotacion?.vol||[]).length?x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
   if(x.cierre){
    const fechaEnvio=x.cierre.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha";
-   html+='<p><strong>Cierre enviado:</strong> '+escHtml(fechaEnvio)+
+   html+='<p><strong>Cierre OBAC:</strong> '+escHtml(fechaEnvio)+
     ' · por '+escHtml(x.cierre.obacNombre||nombre(x.dotacion?.obac))+'</p>'+
     '<p><strong>Novedades:</strong> '+escHtml(x.cierre.novedades||"No registradas")+'</p>';
    if(foto)html+='<p><a class="btn secondary" href="'+fotoUrl(x.fecha)+
     '" target="_blank" rel="noopener">Ver foto del libro</a></p>';
-  }else if(x.finalizada){
-   html+='<p class="sub">Noche terminada. Esperando fotografía y novedades del OBAC.</p>';
   }else{
-   html+='<p class="sub">La noche aún está programada o en curso.</p>';
+   html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>';
   }
   if(x.acreditacionVigente&&x.acreditacion){
    const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
-   html+='<p><strong>Ratificación T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+   html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
     (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
-    '<p><strong>Asistencia acreditada:</strong></p>';
+    '<p><strong>Asistencia confirmada:</strong></p>';
    for(const p of participantes(x.dotacion)){
     const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
     html+=filaAsistencia(nombre(p.id),p.rol,presente);
    }
   }else if(x.cierre){
-   html+='<p class="sub">Pendiente de acreditación exclusiva del Teniente Tercero. No suma estadísticas todavía.</p>';
+   html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. No suma estadísticas todavía.</p>';
   }
   html+='</div></details>';
  }
@@ -224,8 +221,6 @@ function pintarControlAdmin(){
   '<button type="button" class="btn secondary small" id="lgnAdminActualizar">Actualizar control</button>'+
   '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a Inicio</button></div>';
  panel.innerHTML=html;
- const selector=$("lgnAdminSemana");
- if(selector)selector.onchange=()=>{adminSemana=selector.value;pintarControlAdmin();};
  const ref=$("lgnAdminActualizar");
  if(ref)ref.onclick=()=>cargar(true);
  const inicio=$("lgnAdminInicio");
