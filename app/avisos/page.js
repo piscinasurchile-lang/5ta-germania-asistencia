@@ -33,8 +33,18 @@ export default function ConfiguracionAvisos(){
         const sub=await reg?.pushManager?.getSubscription?.();
         if(!vivo)return;
         setPruebaDisponible(!!config.pruebaDisponible);
-        setHabilitado(false);
-        setEstado(!config.disponible?"El servicio todavía no está habilitado en esta versión.":sub?"Avisos activados en este dispositivo.":"Avisos todavía no activados en este dispositivo.");
+        if(sub&&config.disponible&&Notification.permission==="granted"){
+          const confirmado=await fetch("/api/push/suscripcion",{
+            method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify(sub.toJSON())
+          });
+          if(!vivo)return;
+          setHabilitado(confirmado.ok);
+          setEstado(confirmado.ok?"Avisos activados y registrados en Germania.":"No se pudo verificar el registro. Toca Activar avisos.");
+        }else{
+          setHabilitado(false);
+          setEstado(config.disponible?"Avisos todavía no activados en este dispositivo.":"El servicio todavía no está habilitado.");
+        }
       }catch{if(vivo)setEstado("No se pudo comprobar el estado. Comprueba tu conexión.")}
     })();
     void limpiarPunto();
