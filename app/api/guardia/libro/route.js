@@ -54,12 +54,12 @@ export async function GET(req){
   const ahora=horaCivilChile();
   const esAdmin=esAdministradorGuardia(actor);
   const q="SELECT g.value->>'aprobadaEn' AS aprobada_en,n.fecha,n.dotacion,cl.value AS cierre,ac.value AS acreditacion,COALESCE(ac.version,0) AS acreditacion_version "+
-    "FROM (SELECT key,value FROM app_state WHERE key LIKE 'guardia-revision:%' ORDER BY key DESC LIMIT $3) g "+
+    "FROM (SELECT key,value FROM app_state WHERE key LIKE 'guardia-revision:%' ORDER BY key DESC LIMIT $2) g "+
     "CROSS JOIN LATERAL jsonb_each(COALESCE(g.value->'noches','{}'::jsonb)) AS n(fecha,dotacion) "+
     "LEFT JOIN app_state cl ON cl.key='guardia-libro:'||n.fecha "+
     "LEFT JOIN app_state ac ON ac.key='guardia-acreditacion:'||n.fecha "+
-    "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT $4";
-  const rows=await sql.query(q,[ahora.slice(0,10),esAdmin,esAdmin?260:8,esAdmin?1820:56]);
+    "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT $3";
+  const rows=await sql.query(q,[ahora.slice(0,10),esAdmin?260:8,esAdmin?1820:56]);
   const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo);
   const items=rows.map(r=>{
     const revision={estado:"aprobada",aprobadaEn:r.aprobada_en,noches:{[r.fecha]:r.dotacion}};
