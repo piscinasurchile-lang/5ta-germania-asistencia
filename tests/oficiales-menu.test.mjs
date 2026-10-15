@@ -32,6 +32,18 @@ test("mantiene los destinos, IDs de subpaneles y cargas bajo demanda existentes"
   assert.ok(menu.includes('id="btnOficialesGuardia"'),"Falta gestionar guardias desde Oficiales");
   assert.ok(menu.includes('id="btnOficialesAcreditar"'),"Falta acceso directo a acreditar guardias");
   assert.ok(menu.includes('id="btnAdminGuardia"'),"Falta el panel del administrador");
+  assert.ok(menu.includes('id="btnAdminGuardia" hidden>Control Guardia Diaria</button>'),"El acceso diario debe ser hermano de Guardia Nocturna");
+  assert.ok(menu.includes('id="btnOficialesGuardia">Guardia Nocturna</button>'),"Debe mantenerse la programación de Guardia Nocturna");
+  const control=html.indexOf('id="panel-control-guardia-diaria"');
+  const guardia=html.indexOf('id="panel-guardia"');
+  assert.ok(control>0&&guardia>control,"Control Guardia Diaria debe ser un panel independiente, no hijo de Guardia Nocturna");
+  assert.ok(html.slice(control,guardia).includes('id="lgnAdminPanel"'),"El control diario debe vivir en su propio panel");
+  assert.ok(!html.slice(guardia,html.indexOf('id="panel-config"')).includes('id="lgnAdminPanel"'),"No insertar control diario dentro de Guardia Nocturna");
+  const diario=fuente("../public/legacy/germania-cierre-libro.js");
+  assert.ok(diario.includes('window.__mostrarPestana("control-guardia-diaria")'),"El botón debe abrir su pantalla independiente");
+  assert.ok(diario.includes('items.filter(x=>x.finalizada)'),"Solo incorporar noches terminadas");
+  assert.ok(diario.includes('x.fecha.localeCompare(b.fecha)'),"Las fechas deben acumularse en orden cronológico");
+
   assert.ok(fuente("../public/legacy/germania-roles.js").includes('var botonGestion=$("btnOficialesGuardia")'),"Falta listener existente de guardia");
   assert.ok(app.includes('document.querySelectorAll(".subtab").forEach(s=>{'));
   assert.ok(app.includes('if(!s.dataset.sub) return;'));
