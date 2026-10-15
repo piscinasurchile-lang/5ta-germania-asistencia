@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import {neon} from "@neondatabase/serverless";
 import {ensureSchema,readState,addToList,writeState} from "../../../lib/state-store.js";
 import {avisoEstaVigente,vencimientoAlPublicar} from "../../../lib/informaciones-vigencia.mjs";
+import {difundir,esEnvioGeneralActivo} from "../../../lib/germania-webpush.mjs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -57,6 +58,10 @@ export async function POST(request){
     await ensureSchema(sql);
     const result=await addToList(sql,destino==="oficiales"?KEY_OFICIALES:KEY_PUBLICA,entry,{uniqueBy:"id"});
     if(!result.ok)return error("write_failed",500);
+    if(destino==="compania"&&esEnvioGeneralActivo())try{
+      await difundir({tipo:"informacion",titulo:("Información: "+texto).slice(0,120),
+        id:entry.id,origen:new URL(request.url).origin});
+    }catch(e){console.error("webpush informacion",e);}
     return Response.json({ok:true,id:entry.id},{headers:noStore});
   }catch(e){console.error("informaciones POST",e);return error("database_error",500)}
 }
