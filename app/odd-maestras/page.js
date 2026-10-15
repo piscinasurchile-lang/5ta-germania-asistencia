@@ -104,6 +104,16 @@ export default function Page(){
  };
  const pdf=async()=>{
    if(!f.year||!f.number||!f.title){setStatus("Completa año, Nº ODD y asunto antes de descargar.");return null}
+   if(type==="guardia"){
+     if(!originalDisponible)throw Error("Falta la plantilla original ODD 063/2026.");
+     validarODDGuardia({semana:guardWeek,year:f.year,number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+     const respuesta=await fetch("/api/odd-maestras/plantilla-guardia",{cache:"no-store"});
+     if(!respuesta.ok)throw Error("No se pudo cargar el original ODD 063/2026.");
+     const original=new Uint8Array(await respuesta.arrayBuffer());
+     const {generarGuardiaDesdeOriginal}=await import("../../lib/odd-guardia-063-pdf.mjs");
+     return generarGuardiaDesdeOriginal({original,semana:guardWeek,year:f.year,
+       number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+   }
    const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
    const institutionalHead=()=>{d.setFillColor(0,0,0);d.rect(20,10,68,3,"F");d.rect(122,10,68,3,"F");d.setFillColor(190,0,0);d.rect(20,13,68,3,"F");d.rect(122,13,68,3,"F");d.setFillColor(255,205,0);d.rect(20,16,68,3,"F");d.rect(122,16,68,3,"F");try{d.addImage(LOGO_B64,"PNG",95.5,7,19,24)}catch{}};
    institutionalHead(); y=35;
