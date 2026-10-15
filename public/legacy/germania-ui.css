@@ -509,3 +509,23 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 .lgn-obac-confirmacion small{color:#a8c0b3;font-size:11px;}
 .lgn-obac-aviso-previo{border-color:#655122;border-left-color:#ffcc00;background:#1e1b12;}
 .lgn-obac-aviso-previo strong{color:#ffcc00;}
+
+
+/* ODD PDF: acceso compacto en Avisos de Oficiales y modal utilizable en móvil/PC. */
+.odd-pdf-publicar{margin-top:20px;padding:16px;border:1px solid #4b525a;border-left:4px solid #ffcc00;border-radius:11px;background:#131a20;}
+.odd-pdf-publicar h3{margin:0 0 8px;color:#ffcc00;font:600 19px/1.25 'Oswald',sans-serif;}
+.odd-pdf-publicar .sub{margin:0 0 12px;}
+.odd-pdf-modal{position:fixed;inset:0;z-index:100010;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:14px;background:rgba(0,0,0,.82);}
+.odd-pdf-modal-contenido{width:min(100%,560px);box-sizing:border-box;margin:auto;padding:20px;border:1px solid #505963;border-radius:12px;background:#151b20;color:#fff;box-shadow:0 12px 48px #0009;}
+.odd-pdf-modal h2{margin:0 0 10px;font:600 24px/1.25 'Oswald',sans-serif;}
+.odd-pdf-modal label{display:block;margin:14px 0 6px;font-weight:700;color:#e6e9ed;}
+.odd-pdf-modal input{width:100%;min-height:46px;box-sizing:border-box;padding:10px;border:1px solid #65717b;border-radius:8px;background:#0a1015;color:#fff;font-size:16px;}
+.odd-pdf-modal input[type=file]{padding:9px;font-size:14px;overflow:hidden;}
+.odd-pdf-acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;}
+.odd-pdf-modal #oddPdfResultado{color:#ff8b93;min-height:22px;font-weight:600;margin:12px 0 0;}
+@media(max-width:600px){
+ .odd-pdf-publicar{padding:12px;}
+ .odd-pdf-modal{padding:10px 10px calc(16px + env(safe-area-inset-bottom));}
+ .odd-pdf-modal-contenido{padding:15px;}
+ .odd-pdf-acciones .btn{flex:1 1 160px;}
+}
