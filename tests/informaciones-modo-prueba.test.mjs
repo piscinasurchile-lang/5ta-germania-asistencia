@@ -7,13 +7,12 @@ const source=readFileSync(new URL("../public/legacy/germania-informaciones-prueb
 const html=readFileSync(new URL("../public/legacy/index.html",import.meta.url),"utf8");
 const roles=readFileSync(new URL("../public/legacy/germania-roles.js",import.meta.url),"utf8");
 function app(){
-  const map=new Map();
-  const window={localStorage:{getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v)}};
-  const c=vm.createContext({window,Date,Math,JSON,Error,Number,String,Array});
-  vm.runInContext(source,c);
-  return window.GermaniaInformacionesPrueba;
+ const map=new Map();
+ const window={localStorage:{getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v)}};
+ vm.runInContext(source,vm.createContext({window,Date,Math,JSON,Error,Number,String,Array}));
+ return window.GermaniaInformacionesPrueba;
 }
-test("simulación interna para Oficiales sigue siendo local, sin clave",()=>{
+test("simulación interna sigue siendo local y no envía mensajes privados",()=>{
  const d=app();
  const m=d.publicar({texto:"Prueba de comunicado",destino:"oficiales",autor:"Oficial prueba"});
  assert.equal(d.listar("compania").length,0);
@@ -22,38 +21,30 @@ test("simulación interna para Oficiales sigue siendo local, sin clave",()=>{
  assert.ok(m.id.startsWith("demo-"));
  assert.equal(Date.parse(m.vence)-Date.parse(m.en),172800000);
 });
-test("prueba simula confirmación Leído y no duplica la misma persona",()=>{
- const d=app(),id=d.publicar({texto:"Comunicado",destino:"compania"}).id;
- assert.equal(d.confirmar(id,"517"),true);
- assert.equal(d.confirmar(id,"517"),true);
- assert.equal(d.listar("compania")[0].lecturas.length,1);
- assert.equal(d.confirmar(id,"otra"),true);
- assert.equal(d.listar("compania")[0].lecturas.length,2);
+test("simulador no registra ni expone confirmaciones de lectura",()=>{
+ const d=app(),m=d.publicar({texto:"Comunicado",destino:"compania"});
+ assert.equal(typeof d.confirmar,"undefined");
+ assert.equal(Object.hasOwn(m,"lecturas"),false);
+ assert.equal(d.listar("compania").length,1);
+ assert.doesNotMatch(source,/voluntarioId|lecturas|confirmar\(/);
 });
-test("prueba separa destino oficiales y confirma solo avisos de la compañía",()=>{
- const d=app(),id=d.publicar({texto:"Mensaje interno de prueba",destino:"oficiales"}).id;
- assert.equal(d.listar("compania").length,0);
- assert.equal(d.listar("oficiales").length,1);
- assert.equal(d.confirmar(id,"517"),false);
-});
-test("vencimiento de prueba oculta aviso en la hora exacta",()=>{
+test("vencimiento de prueba oculta aviso en hora exacta",()=>{
  const d=app(),a=d.publicar({texto:"Prueba",destino:"compania",vence:new Date(Date.now()+6000).toISOString()});
  assert.equal(d.vigente(a,Date.parse(a.vence)-1),true);
  assert.equal(d.vigente(a,Date.parse(a.vence)),false);
  assert.equal(d.retirar(a.id),true);
  assert.equal(d.listar("compania").length,0);
 });
-test("la interfaz de prueba no solicita clave; generales compartidos e internos locales",()=>{
+test("interfaz de prueba muestra informaciones sin clave, botones de lectura ni acuses",()=>{
  assert.match(html,/PRUEBA SIN CLAVE/);
  assert.match(html,/germania-informaciones-prueba\.js\?v=/);
- assert.doesNotMatch(html,/id="informacionesPin"/);
- assert.doesNotMatch(html,/id="informacionesEntrar"/);
+ assert.doesNotMatch(html,/Toca «Leído»|id="informacionesPin"|id="informacionesEntrar"/);
  const start=roles.indexOf("/* ---------- Novedades (Inicio) ---------- */");
  const end=roles.indexOf("/* ---------- Datos de la semana ---------- */",start);
  const ui=roles.slice(start,end);
  assert.match(ui,/NOV_PRUEBA\.publicar/);
  assert.match(ui,/fetch\("\/api\/informaciones\/prueba"/);
- assert.match(ui,/method:"PATCH"/);
  assert.match(ui,/NOV_PRUEBA\.listar\("oficiales"\)/);
+ assert.doesNotMatch(ui,/method:"PATCH"|data-nov-read|confirmarLectura/);
  assert.doesNotMatch(ui,/fetch\("\/api\/informaciones"/);
 });

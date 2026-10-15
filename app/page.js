@@ -14,6 +14,35 @@ export default function Page() {
   const [inicioB5Comprobado, setInicioB5Comprobado] = useState(false);
   const [destinoB5, setDestinoB5] = useState("");
 
+  // El aviso se limpia al entrar: no envía acuse de lectura ni consulta quién abrió.
+  // Android usa notificaciones del sistema para el punto del icono.
+  useEffect(() => {
+    let running = false;
+    async function limpiarAvisoAlAbrir() {
+      if (document.visibilityState !== "visible" || running) return;
+      running = true;
+      try {
+        if (typeof navigator.clearAppBadge === "function") {
+          try { await navigator.clearAppBadge(); } catch {}
+        }
+        if ("serviceWorker" in navigator) {
+          const registro = await navigator.serviceWorker.getRegistration("/");
+          if (registro && typeof registro.getNotifications === "function") {
+            const avisos = await registro.getNotifications({tag:"germania-informaciones"});
+            avisos.forEach(aviso => aviso.close());
+          }
+        }
+      } catch {} finally { running = false; }
+    }
+    limpiarAvisoAlAbrir();
+    document.addEventListener("visibilitychange", limpiarAvisoAlAbrir);
+    window.addEventListener("focus", limpiarAvisoAlAbrir);
+    return () => {
+      document.removeEventListener("visibilitychange", limpiarAvisoAlAbrir);
+      window.removeEventListener("focus", limpiarAvisoAlAbrir);
+    };
+  }, []);
+
   // Modo B-5 solo en el dispositivo que se seleccionó: evitar cargar el iframe
   // completo antes de mostrar la pantalla ligera.
   useEffect(() => {

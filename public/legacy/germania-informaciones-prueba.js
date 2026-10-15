@@ -34,26 +34,14 @@
     if(!Number.isFinite(limite)||limite<=ahora)throw Error("El vencimiento debe ser futuro");
     const id="demo-"+ahora+"-"+Math.random().toString(36).slice(2,10);
     const n={id,texto:texto.trim(),destino,vence:new Date(limite).toISOString(),
-      en:new Date(ahora).toISOString(),autor:String(autor||"Oficial de prueba"),lecturas:[]};
+      en:new Date(ahora).toISOString(),autor:String(autor||"Oficial de prueba")};
     guardar(leer().concat(n).slice(-100));
     return n;
-  }
-  function confirmar(id,personaId){
-    if(!personaId)throw Error("Selecciona un voluntario");
-    let actualizado=false;
-    const lista=leer().map(n=>{
-      if(n.id!==id||!vigente(n)||n.destino!=="compania")return n;
-      if((n.lecturas||[]).some(x=>String(x.voluntarioId)===String(personaId)))return n;
-      actualizado=true;
-      return {...n,lecturas:[...(n.lecturas||[]),{voluntarioId:String(personaId),en:new Date().toISOString()}]};
-    });
-    if(actualizado)guardar(lista);
-    return actualizado||lista.some(n=>n.id===id&&(n.lecturas||[]).some(x=>String(x.voluntarioId)===String(personaId)));
   }
   function retirar(id){
     const a=leer(),b=a.filter(n=>n.id!==id);
     if(a.length!==b.length)guardar(b);
     return a.length!==b.length;
   }
-  global.GermaniaInformacionesPrueba={listar,publicar,confirmar,retirar,vigente};
+  global.GermaniaInformacionesPrueba={listar,publicar,retirar,vigente};
 })(window);

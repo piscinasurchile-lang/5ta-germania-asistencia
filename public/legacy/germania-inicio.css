@@ -478,3 +478,48 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
 .gu-persona{padding:8px 0;border-bottom:1px solid #303840;width:100%}.gu-persona>span{display:block;color:white;font-size:13px}.gu-acciones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}.gu-acciones button{min-height:44px;font-size:12px;padding:5px;color:white;background:#202830;border:1px solid #46515b;border-radius:8px}
 
 #panel-germania .gn-franja-dia{align-items:center;text-align:center}#panel-germania .gn-franja-dia strong{color:#fff;font-size:20px}#panel-germania .gn-franja-dia .gn-franja-semana{font-size:11px}
+
+
+/* Inicio compacto: ODD legibles, múltiples avisos en una sola franja.
+   Solo presentación: conserva los botones, destinos y estados existentes. */
+#panel-germania #avisosOdd{
+  display:flex;flex-direction:column;gap:0;
+  margin:0 0 8px;padding:9px 12px;
+  border:1.5px solid #d6a928;border-radius:13px;
+  background:#10161b;color:#fff;
+  min-width:0;overflow:visible;
+}
+#panel-germania #avisosOdd:empty{display:none}
+#panel-germania #avisosOdd>*{min-width:0;max-width:100%}
+#panel-germania #avisosOdd :is(a,button,[role="button"]){
+  color:#fff;white-space:normal;overflow-wrap:anywhere;
+  text-overflow:clip;text-align:left;
+}
+#panel-germania #avisosOdd :is(strong,b,h2,h3,.titulo,.title){
+  color:#fff!important;white-space:normal!important;
+  overflow:visible!important;text-overflow:clip!important;
+  overflow-wrap:anywhere;line-height:1.3;
+}
+#panel-germania #avisosOdd :is(p,small,.sub,.muted){color:#cbd5df}
+#panel-germania #avisosOdd :is(.badge,.chip){color:#151515}
+#panel-germania #avisosOdd> :is(article,section,div,button,a)+ :is(article,section,div,button,a){
+  border-top:1px solid #3b454d;padding-top:9px;margin-top:9px;
+}
+#panel-germania #inicioNovedades.home-alert{
+  padding:10px 12px;margin-top:0;margin-bottom:8px;
+  border-radius:12px;min-height:0;
+}
+#panel-germania #inicioNovedades .ha-main{gap:8px}
+#panel-germania #inicioNovedades :is(h2,h3,strong){font-size:16px;line-height:1.25}
+#panel-germania #inicioNovedades :is(p,small,.sub){font-size:13px;line-height:1.3}
+#panel-germania #inicioNovedades :is(button,a){min-height:40px;padding:7px 10px}
+#panel-germania .home-grid{gap:9px}
+#panel-germania .home-tiles .tile{min-height:68px;padding:9px 10px;gap:7px}
+#panel-germania .home-tiles .tile-ico{width:28px;height:28px;flex-basis:28px}
+#panel-germania .home-tiles .tile-ico svg{width:27px;height:27px}
+#panel-germania .home-tiles .tile-copy strong{font-size:15px}
+#panel-germania .home-tiles .tile-copy span{font-size:12px;line-height:1.25}
+@media(max-width:700px){
+  #panel-germania #avisosOdd{padding:9px 11px}
+  #panel-germania .home-tiles .tile{min-height:64px;padding:8px}
+}

@@ -72,7 +72,7 @@ function ponerVista(v){
 }
 
 /* ---------- Novedades (Inicio) ---------- */
-var novRendering=false, novVisible=[], novReadPending={};
+var novRendering=false;
 var NOV_PRUEBA=window.GermaniaInformacionesPrueba||null;
 
 var novExpiryTimer=null, novPrivateTimer=null;
@@ -119,37 +119,18 @@ async function renderNovedades(){
     var remoto=await response.json(),lista=Array.isArray(remoto.items)?remoto.items:[];
     if(!Array.isArray(lista)) lista=[];
     lista=lista.filter(function(n){return n&&n.id&&typeof n.texto==="string"&&(!n.destino||n.destino==="compania")&&novVigente(n);}).slice().sort(function(a,b){ return String(b.en||"").localeCompare(String(a.en||"")); });
-    var lecturas=lista.map(n=>Array.isArray(n.lecturas)?n.lecturas:[]);
     if((miembro()?String(miembro().id):"")!==who) return;
-    novVisible=lista; novSound(lista); novProgramarVencimiento(lista,false);
+    novSound(lista); novProgramarVencimiento(lista,false);
     var of=esOficial(m)||esMando(m);
-    box.innerHTML=lista.length?lista.map(function(n,i){
-      var reads=Array.isArray(lecturas[i])?lecturas[i]:[];
-      var leido=reads.some(function(r){return r&&String(r.voluntarioId)===who;});
+    box.innerHTML=lista.length?lista.map(function(n){
       var f=n.en?new Date(n.en).toLocaleDateString("es-CL",{day:"2-digit",month:"2-digit"}):"";
-      var control=who?'<button type="button" class="btn small" data-nov-read="'+E(n.id)+'"'+(leido?' disabled':'')+'>'+(leido?'✓ Lectura confirmada':'✓ Leído')+'</button>':'<span>Elige tu nombre para confirmar lectura.</span>';
-      var detalle=of?'<details class="nov-confirmaciones"><summary>Lecturas confirmadas · '+reads.filter(function(r){return r&&porId(r.voluntarioId);}).length+'</summary>'+ROSTER.filter(function(v){return v.activo!==false;}).map(function(v){var r=reads.find(function(x){return x&&String(x.voluntarioId)===String(v.id);});return '<div class="nov-persona"><span>'+E(corto(v))+'</span><span>'+(r?'✓ Leído':'Pendiente')+'</span></div>';}).join('')+'</details>':'';
       var venc=n.vence?new Date(n.vence):new Date(Date.parse(n.en)+48*60*60*1000);
       var exp=Number.isFinite(venc.getTime())?venc.toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Santiago"}):"";
-      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+' · PRUEBA</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'<div class="nov-lectura">'+control+detalle+'</div></div>';
+      return '<div class="ha-item"><span class="ha-fecha">'+E(f)+' · PRUEBA</span><span class="ha-texto">'+E(n.texto)+'</span><small>Vigente hasta: '+E(exp)+'</small>'+(n.autor?'<small>'+E(n.autor)+'</small>':'')+'</div>';
     }).join(''):'<div class="ha-vacia">Sin novedades por ahora.</div>';
   }catch(e){
     box.innerHTML='<div class="ha-vacia">No fue posible sincronizar los avisos. Comprueba la conexión.</div>';
   }finally{novRendering=false;}
-}
-async function confirmarLectura(id,button){
-  var m=miembro();
-  if(!m||novReadPending[id]||!novVisible.some(function(n){return n.id===id;})) return;
-  novReadPending[id]=true; button.disabled=true; button.textContent="Guardando…";
-  try{
-    const resp=await fetch("/api/informaciones/prueba",{method:"PATCH",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({id,voluntarioId:String(m.id)})});
-    if(!resp.ok)throw new Error("No se pudo guardar la lectura.");
-    button.textContent="✓ Lectura confirmada";
-    await renderNovedades();
-  }catch(e){button.disabled=false;button.textContent="Reintentar confirmar lectura";}
-  finally{delete novReadPending[id];}
 }
 async function publicarNovedad(){
   var inp=$("novedadTexto"),msg=$("novedadMsg"),b=$("novedadAgregar");
@@ -211,7 +192,6 @@ async function renderInformacionesOficiales(){
   }catch(e){box.textContent=e.message||"No fue posible cargar los avisos.";}
 }
 if($("novedadAgregar")) $("novedadAgregar").addEventListener("click",publicarNovedad);
-if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev){ var r=ev.target.closest("[data-nov-read]"); if(r) confirmarLectura(r.dataset.novRead,r); });
 
 /* ---------- Datos de la semana ---------- */
 async function leerPrefijo(pref){
