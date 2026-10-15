@@ -15,7 +15,18 @@ function nombre(id){
 }
 function fechaBonita(fecha){
  const d=new Date(fecha+"T12:00:00Z");
- return d.toLocaleDateString("es-CL",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long"});
+ return d.toLocaleDateString("es-CL",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});
+}
+function etiquetaGuardia(fecha){return "Guardia del "+fechaBonita(fecha);}
+function filaAsistencia(nombrePersona,rolPersona,presente){
+ return '<div class="lgn-asistencia-fila '+(presente?"presente":"ausente")+'">'+
+   '<span class="lgn-asistencia-nombre">'+escHtml(nombrePersona)+' · '+escHtml(rolPersona)+'</span>'+
+   '<strong class="lgn-asistencia-estado">'+(presente?"Asistió":"No asistió")+'</strong></div>';
+}
+function estadoSeleccionAsistencia(sel){
+ if(!sel)return;
+ sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente");
+ sel.classList.toggle("lgn-asistencia-select-presente",sel.value==="presente");
 }
 function rol(m){return String(m?.cargo||"").toLowerCase();}
 function esMando(m){return /teniente\s*(tercero|3)/i.test(rol(m))||/^\s*capit[aá]n/i.test(rol(m));}
@@ -155,7 +166,7 @@ function pintarControlAdmin(){
  ].map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
   home.innerHTML='<section class="card" aria-label="Mi panel de control de Germania">'+encabezado+
-   '<p class="lgn-control-nota">Semana desde el '+escHtml(adminSemana||"sin programación")+'</p>'+
+   '<p class="lgn-control-nota">Semana del '+escHtml(adminSemana?fechaBonita(adminSemana):"sin programación")+'</p>'+
    indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir mi panel de control</button></section>';
   const abrir=$("lgnAdminAbrir");if(abrir)abrir.onclick=abrirControlAdmin;
  }
@@ -169,16 +180,17 @@ function pintarControlAdmin(){
  html+='<div class="field"><label for="lgnAdminSemana">Seleccionar semana aprobada</label>'+
   '<select id="lgnAdminSemana" class="lgn-control-plantilla">'+semanas.map(inicio=>
     '<option value="'+escHtml(inicio)+'"'+(inicio===adminSemana?' selected':'')+
-    '>Semana '+escHtml(inicio)+'</option>').join("")+'</select></div>';
+    '>Semana del '+escHtml(fechaBonita(inicio))+'</option>').join("")+'</select></div>';
  html+=indicadores;
  html+='<p class="lgn-control-nota">Abre cada día para consultar dotación, fotografía, novedades y acreditación. Ninguna acción de esta pantalla modifica registros.</p>';
  for(const x of noches){
   const estado=clasificarControl(x),foto=!!x.cierre?.fotoClave;
   html+='<details class="lgn-control-dia"><summary>'+
-   '<strong>'+escHtml(fechaBonita(x.fecha))+'</strong>'+
+   '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
    '<span class="lgn-control-estado '+estado.clase+'">'+escHtml(estado.texto)+'</span>'+
    '</summary><div class="lgn-dia-detalle">';
-  html+='<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
+  html+='<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · desde las 22:45 hasta las 06:00 del día siguiente.</p>'+
+   '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
    '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>';
   html+='<p><strong>Voluntarios programados:</strong> '+(Array.isArray(x.dotacion?.vol)&&x.dotacion.vol.length?
    x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
@@ -201,7 +213,7 @@ function pintarControlAdmin(){
     '<p><strong>Asistencia acreditada:</strong></p>';
    for(const p of participantes(x.dotacion)){
     const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
-    html+='<p>'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+' — '+(presente?'Asistió':'No asistió')+'</p>';
+    html+=filaAsistencia(nombre(p.id),p.rol,presente);
    }
   }else if(x.cierre){
    html+='<p class="sub">Pendiente de acreditación exclusiva del Teniente Tercero. No suma estadísticas todavía.</p>';
@@ -259,10 +271,11 @@ function pintarOficial(){
  '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>';
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
-  const titulo=fechaBonita(x.fecha);
+  const titulo=etiquetaGuardia(x.fecha);
   h+='<details class="gr-det" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
     '<summary style="cursor:pointer;font-weight:700">'+escHtml(titulo)+
     ' · '+(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC")+'</summary>'+
+    '<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · 22:45 a 06:00 del día siguiente.</p>'+ 
     '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>';
   if(rec){
    h+='<p><strong>Cierre enviado por OBAC:</strong> '+escHtml(new Date(rec.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>'+
@@ -277,7 +290,7 @@ function pintarOficial(){
     h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
     for(const p of participantes(x.dotacion)){
       const estado=x.acreditacion?.asistencias?.[String(p.id)]==="presente"?"Asistió":"No asistió";
-      h+='<p>'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+' — '+escHtml(estado)+'</p>';
+      h+=filaAsistencia(nombre(p.id),p.rol,estado==="Asistió");
     }
     h+='</div>';
   }
@@ -296,7 +309,10 @@ function pintarOficial(){
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
  $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
- area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>sel.addEventListener("change",()=>{editando=true;}));
+ area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>{
+   estadoSeleccionAsistencia(sel);
+   sel.addEventListener("change",()=>{editando=true;estadoSeleccionAsistencia(sel);});
+ });
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
 }
 async function ratificar(fecha,boton){
