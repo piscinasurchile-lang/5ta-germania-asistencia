@@ -261,21 +261,64 @@ function pintarResumenMando(){
  const host=$("lgnMandoHome");if(!host)return;
  if(!t3&&!capitan){host.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
- const ratificadas=terminadas.filter(x=>x.acreditacionVigente);
- const cierresPendientes=terminadas.filter(x=>x.cierre&&!x.acreditacionVigente);
- if(!cierresPendientes.length&&!ratificadas.length){host.innerHTML="";return;}
- const cabecera=t3?"Acreditación de guardia nocturna":"Informes ratificados · Capitán";
- const mensaje=t3
-  ?(cierresPendientes.length
-    ?cierresPendientes.length+" cierre(s) del OBAC esperando tu ratificación."
-    :"No hay cierres del OBAC pendientes de ratificación.")
-  :ratificadas.length+" noche(s) ratificada(s) por el Teniente Tercero. Consulta fotografías, novedades y asistentes.";
- host.innerHTML='<section class="card" aria-label="'+escHtml(cabecera)+'">'+
-   '<h2>'+escHtml(cabecera)+'</h2><p class="sub">'+escHtml(mensaje)+'</p>'+
-   '<button type="button" class="btn secondary" id="lgnMandoIr">'+
-   (t3?"Revisar y ratificar noches":"Ver informes de guardia")+'</button></section>';
- const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
+ const actuales=terminadas.filter(x=>semanaDe(x.fecha)===semanaActual);
+ if(capitan&&!t3){
+  const ratificadas=actuales.filter(x=>x.acreditacionVigente);
+  if(!ratificadas.length){host.innerHTML="";return;}
+  const nuevas=ratificadas.filter(x=>!x.vistoCapitan);
+  if(!nuevas.length){
+   host.innerHTML='<button class="btn secondary small" type="button" id="lgnMandoIr">'+
+    'Guardias ratificadas · '+ratificadas.length+'</button>';
+   $("lgnMandoIr").onclick=abrirControlAdmin;
+   return;
+  }
+  host.innerHTML='<section class="card" aria-label="Informes ratificados para el Capitán">'+
+   '<h2>Informe de guardia · Capitán</h2>'+
+   '<p class="sub">'+nuevas.length+' noche(s) ratificada(s) por el Teniente Tercero pendientes de Visto.</p>'+
+   nuevas.map(x=>'<div class="lgn-control-dia" style="padding:10px;margin:7px 0">'+
+     '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
+     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+
+     '<button type="button" class="btn small secondary" data-lgn-consultar="'+escHtml(x.fecha)+'">Ver informe</button>'+
+     '<button type="button" class="btn small" data-lgn-visto="'+escHtml(x.fecha)+'">Visto</button></div></div>').join("")+
+   '</section>';
+  host.querySelectorAll("[data-lgn-consultar]").forEach(btn=>btn.onclick=abrirControlAdmin);
+  host.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
+  return;
+ }
+ const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
+ const semanaEnCurso=items.some(x=>semanaDe(x.fecha)===semanaActual);
+ // T3: durante la semana, o después de ella solo si hay registros pendientes.
+ if(!semanaEnCurso&&!pendientes.length){host.innerHTML="";return;}
+ const conCierre=pendientes.filter(x=>x.cierre).length;
+ const sinCierre=pendientes.filter(x=>!x.cierre).length;
+ const mensaje=pendientes.length?
+  conCierre+' cierre(s) OBAC por ratificar. '+sinCierre+' noche(s) sin cierre del OBAC.':
+  'Sin noches pendientes de ratificación. Revisa la semana en curso.';
+ host.innerHTML='<section class="card" aria-label="Acreditación de guardia nocturna">'+
+   '<h2>Control de guardia · Teniente Tercero</h2><p class="sub">'+escHtml(mensaje)+'</p>'+
+   '<button type="button" class="btn secondary" id="lgnMandoIr">Revisar y ratificar noches</button></section>';
+ const ir=$("lgnMandoIr");if(ir)ir.onclick=abrirPanelMando;
 }
+async function marcarVisto(fecha,boton){
+ if(!capitan||!actual||!boton||boton.disabled)return;
+ boton.disabled=true;
+ const rotulo=boton.textContent;
+ boton.textContent="Guardando Visto…";
+ try{
+  const r=await fetch("/api/guardia/visto",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({fecha,actorId:actual})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(d.error||"No se pudo guardar el Visto.");
+  const item=items.find(x=>x.fecha===fecha);
+  if(item)item.vistoCapitan=true;
+  if(historial){const anterior=historial.find(x=>x.fecha===fecha);if(anterior)anterior.vistoCapitan=true;}
+  pintarResumenMando();pintarControlAdmin();
+ }catch(e){
+  boton.disabled=false;boton.textContent=rotulo;
+  alert("No se guardó el Visto: "+(e.message||"Error de conexión"));
+ }
+}
+
 function abrirPanelMando(){
  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
  setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
@@ -384,6 +427,6 @@ function init(){
  if(id!==actual){formAbierto=false;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
 }
 init();
-setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||soyObacReciente))cargar(false);},5000);
+setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||oficial||soyObacReciente))cargar(false);},5000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!editando&&!formAbierto)cargar(true);});
 })();
