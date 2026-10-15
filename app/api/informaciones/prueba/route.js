@@ -5,13 +5,12 @@
    Requiere verificar límites y retirar este modo antes de usar comunicaciones operativas. */
 import crypto from "node:crypto";
 import {neon} from "@neondatabase/serverless";
-import {ensureSchema,readState,writeState,addToList} from "../../../../lib/state-store.js";
+import {ensureSchema,readState,writeState} from "../../../../lib/state-store.js";
 import {avisoEstaVigente,vencimientoAlPublicar} from "../../../../lib/informaciones-vigencia.mjs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const KEY="informaciones-prueba:v1";
-const LECTURAS="informaciones-prueba-lecturas:";
 const LIMIT_PER_HOUR=12;
 const MAX_RECORDS=100;
 const CACHE={"Cache-Control":"no-store"};
@@ -22,16 +21,15 @@ function sameOrigin(request){
   try{return new URL(origin).origin===new URL(request.url).origin}catch{return false}
 }
 function sqlClient(){return process.env.DATABASE_URL?neon(process.env.DATABASE_URL):null}
-const uuid=id=>typeof id==="string"&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id);
 function trialOfficer(person){
   if(!person||person.activo===false)return false;
   const cargo=String(person.cargo||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   return /capitan|teniente|ayudante|director|secretari|tesorer|jefe de maquinas/.test(cargo)
    ||String(person.clave||"")==="517";
 }
-function publicMessage(entry,reads){
+function publicMessage(entry){
   return {id:entry.id,texto:entry.texto,en:entry.en,vence:entry.vence,
-    autor:entry.autor,destino:"compania",lecturas:Array.isArray(reads)?reads.map(r=>({voluntarioId:String(r.voluntarioId),en:r.en})):[]};
+    autor:entry.autor,destino:"compania"};
 }
 export async function GET(){
   const sql=sqlClient();if(!sql)return err("database_not_configured",503);
@@ -40,11 +38,7 @@ export async function GET(){
     const current=await readState(sql,KEY);
     const items=(Array.isArray(current.value)?current.value:[]).filter(x=>avisoEstaVigente(x))
       .slice(-30).reverse();
-    const reads=await Promise.all(items.map(async n=>{
-      const r=await readState(sql,LECTURAS+n.id);
-      return r.value;
-    }));
-    return Response.json({items:items.map((n,i)=>publicMessage(n,reads[i])),modo:"prueba_compartida"},
+    return Response.json({items:items.map(publicMessage),modo:"prueba_compartida"},
       {headers:CACHE});
   }catch(e){console.error("informaciones prueba GET",e);return err("database_error",500)}
 }
@@ -77,21 +71,7 @@ export async function POST(request){
     return err("intenta_nuevamente",409);
   }catch(e){console.error("informaciones prueba POST",e);return err("database_error",500)}
 }
-export async function PATCH(request){
-  if(!sameOrigin(request))return err("forbidden_origin",403);
-  let body;try{body=await request.json()}catch{return err("invalid_json",400)}
-  if(!uuid(body?.id))return err("id_invalido",400);
-  const lector=String(body?.voluntarioId||"");
-  if(!/^[a-zA-Z0-9_-]{1,80}$/.test(lector))return err("voluntario_invalido",400);
-  const sql=sqlClient();if(!sql)return err("database_not_configured",503);
-  try{
-    await ensureSchema(sql);
-    const [r,v]=await Promise.all([readState(sql,"roster:v8"),readState(sql,KEY)]);
-    if(!Array.isArray(r.value)||!r.value.some(m=>String(m.id)===lector&&m.activo!==false))return err("voluntario_no_en_nomina",400);
-    const item=Array.isArray(v.value)?v.value.find(n=>n?.id===body.id):null;
-    if(!item||!avisoEstaVigente(item))return err("aviso_no_vigente",404);
-    const result=await addToList(sql,LECTURAS+item.id,{voluntarioId:lector,en:new Date().toISOString()},{uniqueBy:"voluntarioId"});
-    if(!result.ok)return err("no_se_pudo_confirmar",409);
-    return Response.json({ok:true},{headers:CACHE});
-  }catch(e){console.error("informaciones prueba PATCH",e);return err("database_error",500)}
+// Confirmaciones de lectura retiradas por decisión operativa: sin acuses ni seguimiento.
+export async function PATCH(){
+  return err("confirmaciones_de_lectura_desactivadas",410);
 }
