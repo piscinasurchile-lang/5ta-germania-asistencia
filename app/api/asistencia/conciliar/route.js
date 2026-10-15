@@ -34,7 +34,7 @@ function vista(plan,meta) {
     errores:resumen(plan.errores),
     duplicadasArchivo:resumen(plan.duplicadasArchivo),
     puedeAplicar:plan.errores.length===0&&plan.ambiguas.length===0&&
-      plan.diferencias.length===0&&plan.duplicadasArchivo.length===0
+      plan.duplicadasArchivo.length===0
   };
 }
 function extraerDatos(rows) {
@@ -85,11 +85,13 @@ export async function POST(request){
     const entries=[];
     for(const a of plan.nuevas){
       const present=Object.entries(a.records).filter(([,estado])=>estado==="presente").map(([id])=>id).sort().join(",");
+      const numero=Number.isInteger(a.sourceNumber)?String(a.sourceNumber).padStart(3,"0"):null;
+      const anio=a.sourceYear||Number(a.date.slice(0,4));
       const id=digest([a.date,normalizar(a.tipo),normalizar(a.detalle),present].join("|")).slice(0,20);
-      const clave=a.date+"__excel_"+id;
+      const clave=a.date+"__excel_"+(numero?anio+"_"+numero:id);
       if(existentes.has(clave)||entries.some(p=>p.clave===clave))return error("Identificador duplicado; revisar Excel",409);
       entries.push({clave,key:"parte:"+clave,parte:{date:a.date,tipo:a.tipo,detalle:a.detalle,
-        records:a.records,registradoPor:"",importado:true,importId:"excel-2026:"+id,importFuente:file.name}});
+        records:a.records,registradoPor:"",importado:true,importId:numero?"cbv:"+anio+":"+numero:"excel:"+id,importFuente:file.name}});
     }
     const indice=datos.index.slice();
     for(const row of datos.fuera){
