@@ -370,6 +370,7 @@
       <div id="gnInscripcionCard" style="grid-column:1 / -1;min-width:0;"></div>
       <div id="inicioRoles" class="gr-roles" style="grid-column:1 / -1;min-width:0;"></div>
       <div id="misNochesInicio" style="grid-column:1 / -1;min-width:0;"></div>
+      <div id="lgnObacHome" style="grid-column:1 / -1;min-width:0;" aria-live="polite"></div>
 
 
       <section class="card home-alert" id="inicioNovedades" style="grid-column:1 / -1;" aria-live="polite">
@@ -603,6 +604,7 @@
 
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia" data-vista="mi">
+    <section class="card solo-oficiales" id="lgnRatif" aria-label="Ratificación de noches de guardia" hidden></section>
     <div class="gr-vista solo-oficiales" id="gnVistaSel"><h2>Gestión de guardia</h2></div>
     <div class="card gn-planner-card solo-oficiales solo-gestion">
       <div class="gn-head"><div><h2>1 · Programación de Guardia</h2><p class="sub">7 noches, de miércoles a martes. Horario: 22:45 a 06:00.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
@@ -849,10 +851,11 @@
     </div>
     <div class="subtabs of-menu" id="ofMenuAgrupado" aria-label="Herramientas de Oficiales">
       <details class="of-grupo of-grupo-guardias" data-of-grupo="guardias">
-        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">4</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
+        <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">5</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
         <div class="of-grupo-botones" aria-label="Guardia y ODD">
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
           <button class="subtab" type="button" id="btnOficialesGuardia">Gestionar Guardias</button>
+          <button class="subtab" type="button" id="btnOficialesAcreditar" hidden>Acreditación de guardia / Novedades</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
         </div>
@@ -1472,6 +1475,7 @@
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
 <script src="./germania-informaciones-prueba.js?v=20261014prueba1"></script>
 <script src="./germania-roles.js?v=20261014informaciones3"></script>
+<script src="./germania-cierre-libro.js?v=20261015cierre1"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
