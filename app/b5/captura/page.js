@@ -2,7 +2,7 @@
 
 import {useEffect,useRef,useState} from "react";
 import {guardarNómina,leerNómina,guardarEdicion,leerEdicion,borrarEdicion,
-  guardarBorrador,listarBorradores,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
+  guardarBorrador,listarBorradores,cambiarBorrador,borrarBorradorLocal,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
 
 const SERVICIOS=["Emergencia","Acto de servicio","Carga de combustible","Ejercicio con material","Mantención","Traslado","Otro"];
 const CITACIONES=["Citación de Compañía","Instrucción","Ejercicio","Curso práctico","Capacitación","Sesión ordinaria","Otro"];
@@ -41,6 +41,14 @@ const fechaLocal=()=>{
 const blanco=t=>t==="servicio"?{svFecha:fechaLocal(),svTipoAct:"Emergencia",registrarAsistencia:true,records:{}}
   :{date:fechaLocal(),tipo:"Citación de Compañía",detalle:"",registradoPor:"",records:{}};
 const nombre=p=>[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" ");
+const resumenParte=(registros,clase)=>{
+  const lista=Object.values(registros||{});
+  return clase==="servicio" ?
+    {presentes:lista.filter(v=>v==="si").length,ausentes:lista.filter(v=>v==="no").length,justificados:0,total:lista.length}:
+    {presentes:lista.filter(v=>v==="presente").length,ausentes:lista.filter(v=>v==="ausente").length,
+      justificados:lista.filter(v=>v==="justificado").length,total:lista.length};
+};
+const fechaLegible=d=>d?d.split("-").reverse().join("-"):"Sin fecha";
 
 export default function CapturaB5(){
   const [tipo,setTipo]=useState("");
@@ -52,6 +60,11 @@ export default function CapturaB5(){
   const [mensaje,setMensaje]=useState("");
   const [guardando,setGuardando]=useState(false);
   const [listaPreparada,setListaPreparada]=useState(false);
+  const [seleccion,setSeleccion]=useState(null);
+  const [edicionRegistro,setEdicionRegistro]=useState(null);
+  const [claveOficial,setClaveOficial]=useState("");
+  const [mensajeDetalle,setMensajeDetalle]=useState("");
+  const [operando,setOperando]=useState(false);
   const guardadoRef=useRef(false);
   const sincronizandoRef=useRef(false);
   const abortRef=useRef(false);
@@ -147,6 +160,152 @@ export default function CapturaB5(){
 
   function actualizarCampo(k,v){setForm(d=>({...d,[k]:v}));}
   function marcar(id,v){setForm(d=>({...d,records:{...d.records,[id]:v}}));}
+
+  async function verRegistro(item,abrirEditor=false){
+    setMensajeDetalle("");
+    setClaveOficial("");
+    setEdicionRegistro(null);
+    const base={...item.datos,anulado:item.estado==="anulado"};
+    setSeleccion({item,datos:base,version:null,remoto:false});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      document.getElementById("detalleRegistroB5")?.scrollIntoView({block:"start",behavior:"smooth"});
+    }));
+    if((item.estado!=="sincronizado"&&item.estado!=="anulado")||conexion!=="online"||item.tipo!=="lista"){
+      if(abrirEditor && item.tipo==="lista" && ["pendiente","revision"].includes(item.estado))
+        setEdicionRegistro({...base,records:{...base.records}});
+      return;
+    }
+    try{
+      const q=new URLSearchParams({id:item.id,date:item.datos.date,tipo:item.datos.tipo});
+      const respuesta=await fetch("/api/b5/registros?"+q.toString(),{cache:"no-store",credentials:"same-origin"});
+      if(!respuesta.ok)throw new Error("El servidor no pudo confirmar el contenido de este parte.");
+      const j=await respuesta.json();
+      if(j.ok){
+        setSeleccion(prev=>prev?.item.id===item.id?
+          {...prev,datos:j.datos,version:j.version,remoto:true}:prev);
+        if(abrirEditor && !j.datos.anulado)setEdicionRegistro({...j.datos,records:{...j.datos.records}});
+      }
+    }catch{
+      setMensajeDetalle("Se muestra la copia guardada en esta tablet. No se pudo consultar la versión vigente de Neon.");
+    }
+  }
+
+  function comenzarEdicion(){
+    if(!seleccion)return;
+    if(seleccion.item.tipo!=="lista"){
+      setMensajeDetalle("La edición de hojas de servicio B-5 requiere su módulo específico.");
+      return;
+    }
+    if((seleccion.item.estado==="sincronizado"||seleccion.item.estado==="anulado") &&
+       (!seleccion.remoto||seleccion.datos.anulado)){
+      setMensajeDetalle("Para corregir este parte, es necesario abrir su versión vigente desde Neon y que no esté anulado.");
+      return;
+    }
+    setEdicionRegistro({...seleccion.datos,records:{...seleccion.datos.records}});
+    setMensajeDetalle("");
+  }
+
+  async function guardarCorreccion(){
+    if(!seleccion||!edicionRegistro||operando)return;
+    const item=seleccion.item;
+    const cuentas=resumenParte(edicionRegistro.records,item.tipo);
+    if(!cuentas.total)return setMensajeDetalle("El registro no contiene una nómina válida.");
+    if(!cuentas.presentes&&!window.confirm("No hay voluntarios presentes. ¿Confirmas que todos quedaron ausentes o justificados?"))return;
+    setOperando(true);
+    setMensajeDetalle("");
+    try{
+      if(item.estado==="sincronizado"){
+        if(conexion!=="online"||!seleccion.remoto)throw new Error("Para corregir en Neon necesitas Internet y el parte actualizado.");
+        const j=await cambiarParteOficial(item,"corregir",edicionRegistro);
+        const actualizado={...item,datos:{...item.datos,...edicionRegistro}};
+        await cambiarBorrador(actualizado);
+        await recargarCola();
+        setSeleccion({item:actualizado,datos:{...edicionRegistro,anulado:false},remoto:true,version:j.version});
+      }else if(item.estado==="pendiente"||item.estado==="revision"){
+        const actualizado={...item,datos:{...edicionRegistro},estado:"pendiente",error:""};
+        await cambiarBorrador(actualizado);
+        await recargarCola();
+        setSeleccion({item:actualizado,datos:actualizado.datos,remoto:false,version:null});
+      }else throw new Error("No se puede modificar una asistencia anulada.");
+      setEdicionRegistro(null);
+      setClaveOficial("");
+      setMensajeDetalle("Corrección guardada. No se creó un parte duplicado.");
+      if(item.estado!=="sincronizado"&&conexion==="online")actualizar();
+    }catch(e){setMensajeDetalle(e.message||"No se pudo corregir la asistencia.");}
+    finally{setOperando(false);}
+  }
+
+  async function cambiarParteOficial(item,accion,campos){
+    if(!seleccion?.remoto||!Number.isInteger(seleccion.version))throw new Error("Actualiza el parte desde Neon antes de continuar.");
+    if(!claveOficial.trim())throw new Error("Ingresa la clave de Oficialidad para modificar un parte sincronizado.");
+    const sesion=await fetch("/api/auth/officiality",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      credentials:"same-origin",body:JSON.stringify({pin:claveOficial})
+    });
+    if(!sesion.ok)throw new Error("Clave de Oficialidad incorrecta o acceso no configurado.");
+    const response=await fetch("/api/b5/registros",{
+      method:"PATCH",headers:{"Content-Type":"application/json"},credentials:"same-origin",
+      body:JSON.stringify({id:item.id,date:item.datos.date,tipo:item.datos.tipo,version:seleccion.version,
+        accion,cambios:campos?{records:campos.records,detalle:campos.detalle||"",
+          registradoPor:campos.registradoPor||""}:null})
+    });
+    const j=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(j.error==="version_conflict"?
+      "El parte fue modificado por otra persona. Cierra y vuelve a abrir para ver la versión actual.":
+      j.error==="oficialidad_requerida"?"Debes autorizarte como Oficialidad.":
+      "No se pudo actualizar el parte oficial ("+(j.error||response.status)+").");
+    return j;
+  }
+
+  async function eliminarRegistro(){
+    if(!seleccion||operando)return;
+    const item=seleccion.item;
+    if(item.estado==="anulado")return;
+    const confirmado=item.estado==="sincronizado";
+    const pregunta=confirmado?
+      "¿Anular el parte oficial N.º "+item.numero+"? Dejará de contar en las estadísticas, pero se conservará para auditoría y podrá restaurarse.":
+      "¿Eliminar esta captura pendiente de la tablet? Todavía no fue confirmada en Neon.";
+    if(!window.confirm(pregunta))return;
+    setOperando(true);
+    setMensajeDetalle("");
+    try{
+      if(confirmado){
+        if(conexion!=="online"||!seleccion.remoto)throw new Error("Para anular en Neon necesitas estar en línea y abrir la versión actual.");
+        const j=await cambiarParteOficial(item,"anular",null);
+        const actualizado={...item,estado:"anulado"};
+        await cambiarBorrador(actualizado);
+        await recargarCola();
+        setSeleccion({...seleccion,item:actualizado,datos:{...seleccion.datos,anulado:true},version:j.version});
+        setMensajeDetalle("Parte anulado en Neon. Su información y número oficial siguen conservados.");
+      }else{
+        await borrarBorradorLocal(item.id);
+        await recargarCola();
+        setSeleccion(null);
+        setMensaje("Captura pendiente retirada de esta tablet. No se modificaron partes oficiales.");
+      }
+      setEdicionRegistro(null);
+      setClaveOficial("");
+    }catch(e){setMensajeDetalle(e.message||"No se pudo realizar la operación.");}
+    finally{setOperando(false);}
+  }
+
+  async function restaurarRegistro(){
+    if(!seleccion||seleccion.item.estado!=="anulado"||operando)return;
+    if(!window.confirm("¿Restaurar el parte oficial y volver a incluirlo en las estadísticas?"))return;
+    setOperando(true);
+    try{
+      const item=seleccion.item;
+      const j=await cambiarParteOficial(item,"restaurar",null);
+      const actualizado={...item,estado:"sincronizado"};
+      await cambiarBorrador(actualizado);
+      await recargarCola();
+      setSeleccion({...seleccion,item:actualizado,datos:{...seleccion.datos,anulado:false},version:j.version});
+      setMensajeDetalle("Parte restaurado correctamente.");
+      setClaveOficial("");
+    }catch(e){setMensajeDetalle(e.message||"No se pudo restaurar.");}
+    finally{setOperando(false);}
+  }
+
   async function guardar(){
     if(guardando||!nomina.length||!listaPreparada)return;
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Debes indicar fecha y tipo de citación.");
@@ -157,6 +316,7 @@ export default function CapturaB5(){
       const defecto=tipo==="servicio"?"no":"ausente";
       const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
       const datos={...form,records};
+      if(tipo==="lista"&&!resumenParte(records,"lista").presentes && !window.confirm("No hay voluntarios presentes. ¿Guardar igualmente esta lista con cero presentes?"))return;
       if(tipo==="lista"&&form.tipo==="Otro"){
         if(!String(form.tipoPersonalizado||"").trim())throw new Error("Indica qué citación se está registrando.");
         datos.tipo=String(form.tipoPersonalizado).trim();
@@ -260,10 +420,83 @@ export default function CapturaB5(){
         </a>}
         {cola.length>0&&<section className="historial">
           <h3>Registros de esta tablet</h3>
-          {cola.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>
-            <div className="registro" key={x.id}><span>{x.tipo==="servicio"?"Emergencias":"Asistencia"} · {x.datos?.date||x.datos?.svFecha||""}</span>
-              <strong>{x.estado==="sincronizado"?"Sincronizado · N° "+x.numero:x.estado==="revision"?"Requiere revisión":"Pendiente de Internet"}</strong>
-              {x.estado==="revision"&&<small>{x.error}</small>}</div>)}
+          {cola.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>{
+            const r=resumenParte(x.datos?.records,x.tipo);
+            return <div className="registro registroB5" key={x.id}>
+              <div className="registroEncabezado">
+                <strong>{x.tipo==="servicio"?"Emergencias":"Asistencia"} · {fechaLegible(x.datos?.date||x.datos?.svFecha)}</strong>
+                <span>{x.estado==="anulado"?"Anulado · N° "+x.numero:
+                  x.estado==="sincronizado"?"Sincronizado · N° "+x.numero:
+                  x.estado==="revision"?"Requiere revisión":"Pendiente de Internet"}</span>
+              </div>
+              <div className="registroTotales">Presentes: {r.presentes} · Ausentes: {r.ausentes}
+                {x.tipo==="lista"?" · Justificados: "+r.justificados:""} · Total: {r.total}
+              </div>
+              {r.total>0&&r.presentes===0&&<div className="alertaVacia">Atención: ningún voluntario figura presente en esta lista.</div>}
+              {x.estado==="revision"&&<small>{x.error}</small>}
+              <div className="accionesRegistro">
+                <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
+                <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"} onClick={()=>verRegistro(x,true)}>Editar</button>
+                <button type="button" className="accionPeligro" onClick={async()=>{await verRegistro(x);setMensajeDetalle("Revisa los datos y elige Anular o Eliminar dentro del detalle.");}}>Borrar</button>
+              </div>
+            </div>;
+          })}
+          {seleccion&&<section className="detalleRegistro" id="detalleRegistroB5">
+            <div className="registroEncabezado">
+              <h3>Parte {seleccion.item.numero?"N.º "+seleccion.item.numero:"sin número"} · {fechaLegible(seleccion.datos.date||seleccion.datos.svFecha)}</h3>
+              <button type="button" onClick={()=>{setSeleccion(null);setEdicionRegistro(null);setMensajeDetalle("");}}>Cerrar</button>
+            </div>
+            <p>{seleccion.datos.tipo||seleccion.datos.svTipoAct} · {seleccion.datos.detalle||"Sin detalle"}</p>
+            {seleccion.item.estado==="sincronizado"&&!seleccion.remoto&&
+              <p className="avisoLocal">Vista desde la copia de esta tablet. Para corregir o anular se necesita confirmar el parte vigente en Neon.</p>}
+            {seleccion.datos.anulado&&<p className="alertaVacia">Este parte está anulado. Se conserva para auditoría y no suma asistencia.</p>}
+            <div className="detalleTotales">
+              {(()=>{const a=resumenParte((edicionRegistro||seleccion.datos).records,seleccion.item.tipo);
+                return "Presentes: "+a.presentes+" · Ausentes: "+a.ausentes+
+                  (seleccion.item.tipo==="lista"?" · Justificados: "+a.justificados:"")+" · Total: "+a.total;})()}
+            </div>
+            {edicionRegistro&&<div className="campos">
+              <label>Detalle<input value={edicionRegistro.detalle||""}
+                onChange={e=>setEdicionRegistro(v=>({...v,detalle:e.target.value}))}/></label>
+              <label>Registrado por<input value={edicionRegistro.registradoPor||""}
+                onChange={e=>setEdicionRegistro(v=>({...v,registradoPor:e.target.value}))}/></label>
+            </div>}
+            <div className="detallePersonas">
+              {Object.entries((edicionRegistro||seleccion.datos).records||{}).map(([id,status])=>{
+                const persona=nomina.find(p=>String(p.id)===String(id));
+                const estados=seleccion.item.tipo==="servicio"?[["si","Concurre"],["no","No concurre"]]:
+                  [["presente","Presente"],["ausente","Ausente"],["justificado","Justificado"]];
+                return <div className="persona" key={id}>
+                  <div className="nombre"><strong>{persona?nombre(persona):"Voluntario ID "+id}</strong>
+                    <small>{persona?.cargo||"Registro histórico"}</small></div>
+                  {edicionRegistro?<div className="opciones">{estados.map(([valor,etiqueta])=>
+                    <button key={valor} type="button" className={status===valor?"seleccionado":""}
+                      onClick={()=>setEdicionRegistro(v=>({...v,records:{...v.records,[id]:valor}}))}>{etiqueta}</button>)}</div>:
+                    <strong className="estadoIndividual">{estados.find(([v])=>v===status)?.[1]||status}</strong>}
+                </div>;
+              })}
+            </div>
+            {(seleccion.item.estado==="sincronizado"||seleccion.item.estado==="anulado")&&
+              <label className="claveOficial">Clave de Oficialidad para modificar el parte oficial
+                <input type="password" autoComplete="off" value={claveOficial} onChange={e=>setClaveOficial(e.target.value)}/>
+              </label>}
+            <div className="accionesRegistro detalleAcciones">
+              {!edicionRegistro&&seleccion.item.estado!=="anulado"&&seleccion.item.tipo==="lista"&&
+                <button type="button" disabled={operando} onClick={comenzarEdicion}>Editar asistencia</button>}
+              {edicionRegistro&&<>
+                <button type="button" disabled={operando} onClick={guardarCorreccion}>Guardar corrección</button>
+                <button type="button" disabled={operando} onClick={()=>setEdicionRegistro(null)}>Cancelar</button>
+              </>}
+              {!edicionRegistro&&seleccion.item.estado!=="anulado"&&
+                <button type="button" disabled={operando||(seleccion.item.estado==="sincronizado"&&!seleccion.remoto)}
+                  className="accionPeligro" onClick={eliminarRegistro}>
+                  {seleccion.item.estado==="sincronizado"?"Anular parte oficial":"Eliminar captura local"}
+                </button>}
+              {!edicionRegistro&&seleccion.item.estado==="anulado"&&
+                <button type="button" disabled={operando||!seleccion.remoto} onClick={restaurarRegistro}>Restaurar parte</button>}
+            </div>
+            {!!mensajeDetalle&&<p className="avisoLocal" role="status">{mensajeDetalle}</p>}
+          </section>}
         </section>}
       </section>
       <style>{`
@@ -304,6 +537,24 @@ export default function CapturaB5(){
         .formularioCompleto{display:inline-block;border:1px solid #688299;border-radius:8px;padding:11px 14px;
           color:#d9e8f8;background:#223246;text-decoration:none;margin:5px 0 12px;font-size:13px}
         .historial{margin-top:20px}.historial h3{font-size:16px}
+        .registroB5{display:grid;gap:8px;padding:15px 0}
+        .registroEncabezado{display:flex;gap:9px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+        .registroEncabezado h3{margin:0}
+        .registroEncabezado>span{color:#e8c66d;font-size:13px;font-weight:700}
+        .registroTotales,.detalleTotales{font-size:14px;color:#c6e1f3}
+        .alertaVacia{background:#5d281c;color:#fff1d2;padding:8px 10px;border:1px solid #d38c64;border-radius:8px;font-size:13px}
+        .accionesRegistro{display:flex;flex-wrap:wrap;gap:7px}
+        .accionesRegistro button,.registroEncabezado button{padding:8px 13px;background:#233c53;
+          border:1px solid #6586a3;color:white;border-radius:7px;font-size:13px;font-weight:700}
+        .accionesRegistro button:disabled{opacity:.35;cursor:not-allowed}
+        .accionesRegistro .accionPeligro{border-color:#c36e75;color:#ffd1d6;background:#40272f}
+        .detalleRegistro{border:1px solid #67829b;background:#182c3c;border-radius:12px;
+          margin-top:17px;padding:16px}
+        .detallePersonas{max-height:420px;overflow:auto;margin:13px 0}
+        .estadoIndividual{font-size:14px;color:#d0e6fb}
+        .claveOficial{display:grid;gap:7px;font-size:13px;margin:15px 0;max-width:330px}
+        .avisoLocal{color:#ffd18d;font-size:13px;margin-top:12px}
+        .detalleAcciones{margin-top:12px}
         .registro{padding:10px 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #3e5267}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
         @media(max-width:620px){.capturaB5{padding:10px}.campos{grid-template-columns:1fr}

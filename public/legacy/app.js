@@ -1175,6 +1175,7 @@ async function setParte(c,d){
    Solo registros explícitos generan obligación: citaciones y emergencias B-5.
    Guardia Nocturna queda fuera de este cálculo. */
 function origenAsistencia(pt){
+  if(pt?.anulado===true) return {cuenta:false,categoria:"Otras"};
   const o=String(pt?.origenAsistencia||"");
   if(o==="emergencia_b5") return {cuenta:true,categoria:"Emergencias"};
   if(o==="comandancia_citacion") return {cuenta:true,categoria:"Comandancia"};
@@ -3199,7 +3200,7 @@ async function renderHistorial(){
     const c=countStatuses(p.records);
     const div=document.createElement("div"); div.className="hist-item";
     div.innerHTML=`<div>
-        <div class="hist-date">${fmtDateLong(p.date)} <span class="badge">${esc(p.tipo)}</span>${p.numero?` <span class="badge">N° ${String(p.numero).padStart(3,"0")}/${p.anio}</span>`:""}</div>
+        <div class="hist-date">${fmtDateLong(p.date)} <span class="badge">${esc(p.tipo)}</span>${p.numero?` <span class="badge">N° ${String(p.numero).padStart(3,"0")}/${p.anio}</span>`:""}${p.anulado?` <span class="badge">ANULADO</span>`:""}</div>
         <div class="hist-acto">${esc(p.detalle||"Sin detalle")}${p.registradoPor?" · Pasó lista: "+esc(p.registradoPor):""}</div>
       </div>
       <div class="hist-right">
