@@ -749,6 +749,7 @@
         <button class="btn gold" id="pnPdf">Informe en PDF</button>
         <button class="btn secondary" id="pnInfo">Infografía</button>
         <button class="btn secondary" id="pnCsv">Exportar a Excel</button>
+        <button class="btn secondary" id="pnInicio" type="button">Volver al inicio</button>
       </div>
       <div class="foot-note" id="pnCorte"></div>
       <div id="pnImport" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
@@ -790,11 +791,17 @@
 
     <div class="card">
       <h2>Asistencia de voluntarios</h2>
-      <p class="sub">Resumen simple. El detalle se carga solo cuando se solicita.</p>
-      <table>
-        <thead><tr><th class="name-col">Voluntario</th><th>%</th><th>Detalle</th></tr></thead>
+      <p class="sub">Tabla compacta por apellido paterno. La consulta individual se abre debajo solo cuando eliges una persona.</p>
+      <div class="pn-tabla-wrap"><table class="pn-tabla-porcentajes">
+        <thead><tr><th class="name-col">Apellido</th><th>Asist.</th><th>Citac.</th><th>%</th></tr></thead>
         <tbody id="pnDetalle"></tbody>
-      </table>
+      </table></div>
+      <div class="pn-busqueda-individual">
+        <label for="pnPersonaSelect"><strong>Consultar asistencia individual</strong></label>
+        <select id="pnPersonaSelect" aria-label="Selecciona un voluntario"><option value="">Selecciona un voluntario…</option></select>
+        <div id="pnPersonaDetalle" aria-live="polite"><p class="sub">Selecciona el nombre completo para ver asistencias, inasistencias, categorías y fechas.</p></div>
+        <button class="btn gold small" type="button" id="pnPersonaPdf" disabled>Descargar informe individual en PDF</button>
+      </div>
     </div>
 
     <div class="card">
