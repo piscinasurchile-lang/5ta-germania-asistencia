@@ -23,15 +23,16 @@ async function estado(k){var r=await fetch("/api/state/"+encodeURIComponent(k),{
 async function consultar(id){var r=await fetch("/api/guardia/libro?actorId="+encodeURIComponent(id),{cache:"no-store"});if(!r.ok)throw Error("lectura");return (await r.json()).items||[];}
 function contenedor(titulo,interior){return '<section class="card" style="margin:10px 0"><h2>'+titulo+'</h2>'+interior+'</section>';}
 async function verObac(id,registros){
+  var destino=document.getElementById("gnLibroObac")||lugar;
   var tiempo=local(),fecha=mover(tiempo.fecha,tiempo.hora<"06:00"?-2:-1);
   var semana=await estado("guardia-revision:"+miercoles(fecha));
   var rev=semana.value,n=rev?.noches?.[fecha];
-  if(!rev||rev.estado!=="aprobada"||String(n?.obac)!==id){lugar.innerHTML="";return;}
+  if(!rev||rev.estado!=="aprobada"||String(n?.obac)!==id){destino.innerHTML="";return;}
   if(registros.some(x=>x.fecha===fecha)){
-    lugar.innerHTML=contenedor("Libro de guardia nocturna",'<p class="sub">Cierre del '+txt(fecha)+' enviado al Teniente Tercero y Capitán. Pendiente de ratificación.</p>');
+    destino.innerHTML=contenedor("Libro de guardia nocturna",'<p class="sub">Cierre del '+txt(fecha)+' enviado al Teniente Tercero y Capitán. Pendiente de ratificación.</p>');
     return;
   }
-  lugar.innerHTML=contenedor("Cierre libro guardia nocturna",
+  destino.innerHTML=contenedor("Cierre libro guardia nocturna",
     '<p class="sub">Eres OBAC de la noche '+txt(fecha)+'. Después de cerrar el libro físico, toma una fotografía legible y registra las novedades.</p>'
     +'<label class="rv-lbl" for="lgFoto">Fotografía del libro de guardia (obligatoria)</label>'
     +'<input type="file" id="lgFoto" accept="image/jpeg,image/webp,image/*" capture="environment" style="max-width:100%">'
@@ -132,12 +133,13 @@ async function formRatificar(registro,id,indice){
  }catch(e){box.textContent="No se pudo cargar la dotación aprobada.";}
 }
 async function verOficial(id,registros,esT3){
- if(!registros.length){lugar.innerHTML="";return;}
+ var destino=document.getElementById("gnLibroOficial")||lugar;
+ if(!registros.length){destino.innerHTML="";return;}
  var pendiente=registros.filter(r=>r.estado_acreditacion!=="acreditada");
  var ordenados=(esT3?pendiente:registros).slice(0,8);
- if(!ordenados.length){lugar.innerHTML=contenedor("Libro de guardia nocturna","<p class='sub'>No hay cierres pendientes de ratificación.</p>");return;}
+ if(!ordenados.length){destino.innerHTML=contenedor("Libro de guardia nocturna","<p class='sub'>No hay cierres pendientes de ratificación.</p>");return;}
  var subtitulo=esT3?"Cierres recibidos · verifica y ratifica":"Novedades enviadas por los OBAC";
- lugar.innerHTML=contenedor(esT3?"Ratificación de guardia nocturna":"Libro de guardia · Capitán",
+ destino.innerHTML=contenedor(esT3?"Ratificación de guardia nocturna":"Libro de guardia · Capitán",
  '<p class="sub">'+subtitulo+'</p>'+ordenados.map(function(r,i){
   return '<details class="gr-det" '+(i===0?"open":"")+'><summary>'+txt(r.fecha)+' · '+(r.estado_acreditacion==="acreditada"?"Ratificada":"Pendiente")+'</summary>'
     +fotoYDetalle(r,id)+(esT3?'<div id="lgRatificar'+i+'">Cargando integrantes…</div>':"")+'</details>';
@@ -154,8 +156,9 @@ async function refrescar(forzar){
  try{
   var p=quien(id);if(!p){lugar.innerHTML="";return;}
   var registros=await consultar(id),cargo=rol(p);
+  lugar.innerHTML='<div id="gnLibroObac"></div><div id="gnLibroOficial"></div>';
+  await verObac(id,registros);
   if(cargo==="t3"||cargo==="capitan")await verOficial(id,registros,cargo==="t3");
-  else await verObac(id,registros);
  }catch(e){lugar.innerHTML=contenedor("Libro de guardia","<p class='sub'>No se pudo sincronizar el cierre del libro. Comprueba la conexión.</p>");}
  finally{ocupado=false;}
 }
