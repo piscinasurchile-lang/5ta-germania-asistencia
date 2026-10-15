@@ -637,9 +637,13 @@
     <section class="card" id="lgnAdminPanel" aria-label="Control Guardia Diaria" hidden></section>
   </div>
 
-  <!-- GUARDIA NOCTURNA -->
-  <div class="panel" id="panel-guardia" data-vista="mi">
+  <!-- ACREDITACIÓN DIARIA: pantalla hermana de Guardia Nocturna; no entra a gestión de guardias. -->
+  <div class="panel" id="panel-acreditacion-guardia">
     <section class="card solo-oficiales" id="lgnRatif" aria-label="Ratificación de noches de guardia" hidden></section>
+  </div>
+
+  <!-- GUARDIA NOCTURNA: exclusivamente inscripción, programación y ODD. -->
+  <div class="panel" id="panel-guardia" data-vista="mi">
     <div class="gr-vista solo-oficiales" id="gnVistaSel"><h2>Gestión de guardia</h2></div>
     <div class="card gn-planner-card solo-oficiales solo-gestion">
       <div class="gn-head"><div><h2>1 · Programación de Guardia</h2><p class="sub">7 noches, de miércoles a martes. Horario: 22:45 a 06:00.</p></div><span id="gnSyncBadge" class="badge">Sincronizado</span></div>
