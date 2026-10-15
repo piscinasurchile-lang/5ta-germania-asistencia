@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,admin=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
+let actual="",items=[],t3=false,capitan=false,admin=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -252,12 +252,13 @@ function pintarResumenMando(){
  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
 }
 function abrirPanelMando(){
- if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("guardia");
+ if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
  setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
 }
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
- const mando=t3||capitan;area.hidden=!mando;if(btn)btn.hidden=!mando;
+ const mando=t3||capitan;area.hidden=!mando;
+ if(btn){btn.hidden=!mando;btn.textContent=t3?"Control Guardia Diaria · Ratificar":"Control Guardia Diaria · Informes";}
  if(!mando){area.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
@@ -266,7 +267,10 @@ function pintarOficial(){
  let h='<h2>'+(t3?"Acreditación de guardia nocturna":"Informes de noches ratificadas")+'</h2>'+
  '<p class="sub">'+(t3?"Ratifica cada noche solamente después del cierre del libro por el OBAC.":"Solo consulta: aquí aparecen las noches después de la ratificación del Teniente Tercero. No puedes modificar sus registros.")+'</p>'+
  '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. El cierre OBAC no suma asistencia por sí solo.":"Informes recibidos: "+actualizados.length+". La información es de solo lectura.")+'</p>'+
- '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>';
+ '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+ '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>'+
+ '<button type="button" class="btn small secondary" id="lgnVolverInicio">Volver al inicio</button></div>'+
+ (ultimaRatificacion?'<p class="lgn-control-estado ok" role="status">Guardia del '+escHtml(fechaBonita(ultimaRatificacion))+' ratificada correctamente.</p>':"");
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
   const titulo=etiquetaGuardia(x.fecha);
@@ -307,6 +311,7 @@ function pintarOficial(){
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
  $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
+ $("lgnVolverInicio").onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
  area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>{
    estadoSeleccionAsistencia(sel);
    sel.addEventListener("change",()=>{editando=true;estadoSeleccionAsistencia(sel);});
@@ -334,6 +339,7 @@ async function ratificar(fecha,boton){
     body:JSON.stringify({fecha,actorId:actual,asistencias,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
+  ultimaRatificacion=fecha;
   editando=false;await cargar(true);
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }
@@ -350,7 +356,7 @@ function init(){
   };
  }
  const m=elegido(),id=m?String(m.id):"";
- if(id!==actual){formAbierto=false;ultimaCarga=0;cargar(true);}
+ if(id!==actual){formAbierto=false;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
 }
 init();
 setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||soyObacReciente))cargar(false);},5000);
