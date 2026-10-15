@@ -21,7 +21,16 @@ export async function POST(request){
         AND vapid_public=${cfg.publicKey} AND origen=${new URL(request.url).origin}
         AND invalida=false AND (ultimo_test IS NULL OR ultimo_test<now()-interval '60 seconds')
       RETURNING endpoint,p256dh,auth,endpoint_hash`;
-    if(!rows.length)return error("suscripcion_inexistente_o_limite_pruebas",429);
+    if(!rows.length){
+      const guardados=await sql`SELECT ultimo_test FROM germania_push_suscripciones
+        WHERE endpoint_hash=${subscription.endpointHash} AND auth=${subscription.auth}
+        AND vapid_public=${cfg.publicKey} AND origen=${new URL(request.url).origin} AND invalida=false
+        LIMIT 1`;
+      if(!guardados.length)return error("suscripcion_no_registrada",404);
+      const fecha=Date.parse(guardados[0].ultimo_test||"");
+      const espera=Number.isFinite(fecha)?Math.max(1,Math.ceil((fecha+60000-Date.now())/1000)):60;
+      return Response.json({error:"esperar_entre_pruebas",reintentarEnSegundos:espera},{status:429,headers:cache});
+    }
     const push=await enviarPush(rows[0],{
       tipo:"germania-informacion",clase:"prueba",
       titulo:"PRUEBA GERMANIA · No es emergencia",url:"/"},cfg);

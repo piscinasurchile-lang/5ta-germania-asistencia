@@ -33,8 +33,18 @@ export default function ConfiguracionAvisos(){
         const sub=await reg?.pushManager?.getSubscription?.();
         if(!vivo)return;
         setPruebaDisponible(!!config.pruebaDisponible);
-        setHabilitado(!!sub&&!!config.disponible);
-        setEstado(!config.disponible?"El servicio todavía no está habilitado en esta versión.":sub?"Avisos activados en este dispositivo.":"Avisos todavía no activados en este dispositivo.");
+        if(sub&&config.disponible&&Notification.permission==="granted"){
+          const confirmado=await fetch("/api/push/suscripcion",{
+            method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify(sub.toJSON())
+          });
+          if(!vivo)return;
+          setHabilitado(confirmado.ok);
+          setEstado(confirmado.ok?"Avisos activados y registrados en Germania.":"No se pudo verificar el registro. Toca Activar avisos.");
+        }else{
+          setHabilitado(false);
+          setEstado(config.disponible?"Avisos todavía no activados en este dispositivo.":"El servicio todavía no está habilitado.");
+        }
       }catch{if(vivo)setEstado("No se pudo comprobar el estado. Comprueba tu conexión.")}
     })();
     void limpiarPunto();
@@ -80,11 +90,21 @@ export default function ConfiguracionAvisos(){
       const reg=await navigator.serviceWorker.ready;
       const sub=await reg.pushManager.getSubscription();
       if(!sub)throw Error("Primero activa las notificaciones.");
+      const registro=await fetch("/api/push/suscripcion",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(sub.toJSON())
+      });
+      if(!registro.ok)throw Error("No se pudo confirmar el registro del teléfono. Comprueba la conexión.");
       const res=await fetch("/api/push/prueba",{
         method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub.toJSON())
       });
       const respuesta=await res.json();
-      if(!res.ok)throw Error(respuesta.error||"No llegó el envío de prueba.");
+      if(!res.ok){
+        if(res.status===429)throw Error("Ya se solicitó una prueba. Espera "+(respuesta.reintentarEnSegundos||60)+" segundos.");
+        if(respuesta.error==="suscripcion_no_registrada")throw Error("No se pudo comprobar el registro. Intenta de nuevo.");
+        if(respuesta.estado)throw Error("El proveedor rechazó el aviso (código "+respuesta.estado+").");
+        throw Error("El aviso no se pudo enviar. Intenta nuevamente.");
+      }
       setEstado("El servidor aceptó el envío de prueba. Cierra Germania y revisa si aparece una notificación del teléfono.");
     }catch(e){setEstado(e?.message||"Prueba fallida. Intenta de nuevo en un minuto.");}
     finally{setOcupado(false);}
