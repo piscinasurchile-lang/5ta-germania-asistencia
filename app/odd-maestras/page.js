@@ -176,7 +176,7 @@ export default function Page(){
  };
  const asBlob=d=>d instanceof Uint8Array?new Blob([d],{type:"application/pdf"}):d.output("blob");
  const previewPdf=async()=>{try{const d=await pdf();if(!d)return;const blob=asBlob(d);if(pdfUrl)URL.revokeObjectURL(pdfUrl);const url=URL.createObjectURL(blob);setPdfUrl(url);setStatus("Vista previa PDF actualizada.");}catch(e){setStatus("No fue posible generar la vista previa PDF.")}};
- const guardReady=()=>type!=="guardia"||guardWeek.length===7;
+ const guardReady=()=>type!=="guardia"||(originalDisponible&&guardWeek.length===7&&guardWeek.every(g=>g.complete&&g.estadoRevision==="aprobada"&&g.people.length>=3));
  const downloadPdf=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;d.save("ODD_"+odd.replace("/","_")+".pdf");setStatus("PDF descargado."+(type==="guardia"&&guardWeek.some(x=>!x.complete)?" La dotación incompleta está señalada en el documento.":""))}catch(e){setStatus("No fue posible generar el PDF.")}};
  const share=async()=>{try{if(!guardReady()){setStatus("Selecciona y carga las siete noches de la semana antes de generar la ODD.");return}const d=await pdf();if(!d)return;const blob=d.output("blob"),file=new File([blob],"ODD_"+odd.replace("/","_")+".pdf",{type:"application/pdf"});if(navigator.canShare?.({files:[file]})){await navigator.share({title:"ODD "+odd,files:[file]})}else if(navigator.share){await navigator.share({title:"ODD "+odd,text:f.title})}else{setStatus("Compartir no está disponible en este navegador.")}}catch(e){if(e?.name!=="AbortError")setStatus("No fue posible compartir.")}};
  const odd=useMemo(()=>String(f.number||"___").padStart(3,"0")+"/"+f.year,[f.number,f.year]);
