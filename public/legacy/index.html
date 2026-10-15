@@ -631,9 +631,13 @@
     </div>
   </div>
 
+  <!-- CONTROL GUARDIA DIARIA: módulo hermano de Guardia Nocturna; no está anidado en ella. -->
+  <div class="panel" id="panel-control-guardia-diaria">
+    <section class="card" id="lgnAdminPanel" aria-label="Control Guardia Diaria" hidden></section>
+  </div>
+
   <!-- GUARDIA NOCTURNA -->
   <div class="panel" id="panel-guardia" data-vista="mi">
-    <section class="card solo-oficiales" id="lgnAdminPanel" aria-label="Panel de control del administrador" hidden></section>
     <section class="card solo-oficiales" id="lgnRatif" aria-label="Ratificación de noches de guardia" hidden></section>
     <div class="gr-vista solo-oficiales" id="gnVistaSel"><h2>Gestión de guardia</h2></div>
     <div class="card gn-planner-card solo-oficiales solo-gestion">
@@ -884,8 +888,8 @@
         <summary><span class="of-grupo-icon" aria-hidden="true">▤</span><span class="of-grupo-tit"><strong>Guardia y ODD</strong><small>Órdenes, guardias, informes e historial</small></span><span class="of-grupo-count">6</span><span class="of-grupo-arrow" aria-hidden="true">▾</span></summary>
         <div class="of-grupo-botones" aria-label="Guardia y ODD">
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
-          <button class="subtab" type="button" id="btnOficialesGuardia">Gestionar Guardias</button>
-          <button class="subtab" type="button" id="btnAdminGuardia" hidden>Mi panel de control</button>
+          <button class="subtab" type="button" id="btnOficialesGuardia">Guardia Nocturna</button>
+          <button class="subtab" type="button" id="btnAdminGuardia" hidden>Control Guardia Diaria</button>
           <button class="subtab" type="button" id="btnOficialesAcreditar" hidden>Acreditación de guardia / Novedades</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
@@ -1506,7 +1510,7 @@
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
 <script src="./germania-informaciones-prueba.js?v=20261014prueba1"></script>
 <script src="./germania-roles.js?v=20261014informaciones3"></script>
-<script src="./germania-cierre-libro.js?v=20261015cierre4"></script>
+<script src="./germania-cierre-libro.js?v=20261015cierre5"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
