@@ -5236,33 +5236,48 @@ const avisoFechaCorta=a=>{ const c=a.cuando; if(!c||!c.fecha) return ""; const f
 async function renderAvisosOdd(forzar){
   const box=document.getElementById("avisosOdd"); if(!box) return;
   const ahora=Date.now();
-  const lista=(await cargarAvisosOdd(forzar)).filter(a=>avisoVigente(a,ahora)).sort((x,y)=>String(x.visibleHasta||"~").localeCompare(String(y.visibleHasta||"~")));
-  if(!lista.length){ if(box.innerHTML) box.innerHTML=""; return; }
-  if(lista.length<=2) AVISOS_VER_TODAS=false;
-  const visibles=AVISOS_VER_TODAS?lista:lista.slice(0,2), resto=lista.length-visibles.length;
-  const html=visibles.map(a=>{
-    const hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity, nueva=!avisoVisto(a.id);
-    /* El tipo solo se muestra si el título no lo dice ya («Academia de Extricación I» no repite «Academia») */
-    const tipo=AVISO_TIPOS[a.tipo]||"", verTipo=tipo&&a.tipo!=="otro"&&!avisoN(a.titulo).includes(avisoN(tipo));
-    const linea=[verTipo?tipo:"",avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",(isFinite(hasta)&&a.cuando)?"faltan "+avisoRestante(hasta,ahora):""].filter(Boolean).join(" · ")||"Toca para ver el detalle";
-    return `<div class="card" role="button" tabindex="0" data-aviso-odd="${esc(a.id||"")}" style="display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow:hidden;text-align:left;cursor:pointer;border:1px solid #c9a227;margin-bottom:8px;padding:8px 12px;color:#101214;">
-      <div style="display:flex;gap:8px;align-items:center;min-width:0;">
-        ${nueva?'<span style="flex:none;background:#c9a227;color:#000;border-radius:999px;padding:0 9px;font-size:12px;font-weight:700;">Nueva</span>':""}
-        <b style="flex:1 1 auto;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.titulo||"")}</b></div>
-      <div style="font-size:13px;color:#5f6b76;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(linea)}</div>
-    </div>`;
-  }).join("")+(resto>0?`<button type="button" class="btn small secondary" data-odd-mas style="margin:0 0 10px;">+${resto} ODD vigente${resto===1?"":"s"} · ver</button>`:"");
+  const lista=(await cargarAvisosOdd(forzar)).filter(a=>avisoVigente(a,ahora))
+    .sort((x,y)=>String(y.publicadaEn||"").localeCompare(String(x.publicadaEn||"")));
+  if(!lista.length){if(box.innerHTML)box.innerHTML="";return;}
+  // Tres ODD caben visibles en un mismo recuadro; las restantes se despliegan a pedido.
+  if(lista.length<=3)AVISOS_VER_TODAS=false;
+  const visibles=AVISOS_VER_TODAS?lista:lista.slice(0,3),resto=lista.length-visibles.length;
+  const filas=visibles.map(a=>{
+    const nueva=!avisoVisto(a.id),tipo=AVISO_TIPOS[a.tipo]||"Orden del Día";
+    const titulo=String(a.titulo||"Orden del Día").trim();
+    const subtitulo=[tipo,avisoFechaCorta(a),a.lugar?String(a.lugar).split(",")[0]:"",
+      a.pdf?"PDF disponible":""].filter(Boolean).join(" · ");
+    return '<button type="button" class="odd-home-item" data-aviso-odd="'+esc(a.id||"")+'">'+
+      '<span class="odd-home-meta">'+
+        (nueva?'<span class="odd-home-nueva">Nueva</span>':"")+
+        '<span class="odd-home-numero">ODD '+esc(a.numero||"")+'</span>'+
+      '</span>'+
+      '<strong class="odd-home-titulo">'+esc(titulo)+'</strong>'+
+      '<span class="odd-home-subtitulo">'+esc(subtitulo)+'</span>'+
+    '</button>';
+  }).join("");
+  const acciones=lista.length>3
+    ?'<button type="button" class="odd-home-mas" data-odd-mas>'+
+       (AVISOS_VER_TODAS?'Ver menos':'Ver todas · '+resto+' más')+
+     '</button>':"";
+  const html='<section class="odd-home-panel" aria-label="Órdenes del Día vigentes">'+
+    '<div class="odd-home-cab"><strong>ÓRDENES DEL DÍA</strong>'+
+      '<span>'+lista.length+' '+(lista.length===1?'vigente':'vigentes')+'</span></div>'+
+    '<div class="odd-home-lista">'+filas+'</div>'+acciones+'</section>';
   if(box.innerHTML!==html){
     box.innerHTML=html;
     box.querySelectorAll("[data-aviso-odd]").forEach(b=>{
       b.addEventListener("click",()=>abrirDetalleOdd(b.dataset.avisoOdd));
-      b.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); abrirDetalleOdd(b.dataset.avisoOdd); } });
     });
-    const mas=box.querySelector("[data-odd-mas]"); if(mas) mas.addEventListener("click",()=>{ AVISOS_VER_TODAS=true; renderAvisosOdd(false).catch(()=>{}); });
+    const mas=box.querySelector("[data-odd-mas]");
+    if(mas)mas.addEventListener("click",()=>{
+      AVISOS_VER_TODAS=!AVISOS_VER_TODAS;
+      renderAvisosOdd(false).catch(()=>{});
+    });
   }
-  /* Aviso de 10 segundos para la primera ODD nueva que aún no se ha visto en este equipo */
+  // Mantener la notificación visual original, sin mensajes ni modificaciones nuevas.
   const nuevo=lista.find(a=>!avisoVisto(a.id)&&!AVISO_TOASTEADOS.has(a.id));
-  if(nuevo) mostrarToastOdd(nuevo);
+  if(nuevo)mostrarToastOdd(nuevo);
 }
 function mostrarToastOdd(a){
   AVISO_TOASTEADOS.add(a.id);
