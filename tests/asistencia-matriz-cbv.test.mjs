@@ -24,8 +24,8 @@ function cell(r,v,style=0){
  return '<c r="'+r+'" s="'+style+'" t="inlineStr"><is><t>'+v+'</t></is></c>';
 }
 function numero(r,v){return '<c r="'+r+'"><v>'+v+'</v></c>';}
-function fila(n,body){return '<row r="'+n+'">'+body+'</row>';
-function letraCol(n){let t="";while(n>0){n--;t=String.fromCharCode(65+n%26)+t;n=Math.floor(n/26);}return t;}}
+function fila(n,body){return '<row r="'+n+'">'+body+'</row>';}
+function letraCol(n){let t="";while(n>0){n--;t=String.fromCharCode(65+n%26)+t;n=Math.floor(n/26);}return t;}
 function matriz(){
   const rows=[
     fila(8,numero("K8",1)+numero("L8",2)+Array.from({length:48},(_,i)=>numero(letraCol(i+13)+"8",i+3)).join("")),
