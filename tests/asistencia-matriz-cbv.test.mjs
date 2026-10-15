@@ -24,10 +24,11 @@ function cell(r,v,style=0){
  return '<c r="'+r+'" s="'+style+'" t="inlineStr"><is><t>'+v+'</t></is></c>';
 }
 function numero(r,v){return '<c r="'+r+'"><v>'+v+'</v></c>';}
-function fila(n,body){return '<row r="'+n+'">'+body+'</row>';}
+function fila(n,body){return '<row r="'+n+'">'+body+'</row>';
+function letraCol(n){let t="";while(n>0){n--;t=String.fromCharCode(65+n%26)+t;n=Math.floor(n/26);}return t;}}
 function matriz(){
   const rows=[
-    fila(8,numero("K8",1)+numero("L8",2)),
+    fila(8,numero("K8",1)+numero("L8",2)+Array.from({length:48},(_,i)=>numero(letraCol(i+13)+"8",i+3)).join("")),
     fila(9,cell("K9","FUEGO EN VIVIENDA",1)+cell("L9","ACADEMIA SVB",2)),
     fila(10,cell("K10","10.0.1")+cell("L10","",0)),
     fila(11,cell("K11","1 JULIO 2026")+cell("L11","8 JULIO 2026")),
@@ -42,7 +43,7 @@ function matriz(){
     '<fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/></patternFill></fill>'+
     '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/></patternFill></fill>'+
     '<fill><patternFill patternType="solid"><fgColor rgb="FFFFC000"/></patternFill></fill>'+
-    '</fills><cellXfs count="3"><xf fillId="0"/><xf fillId="1"/><xf fillId="2"/></cellXfs></styleSheet>';
+    '</fills><cellXfs count="3"><xf fillId="0"/><xf fillId="1"><alignment horizontal="center"/></xf><xf fillId="2"><alignment wrapText="1"/></xf></cellXfs></styleSheet>';
   return zip([
     ["xl/workbook.xml",'<workbook><sheets><sheet name="2026" sheetId="1" r:id="r1"/></sheets></workbook>'],
     ["xl/_rels/workbook.xml.rels",'<Relationships><Relationship Id="r1" Target="worksheets/sheet1.xml"/></Relationships>'],
@@ -59,7 +60,7 @@ const roster=[
 ];
 test("matriz CBV: eventos por columnas y participantes por filas",()=>{
  const rows=filasExcel(matriz());
- assert.equal(rows.length,2);
+ assert.equal(rows.length,2); // 48 columnas futuras numeradas no son actividades todavía
  assert.equal(rows[0].fecha,"2026-07-01");
  assert.equal(rows[1].fecha,"2026-07-08");
  assert.equal(rows[0].tipo,"Emergencia");
