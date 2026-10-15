@@ -61,34 +61,57 @@ function limpiar(){
 }
 function pintarOBAC(){
  const host=$("lgnObacHome");if(!host)return;
- const propia=items.find(x=>String(x.dotacion?.obac)===actual && (x.cierreHabilitado||x.cierre&&x.finalizada&&!x.acreditacionVigente));
- if(!propia){if(!formAbierto)host.innerHTML="";return;}
- const f=propia.fecha;
+ const motor=window.GermaniaObacAvisos;
+ if(!motor){host.innerHTML="";return;}
+ const result=motor.seleccionar(items,actual);
+ const parte=result.principal;
+ // No interrumpir al OBAC mientras escribe novedades o selecciona la fotografía.
  if(formAbierto&&host.querySelector("#lgnEnviar"))return;
- if(propia.cierre){
-  host.innerHTML='<section class="card" aria-label="Libro de guardia nocturna"><h2>Libro de Guardia Nocturna · '+escHtml(fechaBonita(f))+'</h2><p class="sub">Cierre enviado por el OBAC. '+(propia.acreditacionVigente?'Ratificado por el Teniente Tercero.':'Pendiente de ratificación del Teniente Tercero.')+'</p><p>'+escHtml(propia.cierre.novedades)+'</p></section>';
-  return;
+ let html="";
+ if(parte){
+  const f=parte.fecha,habilitado=parte.cierreHabilitado===true;
+  html+='<section class="card" aria-label="'+(habilitado?"Cierre libro guardia nocturna":"Turno OBAC programado")+'">'+
+   '<h2>'+(habilitado?"Cierre libro guardia nocturna":"Guardia nocturna · OBAC")+'</h2>'+
+   '<p class="sub">'+escHtml(fechaBonita(f))+' · OBAC: '+escHtml(nombre(actual))+'</p>';
+  if(!habilitado){
+   html+='<p class="sub"><strong>Tu guardia comienza hoy a las 22:45.</strong> Esta ficha está visible desde las 22:30.</p>'+
+    '<p class="sub">Al finalizar tu guardia, mañana desde las 06:00 podrás fotografiar el libro, registrar las novedades y enviarlo al Teniente Tercero.</p>';
+  }else{
+   html+='<p class="sub">La guardia finalizó. Envía la fotografía del libro y las novedades antes de las 06:00 del día siguiente.</p>'+
+    '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
+    '<div id="lgnFormulario" hidden style="margin-top:12px">'+
+    '<label for="lgnFoto" class="rv-lbl">Fotografía del libro físico de guardia (obligatoria)</label>'+
+    '<input id="lgnFoto" type="file" accept="image/*" capture="environment" style="width:100%;margin:8px 0 12px">'+
+    '<div id="lgnVistaFoto"></div>'+
+    '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
+    '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
+    '<p class="sub">El cierre y las novedades llegan primero al Teniente Tercero. Tras su ratificación, el Capitán y los oficiales podrán consultar el informe.</p>'+
+    '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+
+    '<p id="lgnMensaje" role="status" aria-live="polite"></p></div>';
+  }
+  html+='</section>';
  }
- if(!propia.cierreHabilitado){host.innerHTML="";return;}
- host.innerHTML='<section class="card" aria-label="Cierre del libro de guardia nocturna">'+
-  '<h2>Cierre libro guardia nocturna</h2><p class="sub">'+escHtml(fechaBonita(f))+' · OBAC: '+escHtml(nombre(actual))+'</p>'+
-  '<p class="sub">Disponible desde las 06:00, después de terminar tu noche, hasta las 06:00 del día siguiente.</p>'+
-  '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
-  '<div id="lgnFormulario" hidden style="margin-top:12px">'+
-  '<label for="lgnFoto" class="rv-lbl">Fotografía del libro físico de guardia (obligatoria)</label>'+
-  '<input id="lgnFoto" type="file" accept="image/*" capture="environment" style="width:100%;margin:8px 0 12px">'+
-  '<div id="lgnVistaFoto"></div>'+
-  '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
-  '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
-  '<p class="sub">El cierre y las novedades llegan primero al Teniente Tercero. Tras su ratificación, el Capitán recibe el informe para consulta, sin editar.</p>'+
-  '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+
-  '<p id="lgnMensaje" role="status" aria-live="polite"></p></div></section>';
+ // Si un OBAC tiene dos noches consecutivas, el aviso anterior no oculta su nuevo turno.
+ for(const x of result.proximas){
+  if(x===parte)continue;
+  html+='<p class="lgn-obac-aviso-previo"><strong>Próxima guardia OBAC:</strong> '+escHtml(fechaBonita(x.fecha))+
+   ' · desde las 22:30. Cierre habilitado al terminar, desde las 06:00.</p>';
+ }
+ for(const x of result.confirmaciones){
+  const hora=x.cierre?.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
+  html+='<div class="lgn-obac-confirmacion" role="status">'+
+   '<strong>✓ Libro de guardia enviado correctamente al Teniente Tercero</strong>'+
+   '<span>'+escHtml(fechaBonita(x.fecha))+(hora?' · Enviado '+escHtml(hora):"")+'</span>'+
+   '<small>Confirmación visible durante 24 horas desde el envío.</small></div>';
+ }
+ host.innerHTML=html;
+ if(!parte||!parte.cierreHabilitado)return;
  $("lgnAbrir").onclick=function(){formAbierto=true;$("lgnFormulario").hidden=false;$("lgnFoto").click();};
  $("lgnFoto").onchange=function(){
   const file=this.files?.[0],box=$("lgnVistaFoto");
   if(box&&file){const src=URL.createObjectURL(file);box.innerHTML='<img alt="Fotografía seleccionada" style="max-width:100%;max-height:300px;border-radius:8px;object-fit:contain;margin:4px 0 10px">';const im=box.querySelector("img");im.onload=()=>URL.revokeObjectURL(src);im.src=src;}
  };
- $("lgnEnviar").onclick=function(){enviar(f);};
+ $("lgnEnviar").onclick=function(){enviar(parte.fecha);};
 }
 async function comprimir(foto){
  // Resolución suficiente para que el oficial amplíe las anotaciones manuscritas.
