@@ -454,3 +454,45 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 .ha-fila{flex-wrap:wrap;}
 /* Guardia unificada: siete noches compactas, estados legibles. */
 .gu-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:10px 0}.gu-dia{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:66px;min-width:0;padding:6px 1px;background:#133424;border:1px solid #1ebc62;border-radius:9px;color:#fff;font-size:11px}.gu-dia.elegido{background:#4c3e09;border-color:#ffcc00;color:#fff}.gu-dia:disabled{opacity:1}.gu-dia span{white-space:nowrap}
+
+/* GERMANIA Estadística compacta 2026: identidad visual consistente. */
+#panel-panel .card{border-radius:12px;border-color:#323b43}
+#panel-panel .card>h2{color:#fff;letter-spacing:.01em}
+#panel-panel .btn{border:1px solid #343c43;border-left:3px solid #ffcc00;min-height:37px}
+#panel-panel .btn.gold{border-left-color:#e30613}
+#panel-panel #pnInicio{margin-left:auto}
+#panel-panel .pn-tabla-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+#panel-panel .pn-tabla-porcentajes{width:100%;table-layout:fixed}
+#panel-panel .pn-tabla-porcentajes th:first-child{width:43%}
+#panel-panel .pn-tabla-porcentajes th:not(:first-child),
+#panel-panel .pn-tabla-porcentajes td:not(:first-child){text-align:right}
+#panel-panel .pn-busqueda-individual{margin-top:16px;padding:16px;border:1px solid #424a51;border-radius:10px;background:#151b20}
+#panel-panel .pn-busqueda-individual label{display:block;margin-bottom:9px;color:#ffcc00;font-size:14px}
+#panel-panel #pnPersonaSelect{width:100%;min-height:46px;padding:10px;border:1px solid #b99a2b;border-radius:8px;background:#0b1014;color:#fff;font:600 14px 'Source Sans 3',sans-serif}
+#panel-panel #pnPersonaSelect option{color:#fff;background:#11171c}
+#panel-panel #pnPersonaDetalle{margin:14px 0}
+#panel-panel #pnPersonaDetalle h3{color:#ffcc00;font-size:18px;margin:14px 0 5px}
+#panel-panel #pnPersonaDetalle h4{color:#fff;font-size:15px;margin:16px 0 8px}
+#panel-panel .pn-persona-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:12px 0}
+#panel-panel .pn-persona-kpis span{display:flex;flex-direction:column;gap:4px;padding:10px;background:#202930;border:1px solid #3c454c;border-radius:8px;color:#bfc9d0;font-size:11px}
+#panel-panel .pn-persona-kpis b{color:#fff;font-size:23px;line-height:1.1}
+#panel-panel .pn-eventos{margin:15px 0;border:1px solid #424a51;border-radius:8px;padding:12px}
+#panel-panel .pn-eventos summary{color:#ffcc00;cursor:pointer;font-weight:700;padding:3px}
+#panel-panel .pn-eventos table{margin-top:12px}
+#panel-panel .pn-eventos small{display:block;font-size:11px;color:#aeb5bb}
+#panel-panel .pn-falta{background:rgba(179,19,33,.24)}
+#panel-panel .pn-estado{font-weight:700;white-space:nowrap}
+#panel-panel .pn-ausente{color:#ff8b93}
+#panel-panel .pn-presente{color:#91ebb4}
+#panel-panel .pn-justificado{color:#ffe18a}
+#panel-panel #pnPersonaPdf:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:600px){
+  #panel-panel{padding:12px 10px 72px}
+  #panel-panel .card{padding:14px 12px}
+  #panel-panel #pnInicio{margin-left:0}
+  #panel-panel .pn-busqueda-individual{padding:12px}
+  #panel-panel .pn-tabla-porcentajes td,#panel-panel .pn-tabla-porcentajes th{padding:9px 5px;font-size:12px}
+  #panel-panel .pn-persona-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #panel-panel .pn-eventos table{min-width:470px}
+  #panel-panel .pn-tabla-wrap{font-size:12px}
+}

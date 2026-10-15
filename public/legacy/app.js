@@ -3498,8 +3498,11 @@ async function renderPanel(){
   if(!r.N){
     document.getElementById("pnKpis").innerHTML='<div class="kpi"><div class="v" id="pnGuardiaTurnos">0</div><div class="l">Turnos Guardia registrados</div></div><div class="kpi alto"><div class="v" id="pnGuardiaRealizadas">0</div><div class="l">Guardias realizadas</div></div><div class="kpi medio"><div class="v" id="pnGuardiaSobreMinimo">0</div><div class="l">Voluntarios con más de 2 guardias</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaCedidas">0</div><div class="l">Guardias cedidas</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipantes">0</div><div class="l">Voluntarios con participación en Guardia</div></div><div class="kpi"><div class="v" id="pnGuardiaParticipacionRoster">0%</div><div class="l">% dotación activa con participación</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplimiento">0%</div><div class="l">Cumplimiento de noches propias</div></div><div class="kpi alto"><div class="v" id="pnGuardiaCumplen">0</div><div class="l">Voluntarios que cumplieron todas sus noches</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazos">0</div><div class="l">Reemplazos efectivamente realizados</div></div><div class="kpi"><div class="v" id="pnGuardiaReemplazantes">0</div><div class="l">Voluntarios que realizaron reemplazos</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaConCedidas">0</div><div class="l">Voluntarios que cedieron al menos una noche</div></div><div class="kpi"><div class="v" id="pnGuardiaSinParticipacion">0</div><div class="l">Voluntarios sin participación en Guardia</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaIncompletas">0</div><div class="l">Noches bajo mínimo de guardianes</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinObac">0</div><div class="l">Noches sin OBAC</div></div><div class="kpi bajo"><div class="v" id="pnGuardiaSinConductor">0</div><div class="l">Noches sin conductor</div></div>';
     document.getElementById("pnRanking").innerHTML='<h3>Participación en Guardia Nocturna</h3><table><thead><tr><th>N°</th><th>Voluntario</th><th>Asign.</th><th>Propias</th><th>Cumpl.</th><th>Reemplazos</th><th>Cedidas</th><th>Total efectivo</th></tr></thead><tbody id="pnGuardiaRankingBody">'+r.porPersona.map(x=>'<tr><td class="n-col">'+(x.m.n||"")+'</td><td class="name-col">'+esc(nombreCompleto(x.m))+'</td><td>0</td><td>0</td><td>0</td><td>0</td><td><b>0</b></td></tr>').join("")+'</tbody></table>';
-    ["pnTipos","pnTramos","pnMeses","pnDetalle","pnConvocatoria","pnHallazgos"]
+    ["pnTipos","pnTramos","pnMeses","pnConvocatoria","pnHallazgos"]
       .forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Sin actividades generales en este período. Guardia Nocturna se calcula de forma independiente.</div>');
+    window.GermaniaEstadisticaIndividual?.render({r,stats,partes,R,
+    vigente:miembroVigenteEnFecha,aplica:voluntarioAplicaParte,categoria:categoriaAsistencia,
+    cabeceraPdf:pdfHeader,descargarPdf:downloadPdfDoc});
     return;
   }
 
@@ -3545,24 +3548,10 @@ async function renderPanel(){
   }
   document.getElementById("pnMeses").innerHTML=htmlM;
 
-  document.getElementById("pnDetalle").innerHTML=r.porPersona.slice()
-    .sort((a,b)=>(a.m.n||999)-(b.m.n||999)).map(x=>{
-      const s=stats[x.m.id];
-      return `<tr class="asistencia-voluntario" data-asistencia-id="${esc(String(x.m.id))}"><td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td><td><b>${x.p.toFixed(1)}%</b></td><td><button type="button" class="btn small secondary" data-toggle-asistencia="${esc(String(x.m.id))}" aria-expanded="false">Ver detalle</button></td></tr><tr id="asistencia-detalle-${esc(String(x.m.id))}" class="detalle-extra" style="display:none;"><td colspan="3"><div class="asistencia-detalle" data-detalle-voluntario="${esc(String(x.m.id))}"></div></td></tr>`;
-    }).join("");
-  document.querySelectorAll("[data-toggle-asistencia]").forEach(btn=>btn.addEventListener("click",async e=>{
-    e.stopPropagation();
-    const id=btn.dataset.toggleAsistencia, row=document.getElementById("asistencia-detalle-"+id);
-    if(!row)return;
-    const abrir=row.style.display==="none";
-    row.style.display=abrir?"table-row":"none";
-    btn.setAttribute("aria-expanded",abrir?"true":"false");
-    btn.textContent=abrir?"Ocultar detalle":"Ver detalle";
-    if(abrir){
-      const cont=row.querySelector("[data-detalle-voluntario]");
-      if(cont) await detalleVoluntario(id,cont);
-    }
-  }));
+  // El detalle se calcula para una sola persona tras elegirla en el selector.
+  window.GermaniaEstadisticaIndividual?.render({r,stats,partes,R,
+    vigente:miembroVigenteEnFecha,aplica:voluntarioAplicaParte,categoria:categoriaAsistencia,
+    cabeceraPdf:pdfHeader,descargarPdf:downloadPdfDoc});
 
   const fila=x=>`<tr><td class="n-col">${x.m.n||""}</td>
       <td class="name-col">${x.m.clave?`<span class="clv">${esc(x.m.clave)}</span> `:""}${esc(nombreCompleto(x.m))}</td>
@@ -3592,6 +3581,7 @@ async function renderPanel(){
 }
 on("pnAnio","change",renderPanel);
 on("pnMes","change",renderPanel);
+on("pnInicio","click",()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");});
 
 /* ---- INFORMES EN PDF ---- */
 async function generarInforme(desde,hasta,etiqueta,conMeses){

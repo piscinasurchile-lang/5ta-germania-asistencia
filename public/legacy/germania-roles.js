@@ -734,11 +734,9 @@ async function panelRev(pn,D){
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
   else h+='<div class="gr-nota info"><p><b>Último paso del Teniente Tercero:</b> revisa las siete noches y aprueba la dotación. Esta aprobación no acredita asistencia.</p></div><button type="button" class="btn gr-grande" id="rvAprobar">✓ APROBAR GUARDIAS DE LA SEMANA</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
-  if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista"><p class="sub">Cargando acreditaciones…</p></div>';
+  // Acreditación moved to dedicated officer action, not nested in weekly approval.
   pn.innerHTML=h;
-  if(aprobada && esTenienteTercero(D.m)) pintarAcreditacionReal(D,doc).catch(function(){
-    var a=$("rvAcreditacion");if(a)a.innerHTML='<p class="gr-falta">No fue posible consultar acreditaciones. Reintenta.</p>';
-  });
+
   var guardarOp=async function(op){
     if(RV.ocupado) return; RV.ocupado=true; var nuevo=clonar(doc);
     try{revAplicar(nuevo,D,op);}catch(e){RV.msg=e.message;RV.err=true;RV.ocupado=false;panelRev(pn,D);return;}
