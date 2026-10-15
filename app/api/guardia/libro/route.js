@@ -53,18 +53,19 @@ export async function GET(req){
   }
   const ahora=horaCivilChile();
   const esAdmin=esAdministradorGuardia(actor);
-  const q="SELECT g.value AS revision,n.fecha,n.dotacion,cl.value AS cierre,ac.value AS acreditacion,COALESCE(ac.version,0) AS acreditacion_version "+
-    "FROM (SELECT key,value FROM app_state WHERE key LIKE 'guardia-revision:%' ORDER BY key DESC LIMIT 8) g "+
+  const q="SELECT g.value->>'aprobadaEn' AS aprobada_en,n.fecha,n.dotacion,cl.value AS cierre,ac.value AS acreditacion,COALESCE(ac.version,0) AS acreditacion_version "+
+    "FROM (SELECT key,value FROM app_state WHERE key LIKE 'guardia-revision:%' ORDER BY key DESC LIMIT $3) g "+
     "CROSS JOIN LATERAL jsonb_each(COALESCE(g.value->'noches','{}'::jsonb)) AS n(fecha,dotacion) "+
     "LEFT JOIN app_state cl ON cl.key='guardia-libro:'||n.fecha "+
     "LEFT JOIN app_state ac ON ac.key='guardia-acreditacion:'||n.fecha "+
-    "WHERE g.value->>'estado'='aprobada' AND (n.fecha<=$1 OR $2::boolean) ORDER BY n.fecha DESC LIMIT 56";
-  const rows=await sql.query(q,[ahora.slice(0,10),esAdmin]);
+    "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT $4";
+  const rows=await sql.query(q,[ahora.slice(0,10),esAdmin,esAdmin?260:8,esAdmin?1820:56]);
   const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo);
   const items=rows.map(r=>{
-    const ratificada=informeRatificado({acreditacion:r.acreditacion,revision:r.revision,
+    const revision={estado:"aprobada",aprobadaEn:r.aprobada_en,noches:{[r.fecha]:r.dotacion}};
+    const ratificada=informeRatificado({acreditacion:r.acreditacion,revision,
       noche:r.dotacion,cierre:r.cierre});
-    return {fecha:r.fecha,revisionAprobadaEn:r.revision.aprobadaEn,dotacion:r.dotacion,
+    return {fecha:r.fecha,revisionAprobadaEn:r.aprobada_en,dotacion:r.dotacion,
       cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
       finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
       acreditacionVigente:ratificada};
