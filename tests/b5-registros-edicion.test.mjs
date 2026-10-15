@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {aplicarCambioParteB5,claveDeParteB5} from "../app/api/b5/registros/route.js";
+import {aplicarCambioParteB5,claveDeParteB5} from "../lib/b5-partes-registros.mjs";
 
 const base=()=>({
   b5OfflineId:"00000000-0000-4000-8000-000000000001",
