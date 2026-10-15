@@ -108,3 +108,12 @@ test("en tablet B-5 no intenta suscribir ni interrumpe el panel", async () => {
   assert.equal(app.llamadas.post, 0);
   assert.equal(app.tarjeta.hidden, true);
 });
+
+test("solo las publicaciones reales se difunden sin habilitar pruebas compartidas", () => {
+  const prueba = leer("../app/api/informaciones/prueba/route.js");
+  const oficial = leer("../app/api/informaciones/route.js");
+  const odd = leer("../app/api/state/[key]/route.js");
+  assert.match(prueba, /GERMANIA_PUSH_AVISOS_PRUEBA === "1"/);
+  assert.match(oficial, /destino==="compania"&&esEnvioGeneralActivo\(\)/);
+  assert.match(odd, /key === "odd-avisos:v1" && esEnvioGeneralActivo\(\)/);
+});
