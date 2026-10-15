@@ -33,7 +33,7 @@ export default function ConfiguracionAvisos(){
         const sub=await reg?.pushManager?.getSubscription?.();
         if(!vivo)return;
         setPruebaDisponible(!!config.pruebaDisponible);
-        setHabilitado(!!sub&&!!config.disponible);
+        setHabilitado(false);
         setEstado(!config.disponible?"El servicio todavía no está habilitado en esta versión.":sub?"Avisos activados en este dispositivo.":"Avisos todavía no activados en este dispositivo.");
       }catch{if(vivo)setEstado("No se pudo comprobar el estado. Comprueba tu conexión.")}
     })();
