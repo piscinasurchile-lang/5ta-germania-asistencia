@@ -87,7 +87,12 @@ export default function Page(){
    if(estado==="emitida"&&type==="nomina"&&!selectedRoster.length){setStatus("No se puede emitir una nómina sin voluntarios seleccionados.");return false}
    if(estado==="emitida"&&type==="disposicion"&&(!f.seen.trim()||!f.considering.trim()||!f.provisions.trim())){setStatus("Completa VISTOS, CONSIDERANDO y SE DISPONE antes de emitir.");return false}
    if(estado==="emitida"&&type==="citacion"&&(!f.eventDate||!f.time||!f.place.trim()||!f.topic.trim())){setStatus("Completa fecha, hora, lugar y tema de la citación antes de emitir.");return false}
-   if(estado==="emitida"&&type==="guardia"&&guardWeek.length!==7){setStatus("Selecciona y carga la semana de siete noches antes de emitir.");return false}
+   if(estado==="emitida"&&type==="guardia"){
+     try{
+       if(!originalDisponible)throw Error("Falta guardar el original ODD 063/2026");
+       validarODDGuardia({semana:guardWeek,year:f.year,number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
+     }catch(e){setStatus(e.message);return false;}
+   }
    const key=String(f.year)+"-"+String(f.number).padStart(3,"0");
    if(estado==="emitida"&&archive.some(x=>x.key===key&&x.estado==="emitida")){setStatus("Ese correlativo ya fue emitido.");return false}
    if(estado==="emitida"&&type==="citacion"){
