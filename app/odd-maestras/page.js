@@ -3,6 +3,7 @@ import {useEffect,useMemo,useState} from "react";
 import "./odd.css";
 import {LOGO_B64} from "../../lib/logo";
 import {fechasSemanaGuardia,proyectarSemanaODD} from "../../lib/guardia-odd-semana.mjs";
+import {validarODDGuardia} from "../../lib/odd-guardia-063-validacion.mjs";
 const TYPES=[["citacion","Citación / Academia / Ejercicio"],["guardia","Guardia Nocturna"],["nomina","Nómina y Claves"],["disposicion","Informativa / Disposición General"]];
 const today=new Date().toISOString().slice(0,10);
 export default function Page(){
@@ -14,18 +15,44 @@ export default function Page(){
  const[guardDate,setGuardDate]=useState("");
  const guardEndDate=useMemo(()=>{try{return fechasSemanaGuardia(guardDate).at(-1)}catch{return ""}},[guardDate]);
  const[guardWeek,setGuardWeek]=useState([]);
+ const[originalDisponible,setOriginalDisponible]=useState(false);
+ const[subiendoOriginal,setSubiendoOriginal]=useState(false);
  const[loading,setLoading]=useState(false);
  const[pdfUrl,setPdfUrl]=useState("");
  const[signers,setSigners]=useState({capitan:true,ayudante:true});
  const[officials,setOfficials]=useState({capitan:null,ayudante:null});
  const[annexes,setAnnexes]=useState([]);
- const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:""});
+ const[f,setF]=useState({year:new Date().getFullYear(),number:"",issueDate:today,title:"",eventDate:"",time:"20:00",place:"Cuartel General, Valentín Letelier #630",activity:"Academia",topic:"",clothing:"Civil",punctuality:"Se exige PUNTUALIDAD",excuses:"germaniacbv@gmail.com",recipients:"Quinta Compañía",seen:"",considering:"",provisions:"",notes:"",oddAnterior:"063/2026"});
  useEffect(()=>{try{const q=new URLSearchParams(window.location.search).get("tipo");if(["citacion","guardia","nomina","disposicion"].includes(q))setType(q);const ini=new URLSearchParams(window.location.search).get("inicio");if(q==="guardia"&&ini){try{fechasSemanaGuardia(ini);setGuardDate(ini);setF(x=>({...x,title:x.title||"Guardia Nocturna"}));setStatus("Semana seleccionada desde Guardia. Pulsa Cargar siete noches para revisar la programación.")}catch{setStatus("La semana recibida no comienza un miércoles.")}}setArchive(JSON.parse(localStorage.getItem("germania:odd-maestras:v1")||"[]"));fetch("/api/state/odd:maestras:v1",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{if(Array.isArray(x.value)){setArchive(x.value);localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(x.value))}}).catch(()=>{})}catch{}
    fetch("/api/state/roster:v8",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(x=>{
      const list=Array.isArray(x.value)?x.value.filter(p=>p.activo!==false):[];
      setRoster(list);setSelected(list.map(p=>String(p.clave)));setOfficials({capitan:list.find(p=>String(p.cargo||"").toLowerCase().includes("capit"))||null,ayudante:list.find(p=>String(p.cargo||"").toLowerCase().includes("ayud"))||null});
    }).catch(()=>setStatus("La nómina central no está disponible en este entorno de prueba."));
  },[]);
+ useEffect(()=>{
+   fetch("/api/odd-maestras/plantilla-guardia?info=1",{cache:"no-store"})
+     .then(r=>setOriginalDisponible(r.ok))
+     .catch(()=>setOriginalDisponible(false));
+ },[]);
+ const subirOriginal=async(event)=>{
+   const file=event.target.files?.[0];event.target.value="";
+   if(!file)return;
+   setSubiendoOriginal(true);setStatus("Verificando original ODD 063/2026…");
+   try{
+     if(file.size>2_000_000||file.type!=="application/pdf")throw Error("Selecciona el PDF original ODD 063/2026");
+     const bytes=new Uint8Array(await file.arrayBuffer());let binary="";
+     for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384));
+     const response=await fetch("/api/odd-maestras/plantilla-guardia",{
+       method:"POST",headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({confirmacion:"GUARDAR_ORIGINAL_ODD_063_2026",base64:btoa(binary)})
+     });
+     const out=await response.json();
+     if(!response.ok||!out.ok)throw Error(out.error||"No fue posible guardar el original");
+     setOriginalDisponible(true);
+     setStatus("Documento 063/2026 verificado y archivado para futuras guardias.");
+   }catch(e){setStatus(e.message||"Error al guardar original ODD");}
+   finally{setSubiendoOriginal(false);}
+ };
  const fullName=p=>[p.nombre,p.apellidoPaterno||p.ap,p.apellidoMaterno||p.am].filter(Boolean).join(" ");
  const selectedRoster=useMemo(()=>roster.filter(p=>selected.includes(String(p.clave))),[roster,selected]);
  const toggleMember=code=>setSelected(x=>x.includes(code)?x.filter(v=>v!==code):[...x,code]);
