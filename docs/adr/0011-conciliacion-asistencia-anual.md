@@ -18,14 +18,14 @@ GERMANIA posee asistencia histórica en Neon (claves parte:* y partes:index:v1).
 - Guardia y ODD quedan totalmente excluidas.
 
 ## Validación obligatoria
-1. Obtener el archivo anual real de la Compañía; revisar si su estructura es de tabla (soportada) o de matriz por voluntario/mes (requiere adaptación). No transformar automáticamente una estructura desconocida.
+1. Archivo oficial V2 recibido: FÜNFTE ASISTENCIAS 2026 V2 CBV.xlsx. Una hoja «2026», 107 actividades (columnas K:DO), 30 voluntarios en filas 15–44 y Esthefani Ojeda en fila 48. Encabezados: fila 8 número institucional, fila 9 actividad/categoría por relleno (amarillo Compañía, rojo Emergencia, naranjo Comandancia), fila 10 clave, fila 11 fecha. Estados A/F y blancos para incorporación posterior. 17 actividades en julio, 10 en agosto, 10 en septiembre (hasta el 22). Comparar sin guardar. No subir el Excel personal al repositorio.
 2. Probar reimportación exacta (cero nuevos), agregado de mes, edición de asistente, dos llamados mismo día, cambio de nómina, miembro ambiguo y reintento concurrente.
 3. Ejecutar npm test y npm run build; validar interfaz Android, PC y tablet B-5.
 4. Revisar partes:index:v1 frente a partes efectivamente presentes y confirmar estadística individual.
 5. Revisión cruzada y autorización específica antes de fusionar y desplegar.
 
 ## Riesgos y límites
-- Los Excel .xls y los formatos matriciales no están soportados en esta primera versión; fallan sin escrituras. El parser XLSX no almacena el archivo original.
+- Los Excel .xls y formatos matriciales diferentes al institucional V2 no están soportados; fallan sin escrituras. El parser XLSX no almacena el archivo original.
 - No se modifica la sesión de Oficialidad existente; la ruta nueva exige la misma cookie de Oficialidad.
 - No se realizan migraciones SQL ni actualizaciones de Neon durante el desarrollo.
-- Las correcciones manuales a registros existentes quedan fuera de la primera versión y deberán usar una ruta auditada aprobada.
+- Las diferencias de registros existentes se mostrarán sin bloquear actividades nuevas independientes. Las correcciones manuales a existentes requieren una ruta auditada posterior.
