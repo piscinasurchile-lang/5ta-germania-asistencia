@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import {neon} from "@neondatabase/serverless";
 import {ensureSchema,readState,writeState,addToList} from "../../../../lib/state-store.js";
 import {avisoEstaVigente,vencimientoAlPublicar} from "../../../../lib/informaciones-vigencia.mjs";
+import {difundir,esEnvioGeneralActivo} from "../../../../lib/germania-webpush.mjs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -72,7 +73,15 @@ export async function POST(request){
       if(recientes.length>=LIMIT_PER_HOUR)return err("limite_de_pruebas_alcanzado",429);
       const next=list.slice(-(MAX_RECORDS-1)).concat(item);
       const r=await writeState(sql,KEY,next,{ifVersion:v.version});
-      if(r.ok)return Response.json({ok:true,id:item.id,modo:"prueba_compartida"},{headers:CACHE});
+      if(r.ok){
+        // Únicamente el aviso recién guardado puede generar Web Push.
+        // No impedir guardar la información por un fallo del servicio push.
+        if(esEnvioGeneralActivo())try{
+          await difundir({tipo:"informacion",titulo:("Información: "+texto).slice(0,120),
+            id:item.id,origen:new URL(request.url).origin});
+        }catch(error){console.error("webpush informacion",error);}
+        return Response.json({ok:true,id:item.id,modo:"prueba_compartida"},{headers:CACHE});
+      }
     }
     return err("intenta_nuevamente",409);
   }catch(e){console.error("informaciones prueba POST",e);return err("database_error",500)}
