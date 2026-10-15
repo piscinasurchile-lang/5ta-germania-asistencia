@@ -103,6 +103,21 @@ export default function Page(){
        const x=await r.json(); if(!r.ok)throw new Error(x.error||"asistencia");
      }catch{setStatus("No se emitió la ODD: no fue posible crear su registro oficial de asistencia.");return false}
    }
+   if(estado==="emitida"&&type==="guardia"){
+     try{
+       const bytes=await pdf();
+       if(!(bytes instanceof Uint8Array))throw Error("No se produjo el documento oficial");
+       let binary="";
+       for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384));
+       const r=await fetch("/api/odd-maestras/odd-guardia-emitida",{
+         method:"POST",headers:{"Content-Type":"application/json"},
+         body:JSON.stringify({year:String(f.year),number:String(f.number),
+           confirmacion:"EMITIR_ODD_GUARDIA",base64:btoa(binary)})
+       });
+       const x=await r.json();
+       if(!r.ok||!x.ok)throw Error(x.error||"No se pudo almacenar PDF emitido");
+     }catch(e){setStatus(e.message||"No se pudo archivar el PDF. La ODD no se emitió.");return false;}
+   }
    const rec={key,type,estado,form:{...f},naturaleza:type==="citacion"?"citacion":"informativa",generaAsistencia:type==="citacion",guardSnapshot:type==="guardia"?guardWeek.map(x=>({...x,people:x.people.map(p=>({...p}))})):null,rosterSnapshot:(type==="nomina"||type==="citacion")?selectedRoster.map(p=>({...p})):null,annexSnapshot:annexes.map(({data,...a})=>a),signerSnapshot:{...signers},updatedAt:new Date().toISOString()};
    const next=[...archive.filter(x=>!(x.key===key&&x.estado==="borrador")),rec];
    localStorage.setItem("germania:odd-maestras:v1",JSON.stringify(next)); setArchive(next); fetch("/api/state/odd:maestras:v1",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({value:next})}).catch(()=>{});
