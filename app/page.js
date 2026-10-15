@@ -14,6 +14,27 @@ export default function Page() {
   const [inicioB5Comprobado, setInicioB5Comprobado] = useState(false);
   const [destinoB5, setDestinoB5] = useState("");
 
+  // El badge se limpia al abrir o regresar a la PWA, sin acuses de lectura.
+  useEffect(() => {
+    const limpiar = async () => {
+      try { await navigator.clearAppBadge?.(); } catch {}
+      if (!("serviceWorker" in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.getRegistration("/");
+        const avisos = await reg?.getNotifications?.({tag:"germania-informaciones"}) || [];
+        avisos.forEach(aviso => aviso.close());
+      } catch {}
+    };
+    const alVolver = () => {if(document.visibilityState==="visible")void limpiar();};
+    void limpiar();
+    window.addEventListener("focus",limpiar);
+    document.addEventListener("visibilitychange",alVolver);
+    return () => {
+      window.removeEventListener("focus",limpiar);
+      document.removeEventListener("visibilitychange",alVolver);
+    };
+  }, []);
+
   // Modo B-5 solo en el dispositivo que se seleccionó: evitar cargar el iframe
   // completo antes de mostrar la pantalla ligera.
   useEffect(() => {
