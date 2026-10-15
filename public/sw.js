@@ -1,7 +1,7 @@
 /* El modo sin conexión solo precarga la pantalla B-5.
  * El resto de Germania mantiene navegación en línea y jamás cachea /api/.
  */
-const CACHE="germania-static-v7-b5";
+const CACHE="germania-static-v8-b5";
 const ASSETS=["/manifest.webmanifest","/legacy/germania-icon.svg","/legacy/germania-192.png",
   "/legacy/germania-512.png","/legacy/apple-touch-icon.png","/legacy/carro-b5.webp"];
 const B5_PAGES=["/b5","/b5/captura"];
@@ -41,6 +41,8 @@ self.addEventListener("fetch",event=>{
   if(req.method!=="GET")return;
   const url=new URL(req.url);
   if(url.origin!==self.location.origin||url.pathname.startsWith("/api/"))return;
+  // Nunca servir una versión de despliegue desde caché, aunque el cliente pida no-store.
+  if(url.pathname==="/version.json")return;
   if(isStatic(url)){
     event.respondWith(caches.match(req).then(async cached=>{
       if(cached)return cached;
