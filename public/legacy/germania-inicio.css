@@ -594,3 +594,71 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
 #panel-germania #inicioNovedades .ha-item{padding:8px 9px;}
 
 #panel-germania #inicioNovedades .g-push-activar{display:inline-flex;align-items:center;min-height:36px;margin-top:8px;color:#ffcc00;font-size:13px;text-decoration:underline;}
+
+/* Activación única de Web Push. Oculta totalmente la ficha cuando el teléfono
+   se confirma en el servidor, sin mover las tarjetas aprobadas del Inicio. */
+#panel-germania .g-push-bienvenida[hidden],
+#panel-germania #g-push-estado[hidden],
+#panel-germania #inicioNovedades .g-push-activar[hidden]{display:none!important;}
+#panel-germania .g-push-bienvenida{
+  grid-column:1/-1;
+  min-width:0;
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:15px;
+  border:2px solid #ffcc00;
+  border-left:6px solid #e30613;
+  border-radius:13px;
+  background:linear-gradient(140deg,#1f2930 0%,#11181d 100%);
+  color:#fff;
+  box-shadow:0 0 15px rgba(255,204,0,.12);
+}
+#panel-germania .g-push-campana{
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  background:#3b191d;
+  font-size:25px;
+}
+#panel-germania .g-push-cuerpo{flex:1;min-width:0;}
+#panel-germania #g-push-titulo{
+  display:block;
+  font:600 20px/1.2 'Oswald',sans-serif;
+  color:#ffcc00;
+}
+#panel-germania .g-push-cuerpo>p{
+  font:400 13px/1.42 'Source Sans 3',sans-serif;
+  margin:6px 0 12px;
+  color:#e2e6e9;
+}
+#panel-germania .g-push-boton{
+  width:100%;
+  min-height:49px;
+  padding:10px 12px;
+  border:1px solid #ffcc00;
+  border-radius:9px;
+  background:#a70c19;
+  color:#fff;
+  cursor:pointer;
+  font:700 15px/1.25 'Source Sans 3',sans-serif;
+}
+#panel-germania .g-push-boton:focus-visible{
+  outline:3px solid #ffcc00;
+  outline-offset:3px;
+}
+#panel-germania .g-push-boton:disabled{opacity:.7;cursor:default;}
+#panel-germania #g-push-estado{
+  color:#ffdb82;
+  font-size:12px;
+  line-height:1.4;
+  margin:9px 0 0;
+}
+@media(max-width:360px){
+  #panel-germania .g-push-bienvenida{padding:12px;gap:9px;}
+  #panel-germania .g-push-campana{width:34px;height:34px;flex-basis:34px;font-size:20px;}
+  #panel-germania #g-push-titulo{font-size:18px;}
+}
