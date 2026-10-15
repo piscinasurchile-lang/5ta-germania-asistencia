@@ -118,6 +118,16 @@
   .lgn-control-estado.falta{background:#4d2222;color:#ffd2d2;border-color:#8d4848;}
   .lgn-control-plantilla{width:100%;min-height:42px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:7px;padding:8px;}
   .lgn-control-nota{font-size:12px;color:var(--muted);margin:10px 0;}
+  .lgn-asistencia-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-radius:8px;padding:9px 11px;margin:7px 0;border:1px solid var(--line);background:var(--panel-2);}
+  .lgn-asistencia-fila.ausente{background:#551d23;border:2px solid #eb4853;color:#fff;}
+  .lgn-asistencia-fila.ausente .lgn-asistencia-estado{color:#fff;background:#b31321;border:1px solid #ff858c;border-radius:6px;padding:4px 10px;}
+  .lgn-asistencia-fila.presente{background:#173929;border-color:#3f8d60;color:#e5f9ec;}
+  .lgn-asistencia-fila.presente .lgn-asistencia-estado{color:#adf7ca;}
+  #lgnRatif .rv-sel.lgn-asistencia-select-ausente{border:2px solid #eb4853!important;background:#551d23!important;color:#fff!important;font-weight:700;}
+  #lgnRatif .rv-sel.lgn-asistencia-select-presente{border:2px solid #3f8d60!important;background:#173929!important;color:#e5f9ec!important;}
+  #lgnRatif .lgn-asistencia-fila{font-size:13px;}
+  @media(max-width:600px){.lgn-asistencia-fila{align-items:flex-start}.lgn-asistencia-nombre{min-width:0;flex:1 1 170px;overflow-wrap:anywhere;}}
+
   @media(min-width:680px){.lgn-control-totales{grid-template-columns:repeat(4,minmax(0,1fr));}}
 
   .card h3{font-family:'Oswald',sans-serif;font-size:14px;font-weight:500;margin:18px 0 8px;color:var(--gold);}
@@ -1496,7 +1506,7 @@
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
 <script src="./germania-informaciones-prueba.js?v=20261014prueba1"></script>
 <script src="./germania-roles.js?v=20261014informaciones3"></script>
-<script src="./germania-cierre-libro.js?v=20261015cierre3"></script>
+<script src="./germania-cierre-libro.js?v=20261015cierre4"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
