@@ -43,9 +43,9 @@ export async function POST(req) {
   const sql=neon(process.env.DATABASE_URL);
   try {
     await ensureSchema(sql);
-    const [rr, rev, hr, anterior]=await Promise.all([
+    const [rr, rev, hr, anterior, libro]=await Promise.all([
       readState(sql,"roster:v8"),readState(sql,"guardia-revision:"+inicio),
-      readState(sql,"guardia-horarios:v1"),readState(sql,"guardia-acreditacion:"+fecha)
+      readState(sql,"guardia-horarios:v1"),readState(sql,"guardia-acreditacion:"+fecha),readState(sql,"guardia-libro:"+fecha)
     ]);
     const revision=rev.value, roster=Array.isArray(rr.value)?rr.value:[];
     const oficialNombre=nombreOficial(roster,actor);
@@ -53,8 +53,9 @@ export async function POST(req) {
       asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
     if (error) return Response.json({error},{status:409});
     if (!oficialNombre) return Response.json({error:"identidad_nombre_no_disponible"},{status:409});
-    const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"08:00";
+    const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"06:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
+    if (!libro.value || libro.value.estado!=="enviado" || libro.value.revisionAprobadaEn!==revision.aprobadaEn || libro.value.dotacionFirma!==firmaDotacion(revision.noches[fecha])) return Response.json({error:"libro_no_cerrado_o_desactualizado"},{status:409});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
     const ids=integrantesNoche(revision.noches[fecha]);
     const asistentes=ids.filter(id=>b.asistencias[id]==="presente");
@@ -63,6 +64,7 @@ export async function POST(req) {
     const registro={
       fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
       dotacionFirma:firmaDotacion(revision.noches[fecha]),
+      cierreLibroFotoSHA256:libro.value.fotoSHA256,cierreLibroEn:libro.value.enviadoEn,
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
       asistentes,ausentes,
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoEn:new Date().toISOString(),
