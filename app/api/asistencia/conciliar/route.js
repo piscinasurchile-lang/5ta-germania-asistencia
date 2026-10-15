@@ -102,13 +102,18 @@ export async function POST(request){
     // Una única sentencia: fallo de versión o inserciones aborta íntegra la operación.
     const statement=[
       "WITH lockidx AS MATERIALIZED (SELECT version FROM app_state WHERE key='partes:index:v1' FOR UPDATE),",
+      "backup AS (INSERT INTO app_state_history(key,value,version,replaced_at)",
+      "SELECT 'partes:index:v1',s.value,s.version,now() FROM app_state s",
+      "WHERE s.key='partes:index:v1' AND s.version=$2 AND (SELECT version FROM lockidx)=$2",
+      "RETURNING id),",
       "inserted AS (INSERT INTO app_state(key,value,version,updated_at)",
       "SELECT e->>'key',e->'parte',1,now() FROM jsonb_array_elements($1::jsonb) e",
       "WHERE (SELECT version FROM lockidx)=$2",
       "ON CONFLICT(key) DO NOTHING RETURNING key),",
       "updated AS (UPDATE app_state SET value=$3::jsonb,version=version+1,updated_at=now()",
       "WHERE key='partes:index:v1' AND version=$2",
-      "AND (SELECT count(*) FROM inserted)=$4 RETURNING key)",
+      "AND (SELECT count(*) FROM inserted)=$4",
+      "AND (SELECT count(*) FROM backup)=1 RETURNING key)",
       "SELECT 1/(CASE WHEN (SELECT count(*) FROM updated)=1 THEN 1 ELSE 0 END) AS check_ok,",
       "(SELECT count(*)::int FROM inserted) AS cantidad"
     ].join("\n");
