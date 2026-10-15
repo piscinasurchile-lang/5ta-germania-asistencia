@@ -1,5 +1,7 @@
 # Germania · Informe técnico del punto de aviso en el ícono (15-10-2026)
 
+**PR de seguimiento:** https://github.com/piscinasurchile-lang/5ta-germania-asistencia/pull/195 (borrador, sin fusionar).
+
 **Estado:** investigación y primera etapa de código en rama de prueba; rama de trabajo `feat/punto-aviso-pwa-20261015`. **No publicado, no activado en teléfonos.** `main`, Neon y Vercel de producción no se modifican por este informe.
 
 ## Requisito operativo definitivo del administrador
