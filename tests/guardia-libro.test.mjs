@@ -71,3 +71,23 @@ test("administrador ve todas las noches pero NO puede acreditar",()=>{
    asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"presente"},
    actor:admin.id,roster:[admin]}),"solo_teniente_tercero");
 });
+
+test("ratificar noche se abre en pantalla propia y nunca activa la gestión Guardia Nocturna",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const html=readFileSync(new URL("../public/legacy/index.html",import.meta.url),"utf8");
+ const js=readFileSync(new URL("../public/legacy/germania-cierre-libro.js",import.meta.url),"utf8");
+ const diario=html.indexOf('id="panel-control-guardia-diaria"');
+ const acreditacion=html.indexOf('id="panel-acreditacion-guardia"');
+ const guardia=html.indexOf('id="panel-guardia"');
+ assert.ok(diario>=0&&acreditacion>diario&&guardia>acreditacion,"Paneles hermanos e independientes");
+ assert.match(html.slice(acreditacion,guardia),/id="lgnRatif"/,"La ratificación está solo en su panel");
+ assert.doesNotMatch(html.slice(guardia,html.indexOf('id="panel-config"')),/id="lgnRatif"/);
+ const inicio=js.indexOf("function abrirPanelMando()");
+ const fin=js.indexOf("function pintarOficial()",inicio);
+ assert.ok(inicio>=0&&fin>inicio);
+ assert.match(js.slice(inicio,fin),/__mostrarPestana\("acreditacion-guardia"\)/);
+ assert.doesNotMatch(js.slice(inicio,fin),/__mostrarPestana\("guardia"\)/);
+ assert.match(js,/Control Guardia Diaria · Ratificar/);
+ assert.match(js,/lgnVolverInicio/);
+ assert.match(js,/ultimaRatificacion=fecha/);
+});
