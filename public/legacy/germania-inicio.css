@@ -478,3 +478,117 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
 .gu-persona{padding:8px 0;border-bottom:1px solid #303840;width:100%}.gu-persona>span{display:block;color:white;font-size:13px}.gu-acciones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}.gu-acciones button{min-height:44px;font-size:12px;padding:5px;color:white;background:#202830;border:1px solid #46515b;border-radius:8px}
 
 #panel-germania .gn-franja-dia{align-items:center;text-align:center}#panel-germania .gn-franja-dia strong{color:#fff;font-size:20px}#panel-germania .gn-franja-dia .gn-franja-semana{font-size:11px}
+
+/* Inicio compacto · ODD múltiples legibles y resúmenes más discretos.
+ * No altera los formularios del OBAC, las pantallas de Guardia ni Oficiales. */
+#panel-germania .home-grid{gap:9px;}
+#panel-germania .home-grid>#avisosOdd:empty,
+#panel-germania .home-grid>#lgnObacHome:empty,
+#panel-germania .home-grid>#lgnMandoHome:empty,
+#panel-germania .home-grid>#lgnAdminHome:empty{display:none;}
+
+#panel-germania #avisosOdd .odd-home-panel{
+  min-width:0;box-sizing:border-box;
+  overflow:hidden;
+  background:#10161b;border:1px solid #c9a227;border-radius:13px;
+  color:#fff;
+}
+#panel-germania #avisosOdd .odd-home-cab{
+  display:flex;gap:10px;align-items:center;justify-content:space-between;
+  padding:9px 12px 8px;border-bottom:1px solid rgba(201,162,39,.35);
+}
+#panel-germania #avisosOdd .odd-home-cab strong{
+  color:#ffcc00;font:600 14px/1.2 'Oswald',sans-serif;letter-spacing:.035em;
+}
+#panel-germania #avisosOdd .odd-home-cab>span{
+  font-size:12px;color:#c6cdd2;white-space:nowrap;
+}
+#panel-germania #avisosOdd .odd-home-lista{display:grid;min-width:0;}
+#panel-germania #avisosOdd .odd-home-item{
+  appearance:none;display:block;box-sizing:border-box;width:100%;
+  min-width:0;min-height:68px;text-align:left;
+  padding:10px 12px 9px;margin:0;background:transparent;
+  border:0;border-bottom:1px solid #354047;color:#fff;
+  cursor:pointer;font:inherit;
+}
+#panel-germania #avisosOdd .odd-home-item:last-child{border-bottom:0;}
+#panel-germania #avisosOdd .odd-home-item:focus-visible{
+  outline:2px solid #ffcc00;outline-offset:-3px;
+}
+#panel-germania #avisosOdd .odd-home-item:active{background:#202b31;}
+#panel-germania #avisosOdd .odd-home-meta{
+  display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:4px;
+}
+#panel-germania #avisosOdd .odd-home-nueva{
+  display:inline-flex;align-items:center;min-height:21px;
+  padding:2px 9px;border-radius:999px;background:#c9a227;
+  color:#151515;font-size:12px;font-weight:700;line-height:1;
+}
+#panel-germania #avisosOdd .odd-home-numero{
+  font-size:12px;color:#ffcc00;font-weight:700;
+}
+#panel-germania #avisosOdd .odd-home-titulo{
+  display:block;max-width:100%;white-space:normal;
+  overflow-wrap:anywhere;word-break:normal;
+  font:600 16px/1.3 'Source Sans 3',sans-serif;color:#fff;
+}
+#panel-germania #avisosOdd .odd-home-subtitulo{
+  display:block;margin-top:4px;color:#c1cbd1;
+  font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;
+}
+#panel-germania #avisosOdd .odd-home-mas{
+  display:block;width:100%;min-height:40px;padding:8px 12px;
+  background:#192129;color:#ffcc00;
+  border:0;border-top:1px solid #3e454b;
+  text-align:center;font:600 13px/1.3 'Source Sans 3',sans-serif;cursor:pointer;
+}
+#panel-germania #avisosOdd .odd-home-mas:focus-visible{
+  outline:2px solid #ffcc00;outline-offset:-3px;
+}
+
+/* Tarjeta informativa de Control Guardia Diaria en Inicio (no el control completo). */
+#panel-germania #lgnAdminHome>.card{
+  margin:0;padding:12px 13px;border-radius:12px;
+}
+#panel-germania #lgnAdminHome>.card>h2{
+  font-size:19px;line-height:1.2;margin-bottom:6px;
+}
+#panel-germania #lgnAdminHome>.card>.sub{
+  font-size:12px;line-height:1.35;margin:0 0 8px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+#panel-germania #lgnAdminHome .lgn-control-totales{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;margin:8px 0;
+}
+#panel-germania #lgnAdminHome .lgn-control-cifra{
+  min-width:0;padding:7px 6px;border-radius:8px;
+}
+#panel-germania #lgnAdminHome .lgn-control-cifra b{
+  font-size:21px;line-height:1.05;color:#fff;
+}
+#panel-germania #lgnAdminHome .lgn-control-cifra span{
+  margin-top:4px;font-size:11px;line-height:1.2;
+  overflow-wrap:anywhere;
+}
+#panel-germania #lgnAdminHome #lgnAdminAbrir{
+  width:100%;min-height:43px;padding:9px 10px;
+  font-size:14px;line-height:1.25;
+}
+
+/* Restantes avisos del Inicio: menos altura, botones siguen táctiles. */
+#panel-germania .home-tiles .tile{min-height:72px;padding:9px 10px;}
+#panel-germania #inicioNovedades.home-alert{
+  padding:12px;margin:0;border-radius:12px;
+}
+#panel-germania #inicioNovedades .ha-main{gap:9px;}
+#panel-germania #inicioNovedades .ha-ico{
+  flex:0 0 28px;width:28px;height:28px;font-size:16px;
+}
+#panel-germania #inicioNovedades .ha-main strong{font-size:18px;}
+#panel-germania #inicioNovedades .ha-main span:not(.ha-ico){font-size:12px;}
+#panel-germania #inicioNovedades>.sub{
+  font-size:12px;line-height:1.35;margin:7px 0;
+}
+#panel-germania #inicioNovedades .ha-lista{gap:6px;margin-top:8px;}
+#panel-germania #inicioNovedades .ha-item{padding:8px 9px;}
