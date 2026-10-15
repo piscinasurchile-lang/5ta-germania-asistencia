@@ -1,6 +1,6 @@
 # Germania · Informe técnico del punto de aviso en el ícono (15-10-2026)
 
-**Estado:** análisis técnico confirmado; rama de trabajo `feat/punto-aviso-pwa-20261015`. **No publicado, no activado en teléfonos.** `main`, Neon y Vercel de producción no se modifican por este informe.
+**Estado:** investigación y primera etapa de código en rama de prueba; rama de trabajo `feat/punto-aviso-pwa-20261015`. **No publicado, no activado en teléfonos.** `main`, Neon y Vercel de producción no se modifican por este informe.
 
 ## Requisito operativo definitivo del administrador
 
@@ -48,4 +48,17 @@
 
 ## Estado y siguiente paso
 
-Este documento registra la solución acordada para que permanezca disponible aunque se interrumpa la llamada. La ruta definitiva requiere implementación probada de Web Push, configuración VAPID y autorización técnica para activar el envío real. **No se ha enviado ninguna notificación ni un mensaje de prueba a los dispositivos de los voluntarios.**
+### Cambios ya implementados en ESTA RAMA (sin desplegar)
+- `public/sw.js`: receptor del evento `push` para mensajes `germania-informacion`, insignia sin número y notificación genérica. Al tocar, abre Germania.
+- `app/page.js`: al abrir o recuperar el foco de Germania, limpia `clearAppBadge()` y cierra las notificaciones identificadas como `germania-informaciones`.
+- `public/legacy/germania-roles.js` y `public/legacy/index.html`: se eliminan botones y estados «Leído» de la vista de pruebas de informaciones.
+- `app/api/informaciones/prueba/route.js`: deja de consultar confirmaciones de lectura y devuelve 410 al antiguo endpoint de confirmación. No borra los datos históricos existentes.
+- `tests/punto-aviso-pwa.test.mjs`: pruebas automatizadas agregadas para comprobar push sin contador y ausencia de acuses. **No ejecutadas todavía**: el entorno no permitió clonar el repositorio ni instalar dependencias, por lo que falta `npm test` y `npm run build`.
+
+### Trabajo pendiente indispensable
+1. Canal de suscripción Web Push (activación única por dispositivo mediante permiso del sistema) y mecanismo de entrega desde el servidor; se necesita VAPID y un almacenamiento mínimo de suscripciones técnicas, **sin identidades ni historial de lectura**.
+2. Vincular la entrega exclusivamente a nuevas publicaciones de prueba autorizadas; **no se ha insertado ni enviado el mensaje ficticio**.
+3. Ejecutar pruebas en dispositivos Android/iPhone reales y confirmar la apariencia del punto (la decide el SO).
+4. Revisar el cambio, aceptar la arquitectura, fusionar y desplegar solo tras las pruebas.
+
+Este documento conserva la decisión operativa aunque se interrumpa la llamada. **La recepción/limpieza y la eliminación de acuses están preparadas en código de una rama, pero aún NO existe un envío completo Web Push, ninguna notificación llegó a los teléfonos y la versión pública de Germania NO cambió.**
