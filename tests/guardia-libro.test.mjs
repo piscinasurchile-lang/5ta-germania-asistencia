@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {firmaDotacion} from "../lib/guardia-acreditacion.js";
-import {siguienteDia,miercolesSemana,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado} from "../lib/guardia-libro.js";
+import {firmaDotacion,validarAcreditacion} from "../lib/guardia-acreditacion.js";
+import {siguienteDia,miercolesSemana,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia} from "../lib/guardia-libro.js";
 
 test("la semana oficial comienza el miércoles",()=>{
  assert.equal(miercolesSemana("2026-10-14"),"2026-10-14");
@@ -56,4 +56,18 @@ test("El Capitán solo recibe informe después de la ratificación T3 y sin alte
  assert.equal(informeRatificado({acreditacion,revision:{...revision,aprobadaEn:"nueva-aprobacion"},noche,cierre}),false);
  assert.equal(informeRatificado({acreditacion,revision,noche:{...noche,vol:["v1","v3"]},cierre}),false);
  assert.equal(informeRatificado({acreditacion,revision,noche,cierre:{...cierre,fotoSHA256:"otra-foto"}}),false);
+});
+
+test("administrador ve todas las noches pero NO puede acreditar",()=>{
+ const admin={id:"admin-id",clave:"517",nombre:"Christian",cargo:"Voluntario",activo:true};
+ const noche={obac:"fran",maq:"maq",vol:["v1","v2"]};
+ assert.equal(esAdministradorGuardia(admin),true);
+ assert.equal(esAdministradorGuardia({...admin,clave:"518"}),false);
+ assert.equal(esAdministradorGuardia({...admin,activo:false}),false);
+ assert.equal(puedeVerLibro(admin,noche),true);
+ const fecha="2026-10-14";
+ const rev={estado:"aprobada",aprobadaEn:"2026-10-14T12:00:00Z",noches:{[fecha]:noche}};
+ assert.equal(validarAcreditacion({fecha,noche,revision:rev,ahoraLocal:"2026-10-15T06:01",
+   asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"presente"},
+   actor:admin.id,roster:[admin]}),"solo_teniente_tercero");
 });
