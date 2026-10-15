@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {siguienteDia,miercolesSemana,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro} from "../lib/guardia-libro.js";
+import {firmaDotacion} from "../lib/guardia-acreditacion.js";
+import {siguienteDia,miercolesSemana,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado} from "../lib/guardia-libro.js";
 
 test("la semana oficial comienza el miércoles",()=>{
  assert.equal(miercolesSemana("2026-10-14"),"2026-10-14");
@@ -28,9 +29,31 @@ test("solo el OBAC designado puede cerrar, mando puede consultar",()=>{
  assert.equal(puedeVerLibro(francisco,noche),true);
  assert.equal(puedeVerLibro(otro,noche),false);
  assert.equal(puedeVerLibro(teniente,noche),true);
- assert.equal(puedeVerLibro(capitan,noche),true);
+ assert.equal(puedeVerLibro(capitan,noche),false);
+ assert.equal(puedeVerLibro(capitan,noche,true),true);
  assert.equal(puedeVerLibro({...francisco,activo:false},noche),false);
  assert.equal(cargoT3(teniente.cargo),true);
  assert.equal(cargoCapitan(capitan.cargo),true);
  assert.equal(cargoT3("Teniente 2"),false);
+});
+
+test("El Capitán solo recibe informe después de la ratificación T3 y sin alteración del libro",()=>{
+ const fecha="2026-10-14", noche={obac:"fran",maq:"maq",vol:["v1","v2"]};
+ const revision={estado:"aprobada",aprobadaEn:"2026-10-14T12:00:00Z",noches:{[fecha]:noche}};
+ const firma=firmaDotacion(noche);
+ const cierre={estado:"enviado",fotoClave:"libro-foto",fotoSHA256:"hash-foto",enviadoEn:"2026-10-15T09:22:00Z",
+   revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firma};
+ const acreditacion={fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
+   dotacionFirma:firma,cierreLibroFotoSHA256:cierre.fotoSHA256,cierreLibroEn:cierre.enviadoEn,
+   asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"ausente"},
+   asistentes:["maq","fran","v1"],ausentes:["v2"]};
+ const valido=()=>informeRatificado({acreditacion,revision,noche,cierre});
+ assert.equal(informeRatificado({acreditacion:null,revision,noche,cierre}),false);
+ assert.equal(valido(),true);
+ assert.equal(informeRatificado({acreditacion:{...acreditacion,estado:"pendiente"},revision,noche,cierre}),false);
+ assert.equal(informeRatificado({acreditacion:{...acreditacion,cierreLibroFotoSHA256:"otra-foto"},revision,noche,cierre}),false);
+ assert.equal(informeRatificado({acreditacion:{...acreditacion,acreditadoPorId:"v1",asistentes:["v1"]},revision,noche,cierre}),false);
+ assert.equal(informeRatificado({acreditacion,revision:{...revision,aprobadaEn:"nueva-aprobacion"},noche,cierre}),false);
+ assert.equal(informeRatificado({acreditacion,revision,noche:{...noche,vol:["v1","v3"]},cierre}),false);
+ assert.equal(informeRatificado({acreditacion,revision,noche,cierre:{...cierre,fotoSHA256:"otra-foto"}}),false);
 });
