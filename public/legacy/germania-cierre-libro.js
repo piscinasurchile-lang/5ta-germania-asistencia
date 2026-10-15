@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,cargando=false,formAbierto=false,ultimaCarga=0;
+let actual="",items=[],t3=false,capitan=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0;
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -143,7 +143,8 @@ function pintarOficial(){
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">Todavía no hay noches terminadas.</p>');
- $("lgnRefrescar").onclick=()=>cargar(true);
+ $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
+ area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>sel.addEventListener("change",()=>{editando=true;}));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
 }
 async function ratificar(fecha,boton){
@@ -167,7 +168,7 @@ async function ratificar(fecha,boton){
     body:JSON.stringify({fecha,actorId:actual,asistencias,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
-  await cargar(true);
+  editando=false;await cargar(true);
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }
 function init(){
@@ -182,6 +183,6 @@ function init(){
  if(id!==actual){formAbierto=false;ultimaCarga=0;cargar(true);}
 }
 init();
-setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&elegido()&&(esMando(elegido())||soyObacReciente))cargar(false);},5000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")cargar(true);});
+setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||soyObacReciente))cargar(false);},5000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!editando&&!formAbierto)cargar(true);});
 })();
