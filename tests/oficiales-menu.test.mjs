@@ -11,15 +11,15 @@ const inicio=html.indexOf('id="ofMenuAgrupado"');
 const fin=html.indexOf('<!-- ODD legacy retirado',inicio);
 const menu=html.slice(inicio,fin);
 
-test("19 funciones incluidas en cuatro grupos, sin un menú infinito",()=>{
+test("20 funciones incluidas en cuatro grupos, sin un menú infinito",()=>{
   assert.ok(inicio>0&&fin>inicio);
   const grupos=[...menu.matchAll(/<details class="of-grupo of-grupo-([^"]+)"/g)].map(x=>x[1]);
   assert.deepEqual(grupos,["guardias","personas","material","administracion"]);
   const originales=[...menu.matchAll(/<button class="subtab(?: active)?"/g)];
-  assert.equal(originales.length,19);
+  assert.equal(originales.length,20);
   const areas=[...menu.matchAll(/<div class="of-grupo-botones" aria-label="([^"]+)">([\s\S]*?)<\/div>/g)];
   assert.equal(areas.length,4);
-  assert.deepEqual(areas.map(a=>[...a[2].matchAll(/<button class="subtab/g)].length),[5,8,2,4]);
+  assert.deepEqual(areas.map(a=>[...a[2].matchAll(/<button class="subtab/g)].length),[6,8,2,4]);
 });
 
 test("mantiene los destinos, IDs de subpaneles y cargas bajo demanda existentes",()=>{
@@ -31,6 +31,7 @@ test("mantiene los destinos, IDs de subpaneles y cargas bajo demanda existentes"
     assert.ok(menu.includes(nav),"Falta navegación "+nav);
   assert.ok(menu.includes('id="btnOficialesGuardia"'),"Falta gestionar guardias desde Oficiales");
   assert.ok(menu.includes('id="btnOficialesAcreditar"'),"Falta acceso directo a acreditar guardias");
+  assert.ok(menu.includes('id="btnAdminGuardia"'),"Falta el panel del administrador");
   assert.ok(fuente("../public/legacy/germania-roles.js").includes('var botonGestion=$("btnOficialesGuardia")'),"Falta listener existente de guardia");
   assert.ok(app.includes('document.querySelectorAll(".subtab").forEach(s=>{'));
   assert.ok(app.includes('if(!s.dataset.sub) return;'));
