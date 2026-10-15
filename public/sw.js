@@ -83,3 +83,44 @@ self.addEventListener("fetch",event=>{
     return response;
   }));
 });
+
+/* Recepción Web Push de informaciones: sin conteos, identidad ni acuses de lectura.
+   El envío y las suscripciones NO se habilitan con este cambio aislado. */
+const GERMANIA_AVISO_TAG = "germania-informaciones";
+self.addEventListener("push", (event) => {
+  let info = null;
+  try { info = event.data ? event.data.json() : null; } catch {}
+  if (!info || info.tipo !== "germania-informacion") return;
+
+  event.waitUntil((async () => {
+    if (self.navigator && typeof self.navigator.setAppBadge === "function") {
+      try { await self.navigator.setAppBadge(); } catch {}
+    }
+    await self.registration.showNotification("GERMANIA · Nueva información", {
+      body: "Abre Germania para revisar las informaciones.",
+      icon: "/legacy/germania-192.png",
+      badge: "/legacy/favicon-64.png",
+      tag: GERMANIA_AVISO_TAG,
+      data: {url: "/"},
+    });
+  })());
+});
+
+self.addEventListener("notificationclick", (event) => {
+  if (event.notification?.tag !== GERMANIA_AVISO_TAG) return;
+  event.notification.close();
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({type:"window",includeUncontrolled:true});
+    const existing = windows.find(client => {
+      try { return new URL(client.url).origin === self.location.origin; }
+      catch { return false; }
+    });
+    if (existing) {
+      if (typeof existing.navigate === "function") {
+        try { await existing.navigate("/"); } catch {}
+      }
+      return existing.focus();
+    }
+    return self.clients.openWindow("/");
+  })());
+});
