@@ -182,6 +182,6 @@ function init(){
  if(id!==actual){formAbierto=false;ultimaCarga=0;cargar(true);}
 }
 init();
-setInterval(()=>{init();if(document.visibilityState==="visible"&&!formAbierto&&elegido()&&(esMando(elegido())||items.some(x=>String(x.dotacion?.obac)===actual&&x.cierreHabilitado)))cargar(false);},5000);
+setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&elegido()&&(esMando(elegido())||soyObacReciente))cargar(false);},5000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")cargar(true);});
 })();
