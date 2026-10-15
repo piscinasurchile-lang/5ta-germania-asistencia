@@ -42,7 +42,7 @@ test("mantiene los destinos, IDs de subpaneles y cargas bajo demanda existentes"
   const diario=fuente("../public/legacy/germania-cierre-libro.js");
   assert.ok(diario.includes('window.__mostrarPestana("control-guardia-diaria")'),"El botón debe abrir su pantalla independiente");
   assert.ok(diario.includes('items.filter(x=>x.finalizada)'),"Solo incorporar noches terminadas");
-  assert.ok(diario.includes('x.fecha.localeCompare(b.fecha)'),"Las fechas deben acumularse en orden cronológico");
+  assert.ok(diario.includes('a.fecha.localeCompare(b.fecha)'),"Las fechas deben acumularse en orden cronológico");
 
   assert.ok(fuente("../public/legacy/germania-roles.js").includes('var botonGestion=$("btnOficialesGuardia")'),"Falta listener existente de guardia");
   assert.ok(app.includes('document.querySelectorAll(".subtab").forEach(s=>{'));
