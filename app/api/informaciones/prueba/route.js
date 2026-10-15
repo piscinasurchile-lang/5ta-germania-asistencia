@@ -76,7 +76,7 @@ export async function POST(request){
       if(r.ok){
         // Únicamente el aviso recién guardado puede generar Web Push.
         // No impedir guardar la información por un fallo del servicio push.
-        if(esEnvioGeneralActivo())try{
+        if(esEnvioGeneralActivo() && process.env.GERMANIA_PUSH_AVISOS_PRUEBA === "1")try{
           await difundir({tipo:"informacion",titulo:("Información: "+texto).slice(0,120),
             id:item.id,origen:new URL(request.url).origin});
         }catch(error){console.error("webpush informacion",error);}

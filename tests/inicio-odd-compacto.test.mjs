@@ -49,7 +49,7 @@ test("resúmenes de guardia se compactan solo en Inicio; los controles operativo
   assert.match(cierre,/function pintarControlAdmin\(\)/);
   assert.match(cierre,/function abrirPanelMando\(\)/);
   assert.match(cierre,/function pintarOBAC\(\)/);
-  assert.match(html,/germania-inicio\.css\?v=20261015oddcompact1/);
+  assert.match(html,/germania-inicio\.css\?v=20261015pushbienvenida1/);
   assert.doesNotMatch(css,/#panel-guardia\b|#panel-control-guardia-diaria\b|#panel-b5\b/);
 });
 

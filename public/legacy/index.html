@@ -336,7 +336,7 @@
 @media(max-width:850px){.gn-layout{grid-template-columns:1fr}.gn-vol-week{grid-template-columns:repeat(4,1fr)}}@media(max-width:520px){.gn-vol-week{grid-template-columns:repeat(2,1fr)}.gn-day{min-height:46px;font-size:12px}}
 </style>
 <link rel="stylesheet" href="./germania-ui.css?v=20261015oddpdf1">
-<link rel="stylesheet" href="./germania-inicio.css?v=20261015oddcompact1">
+<link rel="stylesheet" href="./germania-inicio.css?v=20261015pushbienvenida1">
 </head>
 <body><div id="appLoading" class="app-loading"><div class="app-loading-box"><img src="/legacy/germania-icon.png" alt="" aria-hidden="true" style="width:72px;height:72px;object-fit:contain;margin:0 auto 12px;display:block"><div class="app-loading-spin"></div><strong>GERMANIA</strong><div>Estamos cargando la información…</div></div></div>
 <div class="wrap">
@@ -378,6 +378,15 @@
   <!-- INICIO GERMANIA -->
   <div class="panel active" id="panel-germania">
     <div class="home-grid">
+      <section id="g-push-bienvenida" class="g-push-bienvenida" aria-labelledby="g-push-titulo" hidden>
+        <span class="g-push-campana" aria-hidden="true">🔔</span>
+        <div class="g-push-cuerpo">
+          <strong id="g-push-titulo">Activa los avisos de Germania</strong>
+          <p>Autoriza una sola vez para recibir automáticamente las nuevas ODD y comunicaciones de Oficiales.</p>
+          <button id="g-push-autorizar" class="g-push-boton" type="button">Autorizar notificaciones</button>
+          <p id="g-push-estado" class="g-push-estado" role="status" aria-live="polite" hidden></p>
+        </div>
+      </section>
       <div id="avisosOdd" style="grid-column:1 / -1;min-width:0;"></div>
 
       <div class="card home-hero" style="grid-column:1 / -1;">
@@ -1539,5 +1548,6 @@
 <script src="./germania-oficiales-menu.js?v=20261010a"></script>
 <script src="./germania-actualizar.js?v=20261009a"></script>
 <script src="./germania-importador-asistencia.js?v=20261015a"></script>
+<script src="./germania-push-bienvenida.js?v=20261015a"></script>
 </body>
 </html>
