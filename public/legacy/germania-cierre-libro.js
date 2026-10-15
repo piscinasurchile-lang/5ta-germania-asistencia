@@ -38,6 +38,7 @@ async function cargar(forzar){
 }
 function limpiar(){
  if($("lgnObacHome"))$("lgnObacHome").innerHTML="";
+ if($("lgnMandoHome"))$("lgnMandoHome").innerHTML="";
  if($("lgnRatif")){$("lgnRatif").hidden=true;$("lgnRatif").innerHTML="";}
  if($("btnOficialesAcreditar"))$("btnOficialesAcreditar").hidden=true;
 }
@@ -62,7 +63,7 @@ function pintarOBAC(){
   '<div id="lgnVistaFoto"></div>'+
   '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
   '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
-  '<p class="sub">La foto y las novedades se enviarán al Capitán y al Teniente Tercero para consulta; solo el Teniente Tercero ratifica asistencias.</p>'+
+  '<p class="sub">El cierre y las novedades llegan primero al Teniente Tercero. Tras su ratificación, el Capitán recibe el informe para consulta, sin editar.</p>'+
   '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+
   '<p id="lgnMensaje" role="status" aria-live="polite"></p></div></section>';
  $("lgnAbrir").onclick=function(){formAbierto=true;$("lgnFormulario").hidden=false;$("lgnFoto").click();};
@@ -91,7 +92,7 @@ async function comprimir(foto){
 async function enviar(fecha){
  const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=$("lgnFoto")?.files?.[0],nov=$("lgnNovedades")?.value.trim();
  if(!file||!nov){msg.textContent="Necesitas la fotografía y el texto de novedades (puede ser Sin novedades).";return;}
- if(!confirm("¿Enviar el cierre del libro de "+fecha+" al Capitán y al Teniente Tercero?"))return;
+ if(!confirm("¿Enviar el cierre del libro de "+fecha+" al Teniente Tercero para ratificación?"))return;
  boton.disabled=true;msg.textContent="Preparando fotografía y enviando cierre…";
  try{
   const foto=await comprimir(file);
@@ -106,16 +107,40 @@ async function enviar(fecha){
 function participantes(n){
  return [{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(id=>({id,rol:"Voluntario"}))).filter(x=>x.id!=null);
 }
+function pintarResumenMando(){
+ const host=$("lgnMandoHome");if(!host)return;
+ if(!t3&&!capitan){host.innerHTML="";return;}
+ const terminadas=items.filter(x=>x.finalizada);
+ const ratificadas=terminadas.filter(x=>x.acreditacionVigente);
+ const cierresPendientes=terminadas.filter(x=>x.cierre&&!x.acreditacionVigente);
+ if(!t3&&!ratificadas.length){host.innerHTML="";return;}
+ const cabecera=t3?"Acreditación de guardia nocturna":"Informes ratificados · Capitán";
+ const mensaje=t3
+  ?(cierresPendientes.length
+    ?cierresPendientes.length+" cierre(s) del OBAC esperando tu ratificación."
+    :"No hay cierres del OBAC pendientes de ratificación.")
+  :ratificadas.length+" noche(s) ratificada(s) por el Teniente Tercero. Consulta fotografías, novedades y asistentes.";
+ host.innerHTML='<section class="card" aria-label="'+escHtml(cabecera)+'">'+
+   '<h2>'+escHtml(cabecera)+'</h2><p class="sub">'+escHtml(mensaje)+'</p>'+
+   '<button type="button" class="btn secondary" id="lgnMandoIr">'+
+   (t3?"Revisar y ratificar noches":"Ver informes de guardia")+'</button></section>';
+ const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
+}
+function abrirPanelMando(){
+ if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("guardia");
+ setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
+}
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
  const mando=t3||capitan;area.hidden=!mando;if(btn)btn.hidden=!mando;
  if(!mando){area.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
- const actualizados=terminadas.slice(0,35);
- let h='<h2>'+(t3?"Acreditación de guardia nocturna":"Cierres y novedades de guardia")+'</h2>'+
- '<p class="sub">'+(t3?"Ratifica cada noche solamente después del cierre del libro por el OBAC.":"Consulta los libros cerrados por cada OBAC y las novedades informadas.")+'</p>'+
- '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. ":"")+'El envío del OBAC no suma asistencia automáticamente.</p>'+
+ const actualizados=(t3?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
+ pintarResumenMando();
+ let h='<h2>'+(t3?"Acreditación de guardia nocturna":"Informes de noches ratificadas")+'</h2>'+
+ '<p class="sub">'+(t3?"Ratifica cada noche solamente después del cierre del libro por el OBAC.":"Solo consulta: aquí aparecen las noches después de la ratificación del Teniente Tercero. No puedes modificar sus registros.")+'</p>'+
+ '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. El cierre OBAC no suma asistencia por sí solo.":"Informes recibidos: "+actualizados.length+". La información es de solo lectura.")+'</p>'+
  '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>';
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
@@ -125,10 +150,22 @@ function pintarOficial(){
     ' · '+(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC")+'</summary>'+
     '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>';
   if(rec){
-   h+='<p><strong>Informe enviado:</strong> '+escHtml(new Date(rec.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>'+
+   h+='<p><strong>Cierre enviado por OBAC:</strong> '+escHtml(new Date(rec.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>'+
       '<p><strong>Novedades:</strong> '+escHtml(rec.novedades)+'</p>'+
       '<a href="'+fotoUrl(x.fecha)+'" target="_blank" rel="noopener" class="btn secondary" style="display:inline-block;margin-bottom:8px">Ver fotografía del libro</a>';
   }else h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede acreditar.</p>';
+  if(ac && x.acreditacion){
+    h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+      ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
+  }
+  if(capitan && !t3 && ac){
+    h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
+    for(const p of participantes(x.dotacion)){
+      const estado=x.acreditacion?.asistencias?.[String(p.id)]==="presente"?"Asistió":"No asistió";
+      h+='<p>'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+' — '+escHtml(estado)+'</p>';
+    }
+    h+='</div>';
+  }
   if(t3 && rec){
    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica cada asistencia con el libro físico antes de ratificar.</p>';
    for(const p of participantes(x.dotacion)){
@@ -142,7 +179,7 @@ function pintarOficial(){
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
- area.innerHTML=h+(actualizados.length?"":'<p class="sub">Todavía no hay noches terminadas.</p>');
+ area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
  $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
  area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>sel.addEventListener("change",()=>{editando=true;}));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
@@ -175,8 +212,7 @@ function init(){
  const btn=$("btnOficialesAcreditar");
  if(btn&&!btn.dataset.lgnReady){
   btn.dataset.lgnReady="1";btn.onclick=function(){
-   if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("guardia");
-   setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
+   abrirPanelMando();
   };
  }
  const m=elegido(),id=m?String(m.id):"";
