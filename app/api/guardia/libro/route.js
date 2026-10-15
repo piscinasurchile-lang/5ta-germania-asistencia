@@ -2,7 +2,7 @@ import {neon} from "@neondatabase/serverless";
 import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
 import {firmaDotacion} from "../../../../lib/guardia-acreditacion.js";
-import {miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro} from "../../../../lib/guardia-libro.js";
+import {miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado} from "../../../../lib/guardia-libro.js";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const MAX_PHOTO=1600000;
@@ -38,8 +38,14 @@ export async function GET(req){
   if(!actor)return error("actor_no_en_nomina",403);
   if(u.searchParams.get("foto")==="1"){
    const fecha=u.searchParams.get("fecha")||"",g=await guardia(sql,fecha);
-   if(!g||!puedeVerLibro(actor,g.noche))return error("no_autorizado",403);
-   const cierre=(await readState(sql,"guardia-libro:"+fecha)).value;
+   if(!g)return error("no_autorizado",403);
+   const [cl,ac]=await Promise.all([
+     readState(sql,"guardia-libro:"+fecha),
+     readState(sql,"guardia-acreditacion:"+fecha)
+   ]);
+   const cierre=cl.value;
+   const ratificada=informeRatificado({acreditacion:ac.value,revision:g.revision,noche:g.noche,cierre});
+   if(!puedeVerLibro(actor,g.noche,ratificada))return error("no_autorizado",403);
    if(!cierre?.fotoClave)return error("foto_no_disponible",404);
    const rows=await sql.query("SELECT encode(data,'base64') AS b64 FROM document_assets WHERE key=$1 AND active=true LIMIT 1",[cierre.fotoClave]);
    if(!rows.length)return error("foto_no_disponible",404);
@@ -53,15 +59,17 @@ export async function GET(req){
     "LEFT JOIN app_state ac ON ac.key='guardia-acreditacion:'||n.fecha "+
     "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT 56";
   const rows=await sql.query(q,[ahora.slice(0,10)]);
-  const of=cargoT3(actor.cargo)||cargoCapitan(actor.cargo);
-  const items=rows.filter(r=>of||String(r.dotacion?.obac||"")===String(actor.id))
-   .map(r=>({fecha:r.fecha,revisionAprobadaEn:r.revision.aprobadaEn,dotacion:r.dotacion,
-     cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
-     finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
-     acreditacionVigente:!!r.acreditacion&&r.acreditacion.estado==="acreditada"&&
-       r.acreditacion.revisionAprobadaEn===r.revision.aprobadaEn&&
-       r.acreditacion.dotacionFirma===firmaDotacion(r.dotacion)}));
-  return Response.json({items,esT3:cargoT3(actor.cargo),esCapitan:cargoCapitan(actor.cargo)},{headers:{"Cache-Control":"no-store"}});
+  const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo);
+  const items=rows.map(r=>{
+    const ratificada=informeRatificado({acreditacion:r.acreditacion,revision:r.revision,
+      noche:r.dotacion,cierre:r.cierre});
+    return {fecha:r.fecha,revisionAprobadaEn:r.revision.aprobadaEn,dotacion:r.dotacion,
+      cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
+      finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
+      acreditacionVigente:ratificada};
+  }).filter(r=>esT3||String(r.dotacion?.obac||"")===String(actor.id)||
+       (esCapitan&&r.acreditacionVigente));
+  return Response.json({items,esT3,esCapitan},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro GET",e);return error("database_error",500);}
 }
 export async function POST(req){
@@ -85,7 +93,8 @@ export async function POST(req){
   const meta={fecha,estado:"enviado",obacId:String(actor.id),obacNombre:nombre(actor),
     novedades,fotoClave,fotoMime:mime,fotoBytes:bytes.length,fotoSHA256:hash,
     revisionAprobadaEn:g.revision.aprobadaEn,dotacionFirma:firma,
-    enviadoEn:new Date().toISOString(),destinatarios:["teniente_tercero","capitan"]};
+    enviadoEn:new Date().toISOString(),destinatarios:["teniente_tercero"],
+    informeCapitan:"despues_de_ratificacion_t3"};
   const query="WITH foto AS (INSERT INTO document_assets(key,data,active,source,effective_year,updated_at) "+
     "VALUES ($1,decode($2,'base64'),true,'guardia_libro',$3,now()) ON CONFLICT(key) DO NOTHING RETURNING key), "+
     "cierre AS (INSERT INTO app_state(key,value,updated_at,version) SELECT $4,$5::jsonb,now(),1 FROM foto "+
