@@ -161,20 +161,30 @@ export default function CapturaB5(){
   function actualizarCampo(k,v){setForm(d=>({...d,[k]:v}));}
   function marcar(id,v){setForm(d=>({...d,records:{...d.records,[id]:v}}));}
 
-  async function verRegistro(item){
+  async function verRegistro(item,abrirEditor=false){
     setMensajeDetalle("");
     setClaveOficial("");
     setEdicionRegistro(null);
     const base={...item.datos,anulado:item.estado==="anulado"};
     setSeleccion({item,datos:base,version:null,remoto:false});
-    if((item.estado!=="sincronizado"&&item.estado!=="anulado")||conexion!=="online"||item.tipo!=="lista")return;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      document.getElementById("detalleRegistroB5")?.scrollIntoView({block:"start",behavior:"smooth"});
+    }));
+    if((item.estado!=="sincronizado"&&item.estado!=="anulado")||conexion!=="online"||item.tipo!=="lista"){
+      if(abrirEditor && item.tipo==="lista" && ["pendiente","revision"].includes(item.estado))
+        setEdicionRegistro({...base,records:{...base.records}});
+      return;
+    }
     try{
       const q=new URLSearchParams({id:item.id,date:item.datos.date,tipo:item.datos.tipo});
       const respuesta=await fetch("/api/b5/registros?"+q.toString(),{cache:"no-store",credentials:"same-origin"});
       if(!respuesta.ok)throw new Error("El servidor no pudo confirmar el contenido de este parte.");
       const j=await respuesta.json();
-      if(j.ok)setSeleccion(prev=>prev?.item.id===item.id?
-        {...prev,datos:j.datos,version:j.version,remoto:true}:prev);
+      if(j.ok){
+        setSeleccion(prev=>prev?.item.id===item.id?
+          {...prev,datos:j.datos,version:j.version,remoto:true}:prev);
+        if(abrirEditor && !j.datos.anulado)setEdicionRegistro({...j.datos,records:{...j.datos.records}});
+      }
     }catch{
       setMensajeDetalle("Se muestra la copia guardada en esta tablet. No se pudo consultar la versión vigente de Neon.");
     }
@@ -426,7 +436,7 @@ export default function CapturaB5(){
               {x.estado==="revision"&&<small>{x.error}</small>}
               <div className="accionesRegistro">
                 <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
-                <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"} onClick={async()=>{await verRegistro(x);setMensajeDetalle("Para editar, abre el registro y utiliza el botón Editar de su detalle.");}}>Editar</button>
+                <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"} onClick={()=>verRegistro(x,true)}>Editar</button>
                 <button type="button" className="accionPeligro" onClick={async()=>{await verRegistro(x);setMensajeDetalle("Revisa los datos y elige Anular o Eliminar dentro del detalle.");}}>Borrar</button>
               </div>
             </div>;
