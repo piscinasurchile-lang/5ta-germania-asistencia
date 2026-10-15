@@ -703,6 +703,8 @@ async function panelRev(pn,D){
   var obacs=activos.slice().sort(porPrec); /* corrección manual del OBAC: cualquier voluntario, ordenado por precedencia */
   var h='<h3 class="gr-t">Revisión de la dotación</h3>';
   h+='<div class="gr-nota '+(aprobada?"maq":"info")+'"><span aria-hidden="true">'+(aprobada?"🔒":"🛠")+'</span><p>'+(aprobada?'<b>Aprobada</b> por '+E(doc.aprobadaPor)+' el '+E(new Date(doc.aprobadaEn).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}))+'. Lista para la ODD. Para cambiar algo, reabre la revisión.':'<b>Borrador.</b> Corrige lo que haga falta y aprueba. '+completas+' de '+cov.length+' noches completas · '+dif+' cambio'+(dif===1?"":"s")+' sobre lo inscrito.')+'</p></div>';
+  // Acreditación efectiva al inicio: la lista extensa de siete noches queda debajo.
+  if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista" aria-live="polite"><p class="sub">Cargando acreditaciones de noches finalizadas…</p></div>';
   h+='<div class="gr-lista">'+cov.map(function(c){
     var nn=nombreNoche(c.f), o=ocup(c.f);
     var est=c.completa?'<span class="gr-chip verde">Completa</span>':c.nada?'<span class="gr-chip gris">Sin asignar</span>':'<span class="gr-chip rojo">Incompleta</span>';
@@ -734,7 +736,7 @@ async function panelRev(pn,D){
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
   else h+='<div class="gr-nota info"><p><b>Último paso del Teniente Tercero:</b> revisa las siete noches y aprueba la dotación. Esta aprobación no acredita asistencia.</p></div><button type="button" class="btn gr-grande" id="rvAprobar">✓ APROBAR GUARDIAS DE LA SEMANA</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
-  if(aprobada && esTenienteTercero(D.m)) h+='<div id="rvAcreditacion" class="gr-lista"><p class="sub">Cargando acreditaciones…</p></div>';
+
   pn.innerHTML=h;
   if(aprobada && esTenienteTercero(D.m)) pintarAcreditacionReal(D,doc).catch(function(){
     var a=$("rvAcreditacion");if(a)a.innerHTML='<p class="gr-falta">No fue posible consultar acreditaciones. Reintenta.</p>';
