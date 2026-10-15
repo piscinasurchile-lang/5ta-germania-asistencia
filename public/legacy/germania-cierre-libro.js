@@ -151,8 +151,10 @@ function pintarControlAdmin(){
  // Cada noche se agrega visualmente al concluir su turno, a las 06:00 del día siguiente.
  // No se muestran turnos futuros como cumplidos, ni se altera el archivo al cambiar de semana.
  const terminadas=items.filter(x=>x.finalizada).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
- const resumen={falta:0,pendiente:0,acreditadas:0};
+ const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0};
  for(const x of terminadas){
+  // Cierre del OBAC y ratificación del T3 son hitos independientes.
+  if(x.cierre)resumen.cerradas++;
   if(x.acreditacionVigente)resumen.acreditadas++;
   else if(x.cierre)resumen.pendiente++;
   else resumen.falta++;
@@ -160,8 +162,9 @@ function pintarControlAdmin(){
  const encabezado='<h2>Control Guardia Diaria</h2>'+
   '<p class="sub">Registro cronológico de las noches terminadas. Se agrega una tarjeta al terminar cada guardia (06:00 del día siguiente). El Teniente Tercero es el único que ratifica.</p>';
  const indicadores='<div class="lgn-control-totales">'+[
-  [terminadas.length,"Noches registradas"],[resumen.falta,"Sin cierre OBAC"],
-  [resumen.pendiente,"Por ratificar"],[resumen.acreditadas,"Acreditadas"]
+  [terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
+  [resumen.pendiente,"Pendientes T3"],[resumen.acreditadas,"Ratificadas T3"],
+  [resumen.falta,"Sin cierre OBAC"]
  ].map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
   home.innerHTML='<section class="card" aria-label="Control Guardia Diaria">'+encabezado+
