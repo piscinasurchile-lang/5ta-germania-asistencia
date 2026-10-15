@@ -238,7 +238,7 @@ function pintarResumenMando(){
  const terminadas=items.filter(x=>x.finalizada);
  const ratificadas=terminadas.filter(x=>x.acreditacionVigente);
  const cierresPendientes=terminadas.filter(x=>x.cierre&&!x.acreditacionVigente);
- if(!t3&&!ratificadas.length){host.innerHTML="";return;}
+ if(!cierresPendientes.length&&!ratificadas.length){host.innerHTML="";return;}
  const cabecera=t3?"Acreditación de guardia nocturna":"Informes ratificados · Capitán";
  const mensaje=t3
   ?(cierresPendientes.length
