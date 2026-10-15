@@ -496,3 +496,16 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
   #panel-panel .pn-eventos table{min-width:470px}
   #panel-panel .pn-tabla-wrap{font-size:12px}
 }
+
+
+/* Confirmación OBAC de 24 horas: pequeña, sin fotografía ni novedades en Inicio. */
+.lgn-obac-confirmacion,.lgn-obac-aviso-previo{
+  display:flex;flex-direction:column;gap:4px;margin:0 0 12px;padding:10px 13px;
+  border:1px solid #2f624e;border-left:4px solid #40b37a;border-radius:9px;
+  background:#10211b;color:#e5f7ec;font-size:13px;line-height:1.35;
+}
+.lgn-obac-confirmacion strong{font-size:14px;font-weight:700;color:#dff6e8;}
+.lgn-obac-confirmacion span{color:#d0ddd7;font-size:12px;}
+.lgn-obac-confirmacion small{color:#a8c0b3;font-size:11px;}
+.lgn-obac-aviso-previo{border-color:#655122;border-left-color:#ffcc00;background:#1e1b12;}
+.lgn-obac-aviso-previo strong{color:#ffcc00;}
