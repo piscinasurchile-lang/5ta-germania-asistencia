@@ -45,11 +45,13 @@ export default function ConfiguracionAvisos(){
     if(ocupado)return;
     setOcupado(true);setEstado("Solicitando permiso a Android o iPhone…");
     try{
+      // Pedir autorización inmediatamente tras tocar el botón: algunos
+      // navegadores la rechazan si se espera primero una llamada de red.
+      const permiso=Notification.permission==="granted"?"granted":await Notification.requestPermission();
+      if(permiso!=="granted")throw Error("El teléfono no autorizó las notificaciones.");
       const configResp=await fetch("/api/push/suscripcion",{cache:"no-store"});
       const config=await configResp.json();
       if(!config.disponible||!config.publicKey)throw Error("Web Push todavía no está configurado.");
-      const permiso=Notification.permission==="granted"?"granted":await Notification.requestPermission();
-      if(permiso!=="granted")throw Error("El teléfono no autorizó las notificaciones.");
       const reg=await navigator.serviceWorker.register("/sw.js",{scope:"/"});
       await navigator.serviceWorker.ready;
       let sub=await reg.pushManager.getSubscription();
