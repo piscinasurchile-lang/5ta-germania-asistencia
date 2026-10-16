@@ -388,6 +388,16 @@ function abrirPanelMando(fecha){
  const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
  setTimeout(async()=>{
   await cargar(true);
+  // Para corregir guardias antiguas, no depender de las 8 semanas recientes del Inicio.
+  if(t3&&elegida&&!items.some(x=>x.fecha===elegida)){
+   try{
+    const r=await fetch("/api/guardia/libro?historial=1&anio="+elegida.slice(0,4)+"&actorId="+encodeURIComponent(actual),{cache:"no-store"});
+    if(r.ok){
+     const d=await r.json(),buscada=d.items?.find(x=>x.fecha===elegida);
+     if(buscada){items=[buscada,...items].sort((a,b)=>b.fecha.localeCompare(a.fecha));pintarOficial();}
+    }
+   }catch(e){console.warn("guardia histórica no disponible",e);}
+  }
   const area=$("lgnRatif"),dia=elegida?area?.querySelector('[data-lgn-dia="'+elegida+'"]'):null;
   if(dia){dia.open=true;dia.scrollIntoView({behavior:"smooth",block:"start"});}
   else area?.scrollIntoView({behavior:"smooth",block:"start"});
@@ -468,6 +478,7 @@ function pintarOficial(){
    if(sel){sel.value="excusado";sel.dispatchEvent(new Event("change"));}
  });
  area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
+ area.querySelectorAll("[data-lgn-comprobado]").forEach(el=>el.addEventListener("change",()=>{editando=true;}));
  area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
  area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
