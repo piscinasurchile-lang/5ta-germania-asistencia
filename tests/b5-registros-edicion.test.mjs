@@ -69,6 +69,6 @@ test("API exige autenticación oficial y versión; estadísticas excluyen anulad
   assert.match(legacy,/if\(pt\?\.anulado===true\) return \{cuenta:false/);
   assert.match(ui,/Registros de esta tablet/);
   assert.match(ui,/resumenParte/);
-  assert.match(ui,/Guardar corrección/);
+  assert.match(ui,/Revisar corrección/);
   assert.match(ui,/Restaurar parte/);
 });
