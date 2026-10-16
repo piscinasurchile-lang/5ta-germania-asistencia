@@ -69,6 +69,10 @@ export default function CapturaB5(){
   const [confirmacion,setConfirmacion]=useState(null);
   const [procesandoArchivo,setProcesandoArchivo]=useState("");
   const [mensajeArchivo,setMensajeArchivo]=useState("");
+  const [recuperacion,setRecuperacion]=useState(null);
+  const [claveRecuperacion,setClaveRecuperacion]=useState("");
+  const [mensajeRecuperacion,setMensajeRecuperacion]=useState("");
+  const [recuperando,setRecuperando]=useState(false);
   const guardadoRef=useRef(false);
   const sincronizandoRef=useRef(false);
   const abortRef=useRef(false);
@@ -310,6 +314,74 @@ export default function CapturaB5(){
     finally{setOperando(false);}
   }
 
+  async function prepararRecuperacion(item){
+    const r=resumenParte(item?.datos?.records,item?.tipo);
+    if(item?.estado!=="revision"||item?.tipo!=="lista"||
+      item?.datos?.date!=="2026-10-15"||item?.datos?.tipo!=="Citación de Compañía"||
+      r.presentes!==10||r.ausentes!==7||r.justificados!==11||r.total!==28){
+      setMensajeRecuperacion("Esta captura no coincide con la citación de Comandancia pendiente de recuperación.");
+      return;
+    }
+    if(conexion!=="online"){
+      setMensajeRecuperacion("Conecta la tablet a Wi-Fi antes de recuperar el parte oficial.");
+      return;
+    }
+    setMensajeRecuperacion("");
+    try{
+      const respuesta=await fetch("/api/b5/recuperar-comandancia",{cache:"no-store",credentials:"same-origin"});
+      const j=await respuesta.json().catch(()=>({}));
+      if(!respuesta.ok)throw new Error("No se pudo revisar el parte oficial. No se modificó ningún dato.");
+      if(j.numero!==6 || !j.anulado || j.tipo!=="Citación de Compañía" ||
+        !Number.isInteger(j.version))
+        throw new Error("El parte oficial ya cambió. No es seguro sobrescribirlo; revisa su estado.");
+      setClaveRecuperacion("");
+      setRecuperacion({item,version:j.version,numero:j.numero});
+    }catch(e){setMensajeRecuperacion(e.message||"No se pudo preparar la recuperación.");}
+  }
+
+  async function confirmarRecuperacion(){
+    if(!recuperacion||recuperando)return;
+    if(!claveRecuperacion.trim()){
+      setMensajeRecuperacion("Debes ingresar la clave de Oficialidad antes de recuperar el parte.");
+      return;
+    }
+    const item=recuperacion.item;
+    setRecuperando(true);setMensajeRecuperacion("");
+    try{
+      const auth=await fetch("/api/auth/officiality",{method:"POST",
+        credentials:"same-origin",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({pin:claveRecuperacion})});
+      if(!auth.ok)throw new Error("La clave de Oficialidad no fue aceptada.");
+      const response=await fetch("/api/b5/recuperar-comandancia",{method:"POST",
+        credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({version:recuperacion.version,
+          fuente:{id:item.id,date:item.datos.date,tipo:item.datos.tipo,
+            records:item.datos.records,detalle:item.datos.detalle||"",
+            registradoPor:item.datos.registradoPor||""}})});
+      const j=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(j.error==="version_conflict"?
+        "El parte oficial cambió mientras lo revisabas. Ningún registro fue sobrescrito.":
+        "No se pudo recuperar el parte ("+(j.error||response.status)+").");
+      // El servidor ya confirmó su restauración. Las copias locales se actualizan
+      // después; ante un error aquí el POST es idempotente y conserva el N.º 6.
+      const vigente=await listarBorradores();
+      for(const local of vigente){
+        if(local.id===item.id)await cambiarBorrador({...local,estado:"sincronizado",
+          numero:6,error:"",sincronizadoEn:new Date().toISOString(),recuperadoComandancia:true});
+        else if(local.tipo==="lista"&&local.numero===6 &&
+          local.datos?.date==="2026-10-15"&&local.estado==="anulado")
+          await cambiarBorrador({...local,estado:"sustituido",
+            error:"Copia anterior: asistencia cero. El parte oficial N.º 6 fue recuperado."});
+      }
+      await recargarCola();
+      setRecuperacion(null);setClaveRecuperacion("");
+      setMensajeRecuperacion("Citación de Comandancia recuperada como parte oficial N.º 6: 10 presentes, 7 ausentes y 11 justificados. Ya puedes generar el PDF y compartirlo por WhatsApp.");
+    }catch(e){
+      setMensajeRecuperacion(e.message||"No se pudo finalizar la recuperación. Conserva ambas copias.");
+    }finally{setRecuperando(false);}
+  }
+
   function solicitarGuardar(){
     if(guardando||!nomina.length||!listaPreparada)return;
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
@@ -500,7 +572,8 @@ export default function CapturaB5(){
             return <div className="registro registroB5" key={x.id}>
               <div className="registroEncabezado">
                 <strong>{x.tipo==="servicio"?"Emergencias":"Asistencia"} · {fechaLegible(x.datos?.date||x.datos?.svFecha)}</strong>
-                <span>{x.estado==="anulado"?"Anulado · N° "+x.numero:
+                <span>{x.estado==="sustituido"?"Copia anterior (conservada) · N° "+x.numero:
+                  x.estado==="anulado"?"Anulado · N° "+x.numero:
                   x.estado==="sincronizado"?"Sincronizado · N° "+x.numero:
                   x.estado==="revision"?"Requiere revisión":"Pendiente de Internet"}</span>
               </div>
@@ -511,14 +584,21 @@ export default function CapturaB5(){
               {x.estado==="revision"&&<small>{x.error}</small>}
               <div className="accionesRegistro">
                 <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
-                <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"} onClick={()=>verRegistro(x,true)}>Editar</button>
+                <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"||x.estado==="sustituido"} onClick={()=>verRegistro(x,true)}>Editar</button>
                 {x.tipo==="lista"&&<>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
                     onClick={()=>compartirParte(x,"pdf")}>PDF</button>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
                     onClick={()=>compartirParte(x,"whatsapp")}>WhatsApp</button>
                 </>}
-                <button type="button" className="accionPeligro" onClick={async()=>{await verRegistro(x);setMensajeDetalle("Revisa los datos y elige Anular o Eliminar dentro del detalle.");}}>Borrar</button>
+                <button type="button" className="accionPeligro" disabled={x.estado==="sustituido"}
+                  onClick={async()=>{await verRegistro(x);setMensajeDetalle("Revisa los datos y elige Anular o Eliminar dentro del detalle.");}}>Borrar</button>
+                {x.estado==="revision"&&x.tipo==="lista"&&x.datos?.date==="2026-10-15"&&
+                  x.datos?.tipo==="Citación de Compañía"&&r.presentes===10&&r.ausentes===7&&
+                  r.justificados===11&&r.total===28&&
+                  <button type="button" className="botonRecuperar" onClick={()=>prepararRecuperacion(x)}>
+                    Recuperar citación de Comandancia · N.º 6
+                  </button>}
               </div>
             </div>;
           })}
@@ -581,6 +661,31 @@ export default function CapturaB5(){
           </section>}
         </section>}
       </section>
+      {!!mensajeRecuperacion&&!recuperacion&&<p className="avisoLocal" role="status">{mensajeRecuperacion}</p>}
+      {recuperacion&&<div className="confirmacionFondo">
+        <section className="confirmacionPanel" role="dialog" aria-modal="true" aria-labelledby="tituloRecuperacionB5">
+          <div className="confirmacionPaso">RECUPERACIÓN DE ASISTENCIA · 15/10/2026</div>
+          <h2 id="tituloRecuperacionB5">Restaurar citación de Comandancia</h2>
+          <p>El parte oficial N.º 6 está anulado con 28 ausentes. La lista correcta de esta tablet contiene:</p>
+          <div className="confirmacionTotales">
+            <div><strong>10</strong><span>Presentes</span></div>
+            <div><strong>7</strong><span>Ausentes</span></div>
+            <div><strong>11</strong><span>Justificados</span></div>
+          </div>
+          <p>Esta recuperación conservará el número N.º 6, corregirá el tipo de citación a Comandancia y guardará el historial original. No afectará al parte del 14 de octubre.</p>
+          <label className="claveOficial">Clave de Oficialidad
+            <input type="password" autoComplete="off" value={claveRecuperacion}
+              onChange={e=>setClaveRecuperacion(e.target.value)}/>
+          </label>
+          {!!mensajeRecuperacion&&<p className="alertaVacia" role="status">{mensajeRecuperacion}</p>}
+          <div className="confirmacionAcciones">
+            <button type="button" disabled={recuperando} onClick={()=>{setRecuperacion(null);setClaveRecuperacion("");}}>Cancelar</button>
+            <button type="button" className="confirmarDefinitivo" disabled={recuperando} onClick={confirmarRecuperacion}>
+              {recuperando?"Recuperando…":"Sí, recuperar parte N.º 6"}
+            </button>
+          </div>
+        </section>
+      </div>}
       {confirmacion&&<div className="confirmacionFondo">
         <section className="confirmacionPanel" role="dialog" aria-modal="true" aria-labelledby="tituloConfirmacionB5">
           <div className="confirmacionPaso">PASO FINAL · VERIFICACIÓN</div>
@@ -665,6 +770,8 @@ export default function CapturaB5(){
         .registroTotales,.detalleTotales{font-size:14px;color:#c6e1f3}
         .alertaVacia{background:#5d281c;color:#fff1d2;padding:8px 10px;border:1px solid #d38c64;border-radius:8px;font-size:13px}
         .accionesRegistro{display:flex;flex-wrap:wrap;gap:7px}
+        .accionesRegistro .botonRecuperar{background:#17663f;color:#fff;border-color:#8bd4a7;
+          flex-basis:100%;min-height:44px}
         .accionesRegistro button,.registroEncabezado button{padding:8px 13px;background:#233c53;
           border:1px solid #6586a3;color:white;border-radius:7px;font-size:13px;font-weight:700}
         .accionesRegistro button:disabled{opacity:.35;cursor:not-allowed}
