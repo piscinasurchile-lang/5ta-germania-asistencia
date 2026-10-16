@@ -407,25 +407,42 @@ function pintarOficial(){
     h+='</div>';
   }
   if(t3 && rec){
-   h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica cada asistencia con el libro físico antes de ratificar.</p>';
-   for(const p of participantes(x.dotacion)){
-    const estado=ac?x.acreditacion.asistencias?.[String(p.id)]||"":"";
-    h+='<label class="rv-lbl">'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+'</label>'+
-       '<select class="rv-sel" data-lgn-id="'+escHtml(p.id)+'" aria-label="Asistencia de '+escHtml(nombre(p.id))+'">'+
-       '<option value="">— verificar —</option><option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
-       '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option></select>';
-   }
-   h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
+    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica las asistencias con la fotografía del libro físico.</p>';
+    for(const p of participantes(x.dotacion)){
+      const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
+      const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
+      h+='<div class="lgn-fila-edicion"><label class="rv-lbl">'+escHtml(nombre(id))+' · '+escHtml(p.rol)+'</label>'+
+      '<select class="rv-sel" data-lgn-id="'+escHtml(id)+'">'+
+      '<option value="">— verificar —</option>'+
+      '<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
+      '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option>'+
+      '<option value="excusado"'+(estado==="excusado"?" selected":"")+'>Excusado</option></select>'+
+      '<input data-lgn-excusa="'+escHtml(id)+'" type="text" maxlength="400" class="lgn-excusa-input" placeholder="Motivo obligatorio de la excusa" value="'+escHtml(motivo)+'"'+(estado==="excusado"?"":" hidden")+'></div>';
+    }
+    const ocupados=new Set(participantesEfectivos(x).map(p=>String(p.id)));
+    h+='<div class="lgn-rezagados"><h3>Asistentes adicionales</h3>'+
+      '<p class="sub">Agregar solo si figura en la foto del libro. No modifica la dotación programada.</p>'+
+      '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
+      '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
+      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>';
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
  $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
  $("lgnVolverInicio").onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
- area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>{
+ area.querySelectorAll("[data-lgn-id]").forEach(sel=>{
    estadoSeleccionAsistencia(sel);
-   sel.addEventListener("change",()=>{editando=true;estadoSeleccionAsistencia(sel);});
+   sel.addEventListener("change",()=>{
+     editando=true;estadoSeleccionAsistencia(sel);
+     const input=sel.parentElement.querySelector("[data-lgn-excusa]");
+     if(input)input.hidden=sel.value!=="excusado";
+   });
  });
+ area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
+ area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
+ area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
 }
 async function ratificar(fecha,boton){
