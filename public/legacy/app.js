@@ -2669,8 +2669,28 @@ async function gnResumenAcreditado(lista){
   }).formatToParts(new Date()).map(x=>[x.type,x.value]));
   const ahoraChile=[partes.year,partes.month,partes.day].join("-")+"T"+partes.hour+":"+partes.minute;
   if(!window.GermaniaGuardiaEstadisticas)throw new Error("Módulo de estadísticas no disponible.");
+  // Incluir cada guardia aprobada en las estadísticas, aunque el registro
+  // antiguo de Guardia Nocturna no se haya generado. Una sola fecha = una noche.
+  const fechasExistentes=new Set(lista.map(g=>g.fechaIng).filter(Boolean));
+  const guardiasCompletas=lista.slice();
+  for(const doc of revisiones.values()){
+    if(doc?.estado!=="aprobada"||!doc.noches)continue;
+    for(const [fecha,noche] of Object.entries(doc.noches)){
+      if(fechasExistentes.has(fecha)||!noche)continue;
+      const dia=new Date(fecha+"T12:00:00Z");
+      if(!Number.isFinite(+dia))continue;
+      dia.setUTCDate(dia.getUTCDate()+1);
+      guardiasCompletas.push({
+        fechaIng:fecha,fechaSal:dia.toISOString().slice(0,10),horaSal:"06:00",
+        oficial:noche.obac,conductor:noche.maq,
+        guardianes:(noche.vol||[]).map(id=>({id}))
+      });
+      fechasExistentes.add(fecha);
+      pares[fecha]={revision:doc,acta:actas.get("guardia-acreditacion:"+fecha)||null};
+    }
+  }
   const resumen=window.GermaniaGuardiaEstadisticas.calcularResumen({
-    guardias:lista,acreditaciones:pares,rosterIds:ROSTER.map(p=>String(p.id)),ahoraChile
+    guardias:guardiasCompletas,acreditaciones:pares,rosterIds:ROSTER.map(p=>String(p.id)),ahoraChile
   });
   return {resumen,pares,revisiones};
 }
