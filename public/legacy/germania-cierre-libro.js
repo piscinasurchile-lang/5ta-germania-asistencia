@@ -18,14 +18,14 @@ function fechaBonita(fecha){
  return d.toLocaleDateString("es-CL",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});
 }
 function etiquetaGuardia(fecha){return "Guardia del "+fechaBonita(fecha);}
-function filaAsistencia(nombrePersona,rolPersona,presente){
- return '<div class="lgn-asistencia-fila '+(presente?"presente":"ausente")+'">'+
+function filaAsistencia(nombrePersona,rolPersona,presente,excusado=false){
+ return '<div class="lgn-asistencia-fila '+(presente?"presente":excusado?"excusado":"ausente")+'">'+
    '<span class="lgn-asistencia-nombre">'+escHtml(nombrePersona)+' · '+escHtml(rolPersona)+'</span>'+
-   '<strong class="lgn-asistencia-estado">'+(presente?"Asistió":"No asistió")+'</strong></div>';
+   '<strong class="lgn-asistencia-estado">'+(presente?"Asistió":excusado?"Excusado":"No asistió")+'</strong></div>';
 }
 function estadoSeleccionAsistencia(sel){
  if(!sel)return;
- sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente");
+ sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente"||sel.value==="excusado");
  sel.classList.toggle("lgn-asistencia-select-presente",sel.value==="presente");
 }
 function rol(m){return String(m?.cargo||"").toLowerCase();}
@@ -148,6 +148,21 @@ function participantes(n){
  return [{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(id=>({id,rol:"Voluntario"}))).filter(x=>x.id!=null);
 }
 
+function participantesEfectivos(x){
+ return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})));
+}
+function seleccionarRez(ocupados){
+ if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
+ return '<option value="">Seleccionar asistente no programado…</option>'+
+ ROSTER.filter(p=>p.activo!==false&&!ocupados.has(String(p.id)))
+ .sort((a,b)=>nombre(a.id).localeCompare(nombre(b.id),"es"))
+ .map(p=>'<option value="'+escHtml(p.id)+'">'+escHtml(nombre(p.id))+'</option>').join("");
+}
+function htmlRez(id,motivo){
+ return '<div class="lgn-rezagado-row" data-lgn-rezagado="'+escHtml(id)+'"><b>'+escHtml(nombre(id))+'</b> · Asistió (verificado en libro)'+
+  '<button type="button" class="btn small secondary" data-lgn-quitar>Quitar</button><input type="hidden" data-lgn-motivo-rez value="'+escHtml(motivo)+'"></div>';
+}
+
 /* Vista administrativa independiente. Solo consulta; jamás transmite modificaciones. */
 function semanaDe(fecha){
  const d=new Date(fecha+"T12:00:00Z");
@@ -255,9 +270,11 @@ function pintarControlAdmin(){
    html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
     (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
     '<p><strong>Asistencia confirmada:</strong></p>';
-   for(const p of participantes(x.dotacion)){
+   for(const p of participantesEfectivos(x)){
     const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
-    html+=filaAsistencia(nombre(p.id),p.rol,presente);
+    html+=filaAsistencia(nombre(p.id),p.rol,presente,!!x.acreditacion.excusas?.[String(p.id)]);
+    const motivo=x.acreditacion.excusas?.[String(p.id)];
+    if(motivo)html+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
    }
   }else if(x.cierre){
    html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. No suma estadísticas todavía.</p>';
@@ -381,43 +398,108 @@ function pintarOficial(){
   }
   if(capitan && !t3 && ac){
     h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
-    for(const p of participantes(x.dotacion)){
-      const estado=x.acreditacion?.asistencias?.[String(p.id)]==="presente"?"Asistió":"No asistió";
-      h+=filaAsistencia(nombre(p.id),p.rol,estado==="Asistió");
+    for(const p of participantesEfectivos(x)){
+      const id=String(p.id),presente=x.acreditacion?.asistencias?.[id]==="presente";
+      h+=filaAsistencia(nombre(id),p.rol,presente,!!x.acreditacion?.excusas?.[id]);
+      const motivo=x.acreditacion?.excusas?.[id];
+      if(motivo)h+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
     }
     h+='</div>';
   }
   if(t3 && rec){
-   h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica cada asistencia con el libro físico antes de ratificar.</p>';
-   for(const p of participantes(x.dotacion)){
-    const estado=ac?x.acreditacion.asistencias?.[String(p.id)]||"":"";
-    h+='<label class="rv-lbl">'+escHtml(nombre(p.id))+' · '+escHtml(p.rol)+'</label>'+
-       '<select class="rv-sel" data-lgn-id="'+escHtml(p.id)+'" aria-label="Asistencia de '+escHtml(nombre(p.id))+'">'+
-       '<option value="">— verificar —</option><option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
-       '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option></select>';
-   }
-   h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
+    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica las asistencias con la fotografía del libro físico.</p>';
+    for(const p of participantes(x.dotacion)){
+      const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
+      const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
+      h+='<div class="lgn-fila-edicion"><label class="rv-lbl">'+escHtml(nombre(id))+' · '+escHtml(p.rol)+'</label>'+
+      '<select class="rv-sel" data-lgn-id="'+escHtml(id)+'">'+
+      '<option value="">— verificar —</option>'+
+      '<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
+      '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option>'+
+      '<option value="excusado"'+(estado==="excusado"?" selected":"")+'>Excusado</option></select>'+
+      '<button type="button" class="btn small secondary lgn-boton-excusa" data-lgn-excusar>Excusar</button>'+
+      '<input data-lgn-excusa="'+escHtml(id)+'" type="text" maxlength="400" class="lgn-excusa-input" placeholder="Motivo obligatorio de la excusa" value="'+escHtml(motivo)+'"'+(estado==="excusado"?"":" hidden")+'></div>';
+    }
+    const ocupados=new Set(participantesEfectivos(x).map(p=>String(p.id)));
+    h+='<div class="lgn-rezagados"><h3>Asistentes adicionales</h3>'+
+      '<p class="sub">Agregar solo si figura en la foto del libro. No modifica la dotación programada.</p>'+
+      '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
+      '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
+      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>';
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
  $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
  $("lgnVolverInicio").onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
- area.querySelectorAll("[data-lgn-lista] select").forEach(sel=>{
+ area.querySelectorAll("[data-lgn-id]").forEach(sel=>{
    estadoSeleccionAsistencia(sel);
-   sel.addEventListener("change",()=>{editando=true;estadoSeleccionAsistencia(sel);});
+   sel.addEventListener("change",()=>{
+     editando=true;estadoSeleccionAsistencia(sel);
+     const input=sel.parentElement.querySelector("[data-lgn-excusa]");
+     if(input)input.hidden=sel.value!=="excusado";
+   });
  });
+ area.querySelectorAll("[data-lgn-excusar]").forEach(btn=>btn.onclick=()=>{
+   const sel=btn.parentElement.querySelector("[data-lgn-id]");
+   if(sel){sel.value="excusado";sel.dispatchEvent(new Event("change"));}
+ });
+ area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
+ area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
+ area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
+}
+function refrescarRez(zona){
+ const ocupados=new Set([
+  ...[...zona.querySelectorAll("[data-lgn-id]")].map(e=>e.dataset.lgnId),
+  ...[...zona.querySelectorAll("[data-lgn-rezagado]")].map(e=>e.dataset.lgnRezagado)
+ ]);
+ const s=zona.querySelector(".lgn-rezagado-seleccion");if(s)s.innerHTML=seleccionarRez(ocupados);
+}
+function quitarRez(boton){
+ const zona=boton.closest("[data-lgn-lista]"),fila=boton.closest("[data-lgn-rezagado]");
+ if(!zona||!fila)return;
+ if(!confirm("¿Quitar del acta a "+nombre(fila.dataset.lgnRezagado)+"?"))return;
+ fila.remove();editando=true;refrescarRez(zona);
+}
+function agregarRez(boton){
+ const zona=boton.closest("[data-lgn-lista]"),sel=zona?.querySelector(".lgn-rezagado-seleccion");
+ if(!sel?.value)return;
+ const id=sel.value;
+ if(zona.querySelector('[data-lgn-id="'+id+'"]')||zona.querySelector('[data-lgn-rezagado="'+id+'"]')){
+  alert("Esta persona ya figura en la guardia.");return;
+ }
+ const fecha=zona.dataset.lgnLista;
+ if(!confirm("¿Confirmas que "+nombre(id)+" está en la fotografía del libro del "+fecha+" y realmente asistió?"))return;
+ const motivo="Presencia corroborada en la fotografía del libro físico";
+ zona.querySelector(".lgn-rezagados-lista").insertAdjacentHTML("beforeend",htmlRez(id,motivo));
+ zona.querySelectorAll("[data-lgn-quitar]").forEach(b=>b.onclick=()=>quitarRez(b));
+ editando=true;refrescarRez(zona);
 }
 async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
  const msg=$("lgnRatif")?.querySelector('[data-lgn-estado="'+fecha+'"]');
  if(!x||!x.cierre||!zona||!msg)return;
- const asistencias={};
+ const asistencias={},excusas={},adicionales=[];
  let ok=true;
- zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{if(!sel.value)ok=false;asistencias[sel.dataset.lgnId]=sel.value;});
- if(!ok){msg.textContent="Selecciona Asistió o No asistió para todas las personas.";return;}
+ zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{
+  if(!sel.value){ok=false;return;}
+  const id=sel.dataset.lgnId;
+  asistencias[id]=sel.value==="excusado"?"ausente":sel.value;
+  if(sel.value==="excusado"){
+   const razon=sel.parentElement.querySelector("[data-lgn-excusa]")?.value.trim()||"";
+   if(razon.length<3)ok=false;else excusas[id]=razon;
+  }
+ });
+ zona.querySelectorAll("[data-lgn-rezagado]").forEach(fila=>{
+   const id=fila.dataset.lgnRezagado;
+   if(asistencias[id]){ok=false;return;}
+   asistencias[id]="presente";
+   adicionales.push({id,motivo:fila.querySelector("[data-lgn-motivo-rez]")?.value||""});
+ });
+ if(!ok){msg.textContent="Verifica cada estado y escribe los motivos de las excusas.";return;}
  let motivo="";
  if(x.acreditacion){
   motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
@@ -427,7 +509,7 @@ async function ratificar(fecha,boton){
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
   const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({fecha,actorId:actual,asistencias,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
+    body:JSON.stringify({fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
   ultimaRatificacion=fecha;

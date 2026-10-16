@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
+import {idsEfectivos} from "../../../../lib/guardia-asistencia-efectiva.js";
 export const runtime = "nodejs";
 
 // Identificación provisoria por nombre y apellidos de la nómina institucional.
@@ -32,6 +33,7 @@ export async function POST(req) {
   if (!origen(req)) return Response.json({error:"origen_no_permitido"},{status:403});
   let b; try { b=await req.json(); } catch { return Response.json({error:"datos_invalidos"},{status:400}); }
   const fecha=String(b?.fecha||""), actor=String(b?.actorId||"");
+   const adicionales=Array.isArray(b?.adicionales)?b.adicionales:[], excusas=b?.excusas??{};
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isInteger(b?.ifVersion) || b.ifVersion<0)
     return Response.json({error:"datos_invalidos"},{status:400});
   const semana=new Date(fecha+"T12:00:00Z"); if (Number.isNaN(semana.getTime()))
@@ -50,14 +52,15 @@ export async function POST(req) {
     const revision=rev.value, roster=Array.isArray(rr.value)?rr.value:[];
     const oficialNombre=nombreOficial(roster,actor);
     const error=validarAcreditacion({fecha,noche:revision?.noches?.[fecha],
-      asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster});
+      asistencias:b.asistencias,revision,ahoraLocal:horaChile(),actor,roster,adicionales,excusas});
     if (error) return Response.json({error},{status:409});
     if (!oficialNombre) return Response.json({error:"identidad_nombre_no_disponible"},{status:409});
     const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"06:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
     if (!libro.value || libro.value.estado!=="enviado" || libro.value.revisionAprobadaEn!==revision.aprobadaEn || libro.value.dotacionFirma!==firmaDotacion(revision.noches[fecha])) return Response.json({error:"libro_no_cerrado_o_desactualizado"},{status:409});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
-    const ids=integrantesNoche(revision.noches[fecha]);
+    const programados=integrantesNoche(revision.noches[fecha]);
+     const ids=idsEfectivos(programados,adicionales);
     const asistentes=ids.filter(id=>b.asistencias[id]==="presente");
     const ausentes=ids.filter(id=>b.asistencias[id]==="ausente");
     const anteriorRegistro=anterior.value && typeof anterior.value==="object"?anterior.value:null;
@@ -66,13 +69,16 @@ export async function POST(req) {
       dotacionFirma:firmaDotacion(revision.noches[fecha]),
       cierreLibroFotoSHA256:libro.value.fotoSHA256,cierreLibroEn:libro.value.enviadoEn,
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
+       adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),
+       excusas:Object.fromEntries(Object.entries(excusas).map(([id,motivo])=>[String(id),motivo.trim()])),
       asistentes,ausentes,
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoEn:new Date().toISOString(),
       motivoCorreccion:String(b.motivoCorreccion||"").trim().slice(0,400),
       historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
         porNombre:anteriorRegistro.acreditadoPorNombre||null,
-        asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes
+        asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes,
+         adicionales:anteriorRegistro.adicionales||[],excusas:anteriorRegistro.excusas||{}
       }]:[]
     };
     if (anteriorRegistro && !registro.motivoCorreccion)

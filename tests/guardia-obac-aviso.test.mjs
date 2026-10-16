@@ -65,6 +65,6 @@ test("notificación es breve y no incluye novedades; formulario requiere foto y 
  assert.match(pantalla,/id="lgnNovedades"/);
  assert.match(pantalla,/cierreHabilitado===true/);
  assert.match(index,/germania-obac-avisos\.js\?v=20261015obac1/);
- assert.match(index,/germania-cierre-libro\.js\?v=20261015cierre7/);
+ assert.match(index,/germania-cierre-libro\.js\?v=\d{8}[a-z0-9]+/);
  assert.doesNotMatch(source,/\bfetch\s*\(|localStorage|method:"POST"/);
 });

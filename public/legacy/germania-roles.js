@@ -910,6 +910,19 @@ async function misNochesDatos(who,forzar){
       if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,revision:d,cuenta:false}; (finNoche(f)>ahora?prox:cumpl).push(e); }
     });
   });
+  // Asistentes extra ratificados también aparecen en su historial de guardia.
+  rs[0].forEach(function(it){
+    var d=it.value;if(!d||d.estado!=="aprobada"||!d.noches)return;
+    Object.keys(d.noches).forEach(function(f){
+      var ac=acreditaciones[f];
+      if(vistas[f]||!ac||!(ac.adicionales||[]).some(function(p){return String(p.id)===who;}))return;
+      if(!window.GermaniaGuardiaReglas?.acreditacionVigente(ac,d,f)||
+         ac.asistencias?.[who]!=="presente")return;
+      vistas[f]=1;
+      cumpl.push({f:f,rol:"vol",hora:horaNoche(f),aviso:null,cubre:null,revision:d,
+        adicional:true,cuenta:true,pendiente:false});
+    });
+  });
   /* noches que cedí y ya cubrió otro: ya no estoy en la dotación, pero se muestran como «no cuenta» */
   Object.keys(avisos).forEach(function(k){ var a=avisos[k]; if(String(a.id)!==who||a.estado!=="cubierto"||vistas[a.f]) return; var e={f:a.f,rol:a.rol,hora:horaNoche(a.f),aviso:a,cubre:null}; (finNoche(a.f)>ahora?prox:cumpl).push(e); });
   prox.sort(function(a,b){ return a.f.localeCompare(b.f); }); cumpl.sort(function(a,b){ return b.f.localeCompare(a.f); });
@@ -925,6 +938,7 @@ async function misNochesDatos(who,forzar){
 }
 function tarjetaNoche(e,conBoton){
   var n=nombreNoche(e.f), av=e.aviso, est="";
+  if(e.adicional) est='<span class="gr-chip azul">Asistencia adicional ratificada</span>';
   if(e.cubre) est='<span class="gr-chip azul">Cubres a '+E(nom(e.cubre))+'</span>';
   if(av){
     if(av.estado==="cubierto") est='<span class="gr-chip gris">Cubrió '+E(nom(av.reemplazoId))+'</span>';
