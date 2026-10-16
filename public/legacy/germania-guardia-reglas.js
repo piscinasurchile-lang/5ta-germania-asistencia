@@ -40,20 +40,31 @@
   }
   function acreditacionVigente(ac,revision,fecha){
     var n=revision&&revision.noches&&revision.noches[fecha];
-    if(!ac || !n || ac.estado!=="acreditada" || revision.estado!=="aprobada"
-      || ac.fecha!==fecha || ac.revisionAprobadaEn!==revision.aprobadaEn
-      || !ac.dotacionFirma || ac.dotacionFirma!==firmaDotacion(n)
-      || !ac.asistencias || typeof ac.asistencias!=="object" || Array.isArray(ac.asistencias)
-      || !Array.isArray(ac.asistentes) || !Array.isArray(ac.ausentes)) return false;
-    var ids=[String(n.maq),String(n.obac)].concat(n.vol.map(String));
-    var keys=Object.keys(ac.asistencias);
-    if(ids.length!==keys.length || ids.some(id=>!keys.includes(id)))return false;
-    var presentes=ids.filter(id=>ac.asistencias[id]==="presente"),
-        ausentes=ids.filter(id=>ac.asistencias[id]==="ausente");
-    return presentes.length+ausentes.length===ids.length &&
-      presentes.length===ac.asistentes.length && ausentes.length===ac.ausentes.length &&
-      presentes.every(id=>ac.asistentes.includes(id)) &&
-      ausentes.every(id=>ac.ausentes.includes(id));
+    if(!ac||!n||ac.estado!=="acreditada"||revision.estado!=="aprobada"||
+       ac.fecha!==fecha||ac.revisionAprobadaEn!==revision.aprobadaEn||
+       ac.dotacionFirma!==firmaDotacion(n)||
+       !ac.asistencias||typeof ac.asistencias!=="object"||Array.isArray(ac.asistencias)||
+       !Array.isArray(ac.asistentes)||!Array.isArray(ac.ausentes))return false;
+    var base=[String(n.maq),String(n.obac)].concat(n.vol.map(String)),
+        extras=ac.adicionales||[],excusas=ac.excusas||{};
+    if(!Array.isArray(extras)||extras.length>15||!excusas||typeof excusas!=="object"||
+       Array.isArray(excusas))return false;
+    var ids=base.concat(extras.map(function(p){return String(p&&p.id||"");}));
+    if(ids.length!==new Set(ids).size||
+       extras.some(function(p){return !p||!p.id||typeof p.motivo!=="string"||
+         p.motivo.trim().length<8||ac.asistencias[String(p.id)]!=="presente";}) ||
+       Object.keys(excusas).some(function(id){return !base.includes(id)||
+         ac.asistencias[id]!=="ausente"||typeof excusas[id]!=="string"||
+         excusas[id].trim().length<3;}))return false;
+    var keys=Object.keys(ac.asistencias),
+      pres=ids.filter(function(id){return ac.asistencias[id]==="presente";}),
+      aus=ids.filter(function(id){return ac.asistencias[id]==="ausente";});
+    return keys.length===ids.length&&pres.length+aus.length===ids.length&&
+      pres.length===ac.asistentes.length&&aus.length===ac.ausentes.length&&
+      new Set(ac.asistentes.map(String)).size===pres.length&&
+      new Set(ac.ausentes.map(String)).size===aus.length&&
+      pres.every(function(id){return ac.asistentes.includes(id);})&&
+      aus.every(function(id){return ac.ausentes.includes(id);});
   }
   root.GermaniaGuardiaReglas={evaluarDotacion:evaluarDotacion,firmaDotacion:firmaDotacion,acreditacionVigente:acreditacionVigente};
 })(typeof window!=="undefined"?window:globalThis);
