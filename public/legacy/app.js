@@ -2676,6 +2676,8 @@ async function gnResumenAcreditado(lista){
   for(const doc of revisiones.values()){
     if(doc?.estado!=="aprobada"||!doc.noches)continue;
     for(const [fecha,noche] of Object.entries(doc.noches)){
+      const filtro=rangoGn();
+      if((filtro.d&&fecha<filtro.d)||(filtro.h&&fecha>filtro.h))continue;
       if(fechasExistentes.has(fecha)||!noche)continue;
       const dia=new Date(fecha+"T12:00:00Z");
       if(!Number.isFinite(+dia))continue;
