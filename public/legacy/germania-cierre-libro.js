@@ -149,7 +149,32 @@ function participantes(n){
 }
 
 function participantesEfectivos(x){
- return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})));
+ const vistos=new Set();
+ return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})))
+  .filter(p=>{const id=String(p.id);if(vistos.has(id))return false;vistos.add(id);return true;});
+}
+/** Una sola fuente de asistencia efectiva: acreditación vigente del T3, nunca la ODD. */
+function htmlAsistenciaRatificada(x){
+ if(!x.acreditacionVigente||!x.acreditacion)return "";
+ const ac=x.acreditacion,personas=participantesEfectivos(x);
+ const presentes=personas.filter(p=>ac.asistencias?.[String(p.id)]==="presente").length;
+ const excusados=personas.filter(p=>!!ac.excusas?.[String(p.id)]).length;
+ const ausentes=personas.length-presentes-excusados;
+ let h='<section class="lgn-acta-efectiva" data-lgn-acta-fecha="'+escHtml(x.fecha)+'">'+
+  '<h3>Asistencia real ratificada · '+escHtml(fechaBonita(x.fecha))+'</h3>'+
+  '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>';
+ for(const p of personas){
+  const id=String(p.id),presente=ac.asistencias?.[id]==="presente",excusa=ac.excusas?.[id];
+  const adicional=p.rol==="Asistente adicional";
+  h+='<div class="'+(adicional?"lgn-acta-adicional":"")+'">'+filaAsistencia(nombre(id),
+   adicional?"Asistente adicional · verificado en libro":p.rol,presente,!!excusa);
+  if(excusa)h+='<p class="lgn-excusa-detalle">Motivo de excusa: '+escHtml(excusa)+'</p>';
+  h+='</div>';
+ }
+ if((ac.adicionales||[]).length){
+  h+='<p class="lgn-control-nota">Asistentes adicionales incorporados por el Teniente Tercero con respaldo de la fotografía del libro físico.</p>';
+ }
+ return h+'</section>';
 }
 function seleccionarRez(ocupados){
  if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
@@ -237,7 +262,7 @@ function pintarControlAdmin(){
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
   '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
-  '<p class="lgn-control-nota">Selecciona una semana y despliega el día para revisar la dotación, fotografía y novedades. Ausentes ratificados en rojo. Solo lectura.</p>';
+  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Solo el Teniente Tercero puede corregir el acta.</p>';
  if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
  let grupoAnterior="";
  for(const x of terminadas){
@@ -255,7 +280,7 @@ function pintarControlAdmin(){
    ' · 22:45 a 06:00 del día siguiente.</p>'+
    '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
    '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>'+
-   '<p><strong>Voluntarios programados:</strong> '+
+   '<p><strong>Voluntarios programados en la ODD original (no implica asistencia):</strong> '+
    ((x.dotacion?.vol||[]).length?x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
   if(x.cierre){
    const fechaEnvio=x.cierre.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha";
@@ -266,20 +291,18 @@ function pintarControlAdmin(){
     '" target="_blank" rel="noopener">Ver foto del libro</a></p>';
   }else html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>';
   if(x.acreditacionVigente&&x.acreditacion){
-   const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
-   html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
-    (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
-    '<p><strong>Asistencia confirmada:</strong></p>';
-   for(const p of participantesEfectivos(x)){
-    const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
-    html+=filaAsistencia(nombre(p.id),p.rol,presente,!!x.acreditacion.excusas?.[String(p.id)]);
-    const motivo=x.acreditacion.excusas?.[String(p.id)];
-    if(motivo)html+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
+    const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
+    html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+     (ratificada?' · '+escHtml(ratificada):"")+'</p>';
+    html+=htmlAsistenciaRatificada(x);
+   }else if(x.cierre){
+    html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. La programación original no acredita presencia.</p>';
    }
-  }else if(x.cierre){
-   html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. No suma estadísticas todavía.</p>';
-  }
-  if(capitan&&x.acreditacionVigente&&!x.vistoCapitan){
+   if(t3&&x.cierre){
+    html+='<button class="btn small secondary lgn-correccion-ir" type="button" data-lgn-corregir="'+escHtml(x.fecha)+'">'+
+     (x.acreditacionVigente?"Corregir asistencia ratificada":"Revisar y ratificar esta guardia")+'</button>';
+   }
+   if(capitan&&x.acreditacionVigente&&!x.vistoCapitan){
    html+='<button type="button" class="btn secondary small" data-lgn-visto="'+escHtml(x.fecha)+'">Visto · Capitán</button>';
   }
   html+='</div></details>';
@@ -295,6 +318,7 @@ function pintarControlAdmin(){
  const inicio=$("lgnAdminInicio");
  if(inicio)inicio.onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
  panel.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
+ panel.querySelectorAll("[data-lgn-corregir]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnCorregir));
 }
 
 function pintarResumenMando(){
@@ -359,9 +383,25 @@ async function marcarVisto(fecha,boton){
  }
 }
 
-function abrirPanelMando(){
+function abrirPanelMando(fecha){
  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
- setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
+ const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ setTimeout(async()=>{
+  await cargar(true);
+  // Para corregir guardias antiguas, no depender de las 8 semanas recientes del Inicio.
+  if(t3&&elegida&&!items.some(x=>x.fecha===elegida)){
+   try{
+    const r=await fetch("/api/guardia/libro?historial=1&anio="+elegida.slice(0,4)+"&actorId="+encodeURIComponent(actual),{cache:"no-store"});
+    if(r.ok){
+     const d=await r.json(),buscada=d.items?.find(x=>x.fecha===elegida);
+     if(buscada){items=[buscada,...items].sort((a,b)=>b.fecha.localeCompare(a.fecha));pintarOficial();}
+    }
+   }catch(e){console.warn("guardia histórica no disponible",e);}
+  }
+  const area=$("lgnRatif"),dia=elegida?area?.querySelector('[data-lgn-dia="'+elegida+'"]'):null;
+  if(dia){dia.open=true;dia.scrollIntoView({behavior:"smooth",block:"start"});}
+  else area?.scrollIntoView({behavior:"smooth",block:"start"});
+ },100);
 }
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
@@ -382,7 +422,7 @@ function pintarOficial(){
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
   const titulo=etiquetaGuardia(x.fecha);
-  h+='<details class="gr-det" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
+  h+='<details class="gr-det" data-lgn-dia="'+escHtml(x.fecha)+'" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
     '<summary style="cursor:pointer;font-weight:700">'+escHtml(titulo)+
     ' · '+(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC")+'</summary>'+
     '<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · 22:45 a 06:00 del día siguiente.</p>'+ 
@@ -396,18 +436,9 @@ function pintarOficial(){
     h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
-  if(capitan && !t3 && ac){
-    h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
-    for(const p of participantesEfectivos(x)){
-      const id=String(p.id),presente=x.acreditacion?.asistencias?.[id]==="presente";
-      h+=filaAsistencia(nombre(id),p.rol,presente,!!x.acreditacion?.excusas?.[id]);
-      const motivo=x.acreditacion?.excusas?.[id];
-      if(motivo)h+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
-    }
-    h+='</div>';
-  }
+  if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
   if(t3 && rec){
-    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica las asistencias con la fotografía del libro físico.</p>';
+    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
     for(const p of participantes(x.dotacion)){
       const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
       const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
@@ -425,8 +456,9 @@ function pintarOficial(){
       '<p class="sub">Agregar solo si figura en la foto del libro. No modifica la dotación programada.</p>'+
       '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
       '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
-      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>';
-    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
+      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
+      '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
@@ -446,6 +478,7 @@ function pintarOficial(){
    if(sel){sel.value="excusado";sel.dispatchEvent(new Event("change"));}
  });
  area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
+ area.querySelectorAll("[data-lgn-comprobado]").forEach(el=>el.addEventListener("change",()=>{editando=true;}));
  area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
  area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
@@ -500,12 +533,20 @@ async function ratificar(fecha,boton){
    adicionales.push({id,motivo:fila.querySelector("[data-lgn-motivo-rez]")?.value||""});
  });
  if(!ok){msg.textContent="Verifica cada estado y escribe los motivos de las excusas.";return;}
+ if(!zona.querySelector("[data-lgn-comprobado]")?.checked){
+  msg.textContent="Confirma que revisaste la fotografía del libro y agregaste a todos los asistentes, aunque no estuvieran programados.";
+  return;
+ }
  let motivo="";
  if(x.acreditacion){
   motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
   if(!motivo.trim())return;
  }
- if(!confirm("¿Ratificar la asistencia REAL del "+fecha+"? Esta acción actualizará las estadísticas individuales."))return;
+ const total=Object.values(asistencias).filter(v=>v==="presente").length;
+ const advertencia=(x.acreditacion?"¿Guardar corrección de la guardia ":"¿Ratificar la guardia ")+fecha+
+  "?\nPresentes: "+total+" · Nuevos asistentes: "+adicionales.length+" · Excusados: "+Object.keys(excusas).length+
+  "\nEstos datos actualizan las estadísticas y el informe del Capitán. La ODD original permanece intacta.";
+ if(!confirm(advertencia))return;
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
   const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -513,6 +554,7 @@ async function ratificar(fecha,boton){
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
   ultimaRatificacion=fecha;
+  historial=null;
   editando=false;await cargar(true);
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }

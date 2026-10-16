@@ -28,9 +28,9 @@ test("API no modifica programación ni crea nueva guardia",()=>{
 });
 test("Capitán y control ven adicionales, excusas y datos históricos de la misma acreditación",()=>{
  assert.match(vista,/participantesEfectivos\(x\)/);
- assert.match(vista,/acreditacion\.excusas\?/);
+ assert.match(vista,/ac\.excusas\?/);
  assert.match(vista,/ratificar\(b\.dataset\.lgnRatificar,b\)/);
  assert.match(stats,/guardiasCompletas/);
  assert.match(stats,/fechasExistentes/);
- assert.match(hoja,/germania-cierre-libro\.js\?v=20261016rez1/);
+ assert.match(hoja,/germania-cierre-libro\.js\?v=20261016real1/);
 });
