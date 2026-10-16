@@ -42,7 +42,7 @@
     var n=revision&&revision.noches&&revision.noches[fecha];
     if(!ac||!n||ac.estado!=="acreditada"||revision.estado!=="aprobada"||
        ac.fecha!==fecha||ac.revisionAprobadaEn!==revision.aprobadaEn||
-       ac.dotacionFirma!==firmaDotacion(n)||
+       !ac.dotacionFirma||ac.dotacionFirma!==firmaDotacion(n)||
        !ac.asistencias||typeof ac.asistencias!=="object"||Array.isArray(ac.asistencias)||
        !Array.isArray(ac.asistentes)||!Array.isArray(ac.ausentes))return false;
     var base=[String(n.maq),String(n.obac)].concat(n.vol.map(String)),
