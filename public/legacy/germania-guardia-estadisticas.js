@@ -13,7 +13,7 @@
   function calcularResumen({guardias,acreditaciones,rosterIds,ahoraChile}){
     var por={};
     (rosterIds||[]).forEach(function(id){
-      por[String(id)]={asig:0,hechas:0,cubrio:0,ced:0,falto:0,obac:0,maq:0};
+      por[String(id)]={asig:0,hechas:0,cubrio:0,ced:0,falto:0,excusadas:0,adicionales:0,obac:0,maq:0};
     });
     var resultado={por:por,turnos:0,asign:0,reemp:0,sinObac:0,sinCond:0,pendientes:0,sin:0,fallan:0};
     var nochesVistas=new Set();
@@ -45,7 +45,8 @@
       var presentes=new Set(ac.asistentes.map(String));
       var ausentes=new Set(ac.ausentes.map(String));
       presentes.forEach(function(id){if(por[id])por[id].hechas++;});
-      ausentes.forEach(function(id){if(por[id]&&!cedidos.has(id))por[id].falto++;});
+      ausentes.forEach(function(id){if(por[id]&&!cedidos.has(id)){if(ac.excusas?.[id])por[id].excusadas++;else por[id].falto++;}});
+       (ac.adicionales||[]).forEach(function(p){if(por[String(p.id)]&&presentes.has(String(p.id)))por[String(p.id)].adicionales++;});
       var remplazan=new Set(reemplazos.values());
       remplazan.forEach(function(id){if(por[id]&&presentes.has(id))por[id].cubrio++;});
       if(n?.obac&&por[String(n.obac)]&&presentes.has(String(n.obac)))por[String(n.obac)].obac++;
