@@ -148,6 +148,21 @@ function participantes(n){
  return [{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(id=>({id,rol:"Voluntario"}))).filter(x=>x.id!=null);
 }
 
+function participantesEfectivos(x){
+ return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})));
+}
+function seleccionarRez(ocupados){
+ if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
+ return '<option value="">Seleccionar asistente no programado…</option>'+
+ ROSTER.filter(p=>p.activo!==false&&!ocupados.has(String(p.id)))
+ .sort((a,b)=>nombre(a.id).localeCompare(nombre(b.id),"es"))
+ .map(p=>'<option value="'+escHtml(p.id)+'">'+escHtml(nombre(p.id))+'</option>').join("");
+}
+function htmlRez(id,motivo){
+ return '<div class="lgn-rezagado-row" data-lgn-rezagado="'+escHtml(id)+'"><b>'+escHtml(nombre(id))+'</b> · Asistió (verificado en libro)'+
+  '<button type="button" class="btn small secondary" data-lgn-quitar>Quitar</button><input type="hidden" data-lgn-motivo-rez value="'+escHtml(motivo)+'"></div>';
+}
+
 /* Vista administrativa independiente. Solo consulta; jamás transmite modificaciones. */
 function semanaDe(fecha){
  const d=new Date(fecha+"T12:00:00Z");
@@ -255,9 +270,11 @@ function pintarControlAdmin(){
    html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
     (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
     '<p><strong>Asistencia confirmada:</strong></p>';
-   for(const p of participantes(x.dotacion)){
+   for(const p of participantesEfectivos(x)){
     const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
     html+=filaAsistencia(nombre(p.id),p.rol,presente);
+    const motivo=x.acreditacion.excusas?.[String(p.id)];
+    if(motivo)html+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
    }
   }else if(x.cierre){
    html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. No suma estadísticas todavía.</p>';
@@ -381,9 +398,11 @@ function pintarOficial(){
   }
   if(capitan && !t3 && ac){
     h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
-    for(const p of participantes(x.dotacion)){
-      const estado=x.acreditacion?.asistencias?.[String(p.id)]==="presente"?"Asistió":"No asistió";
-      h+=filaAsistencia(nombre(p.id),p.rol,estado==="Asistió");
+    for(const p of participantesEfectivos(x)){
+      const id=String(p.id),presente=x.acreditacion?.asistencias?.[id]==="presente";
+      h+=filaAsistencia(nombre(id),p.rol,presente);
+      const motivo=x.acreditacion?.excusas?.[id];
+      if(motivo)h+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
     }
     h+='</div>';
   }
