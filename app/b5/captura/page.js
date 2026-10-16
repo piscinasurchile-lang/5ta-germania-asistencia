@@ -485,6 +485,7 @@ export default function CapturaB5(){
             Sumar esta salida al control de asistencia
           </label>}
         </section>
+        <p className="guiaGuardado">1. Marca a cada voluntario. 2. Revisa los totales. 3. Confirma que la asistencia está correcta. Si alguien no se marca, quedará como ausente.</p>
         <button className="guardar" disabled={!nomina.length||guardando||!listaPreparada} onClick={solicitarGuardar}>
           {guardando?"Guardando en la tablet…":"Revisar antes de guardar"}
         </button>
@@ -699,6 +700,8 @@ export default function CapturaB5(){
         .confirmacionAcciones .confirmarDefinitivo{background:#166e43;border-color:#79cba0}
         .confirmacionAcciones button:disabled{opacity:.55}
         .registro{padding:10px 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #3e5267}
+        .registro.registroB5{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+        .guiaGuardado{background:#172d3d;border:1px solid #426882;border-radius:10px;padding:11px 13px;color:#dfebf3;font-size:14px;line-height:1.55}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
         @media(max-width:620px){.capturaB5{padding:10px}.campos{grid-template-columns:1fr}
           .persona{flex-direction:column;align-items:stretch}.opciones{justify-content:stretch}.opciones button{flex:1;padding:9px 5px}
