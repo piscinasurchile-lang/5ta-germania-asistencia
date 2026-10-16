@@ -14,7 +14,7 @@ test("T3 agrega rezagados de nómina, confirma presencia fotografiada y tiene bo
  assert.match(vista,/data-lgn-rezagado/);
  assert.match(vista,/¿Confirmas que /);
  assert.match(vista,/fotografía del libro/);
- assert.match(vista,/adicionales\.push\(\{id,motivo\}\)/);
+ assert.match(vista,/adicionales\.push\(\{id,motivo:/);
  assert.match(vista,/asistencias\[id\]="presente"/);
  assert.match(vista,/body:JSON\.stringify\(\{fecha,actorId:actual,asistencias,excusas,adicionales/);
 });
