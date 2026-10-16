@@ -18,10 +18,10 @@ function fechaBonita(fecha){
  return d.toLocaleDateString("es-CL",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});
 }
 function etiquetaGuardia(fecha){return "Guardia del "+fechaBonita(fecha);}
-function filaAsistencia(nombrePersona,rolPersona,presente){
- return '<div class="lgn-asistencia-fila '+(presente?"presente":"ausente")+'">'+
+function filaAsistencia(nombrePersona,rolPersona,presente,excusado=false){
+ return '<div class="lgn-asistencia-fila '+(presente?"presente":excusado?"excusado":"ausente")+'">'+
    '<span class="lgn-asistencia-nombre">'+escHtml(nombrePersona)+' · '+escHtml(rolPersona)+'</span>'+
-   '<strong class="lgn-asistencia-estado">'+(presente?"Asistió":"No asistió")+'</strong></div>';
+   '<strong class="lgn-asistencia-estado">'+(presente?"Asistió":excusado?"Excusado":"No asistió")+'</strong></div>';
 }
 function estadoSeleccionAsistencia(sel){
  if(!sel)return;
@@ -272,7 +272,7 @@ function pintarControlAdmin(){
     '<p><strong>Asistencia confirmada:</strong></p>';
    for(const p of participantesEfectivos(x)){
     const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
-    html+=filaAsistencia(nombre(p.id),p.rol,presente);
+    html+=filaAsistencia(nombre(p.id),p.rol,presente,!!x.acreditacion.excusas?.[String(p.id)]);
     const motivo=x.acreditacion.excusas?.[String(p.id)];
     if(motivo)html+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
    }
@@ -400,7 +400,7 @@ function pintarOficial(){
     h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
     for(const p of participantesEfectivos(x)){
       const id=String(p.id),presente=x.acreditacion?.asistencias?.[id]==="presente";
-      h+=filaAsistencia(nombre(id),p.rol,presente);
+      h+=filaAsistencia(nombre(id),p.rol,presente,!!x.acreditacion?.excusas?.[id]);
       const motivo=x.acreditacion?.excusas?.[id];
       if(motivo)h+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
     }
