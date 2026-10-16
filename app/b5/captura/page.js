@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useRef,useState} from "react";
+import {prepararPartePDF,crearArchivoPartePDF} from "../../../lib/b5-parte-pdf.mjs";
 import {guardarNómina,leerNómina,guardarEdicion,leerEdicion,borrarEdicion,
   guardarBorrador,listarBorradores,cambiarBorrador,borrarBorradorLocal,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
 
@@ -65,6 +66,9 @@ export default function CapturaB5(){
   const [claveOficial,setClaveOficial]=useState("");
   const [mensajeDetalle,setMensajeDetalle]=useState("");
   const [operando,setOperando]=useState(false);
+  const [confirmacion,setConfirmacion]=useState(null);
+  const [procesandoArchivo,setProcesandoArchivo]=useState("");
+  const [mensajeArchivo,setMensajeArchivo]=useState("");
   const guardadoRef=useRef(false);
   const sincronizandoRef=useRef(false);
   const abortRef=useRef(false);
@@ -205,24 +209,23 @@ export default function CapturaB5(){
     setMensajeDetalle("");
   }
 
-  async function guardarCorreccion(){
-    if(!seleccion||!edicionRegistro||operando)return;
+  async function guardarCorreccion(datos){
+    if(!seleccion||!datos||operando)return false;
     const item=seleccion.item;
-    const cuentas=resumenParte(edicionRegistro.records,item.tipo);
-    if(!cuentas.total)return setMensajeDetalle("El registro no contiene una nómina válida.");
-    if(!cuentas.presentes&&!window.confirm("No hay voluntarios presentes. ¿Confirmas que todos quedaron ausentes o justificados?"))return;
+    const cuentas=resumenParte(datos.records,item.tipo);
+    if(!cuentas.total){setMensajeDetalle("El registro no contiene una nómina válida.");return false;}
     setOperando(true);
     setMensajeDetalle("");
     try{
       if(item.estado==="sincronizado"){
         if(conexion!=="online"||!seleccion.remoto)throw new Error("Para corregir en Neon necesitas Internet y el parte actualizado.");
-        const j=await cambiarParteOficial(item,"corregir",edicionRegistro);
-        const actualizado={...item,datos:{...item.datos,...edicionRegistro}};
+        const j=await cambiarParteOficial(item,"corregir",datos);
+        const actualizado={...item,datos:{...item.datos,...datos}};
         await cambiarBorrador(actualizado);
         await recargarCola();
-        setSeleccion({item:actualizado,datos:{...edicionRegistro,anulado:false},remoto:true,version:j.version});
+        setSeleccion({item:actualizado,datos:{...datos,anulado:false},remoto:true,version:j.version});
       }else if(item.estado==="pendiente"||item.estado==="revision"){
-        const actualizado={...item,datos:{...edicionRegistro},estado:"pendiente",error:""};
+        const actualizado={...item,datos:{...datos},estado:"pendiente",error:""};
         await cambiarBorrador(actualizado);
         await recargarCola();
         setSeleccion({item:actualizado,datos:actualizado.datos,remoto:false,version:null});
@@ -231,7 +234,8 @@ export default function CapturaB5(){
       setClaveOficial("");
       setMensajeDetalle("Corrección guardada. No se creó un parte duplicado.");
       if(item.estado!=="sincronizado"&&conexion==="online")actualizar();
-    }catch(e){setMensajeDetalle(e.message||"No se pudo corregir la asistencia.");}
+      return true;
+    }catch(e){setMensajeDetalle(e.message||"No se pudo corregir la asistencia.");return false;}
     finally{setOperando(false);}
   }
 
@@ -306,29 +310,99 @@ export default function CapturaB5(){
     finally{setOperando(false);}
   }
 
-  async function guardar(){
+  function solicitarGuardar(){
     if(guardando||!nomina.length||!listaPreparada)return;
-    if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Debes indicar fecha y tipo de citación.");
-    if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Debes indicar fecha y tipo de servicio.");
+    if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
+    if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Indica la fecha y el tipo de servicio.");
+    const defecto=tipo==="servicio"?"no":"ausente";
+    const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
+    const datos={...form,records};
+    if(tipo==="lista"&&form.tipo==="Otro"){
+      if(!String(form.tipoPersonalizado||"").trim())return setMensaje("Indica qué citación se está registrando.");
+      datos.tipo=String(form.tipoPersonalizado).trim();
+    }
+    setMensaje("");
+    setConfirmacion({modo:"nuevo",datos,clase:tipo,fecha:datos.date||datos.svFecha,
+      actividad:datos.tipo||datos.svTipoAct});
+  }
+
+  function solicitarCorreccion(){
+    if(!seleccion||!edicionRegistro||operando)return;
+    if(seleccion.item.estado==="sincronizado"&&(!seleccion.remoto||conexion!=="online")){
+      setMensajeDetalle("Conéctate a Internet para corregir la versión oficial.");
+      return;
+    }
+    const datos={...edicionRegistro,records:{...edicionRegistro.records}};
+    setConfirmacion({modo:"correccion",datos,clase:seleccion.item.tipo,
+      fecha:datos.date||datos.svFecha,actividad:datos.tipo||datos.svTipoAct,
+      numero:seleccion.item.numero});
+  }
+
+  async function guardar(datos){
+    if(guardando||!nomina.length||!listaPreparada)return false;
     setGuardando(true);setMensaje("");
     try{
-      // Se confirman los datos COMPLETOS en IndexedDB antes de informar al usuario.
-      const defecto=tipo==="servicio"?"no":"ausente";
-      const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
-      const datos={...form,records};
-      if(tipo==="lista"&&!resumenParte(records,"lista").presentes && !window.confirm("No hay voluntarios presentes. ¿Guardar igualmente esta lista con cero presentes?"))return;
-      if(tipo==="lista"&&form.tipo==="Otro"){
-        if(!String(form.tipoPersonalizado||"").trim())throw new Error("Indica qué citación se está registrando.");
-        datos.tipo=String(form.tipoPersonalizado).trim();
-      }
       const item=await guardarBorrador(tipo,datos);
       guardadoRef.current=true;
       await borrarEdicion(tipo);
-      setForm(blanco(tipo));setMensaje("Guardado en esta tablet · "+item.id.slice(0,8)+". Pendiente de confirmar en Neon.");
+      setForm(blanco(tipo));
+      setMensaje("Parte guardado en esta tablet. Cuando Neon confirme, aparecerá su número oficial. Código local: "+item.id.slice(0,8));
       await recargarCola();
       if(conexion==="online")actualizar();
-    }catch(e){setMensaje("No se pudo guardar en la tablet: "+e.message);}
+      return true;
+    }catch(e){setMensaje("No se pudo guardar en la tablet: "+e.message);return false;}
     finally{setGuardando(false);}
+  }
+
+  async function confirmarGuardar(){
+    if(!confirmacion||guardando||operando)return;
+    const ok=confirmacion.modo==="correccion"?
+      await guardarCorreccion(confirmacion.datos):await guardar(confirmacion.datos);
+    if(ok)setConfirmacion(null);
+  }
+
+  async function descargarPDF(blob,nombre){
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;link.download=nombre;link.style.display="none";
+    document.body.appendChild(link);link.click();link.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+
+  async function compartirParte(item,modo){
+    if(item.tipo!=="lista"||item.estado!=="sincronizado"||procesandoArchivo)return;
+    setProcesandoArchivo(item.id+modo);
+    setMensajeArchivo("");
+    try{
+      if(conexion!=="online")throw new Error("Conecta la tablet a Internet para obtener el parte oficial actualizado.");
+      const params=new URLSearchParams({id:item.id,date:item.datos.date,tipo:item.datos.tipo});
+      const r=await fetch("/api/b5/registros?"+params.toString(),{cache:"no-store",credentials:"same-origin"});
+      if(!r.ok)throw new Error("No se pudo comprobar el parte oficial en Neon. Intenta nuevamente.");
+      const respuesta=await r.json();
+      if(!respuesta.ok||respuesta.datos?.anulado||Number(respuesta.datos?.numero)!==Number(item.numero))
+        throw new Error("El parte está anulado o cambió. Revísalo antes de generar el PDF.");
+      const modelo=prepararPartePDF(item,respuesta.datos,nomina);
+      const {blob,nombre:archivo}=await crearArchivoPartePDF(modelo);
+      if(modo==="whatsapp"){
+        const file=new File([blob],archivo,{type:"application/pdf"});
+        if(navigator.canShare?.({files:[file]})&&navigator.share){
+          try{
+            await navigator.share({files:[file],title:"Asistencia Germania N° "+modelo.numero,
+              text:"Parte oficial de asistencia · "+modelo.fecha});
+            setMensajeArchivo("PDF compartido desde el teléfono. Confirma el envío a WhatsApp.");
+            return;
+          }catch(e){if(e.name==="AbortError")return;}
+        }
+        await descargarPDF(blob,archivo);
+        setMensajeArchivo("PDF descargado. Elige WhatsApp y adjunta el archivo "+archivo+
+          " desde Descargas; este navegador no permite compartirlo directamente.");
+      }else{
+        await descargarPDF(blob,archivo);
+        setMensajeArchivo("PDF oficial descargado: "+archivo);
+      }
+    }catch(e){
+      setMensajeArchivo(e.message||"No fue posible generar el PDF.");
+    }finally{setProcesandoArchivo("");}
   }
 
   const pendientes=contarPendientes(cola);
@@ -411,8 +485,8 @@ export default function CapturaB5(){
             Sumar esta salida al control de asistencia
           </label>}
         </section>
-        <button className="guardar" disabled={!nomina.length||guardando||!listaPreparada} onClick={guardar}>
-          {guardando?"Guardando en la tablet…":"Guardar en esta tablet"}
+        <button className="guardar" disabled={!nomina.length||guardando||!listaPreparada} onClick={solicitarGuardar}>
+          {guardando?"Guardando en la tablet…":"Revisar antes de guardar"}
         </button>
         <p className="explicacion">Primero se guarda en la memoria de la tablet. Solo aparecerá como sincronizado cuando Neon confirme la recepción y asigne el número oficial. No borres los datos del navegador si hay pendientes.</p>
         {conexion==="online"&&<a className="formularioCompleto" href={"/?b5dest="+tipo}>
@@ -437,10 +511,17 @@ export default function CapturaB5(){
               <div className="accionesRegistro">
                 <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
                 <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"} onClick={()=>verRegistro(x,true)}>Editar</button>
+                {x.tipo==="lista"&&<>
+                  <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
+                    onClick={()=>compartirParte(x,"pdf")}>PDF</button>
+                  <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
+                    onClick={()=>compartirParte(x,"whatsapp")}>WhatsApp</button>
+                </>}
                 <button type="button" className="accionPeligro" onClick={async()=>{await verRegistro(x);setMensajeDetalle("Revisa los datos y elige Anular o Eliminar dentro del detalle.");}}>Borrar</button>
               </div>
             </div>;
           })}
+          {!!mensajeArchivo&&<p className="avisoLocal" role="status">{mensajeArchivo}</p>}
           {seleccion&&<section className="detalleRegistro" id="detalleRegistroB5">
             <div className="registroEncabezado">
               <h3>Parte {seleccion.item.numero?"N.º "+seleccion.item.numero:"sin número"} · {fechaLegible(seleccion.datos.date||seleccion.datos.svFecha)}</h3>
@@ -484,7 +565,7 @@ export default function CapturaB5(){
               {!edicionRegistro&&seleccion.item.estado!=="anulado"&&seleccion.item.tipo==="lista"&&
                 <button type="button" disabled={operando} onClick={comenzarEdicion}>Editar asistencia</button>}
               {edicionRegistro&&<>
-                <button type="button" disabled={operando} onClick={guardarCorreccion}>Guardar corrección</button>
+                <button type="button" disabled={operando} onClick={solicitarCorreccion}>Revisar corrección</button>
                 <button type="button" disabled={operando} onClick={()=>setEdicionRegistro(null)}>Cancelar</button>
               </>}
               {!edicionRegistro&&seleccion.item.estado!=="anulado"&&
@@ -499,6 +580,45 @@ export default function CapturaB5(){
           </section>}
         </section>}
       </section>
+      {confirmacion&&<div className="confirmacionFondo">
+        <section className="confirmacionPanel" role="dialog" aria-modal="true" aria-labelledby="tituloConfirmacionB5">
+          <div className="confirmacionPaso">PASO FINAL · VERIFICACIÓN</div>
+          <h2 id="tituloConfirmacionB5">¿Está seguro de guardar esta asistencia?</h2>
+          <p>{confirmacion.modo==="correccion"?
+            "Se corregirá el parte existente, conservando su número oficial y el historial de cambios.":
+            "Primero quedará guardada en esta tablet. Con Internet se enviará automáticamente a Neon."}</p>
+          <div className="confirmacionDatos">
+            <div><strong>Fecha</strong><span>{fechaLegible(confirmacion.fecha)}</span></div>
+            <div><strong>Actividad</strong><span>{confirmacion.actividad}</span></div>
+            {confirmacion.numero&&<div><strong>Parte</strong><span>N.º {String(confirmacion.numero).padStart(3,"0")}</span></div>}
+          </div>
+          {(()=>{const r=resumenParte(confirmacion.datos.records,confirmacion.clase);
+            const ids=Object.entries(confirmacion.datos.records)
+              .filter(([,v])=>v===(confirmacion.clase==="servicio"?"si":"presente")).map(([id])=>id);
+            return <>
+              <div className="confirmacionTotales">
+                <div><strong>{r.presentes}</strong><span>{confirmacion.clase==="servicio"?"Concurrentes":"Presentes"}</span></div>
+                <div><strong>{r.ausentes}</strong><span>{confirmacion.clase==="servicio"?"No concurren":"Ausentes"}</span></div>
+                {confirmacion.clase==="lista"&&<div><strong>{r.justificados}</strong><span>Justificados</span></div>}
+              </div>
+              {!r.presentes&&<p className="confirmacionAlerta">Atención: no hay voluntarios presentes. Confirma solo si realmente corresponde.</p>}
+              {!!ids.length&&<details className="confirmacionLista">
+                <summary>Ver los {ids.length} voluntarios presentes</summary>
+                <ol>{ids.map(id=><li key={id}>
+                  {nomina.find(p=>String(p.id)===id)?nombre(nomina.find(p=>String(p.id)===id)):"Voluntario ID "+id}
+                </li>)}</ol>
+              </details>}
+            </>;
+          })()}
+          <p className="confirmacionAyuda">Revisa la fecha, la actividad y las cantidades. Si hay un error, vuelve a la lista antes de confirmar.</p>
+          <div className="confirmacionAcciones">
+            <button type="button" disabled={guardando||operando} onClick={()=>setConfirmacion(null)}>No, revisar de nuevo</button>
+            <button type="button" className="confirmarDefinitivo" disabled={guardando||operando} onClick={confirmarGuardar}>
+              {guardando||operando?"Guardando…":"Sí, estoy seguro · Guardar"}
+            </button>
+          </div>
+        </section>
+      </div>}
       <style>{`
         *{box-sizing:border-box}
         body,html{margin:0;background:#080e16}
@@ -555,6 +675,29 @@ export default function CapturaB5(){
         .claveOficial{display:grid;gap:7px;font-size:13px;margin:15px 0;max-width:330px}
         .avisoLocal{color:#ffd18d;font-size:13px;margin-top:12px}
         .detalleAcciones{margin-top:12px}
+        .confirmacionFondo{position:fixed;inset:0;background:#000c;z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+        .confirmacionPanel{background:#122436;color:#f4f9fe;border:2px solid #e0b654;border-radius:16px;
+          padding:20px;max-width:560px;width:100%;max-height:90dvh;overflow:auto;box-shadow:0 18px 55px #0009}
+        .confirmacionPanel h2{font-size:21px;line-height:1.25;margin:10px 0}
+        .confirmacionPanel p{font-size:14px;line-height:1.5}
+        .confirmacionPaso{font-size:11px;font-weight:800;letter-spacing:1px;color:#e8cf8b}
+        .confirmacionDatos{display:grid;gap:6px;background:#1c3447;padding:12px;border-radius:8px}
+        .confirmacionDatos>div{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+        .confirmacionDatos strong{color:#cbddea}
+        .confirmacionTotales{display:flex;gap:8px;margin:12px 0}
+        .confirmacionTotales>div{flex:1;text-align:center;border:1px solid #587c8b;border-radius:8px;padding:10px 4px}
+        .confirmacionTotales strong{display:block;font-size:28px;color:#fff}
+        .confirmacionTotales span{font-size:11px;color:#c6d8e7}
+        .confirmacionAlerta{background:#692d1d;border:1px solid #e39b61;border-radius:8px;padding:10px;color:#fff1dc}
+        .confirmacionLista{max-height:170px;overflow:auto;font-size:13px;border:1px solid #526e88;border-radius:8px;padding:9px}
+        .confirmacionLista summary{font-size:13px}
+        .confirmacionLista li{padding:2px 0}
+        .confirmacionAyuda{color:#d9e9f2}
+        .confirmacionAcciones{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .confirmacionAcciones button{border-radius:9px;border:1px solid #8099aa;color:#fff;background:#344d62;
+          padding:14px 8px;font-size:14px;font-weight:800}
+        .confirmacionAcciones .confirmarDefinitivo{background:#166e43;border-color:#79cba0}
+        .confirmacionAcciones button:disabled{opacity:.55}
         .registro{padding:10px 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid #3e5267}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
         @media(max-width:620px){.capturaB5{padding:10px}.campos{grid-template-columns:1fr}
