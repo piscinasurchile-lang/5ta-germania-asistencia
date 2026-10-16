@@ -82,7 +82,7 @@ test("ratificar noche se abre en pantalla propia y nunca activa la gestión Guar
  assert.ok(diario>=0&&acreditacion>diario&&guardia>acreditacion,"Paneles hermanos e independientes");
  assert.match(html.slice(acreditacion,guardia),/id="lgnRatif"/,"La ratificación está solo en su panel");
  assert.doesNotMatch(html.slice(guardia,html.indexOf('id="panel-config"')),/id="lgnRatif"/);
- const inicio=js.indexOf("function abrirPanelMando()");
+ const inicio=js.indexOf("function abrirPanelMando(");
  const fin=js.indexOf("function pintarOficial()",inicio);
  assert.ok(inicio>=0&&fin>inicio);
  assert.match(js.slice(inicio,fin),/__mostrarPestana\("acreditacion-guardia"\)/);
