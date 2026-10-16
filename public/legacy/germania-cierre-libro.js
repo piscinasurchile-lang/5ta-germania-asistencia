@@ -445,15 +445,56 @@ function pintarOficial(){
  area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
 }
+function refrescarRez(zona){
+ const ocupados=new Set([
+  ...[...zona.querySelectorAll("[data-lgn-id]")].map(e=>e.dataset.lgnId),
+  ...[...zona.querySelectorAll("[data-lgn-rezagado]")].map(e=>e.dataset.lgnRezagado)
+ ]);
+ const s=zona.querySelector(".lgn-rezagado-seleccion");if(s)s.innerHTML=seleccionarRez(ocupados);
+}
+function quitarRez(boton){
+ const zona=boton.closest("[data-lgn-lista]"),fila=boton.closest("[data-lgn-rezagado]");
+ if(!zona||!fila)return;
+ if(!confirm("¿Quitar del acta a "+nombre(fila.dataset.lgnRezagado)+"?"))return;
+ fila.remove();editando=true;refrescarRez(zona);
+}
+function agregarRez(boton){
+ const zona=boton.closest("[data-lgn-lista]"),sel=zona?.querySelector(".lgn-rezagado-seleccion");
+ if(!sel?.value)return;
+ const id=sel.value;
+ if(zona.querySelector('[data-lgn-id="'+id+'"]')||zona.querySelector('[data-lgn-rezagado="'+id+'"]')){
+  alert("Esta persona ya figura en la guardia.");return;
+ }
+ const fecha=zona.dataset.lgnLista;
+ if(!confirm("¿Confirmas que "+nombre(id)+" está en la fotografía del libro del "+fecha+" y realmente asistió?"))return;
+ const motivo="Presencia corroborada en la fotografía del libro físico";
+ zona.querySelector(".lgn-rezagados-lista").insertAdjacentHTML("beforeend",htmlRez(id,motivo));
+ zona.querySelectorAll("[data-lgn-quitar]").forEach(b=>b.onclick=()=>quitarRez(b));
+ editando=true;refrescarRez(zona);
+}
 async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
  const msg=$("lgnRatif")?.querySelector('[data-lgn-estado="'+fecha+'"]');
  if(!x||!x.cierre||!zona||!msg)return;
- const asistencias={};
+ const asistencias={},excusas={},adicionales=[];
  let ok=true;
- zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{if(!sel.value)ok=false;asistencias[sel.dataset.lgnId]=sel.value;});
- if(!ok){msg.textContent="Selecciona Asistió o No asistió para todas las personas.";return;}
+ zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{
+  if(!sel.value){ok=false;return;}
+  const id=sel.dataset.lgnId;
+  asistencias[id]=sel.value==="excusado"?"ausente":sel.value;
+  if(sel.value==="excusado"){
+   const razon=sel.parentElement.querySelector("[data-lgn-excusa]")?.value.trim()||"";
+   if(razon.length<3)ok=false;else excusas[id]=razon;
+  }
+ });
+ zona.querySelectorAll("[data-lgn-rezagado]").forEach(fila=>{
+   const id=fila.dataset.lgnRezagado;
+   if(asistencias[id]){ok=false;return;}
+   asistencias[id]="presente";
+   adicionales.push({id,motivo:fila.querySelector("[data-lgn-motivo-rez]")?.value||""});
+ });
+ if(!ok){msg.textContent="Verifica cada estado y escribe los motivos de las excusas.";return;}
  let motivo="";
  if(x.acreditacion){
   motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
@@ -463,7 +504,7 @@ async function ratificar(fecha,boton){
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
   const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({fecha,actorId:actual,asistencias,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
+    body:JSON.stringify({fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
   ultimaRatificacion=fecha;
