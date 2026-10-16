@@ -529,3 +529,17 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
  .odd-pdf-modal-contenido{padding:15px;}
  .odd-pdf-acciones .btn{flex:1 1 160px;}
 }
+
+/* T3 · edición de asistencia real: no modifica la programación de Guardia Nocturna. */
+#lgnRatif .lgn-fila-edicion{display:grid;grid-template-columns:minmax(0,1fr) minmax(145px,1fr) auto;gap:7px;align-items:center;padding:10px 0;border-bottom:1px solid #48515a;}
+#lgnRatif .lgn-fila-edicion>.rv-lbl{margin:0;overflow-wrap:anywhere;}
+#lgnRatif .lgn-fila-edicion>.rv-sel{width:100%;min-width:0;min-height:42px;}
+#lgnRatif .lgn-boton-excusa{min-height:40px;white-space:nowrap;}
+#lgnRatif .lgn-excusa-input{grid-column:1/-1;width:100%;min-height:43px;padding:9px;border:1px solid #c4a758;border-radius:7px;background:#171d22;color:#fff;}
+#lgnRatif .lgn-excusa-input[hidden]{display:none;}
+#lgnRatif .lgn-rezagados{margin:17px 0;padding:12px;border:1px solid #b69b3a;border-radius:9px;background:#191d1d;}
+#lgnRatif .lgn-rezagados h3{margin:0 0 8px;color:#ffcc00;font-size:17px;}
+#lgnRatif .lgn-rezagado-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-bottom:1px solid #454e54;padding:9px 0;font-size:13px;}
+#lgnRatif .lgn-rezagado-seleccion{width:100%;min-height:45px;margin:9px 0;}
+.lgn-excusa-detalle{font-size:12px;color:#ffe28e;margin:0 0 10px;padding-left:8px;border-left:3px solid #d2ab3e;}
+@media(max-width:680px){#lgnRatif .lgn-fila-edicion{grid-template-columns:minmax(0,1fr) auto;}#lgnRatif .lgn-fila-edicion>.rv-lbl{grid-column:1/-1;}#lgnRatif .lgn-fila-edicion>.rv-sel{grid-column:1;}#lgnRatif .lgn-boton-excusa{grid-column:2;}#lgnRatif .lgn-excusa-input{grid-column:1/-1;}}
