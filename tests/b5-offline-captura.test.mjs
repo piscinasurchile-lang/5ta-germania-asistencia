@@ -106,7 +106,7 @@ test("el modo PWA offline existe exclusivamente bajo /b5 y nunca cachea /api",()
  assert.match(sw,/url\.pathname\.startsWith\("\/api\/"\)\)return/);
  assert.match(b5,/SIN CONEXIÓN · Tomando datos en esta tablet/);
  assert.match(b5,/\/b5\/captura\?tipo=/);
- assert.match(forma,/Guardar en esta tablet/);
+ assert.match(forma,/Revisar antes de guardar/);
  assert.match(forma,/sincronizarBorradores/);
  assert.match(api,/buscarDispositivo\(registro,token\)/);
  assert.match(api,/origen_no_permitido/);
