@@ -34,7 +34,7 @@ async function leerParte(sql,parametros){
   const clave=claveDeParteB5(parametros);
   if(!clave)return null;
   const actual=await readState(sql,clave);
-  if(!actual.value || actual.value.b5OfflineId!==parametros.id)return null;
+  if(!actual.value || (actual.value.b5OfflineId!==parametros.id && actual.value.b5RecuperadoDesdeId!==parametros.id))return null;
   return {clave,...actual};
 }
 export async function GET(request){
