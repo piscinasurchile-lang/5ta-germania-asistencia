@@ -78,7 +78,7 @@ export async function POST(req) {
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
         porNombre:anteriorRegistro.acreditadoPorNombre||null,
         asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes,
-         adicionales:anteriorRegistro.adicionales||[],excusas:anteriorRegistro.excusas||[]
+         adicionales:anteriorRegistro.adicionales||[],excusas:anteriorRegistro.excusas||{}
       }]:[]
     };
     if (anteriorRegistro && !registro.motivoCorreccion)
