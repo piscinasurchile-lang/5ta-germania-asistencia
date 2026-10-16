@@ -546,3 +546,15 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 
 .lgn-asistencia-fila.excusado{border:2px solid #d0ab3f;background:#403618;color:#fff;}
 .lgn-asistencia-fila.excusado .lgn-asistencia-estado{color:#ffe18a;}
+
+/* Una guardia, dos vistas: ODD original y acta de asistencia real ratificada. */
+.lgn-acta-efectiva{margin:15px 0;padding:11px;border:1px solid #5a676d;border-radius:10px;background:#101b20;}
+.lgn-acta-efectiva h3{margin:0 0 8px;font-size:19px;line-height:1.3;color:#fff;}
+.lgn-acta-efectiva>.sub{margin:0 0 12px;font-size:13px;}
+.lgn-acta-adicional{border-left:4px solid #f6c900;background:#262310;border-radius:8px;margin:9px 0;padding:5px 8px;}
+.lgn-acta-adicional .lgn-asistencia-fila{border-color:#ffcc00;box-shadow:inset 0 0 0 1px #ffcc0055;}
+.lgn-acta-adicional .lgn-asistencia-nombre{font-weight:700;}
+.lgn-comprobacion{display:flex;gap:11px;align-items:flex-start;margin:16px 0;padding:12px;border:2px solid #cfaa39;border-radius:8px;background:#2a250f;color:#fff;font-size:14px;line-height:1.45;cursor:pointer;}
+.lgn-comprobacion input{width:22px;height:22px;flex:0 0 22px;accent-color:#fbc515;margin:1px 0 0;}
+.lgn-correccion-ir{margin-top:13px;white-space:normal;text-align:left;}
+@media(max-width:600px){.lgn-acta-efectiva{padding:9px}.lgn-comprobacion{padding:11px}}
