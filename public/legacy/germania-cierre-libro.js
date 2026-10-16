@@ -383,9 +383,15 @@ async function marcarVisto(fecha,boton){
  }
 }
 
-function abrirPanelMando(){
+function abrirPanelMando(fecha){
  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
- setTimeout(()=>{const a=$("lgnRatif");if(a)a.scrollIntoView({behavior:"smooth",block:"start"});cargar(true);},100);
+ const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ setTimeout(async()=>{
+  await cargar(true);
+  const area=$("lgnRatif"),dia=elegida?area?.querySelector('[data-lgn-dia="'+elegida+'"]'):null;
+  if(dia){dia.open=true;dia.scrollIntoView({behavior:"smooth",block:"start"});}
+  else area?.scrollIntoView({behavior:"smooth",block:"start"});
+ },100);
 }
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
@@ -406,7 +412,7 @@ function pintarOficial(){
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
   const titulo=etiquetaGuardia(x.fecha);
-  h+='<details class="gr-det" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
+  h+='<details class="gr-det" data-lgn-dia="'+escHtml(x.fecha)+'" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
     '<summary style="cursor:pointer;font-weight:700">'+escHtml(titulo)+
     ' · '+(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC")+'</summary>'+
     '<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · 22:45 a 06:00 del día siguiente.</p>'+ 
@@ -420,18 +426,9 @@ function pintarOficial(){
     h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
-  if(capitan && !t3 && ac){
-    h+='<div class="gr-lista"><strong>Asistencia ratificada (solo lectura)</strong>';
-    for(const p of participantesEfectivos(x)){
-      const id=String(p.id),presente=x.acreditacion?.asistencias?.[id]==="presente";
-      h+=filaAsistencia(nombre(id),p.rol,presente,!!x.acreditacion?.excusas?.[id]);
-      const motivo=x.acreditacion?.excusas?.[id];
-      if(motivo)h+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
-    }
-    h+='</div>';
-  }
+  if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
   if(t3 && rec){
-    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Verifica las asistencias con la fotografía del libro físico.</p>';
+    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
     for(const p of participantes(x.dotacion)){
       const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
       const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
@@ -449,8 +446,9 @@ function pintarOficial(){
       '<p class="sub">Agregar solo si figura en la foto del libro. No modifica la dotación programada.</p>'+
       '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
       '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
-      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>';
-    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Corregir acreditación":"Ratificar noche")+'</button>';
+      '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
+      '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
@@ -524,12 +522,20 @@ async function ratificar(fecha,boton){
    adicionales.push({id,motivo:fila.querySelector("[data-lgn-motivo-rez]")?.value||""});
  });
  if(!ok){msg.textContent="Verifica cada estado y escribe los motivos de las excusas.";return;}
+ if(!zona.querySelector("[data-lgn-comprobado]")?.checked){
+  msg.textContent="Confirma que revisaste la fotografía del libro y agregaste a todos los asistentes, aunque no estuvieran programados.";
+  return;
+ }
  let motivo="";
  if(x.acreditacion){
   motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
   if(!motivo.trim())return;
  }
- if(!confirm("¿Ratificar la asistencia REAL del "+fecha+"? Esta acción actualizará las estadísticas individuales."))return;
+ const total=Object.values(asistencias).filter(v=>v==="presente").length;
+ const advertencia=(x.acreditacion?"¿Guardar corrección de la guardia ":"¿Ratificar la guardia ")+fecha+
+  "?\nPresentes: "+total+" · Nuevos asistentes: "+adicionales.length+" · Excusados: "+Object.keys(excusas).length+
+  "\nEstos datos actualizan las estadísticas y el informe del Capitán. La ODD original permanece intacta.";
+ if(!confirm(advertencia))return;
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
   const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -537,6 +543,7 @@ async function ratificar(fecha,boton){
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
   ultimaRatificacion=fecha;
+  historial=null;
   editando=false;await cargar(true);
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }
