@@ -149,7 +149,32 @@ function participantes(n){
 }
 
 function participantesEfectivos(x){
- return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})));
+ const vistos=new Set();
+ return participantes(x.dotacion).concat((x.acreditacion?.adicionales||[]).map(p=>({id:String(p.id),rol:"Asistente adicional"})))
+  .filter(p=>{const id=String(p.id);if(vistos.has(id))return false;vistos.add(id);return true;});
+}
+/** Una sola fuente de asistencia efectiva: acreditación vigente del T3, nunca la ODD. */
+function htmlAsistenciaRatificada(x){
+ if(!x.acreditacionVigente||!x.acreditacion)return "";
+ const ac=x.acreditacion,personas=participantesEfectivos(x);
+ const presentes=personas.filter(p=>ac.asistencias?.[String(p.id)]==="presente").length;
+ const excusados=personas.filter(p=>!!ac.excusas?.[String(p.id)]).length;
+ const ausentes=personas.length-presentes-excusados;
+ let h='<section class="lgn-acta-efectiva" data-lgn-acta-fecha="'+escHtml(x.fecha)+'">'+
+  '<h3>Asistencia real ratificada · '+escHtml(fechaBonita(x.fecha))+'</h3>'+
+  '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>';
+ for(const p of personas){
+  const id=String(p.id),presente=ac.asistencias?.[id]==="presente",excusa=ac.excusas?.[id];
+  const adicional=p.rol==="Asistente adicional";
+  h+='<div class="'+(adicional?"lgn-acta-adicional":"")+'">'+filaAsistencia(nombre(id),
+   adicional?"Asistente adicional · verificado en libro":p.rol,presente,!!excusa);
+  if(excusa)h+='<p class="lgn-excusa-detalle">Motivo de excusa: '+escHtml(excusa)+'</p>';
+  h+='</div>';
+ }
+ if((ac.adicionales||[]).length){
+  h+='<p class="lgn-control-nota">Asistentes adicionales incorporados por el Teniente Tercero con respaldo de la fotografía del libro físico.</p>';
+ }
+ return h+'</section>';
 }
 function seleccionarRez(ocupados){
  if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
@@ -237,7 +262,7 @@ function pintarControlAdmin(){
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
   '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
-  '<p class="lgn-control-nota">Selecciona una semana y despliega el día para revisar la dotación, fotografía y novedades. Ausentes ratificados en rojo. Solo lectura.</p>';
+  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Solo el Teniente Tercero puede corregir el acta.</p>';
  if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
  let grupoAnterior="";
  for(const x of terminadas){
@@ -255,7 +280,7 @@ function pintarControlAdmin(){
    ' · 22:45 a 06:00 del día siguiente.</p>'+
    '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>'+
    '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>'+
-   '<p><strong>Voluntarios programados:</strong> '+
+   '<p><strong>Voluntarios programados en la ODD original (no implica asistencia):</strong> '+
    ((x.dotacion?.vol||[]).length?x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
   if(x.cierre){
    const fechaEnvio=x.cierre.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha";
@@ -266,20 +291,18 @@ function pintarControlAdmin(){
     '" target="_blank" rel="noopener">Ver foto del libro</a></p>';
   }else html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>';
   if(x.acreditacionVigente&&x.acreditacion){
-   const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
-   html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
-    (ratificada?' · '+escHtml(ratificada):"")+'</p>'+
-    '<p><strong>Asistencia confirmada:</strong></p>';
-   for(const p of participantesEfectivos(x)){
-    const presente=x.acreditacion.asistencias?.[String(p.id)]==="presente";
-    html+=filaAsistencia(nombre(p.id),p.rol,presente,!!x.acreditacion.excusas?.[String(p.id)]);
-    const motivo=x.acreditacion.excusas?.[String(p.id)];
-    if(motivo)html+='<p class="lgn-excusa-detalle">Excusado · '+escHtml(motivo)+'</p>';
+    const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
+    html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+     (ratificada?' · '+escHtml(ratificada):"")+'</p>';
+    html+=htmlAsistenciaRatificada(x);
+   }else if(x.cierre){
+    html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. La programación original no acredita presencia.</p>';
    }
-  }else if(x.cierre){
-   html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. No suma estadísticas todavía.</p>';
-  }
-  if(capitan&&x.acreditacionVigente&&!x.vistoCapitan){
+   if(t3&&x.cierre){
+    html+='<button class="btn small secondary lgn-correccion-ir" type="button" data-lgn-corregir="'+escHtml(x.fecha)+'">'+
+     (x.acreditacionVigente?"Corregir asistencia ratificada":"Revisar y ratificar esta guardia")+'</button>';
+   }
+   if(capitan&&x.acreditacionVigente&&!x.vistoCapitan){
    html+='<button type="button" class="btn secondary small" data-lgn-visto="'+escHtml(x.fecha)+'">Visto · Capitán</button>';
   }
   html+='</div></details>';
@@ -295,6 +318,7 @@ function pintarControlAdmin(){
  const inicio=$("lgnAdminInicio");
  if(inicio)inicio.onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
  panel.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
+ panel.querySelectorAll("[data-lgn-corregir]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnCorregir));
 }
 
 function pintarResumenMando(){
