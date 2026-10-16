@@ -25,7 +25,7 @@ function filaAsistencia(nombrePersona,rolPersona,presente){
 }
 function estadoSeleccionAsistencia(sel){
  if(!sel)return;
- sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente");
+ sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente"||sel.value==="excusado");
  sel.classList.toggle("lgn-asistencia-select-presente",sel.value==="presente");
 }
 function rol(m){return String(m?.cargo||"").toLowerCase();}
@@ -417,6 +417,7 @@ function pintarOficial(){
       '<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
       '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option>'+
       '<option value="excusado"'+(estado==="excusado"?" selected":"")+'>Excusado</option></select>'+
+      '<button type="button" class="btn small secondary lgn-boton-excusa" data-lgn-excusar>Excusar</button>'+
       '<input data-lgn-excusa="'+escHtml(id)+'" type="text" maxlength="400" class="lgn-excusa-input" placeholder="Motivo obligatorio de la excusa" value="'+escHtml(motivo)+'"'+(estado==="excusado"?"":" hidden")+'></div>';
     }
     const ocupados=new Set(participantesEfectivos(x).map(p=>String(p.id)));
@@ -439,6 +440,10 @@ function pintarOficial(){
      const input=sel.parentElement.querySelector("[data-lgn-excusa]");
      if(input)input.hidden=sel.value!=="excusado";
    });
+ });
+ area.querySelectorAll("[data-lgn-excusar]").forEach(btn=>btn.onclick=()=>{
+   const sel=btn.parentElement.querySelector("[data-lgn-id]");
+   if(sel){sel.value="excusado";sel.dispatchEvent(new Event("change"));}
  });
  area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
  area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
