@@ -42,3 +42,9 @@ test("no se permiten inscripciones anónimas mientras se valida identidad",()=>{
  assert.doesNotMatch(ui,/async function guardar\(/);
  assert.match(ui,/const mi=null/);
 });
+
+test("no se simula notificación roja individual sin registro de lectura",()=>{
+ const ui=read("public/legacy/germania-domingo-quinta.js");
+ assert.match(ui,/const pending=false/);
+ assert.match(ui,/id="dq-guardar" disabled/);
+});
