@@ -28,6 +28,7 @@ export async function GET(request){
  }catch(e){console.error("domingo GET",e);return Response.json({error:"No disponible"},{status:503,headers})}
 }
 export async function POST(request){
+ return Response.json({error:"Inscripción suspendida hasta validar identidad del voluntario"},{status:503,headers});
  if(!originOk(request))return Response.json({error:"Origen inválido"},{status:403,headers});
  if(!convocatoriaAbierta())return Response.json({error:"Inscripciones cerradas"},{status:409,headers});
  const payload=validarInscripcion(await request.json().catch(()=>null));
