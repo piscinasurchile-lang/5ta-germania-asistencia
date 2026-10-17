@@ -25,3 +25,6 @@ Crear migración revisada por responsable de datos, con índices de unicidad (do
 
 ## Puesta en marcha
 No fusionar PR #206 mientras el POST permita identificación por un campo editable o mientras falten identidad, migración, pruebas de integración y revisión. El endpoint de escritura permanece temporalmente bloqueado.
+
+## Decisión del administrador (17-10-2026)
+Para esta actividad, la identificación será por selección de nombre y apellido desde la nómina existente de Germania, sin solicitar PIN ni contraseña adicional. La compañía aplica responsabilidad disciplinaria por suplantación. Registrar fecha/hora de cambios y evitar duplicados. La identificación por nombre no demuestra quién realizó el cambio; conservar esta limitación explícita y no declarar identidad verificada. No modificar autenticación general ni reglas de otros módulos.
