@@ -20,14 +20,14 @@ function pintar(){
  '<label><input type="checkbox" id="dq-ayuda" '+(ayuda?"checked":"")+'> Puedo ayudar a preparar la comida</label><p>Minuta: el menú se informará aquí.</p></div>'+
  '<button type="button" class="dq-submit" id="dq-guardar">¡Listo, cuenten conmigo!</button><p class="dq-status" id="dq-status" role="status">'+(mi?"Inscripción guardada. Puedes modificarla.":"Selecciona tus preferencias y confirma.")+'</p>'+
  '<details><summary>Participación por turno</summary><p>'+[1,2,3].map(n=>"Turno "+n+": "+inscritos.filter(x=>Array.isArray(x.turnos)&&x.turnos.includes(n)).length).join(" · ")+'</p><p>Comida confirmada: '+inscritos.filter(x=>x.comida==="si").length+'</p></details></div>';
- root.querySelectorAll("[data-turno]").forEach(b=>b.onclick=()=>{const n=Number(b.dataset.turno);selected=selected.includes(n)?selected.filter(x=>x!==n):[...selected,n].sort();const copy={turnos:selected.slice(),comida,ayuda};pintar();selected=copy.turnos;comida=copy.comida;ayuda=copy.ayuda});
+ root.querySelectorAll("[data-turno]").forEach(b=>b.onclick=()=>{const n=Number(b.dataset.turno);selected=selected.includes(n)?selected.filter(x=>x!==n):[...selected,n].sort();pintar()});
  root.querySelectorAll('[name="dq-comida"]').forEach(x=>x.onchange=()=>{comida=x.value});
  root.querySelector("#dq-ayuda").onchange=e=>{ayuda=e.target.checked};
  root.querySelector("#dq-guardar").onclick=guardar;
 }
 async function cargar(){
  if(!selector.value){root.innerHTML="";return}
- try{const r=await fetch("/api/domingo-quinta",{cache:"no-store"});if(!r.ok)throw Error("Servicio no disponible");const d=await r.json();fecha=d.domingo;inscritos=d.inscritos||[];const mi=actual();selected=mi&&Array.isArray(mi.turnos)?mi.turnos.map(Number):[];comida=mi?.comida||"si";ayuda=!!mi?.ayuda;pintar()}
+ try{const r=await fetch("/api/domingo-quinta",{cache:"no-store"});if(!r.ok)throw Error("Servicio no disponible");const d=await r.json();if(!d.abierta){root.innerHTML="";return}fecha=d.domingo;inscritos=d.inscritos||[];const mi=actual();selected=mi&&Array.isArray(mi.turnos)?mi.turnos.map(Number):[];comida=mi?.comida||"si";ayuda=!!mi?.ayuda;pintar()}
  catch(e){root.innerHTML='<p style="padding:14px;color:#fff">Domingo en la Quinta no disponible temporalmente. Intenta nuevamente.</p>'}
 }
 async function guardar(){
