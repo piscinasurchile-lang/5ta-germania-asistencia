@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,ultimaCarga=0,ultimaRatificacion="";
+let actual="",items=[],t3=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -50,6 +50,7 @@ async function cargar(forzar){
  finally{cargando=false;}
 }
 function limpiar(){
+ fotoSeleccionada=null;formAbierto=false;
  if($("lgnObacHome"))$("lgnObacHome").innerHTML="";
  if($("lgnMandoHome"))$("lgnMandoHome").innerHTML="";
  if($("lgnAdminHome"))$("lgnAdminHome").innerHTML="";
@@ -81,7 +82,7 @@ function pintarOBAC(){
     '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
     '<div id="lgnFormulario" hidden style="margin-top:12px">'+
     '<label for="lgnFoto" class="rv-lbl">Fotografía del libro físico de guardia (obligatoria)</label>'+
-    '<input id="lgnFoto" type="file" accept="image/*" capture="environment" style="width:100%;margin:8px 0 12px">'+
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px"><button type="button" id="lgnAdjuntar" class="btn small secondary" style="min-height:44px">Elegir foto guardada</button><button type="button" id="lgnTomarFoto" class="btn small secondary" style="min-height:44px">Tomar foto ahora</button></div><input id="lgnFoto" type="file" accept="image/*" style="display:none"><input id="lgnCamara" type="file" accept="image/*" capture="environment" style="display:none"><p class="sub">Puedes seleccionar una foto guardada o tomar una nueva. Revisa la vista previa antes de enviar.</p>'+
     '<div id="lgnVistaFoto"></div>'+
     '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
     '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
@@ -106,11 +107,17 @@ function pintarOBAC(){
  }
  host.innerHTML=html;
  if(!parte||!parte.cierreHabilitado)return;
- $("lgnAbrir").onclick=function(){formAbierto=true;$("lgnFormulario").hidden=false;$("lgnFoto").click();};
- $("lgnFoto").onchange=function(){
-  const file=this.files?.[0],box=$("lgnVistaFoto");
-  if(box&&file){const src=URL.createObjectURL(file);box.innerHTML='<img alt="Fotografía seleccionada" style="max-width:100%;max-height:300px;border-radius:8px;object-fit:contain;margin:4px 0 10px">';const im=box.querySelector("img");im.onload=()=>URL.revokeObjectURL(src);im.src=src;}
- };
+ $("lgnAbrir").onclick=function(){formAbierto=true;fotoSeleccionada=null;$("lgnFormulario").hidden=false;this.hidden=true;this.style.display="none";};
+ $("lgnAdjuntar").onclick=function(){$("lgnFoto").value="";$("lgnFoto").click();};
+ $("lgnTomarFoto").onclick=function(){$("lgnCamara").value="";$("lgnCamara").click();};
+ function alSeleccionarFoto(file){
+  if(!file)return;
+  fotoSeleccionada=file;
+  const box=$("lgnVistaFoto");
+  if(box){const src=URL.createObjectURL(file);box.innerHTML='<img alt="Fotografía seleccionada" style="max-width:100%;max-height:300px;border-radius:8px;object-fit:contain;margin:4px 0 10px">';const im=box.querySelector("img");im.onload=()=>URL.revokeObjectURL(src);im.src=src;}
+ }
+ $("lgnFoto").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
+ $("lgnCamara").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
  $("lgnEnviar").onclick=function(){enviar(parte.fecha);};
 }
 async function comprimir(foto){
@@ -130,7 +137,7 @@ async function comprimir(foto){
  }finally{URL.revokeObjectURL(url);}
 }
 async function enviar(fecha){
- const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=$("lgnFoto")?.files?.[0],nov=$("lgnNovedades")?.value.trim();
+ const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=fotoSeleccionada,nov=$("lgnNovedades")?.value.trim();
  if(!file||!nov){msg.textContent="Necesitas la fotografía y el texto de novedades (puede ser Sin novedades).";return;}
  if(!confirm("¿Enviar el cierre del libro de "+fecha+" al Teniente Tercero para ratificación?"))return;
  boton.disabled=true;msg.textContent="Preparando fotografía y enviando cierre…";
@@ -140,7 +147,7 @@ async function enviar(fecha){
   const r=await fetch("/api/guardia/libro",{method:"POST",body:fd});
   const dat=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(dat.error||"No se pudo enviar.");
-  formAbierto=false;msg.textContent="Cierre enviado y archivado.";
+  formAbierto=false;fotoSeleccionada=null;msg.textContent="Cierre enviado y archivado.";
   await cargar(true);
  }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
 }
@@ -571,7 +578,7 @@ function init(){
   };
  }
  const m=elegido(),id=m?String(m.id):"";
- if(id!==actual){formAbierto=false;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
+ if(id!==actual){formAbierto=false;fotoSeleccionada=null;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
 }
 init();
 setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||oficial||soyObacReciente))cargar(false);},5000);
