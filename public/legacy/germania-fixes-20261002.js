@@ -33,6 +33,7 @@
     ajustarEncabezadoMinuta();
     ajustarMinutaMovil();
     instalarDashboardV2();
+    try{var ir=new URLSearchParams(location.search).get('ir');if(ir&&/^(germania|estado|lista|servicio|historial|config)$/.test(ir)){var n=0,iv=setInterval(function(){n++;if(typeof window.__mostrarPestana==='function'){clearInterval(iv);window.__mostrarPestana(ir);}else if(n>40)clearInterval(iv);},150);}}catch(e){}
     /* No volver a consultar disponibilidad aquí: app.js ya hace la carga inicial. */
   });
 })();

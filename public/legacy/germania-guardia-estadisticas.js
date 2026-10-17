@@ -38,6 +38,22 @@
       originales.forEach(function(x){
         if(x?.id && x.reemplazo) reemplazos.set(String(x.id),String(x.reemplazo));
       });
+      /* Cambios hechos por el Teniente Tercero en la revisión aprobada ("cambia"): cuentan igual que un
+         reemplazo anotado en el turno (decisión del administrador, 17-oct-2026). Solo lectura. */
+      var cambiosT3=new Map();
+      if(rev&&rev.estado==="aprobada"&&Array.isArray(rev.cambios)){
+        rev.cambios.forEach(function(c){
+          if(!c||c.fecha!==f||c.accion!=="cambia"||c.rol!=="vol"||!c.antesId||!c.personaId)return;
+          var antes=String(c.antesId),quien=String(c.personaId),encadenado=false;
+          cambiosT3.forEach(function(v,k){if(!encadenado&&v===antes){cambiosT3.set(k,quien);encadenado=true;}});
+          if(!encadenado)cambiosT3.set(antes,quien);
+        });
+      }
+      cambiosT3.forEach(function(quien,antes){
+        if(antes===quien||reemplazos.has(antes))return;
+        reemplazos.set(antes,quien);
+        if(asignados.indexOf(antes)<0){asignados.push(antes);if(por[antes])por[antes].asig++;resultado.asign++;}
+      });
       resultado.reemp+=reemplazos.size;
       var cedidos=new Set(reemplazos.keys());
       cedidos.forEach(function(id){if(por[id])por[id].ced++;});
