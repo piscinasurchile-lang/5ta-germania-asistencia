@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {validarInscripcion,domingoSiguiente} from "../lib/domingo-quinta.mjs";
+import {validarInscripcion,domingoSiguiente,convocatoriaAbierta} from "../lib/domingo-quinta.mjs";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 test("domingo correspondiente en Chile",()=>{
  assert.equal(domingoSiguiente(new Date("2026-10-17T18:00:00Z")),"2026-10-18");
@@ -20,4 +20,16 @@ test("pantalla individual integrada",()=>{
  assert.match(read("public/legacy/index.html"),/id="domingoQuinta"/);
  assert.match(read("public/legacy/index.html"),/germania-domingo-quinta.js/);
  assert.match(read("public/legacy/germania-domingo-quinta.js"),/miVoluntario/);
+});
+
+test("la encuesta abre el sábado 12:45 hora de Chile",()=>{
+ assert.equal(convocatoriaAbierta(new Date("2026-10-17T15:44:00Z")),false);
+ assert.equal(convocatoriaAbierta(new Date("2026-10-17T15:45:00Z")),true);
+ assert.equal(convocatoriaAbierta(new Date("2026-10-18T15:00:00Z")),true);
+ assert.equal(convocatoriaAbierta(new Date("2026-10-19T15:00:00Z")),false);
+});
+test("el servidor bloquea guardar fuera de horario",()=>{
+ const api=read("app/api/domingo-quinta/route.js");
+ assert.match(api,/if\(!convocatoriaAbierta\(\)\)/);
+ assert.match(api,/Inscripciones cerradas/);
 });
