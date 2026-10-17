@@ -33,3 +33,12 @@ test("el servidor bloquea guardar fuera de horario",()=>{
  assert.match(api,/if\(!convocatoriaAbierta\(\)\)/);
  assert.match(api,/Inscripciones cerradas/);
 });
+
+test("no se permiten inscripciones anónimas mientras se valida identidad",()=>{
+ const api=read("app/api/domingo-quinta/route.js");
+ assert.match(api,/Inscripción suspendida hasta validar identidad/);
+ const ui=read("public/legacy/germania-domingo-quinta.js");
+ assert.match(ui,/id="dq-guardar" disabled/);
+ assert.doesNotMatch(ui,/async function guardar\(/);
+ assert.match(ui,/const mi=null/);
+});
