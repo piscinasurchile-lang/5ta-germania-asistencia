@@ -22,8 +22,9 @@ export async function GET(request){
   const fecha=domingoSiguiente();
   if(!convocatoriaAbierta())return Response.json({domingo:fecha,abierta:false,inscritos:[]},{headers});
   const sql=await db();
-  const rows=await sql`SELECT voluntario_id AS id,turnos,comida,ayuda,updated_at FROM domingo_quinta_inscripciones WHERE domingo=${fecha}::date ORDER BY updated_at`;
-  return Response.json({domingo:fecha,abierta:true,inscritos:rows},{headers});
+  const rows=await sql`SELECT turnos,comida FROM domingo_quinta_inscripciones WHERE domingo=${fecha}::date`;
+  const turnos=[1,2,3].map(n=>rows.filter(row=>Array.isArray(row.turnos)&&row.turnos.includes(n)).length);
+  return Response.json({domingo:fecha,abierta:true,resumen:{turnos,comida:rows.filter(row=>row.comida==="si").length}},{headers});
  }catch(e){console.error("domingo GET",e);return Response.json({error:"No disponible"},{status:503,headers})}
 }
 export async function POST(request){
