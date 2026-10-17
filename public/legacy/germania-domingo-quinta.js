@@ -10,7 +10,7 @@ function actual(){return null}
 function pintar(){
  const id=selector.value;
  if(!id){root.innerHTML="";return}
- const pending=!!fecha;
+ const pending=false;
  const mi=null;
  root.innerHTML='<div class="dq-wrap"><div class="dq-hero"><small>GERMANIA · 5ª COMPAÑÍA</small><h2>☀ Domingo en la Quinta '+(pending?'<span class="dq-dot" aria-label="Nueva inscripción"></span>':'')+'</h2><p>'+h(fechaVisible(fecha))+' · Nos organizamos para cuidar y compartir.</p></div><strong>¿En qué turno te sumas?</strong><p>Puedes elegir más de uno.</p>'+
  ["10:00 a 14:00","14:00 a 19:00","19:00 a 23:00"].map((t,i)=>'<button type="button" class="dq-turno" data-turno="'+(i+1)+'" aria-pressed="'+selected.includes(i+1)+'">'+(selected.includes(i+1)?"✓ ":"○ ")+'Turno '+(i+1)+' · '+t+'</button>').join("")+
