@@ -11,7 +11,7 @@ function pintar(){
  const id=selector.value;
  if(!id){root.innerHTML="";return}
  const mi=actual();
- if(mi){selected=Array.isArray(mi.turnos)?mi.turnos.map(Number):[];comida=mi.comida||"si";ayuda=!!mi.ayuda}
+ 
  const pending=!!fecha&&!mi;
  root.innerHTML='<div class="dq-wrap"><div class="dq-hero"><small>GERMANIA · 5ª COMPAÑÍA</small><h2>☀ Domingo en la Quinta '+(pending?'<span class="dq-dot" aria-label="Nueva inscripción"></span>':'')+'</h2><p>'+h(fechaVisible(fecha))+' · Nos organizamos para cuidar y compartir.</p></div><strong>¿En qué turno te sumas?</strong><p>Puedes elegir más de uno.</p>'+
  ["10:00 a 14:00","14:00 a 19:00","19:00 a 23:00"].map((t,i)=>'<button type="button" class="dq-turno" data-turno="'+(i+1)+'" aria-pressed="'+selected.includes(i+1)+'">'+(selected.includes(i+1)?"✓ ":"○ ")+'Turno '+(i+1)+' · '+t+'</button>').join("")+
@@ -27,7 +27,7 @@ function pintar(){
 }
 async function cargar(){
  if(!selector.value){root.innerHTML="";return}
- try{const r=await fetch("/api/domingo-quinta",{cache:"no-store"});if(!r.ok)throw Error("Servicio no disponible");const d=await r.json();fecha=d.domingo;inscritos=d.inscritos||[];pintar()}
+ try{const r=await fetch("/api/domingo-quinta",{cache:"no-store"});if(!r.ok)throw Error("Servicio no disponible");const d=await r.json();fecha=d.domingo;inscritos=d.inscritos||[];const mi=actual();selected=mi&&Array.isArray(mi.turnos)?mi.turnos.map(Number):[];comida=mi?.comida||"si";ayuda=!!mi?.ayuda;pintar()}
  catch(e){root.innerHTML='<p style="padding:14px;color:#fff">Domingo en la Quinta no disponible temporalmente. Intenta nuevamente.</p>'}
 }
 async function guardar(){
