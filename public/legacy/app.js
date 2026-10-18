@@ -5142,24 +5142,26 @@ async function getDisponibilidadHoy(){ return await sGet(dispKey(),{}); }
    Se guarda aparte el último estado de cada uno («disponibilidad:vigente») y, además, cada día se sigue guardando como historial.
    Para no depender de un solo registro, también se miran los últimos 14 días y se toma siempre el más reciente. */
 const DISP_DIAS_ATRAS=14, DISP_VIGENTE_KEY="disponibilidad:vigente";
-let DISP_PREV=null;
+let DISP_PREV=null, DISP_FALLO=false;
 function dispMasReciente(a,b){
   if(!a) return b; if(!b) return a;
   return (Date.parse(b.desde)||0)>=(Date.parse(a.desde)||0)?b:a;
 }
 async function estadosPrevios(){
   const hoy=todayISO();
-  if(DISP_PREV&&DISP_PREV.dia===hoy&&Date.now()<DISP_PREV.hasta) return DISP_PREV.mapa;
+  if(DISP_PREV&&DISP_PREV.dia===hoy&&Date.now()<DISP_PREV.hasta){ DISP_FALLO=false; return DISP_PREV.mapa; }
+  let fallo=false; const sinLectura=()=>{ fallo=true; return {}; };
   const claves=Array.from({length:DISP_DIAS_ATRAS},(_,i)=>"disponibilidad:"+gnAdd(hoy,-(i+1)));
   const [dias,vigente]=await Promise.all([
-    Promise.all(claves.map(k=>sGet(k,{}).catch(()=>({})))),
-    sGet(DISP_VIGENTE_KEY,{}).catch(()=>({}))
+    Promise.all(claves.map(k=>sGet(k,{}).catch(sinLectura))),
+    sGet(DISP_VIGENTE_KEY,{}).catch(sinLectura)
   ]);
   const mapa={};
   const poner=(id,r)=>{ if(r&&r.estado) mapa[id]=dispMasReciente(mapa[id],Object.assign({},r,{arrastrado:true})); };
   dias.forEach(d=>Object.entries(d||{}).forEach(([id,r])=>poner(id,r)));
   Object.entries(vigente||{}).forEach(([id,r])=>poner(id,r));
-  DISP_PREV={dia:hoy,hasta:Date.now()+5*60*1000,mapa};
+  DISP_FALLO=fallo;
+  if(!fallo) DISP_PREV={dia:hoy,hasta:Date.now()+5*60*1000,mapa};
   return mapa;
 }
 async function getDisponibilidadVigente(){
@@ -5479,12 +5481,55 @@ async function guardiaDeHoy(){
   const it=idx.slice().reverse().find(x=>x.fecha===todayISO());
   return it?await getGuardia(it.clave):null;
 }
+/* Quiénes están de guardia ESTA noche según la Guardia Nocturna semanal (plan, revisión aprobada o inscripciones).
+   La noche de guardia (22:45–06:00) cruza la medianoche: antes de las 06:00 sigue siendo la noche que empezó ayer.
+   Solo lectura; si algo falla devuelve null y la lista sigue funcionando como antes. */
+function guardiaNocheChile(){
+  try{
+    const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",hourCycle:"h23",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+    const fecha=p.year+"-"+p.month+"-"+p.day; return Number(p.hour)<6?gnAdd(fecha,-1):fecha;
+  }catch(e){ return todayISO(); }
+}
+async function guardianesNocheActual(){
+  try{
+    const noche=guardiaNocheChile();
+    const planes=(await gnPlanes()).filter(x=>x&&x.estado!=="anulada"&&x.estado!=="suspendida"&&x.inicio<=noche&&noche<=gnAdd(x.inicio,6));
+    const plan=planes.sort((a,b)=>b.inicio.localeCompare(a.inicio))[0];
+    if(!plan) return {noche,ids:new Set(),plan:false};
+    const ids=new Set(), ini=plan.inicio;
+    const rev=await sGet("guardia-revision:"+ini,null);
+    const turno=rev&&rev.estado==="aprobada"&&rev.noches?rev.noches[noche]:null;
+    if(turno){
+      (turno.vol||[]).forEach(i=>ids.add(String(i))); if(turno.maq) ids.add(String(turno.maq)); if(turno.obac) ids.add(String(turno.obac));
+    }else{
+      const pref="guardia-inscripcion:"+ini+":";
+      const r=await fetch("/api/state?prefix="+encodeURIComponent(pref),{cache:"no-store"});
+      if(!r.ok) return null;
+      for(const it of ((await r.json()).items||[])){
+        const id=String(it.key||"").slice(pref.length);
+        if((Array.isArray(it.value)?it.value:[]).some(v=>(typeof v==="string"?v:(v&&v.f))===noche)) ids.add(id);
+      }
+      const maq=await gnTablaRolSemana("guardia-maq:",ini); (maq[noche]||[]).forEach(i=>ids.add(String(i)));
+    }
+    return {noche,ids,plan:true};
+  }catch(e){ return null; }
+}
+const MQ_ICONO='<svg class="mq-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16V7h11v9M13 10h4l4 3v3h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>';
+/* Si no se pudo consultar la disponibilidad, no se muestra «0 maquinistas»: se indica que no hay datos. */
+function marcarMaqSinDatos(){
+  const ind=document.getElementById("indConductores"); if(!ind) return;
+  ind.hidden=false; ind.className="ind-cond unknown"; ind.dataset.lista="[]";
+  ind.innerHTML=MQ_ICONO+'<em>Maq. disponibles:</em><b>—</b><span class="mq-pill">SIN DATOS · REINTENTAR</span><i class="mq-chev" aria-hidden="true">›</i>';
+}
 async function renderDisponibilidad(){
   const body=document.getElementById("dispBody"), resumen=document.getElementById("dispResumen");
   if(!body||!resumen) return;
-  const d=await getDisponibilidadVigente(), guardia=await guardiaDeHoy();
+  let d,guardia;
+  try{ d=await getDisponibilidadVigente(); guardia=await guardiaDeHoy(); }
+  catch(e){ marcarMaqSinDatos(); return; }
   const guardianes=new Set((guardia?.guardianes||[]).filter(g=>g.estado!=="no").map(g=>String(g.id)));
-  const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0};
+  const gNoche=await guardianesNocheActual(); if(gNoche) gNoche.ids.forEach(i=>guardianes.add(String(i)));
+  const cuenta={cuartel:0,disponible:0,fuera:0,no:0,conductores:0}; const listaMaq=[];
 
   const apellido=(p)=>[p.apellidoPaterno||"",p.apellidoMaterno||"",p.nombre||""].join(" ").trim();
   const ciudad=(p)=>{
@@ -5514,12 +5559,13 @@ async function renderDisponibilidad(){
   const html=rosterOrdenado.map(p=>{
     const r=d[p.id]||{}, declarado=!!r.estado, e=r.estado||"no";
     if(declarado) cuenta[e]=(cuenta[e]||0)+1; else cuenta.sin=(cuenta.sin||0)+1;
-    if((e==="cuartel"||e==="disponible")&&p.conductor) cuenta.conductores++;
+    if((e==="cuartel"||e==="disponible")&&p.conductor){ cuenta.conductores++; listaMaq.push(nombreCompleto(p)+" ("+DISP_LABELS[e]+")"); }
+    const apCorto=[p.apellidoPaterno||"",(p.nombre||"").split(" ")[0].charAt(0)?((p.nombre||"").split(" ")[0].charAt(0)+"."):""].filter(Boolean).join(" ")||nombreCompleto(p);
     const desde=dispDesdeTexto(r);
     const foto=fotoVoluntario(p);
     return `<tr data-voluntario-id="${esc(String(p.id))}">
       <td style="text-align:center;"><img src="${foto}" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid #c9a227;display:block;margin:auto;"></td>
-      <td class="name-col">${esc(nombreCompleto(p))}</td>
+      <td class="name-col"><span class="nm-full">${esc(nombreCompleto(p))}</span><span class="nm-ap">${esc(apCorto)}</span><small class="nm-det">Desde ${esc(desde)} · ${p.conductor?"Maquinista · ":""}${guardianes.has(String(p.id))?"De guardia":"Sin guardia hoy"}</small></td>
       <td>${declarado?'<span class="dot '+esc(e)+'"></span>'+esc(DISP_LABELS[e]):'<span class="dot sin"></span>Sin marcar'}</td>
       <td>${desde}</td>
       <td style="text-align:center;">${p.conductor?"◉":"—"}</td>
@@ -5535,6 +5581,16 @@ async function renderDisponibilidad(){
     <div class="summary-item"><div class="big">${cuenta.sin||0}</div><div class="lbl">Sin marcar</div></div>
     <div class="summary-item"><div class="big">${cuenta.conductores}</div><div class="lbl">Maquinistas disponibles</div></div>`;
   if(resumen.innerHTML!==resumenHtml) resumen.innerHTML=resumenHtml;
+  /* Indicador de maquinistas junto al nombre y la foto: verde 2 o más, amarillo 1, rojo 0 «el carro no sale» */
+  const ind=document.getElementById("indConductores");
+  if(ind){
+    if(DISP_FALLO){ marcarMaqSinDatos(); }
+    else{
+      const n=cuenta.conductores, nivel=n>=2?"ok":(n===1?"warn":"bad");
+      ind.hidden=false; ind.className="ind-cond "+nivel; ind.dataset.lista=JSON.stringify(listaMaq);
+      ind.innerHTML=MQ_ICONO+"<em>Maq. disponibles:</em><b>"+n+"</b>"+(n===0?'<span class="mq-pill">SIN MAQUINISTA · B-5 NO SALE</span>':(n===1?'<span class="mq-pill">SOLO 1 MAQUINISTA</span>':""))+'<i class="mq-chev" aria-hidden="true">›</i>';
+    }
+  }
   const sel=document.getElementById("miVoluntario");
   const actual=sel&&sel.value?d[sel.value]:null;
   document.querySelectorAll(".status-choice").forEach(b=>b.classList.toggle("active",!!actual&&b.dataset.estado===actual.estado));
@@ -5566,6 +5622,17 @@ on("miFotoInput","change",async e=>{
   }catch(err){ alert((err&&err.message)||"No fue posible guardar la foto del voluntario."); }
 });
 document.querySelectorAll(".status-choice").forEach(b=>b.addEventListener("click",()=>marcarMiEstado(b.dataset.estado,b)));
+(function(){
+  const ind=document.getElementById("indConductores"), caja=document.getElementById("indConductoresLista");
+  if(ind&&caja) ind.addEventListener("click",()=>{
+    let l=[]; try{l=JSON.parse(ind.dataset.lista||"[]");}catch(e){}
+    if(ind.classList.contains("unknown")){ caja.textContent="No se pudo consultar la disponibilidad. Reintentando…"; caja.hidden=false; renderDisponibilidad().then(()=>{ if(ind.classList.contains("unknown")) caja.textContent="Sigue sin conexión con la base central. Revisa tu internet e inténtalo de nuevo."; else caja.hidden=true; }); return; }
+    caja.textContent=l.length?("Maquinistas disponibles: "+l.join(" · ")):"Ningún maquinista está En cuartel ni Disponible.";
+    caja.hidden=!caja.hidden;
+  });
+  const tb=document.getElementById("dispBody");
+  if(tb) tb.addEventListener("click",ev=>{ const tr=ev.target.closest&&ev.target.closest("tr"); if(tr) tr.classList.toggle("abierto"); });
+})();
 on("actualizarMinuta","click",renderDisponibilidad);
 on("menuToggle","click",()=>{
   const m=document.getElementById("mobileMenu"), b=document.getElementById("menuToggle");
