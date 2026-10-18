@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
-import {idsEfectivos} from "../../../../lib/guardia-asistencia-efectiva.js";
+import {idsEfectivos,evaluarDotacionEfectiva} from "../../../../lib/guardia-asistencia-efectiva.js";
 export const runtime = "nodejs";
 
 // Identificación provisoria por nombre y apellidos de la nómina institucional.
@@ -72,6 +72,7 @@ export async function POST(req) {
        adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),
        excusas:Object.fromEntries(Object.entries(excusas).map(([id,motivo])=>[String(id),motivo.trim()])),
       asistentes,ausentes,
+      dotacionEfectiva:evaluarDotacionEfectiva(revision.noches[fecha],b.asistencias,adicionales),
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoEn:new Date().toISOString(),
       motivoCorreccion:String(b.motivoCorreccion||"").trim().slice(0,400),
       historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
