@@ -70,6 +70,28 @@
     ref.insertBefore(fila,$("novedadesLista"));
     var ar=document.createElement("button");ar.type="button";ar.id="avisoArchivoOdd";ar.className="aviso-cit";ar.textContent="Archivo de ODD ›";
     ar.addEventListener("click",abrirArchivoOdd);ref.appendChild(ar);
+    var rg=document.createElement("button");rg.type="button";rg.id="avisoReglamentos";rg.className="aviso-cit";rg.textContent="Reglamentos ›";
+    rg.addEventListener("click",abrirReglamentos);ref.appendChild(rg);
+    /* también desde el menú ☰ */
+    var menu=$("mobileMenu");
+    if(menu&&!menu.querySelector("[data-reglamentos]")){var mb=document.createElement("button");mb.type="button";mb.setAttribute("data-reglamentos","1");mb.textContent="📖 Reglamentos";mb.addEventListener("click",function(){var t=$("menuToggle");if(t&&t.getAttribute("aria-expanded")==="true")t.click();abrirReglamentos();});menu.insertBefore(mb,menu.querySelector("[data-ayuda-toggle]"));}
+  }
+  /* ---------- Reglamentos (consulta para todos los voluntarios, solo lectura) ---------- */
+  function abrirReglamentos(){
+    if(document.getElementById("regOv"))return;
+    var docs=[
+      ["Reglamento de Guardia Nocturna","Cuerpo de Bomberos de Villarrica · rige la guardia","./reglamentos/reglamento-guardia-nocturna.pdf"],
+      ["Reglamento General del CBV","Edición 2023","./reglamentos/reglamento-general-cbv-2023.pdf"]
+    ];
+    var ov=document.createElement("div");ov.className="cit-ov";ov.id="regOv";ov.style.alignItems="flex-start";
+    ov.innerHTML='<div class="cit-modal" style="max-height:92vh;overflow:auto"><h3>Reglamentos</h3><p class="sub">Consulta. Si hay diferencias, manda el Reglamento de Guardia.</p>'+
+      docs.map(function(d){return '<a class="btn secondary" style="display:block;min-height:52px;margin:8px 0;text-align:left" target="_blank" rel="noopener" href="'+d[2]+'"><b>'+e2(d[0])+'</b><br><small>'+e2(d[1])+'</small></a>';}).join("")+
+      '<button type="button" class="btn secondary" id="regOdd" style="display:block;width:100%;min-height:52px;margin:8px 0;text-align:left"><b>Orden del Día de guardia</b><br><small>Archivo de ODD (vigente y anteriores)</small></button>'+
+      '<button type="button" class="btn" id="regCerrar" style="width:100%;min-height:48px;margin-top:8px">Cerrar</button></div>';
+    document.body.appendChild(ov);
+    $("regCerrar").onclick=function(){ov.remove();};
+    ov.addEventListener("click",function(ev){if(ev.target===ov)ov.remove();});
+    $("regOdd").onclick=function(){ov.remove();abrirArchivoOdd();};
   }
   /* ---------- Archivo de ODD (consulta de todas, también las vencidas) ---------- */
   async function abrirArchivoOdd(){
