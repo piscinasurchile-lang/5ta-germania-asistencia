@@ -10,11 +10,14 @@
     d.setUTCDate(d.getUTCDate()+1);
     return d.toISOString().slice(0,10);
   }
-  function calcularResumen({guardias,acreditaciones,rosterIds,ahoraChile}){
+  /* bajas (opcional): {id: fechaBaja|""}. Quien está de baja sigue en el histórico, pero NO se le inventan ausencias:
+     con fecha de baja no cuenta nada posterior a esa fecha; sin fecha de baja no se le cuentan faltas ni excusas. */
+  function calcularResumen({guardias,acreditaciones,rosterIds,ahoraChile,bajas}){
     var por={};
     (rosterIds||[]).forEach(function(id){
       por[String(id)]={asig:0,hechas:0,cubrio:0,ced:0,falto:0,excusadas:0,adicionales:0,obac:0,maq:0};
     });
+    function suma(id,campo,f){var q=por[id];if(!q)return;var b=bajas&&bajas[id];if(b!==undefined&&b!==null){if((campo==="falto"||campo==="excusadas")&&(b===""||f>b))return;if(b!==""&&f>b)return;}q[campo]++;}
     var resultado={por:por,turnos:0,asign:0,reemp:0,sinObac:0,sinCond:0,pendientes:0,sin:0,fallan:0};
     var nochesVistas=new Set();
     (guardias||[]).forEach(function(g){
@@ -30,7 +33,7 @@
       var ids=n?[n.maq,n.obac,...(n.vol||[])]:
         [g.oficial,g.conductor,...originales.map(x=>x?.id)];
       var asignados=[...new Set(ids.filter(Boolean).map(String))];
-      asignados.forEach(function(id){if(por[id])por[id].asig++;});
+      asignados.forEach(function(id){suma(id,"asig",f);});
       resultado.asign+=asignados.length;
       if(!(n?n.obac:g.oficial))resultado.sinObac++;
       if(!(n?n.maq:g.conductor))resultado.sinCond++;
@@ -52,23 +55,23 @@
       cambiosT3.forEach(function(quien,antes){
         if(antes===quien||reemplazos.has(antes))return;
         reemplazos.set(antes,quien);
-        if(asignados.indexOf(antes)<0){asignados.push(antes);if(por[antes])por[antes].asig++;resultado.asign++;}
+        if(asignados.indexOf(antes)<0){asignados.push(antes);suma(antes,"asig",f);resultado.asign++;}
       });
       resultado.reemp+=reemplazos.size;
       var cedidos=new Set(reemplazos.keys());
-      cedidos.forEach(function(id){if(por[id])por[id].ced++;});
+      cedidos.forEach(function(id){suma(id,"ced",f);});
       if(!ac)return;
       var presentes=new Set(ac.asistentes.map(String));
       var ausentes=new Set(ac.ausentes.map(String));
-      presentes.forEach(function(id){if(por[id])por[id].hechas++;});
-      ausentes.forEach(function(id){if(por[id]&&!cedidos.has(id)){if(ac.excusas?.[id])por[id].excusadas++;else por[id].falto++;}});
-       (ac.adicionales||[]).forEach(function(p){if(por[String(p.id)]&&presentes.has(String(p.id)))por[String(p.id)].adicionales++;});
+      presentes.forEach(function(id){suma(id,"hechas",f);});
+      ausentes.forEach(function(id){if(por[id]&&!cedidos.has(id)){if(ac.excusas?.[id])suma(id,"excusadas",f);else suma(id,"falto",f);}});
+       (ac.adicionales||[]).forEach(function(p){if(presentes.has(String(p.id)))suma(String(p.id),"adicionales",f);});
       var remplazan=new Set(reemplazos.values());
-      remplazan.forEach(function(id){if(por[id]&&presentes.has(id))por[id].cubrio++;});
-      if(n?.obac&&por[String(n.obac)]&&presentes.has(String(n.obac)))por[String(n.obac)].obac++;
-      if(n?.maq&&por[String(n.maq)]&&presentes.has(String(n.maq)))por[String(n.maq)].maq++;
+      remplazan.forEach(function(id){if(presentes.has(id))suma(id,"cubrio",f);});
+      if(n?.obac&&presentes.has(String(n.obac)))suma(String(n.obac),"obac",f);
+      if(n?.maq&&presentes.has(String(n.maq)))suma(String(n.maq),"maq",f);
     });
-    var filas=Object.values(por);
+    var filas=Object.keys(por).filter(function(id){return !(bajas&&bajas[id]!==undefined&&bajas[id]!==null);}).map(function(id){return por[id];});
     resultado.sin=filas.filter(q=>!q.hechas&&!q.asig).length;
     resultado.fallan=filas.filter(q=>q.falto>0).length;
     return resultado;
