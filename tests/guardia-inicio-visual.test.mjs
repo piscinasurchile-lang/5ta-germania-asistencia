@@ -38,9 +38,10 @@ test("guardias deja de ser botón permanente; oficiales conserva acceso de mando
   assert.match(roles,/if\(!esMando\(miembro\(\)\)\) return;/);
 });
 
-test("seis tarjetas de inicio tienen sus rutas y novedades conserva su contenido",()=>{
-  for(const txt of ["Asistencia","Emergencia B-5","Disponibilidad","Estadística","Oficiales","Novedades"])
+test("cinco tarjetas de inicio tienen sus rutas y el bloque Novedades conserva su contenido (el botón Novedades se retiró por decisión del administrador)",()=>{
+  for(const txt of ["Asistencia","Emergencia B-5","Disponibilidad","Estadística","Oficiales"])
     assert.ok(html.includes("<strong>"+txt+"</strong>"),txt);
+  assert.ok(!html.includes("<strong>Novedades</strong>"));
   assert.match(html,/id="inicioNovedades"/);
   assert.match(html,/id="novedadesLista"/);
   assert.match(roles,/data-home-novedades/);
@@ -65,14 +66,13 @@ test("resumen de disponibilidad usa cifras compactas centradas sobre la etiqueta
   assert.ok(html.includes('id="dispResumen"'));
 });
 
-test("seis botones conservan rutas y muestran contornos coloreados propios, sin bucles",()=>{
+test("cinco botones conservan rutas y muestran contornos coloreados propios, sin bucles",()=>{
   const colores={
     "tile-asistencia":"#3295ff",
     "tile-emergencia":"#ff3645",
     "tile-disponibilidad":"#28cf75",
     "tile-estadistica":"#b85af3",
-    "tile-oficiales":"#ffcc00",
-    "tile-novedades":"#91a7b7"
+    "tile-oficiales":"#ffcc00"
   };
   for(const [clase,color] of Object.entries(colores)){
     assert.ok(html.includes("tile "+clase),clase);
@@ -92,7 +92,7 @@ test("orden de Inicio: Asistencia y Disponibilidad arriba; Emergencia y Estadís
   assert.ok(inicio>=0 && fin>inicio);
   const fragmento=html.slice(inicio,fin);
   const orden=[...fragmento.matchAll(/<button class="tile tile-([a-z]+)/g)].map(m=>m[1]);
-  assert.deepEqual(orden,["asistencia","disponibilidad","emergencia","estadistica","oficiales","novedades"]);
+  assert.deepEqual(orden,["asistencia","disponibilidad","emergencia","estadistica","oficiales"]);
 });
 
 test("tarjetas de Inicio ajustan títulos largos sin pisar la flecha en móviles",()=>{

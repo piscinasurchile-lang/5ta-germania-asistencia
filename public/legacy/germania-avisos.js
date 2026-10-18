@@ -15,7 +15,9 @@
   async function publicar(o){
     var texto=String(o&&o.texto||"").trim();if(!texto)return false;
     var n={id:"n"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),texto:texto.slice(0,2000),tipo:o.tipo||"Novedad",origen:o.origen||"Manual",autor:o.autor||nombreYo()||"Oficial",en:new Date().toISOString()};
-    var l=await lista();l.push(n);var ok=await sSet(KEY,l.slice(-200));render();return ok;
+    /* Agregado atómico: si dos oficiales publican a la vez no se pierde ninguna novedad. */
+    var ok=false;try{ok=await sAddToList(KEY,n,{uniqueBy:"id"});}catch(e){ok=false;}
+    render();return ok;
   }
   async function vistas(){var v=yo()?await sGet("novedad-ofi-vista:"+yo(),{ids:[]}):{ids:[]};return new Set((v&&v.ids)||[]);}
   async function marcarVistas(ids){
@@ -27,7 +29,7 @@
     var card=$("novOfiCard");if(!card)return;
     if(!oficial()){card.hidden=true;actualizarTile(0);return;}
     card.hidden=false;
-    var l=(await lista()).slice().reverse(),vis=await vistas();
+    var l=(await lista()).slice(-200).reverse(),vis=await vistas();
     var nuevas=l.filter(function(n){return !vis.has(n.id);}).length;
     actualizarTile(nuevas);
     var dot=$("novOfiDot");dot.hidden=!nuevas;dot.textContent=nuevas||"";
