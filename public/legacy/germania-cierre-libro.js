@@ -34,6 +34,8 @@ function fotoUrl(f){return "/api/guardia/libro?foto=1&fecha="+encodeURIComponent
 async function cargar(forzar){
  const m=elegido(),id=m?String(m.id):"";
  if(!id){actual="";items=[];admin=false;oficial=false;historial=null;limpiar();return;}
+ // No reconstruir el formulario del T3 mientras edita asistencia sin guardar.
+ if(editando&&actual===id)return;
  if(cargando||(!forzar&&Date.now()-ultimaCarga<12000&&actual===id))return;
  cargando=true;
  try {
@@ -45,8 +47,18 @@ async function cargar(forzar){
    actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.esT3;capitan=!!d.esCapitan;admin=!!d.esAdmin;
    oficial=!!d.esOficial;semanaActual=d.semanaActual||semanaDe(d.items?.[0]?.fecha||"");
    ultimaCarga=Date.now();pintarOBAC();pintarOficial();pintarControlAdmin();
+   return true;
   }
- }catch(e){if((esMando(m)||String(m?.clave)==="517")&&$("lgnRatif"))$("lgnRatif").innerHTML='<p class="sub">No fue posible sincronizar los cierres. Intenta actualizar.</p>';}
+  return false;
+ }catch(e){
+  // Conservar las fichas y formularios existentes ante una caída temporal de red.
+  // Una sincronización fallida no equivale a ausencia de guardias ni a datos descartados.
+  console.warn("No fue posible sincronizar cierres de guardia",e);
+  const area=$("lgnRatif");
+  if(area&&!area.querySelector("[data-lgn-dia]")&&!area.querySelector("[data-lgn-lista]"))
+   area.innerHTML='<p class="sub" role="alert">No fue posible sincronizar los cierres. Intenta actualizar cuando vuelva la conexión.</p>';
+  return false;
+ }
  finally{cargando=false;}
 }
 function limpiar(){
@@ -59,6 +71,24 @@ function limpiar(){
  if($("lgnRatif")){$("lgnRatif").hidden=true;$("lgnRatif").innerHTML="";}
  if($("btnOficialesAcreditar"))$("btnOficialesAcreditar").hidden=true;
  historial=null;
+}
+function claveBorradorObac(fecha){return "germania:obac:novedades:v1:"+String(actual)+":"+fecha;}
+function leerBorradorObac(fecha){
+ try{
+  const clave=claveBorradorObac(fecha);
+  const raw=localStorage.getItem(clave);
+  if(!raw)return "";
+  const dato=JSON.parse(raw);
+  if(!dato||dato.fecha!==fecha||dato.actor!==String(actual)||typeof dato.texto!=="string"){localStorage.removeItem(clave);return "";}
+  if(Date.now()-dato.guardadoEn>14*86400000){localStorage.removeItem(clave);return "";}
+  return dato.texto;
+ }catch{return "";}
+}
+function guardarBorradorObac(fecha,texto){
+ try{
+  if(texto)localStorage.setItem(claveBorradorObac(fecha),JSON.stringify({fecha,actor:String(actual),texto,guardadoEn:Date.now()}));
+  else localStorage.removeItem(claveBorradorObac(fecha));
+ }catch{}
 }
 function pintarOBAC(){
  const host=$("lgnObacHome");if(!host)return;
@@ -86,8 +116,10 @@ function pintarOBAC(){
     '<div id="lgnVistaFoto"></div>'+
     '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
     '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
+    '<p class="sub">Las novedades escritas se conservan en este dispositivo hasta el envío. Si cierras Germania, tendrás que seleccionar nuevamente la fotografía.</p>'+ 
     '<p class="sub">El cierre y las novedades llegan primero al Teniente Tercero. Tras su ratificación, el Capitán y los oficiales podrán consultar el informe.</p>'+
-    '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+
+    '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+ 
+    '<button type="button" id="lgnObacAtras" class="btn secondary small">Atrás</button>'+
     '<p id="lgnMensaje" role="status" aria-live="polite"></p></div>';
   }
   html+='</section>';
@@ -107,7 +139,7 @@ function pintarOBAC(){
  }
  host.innerHTML=html;
  if(!parte||!parte.cierreHabilitado)return;
- $("lgnAbrir").onclick=function(){formAbierto=true;fotoSeleccionada=null;$("lgnFormulario").hidden=false;this.hidden=true;this.style.display="none";};
+ $("lgnAbrir").onclick=function(){formAbierto=true;$("lgnFormulario").hidden=false;this.hidden=true;this.style.display="none";};
  $("lgnAdjuntar").onclick=function(){$("lgnFoto").value="";$("lgnFoto").click();};
  $("lgnTomarFoto").onclick=function(){$("lgnCamara").value="";$("lgnCamara").click();};
  function alSeleccionarFoto(file){
@@ -118,7 +150,18 @@ function pintarOBAC(){
  }
  $("lgnFoto").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
  $("lgnCamara").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
+ const campoNovedades=$("lgnNovedades");
+ if(campoNovedades){
+  campoNovedades.value=leerBorradorObac(parte.fecha);
+  campoNovedades.addEventListener("input",()=>guardarBorradorObac(parte.fecha,campoNovedades.value));
+ }
  $("lgnEnviar").onclick=function(){enviar(parte.fecha);};
+ $("lgnObacAtras").onclick=function(){
+  // Atrás solo oculta el formulario: mantiene foto y novedades en memoria.
+  const formulario=$("lgnFormulario"),abrir=$("lgnAbrir");
+  if(formulario)formulario.hidden=true;
+  if(abrir){abrir.hidden=false;abrir.style.display="";}
+ };
 }
 async function comprimir(foto){
  // Resolución suficiente para que el oficial amplíe las anotaciones manuscritas.
@@ -146,10 +189,23 @@ async function enviar(fecha){
   const fd=new FormData();fd.append("fecha",fecha);fd.append("actorId",actual);fd.append("novedades",nov);fd.append("foto",foto);
   const r=await fetch("/api/guardia/libro",{method:"POST",body:fd});
   const dat=await r.json().catch(()=>({}));
+  if(r.status===409){
+   boton.disabled=false;
+   msg.textContent="Esta noche ya tiene un cierre registrado o existe un conflicto. Consulta el expediente antes de volver a enviar.";
+   return;
+  }
   if(!r.ok)throw Error(dat.error||"No se pudo enviar.");
+  guardarBorradorObac(fecha,"");
   formAbierto=false;fotoSeleccionada=null;msg.textContent="Cierre enviado y archivado.";
-  await cargar(true);
- }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
+  const sincronizado=await cargar(true);
+  if(!sincronizado){
+   const aviso=$("lgnMensaje");
+   if(aviso)aviso.textContent="Cierre enviado y archivado. La pantalla aún no se sincroniza; consulta el expediente antes de intentar otro envío.";
+  }
+ }catch(e){
+  boton.disabled=false;
+  msg.textContent="No se confirmó el envío: "+(e.message||"Error de conexión")+". Revisa el expediente antes de reintentar para evitar duplicados.";
+ }
 }
 function participantes(n){
  return [{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(id=>({id,rol:"Voluntario"}))).filter(x=>x.id!=null);
@@ -169,7 +225,8 @@ function htmlAsistenciaRatificada(x){
  const ausentes=personas.length-presentes-excusados;
  let h='<section class="lgn-acta-efectiva" data-lgn-acta-fecha="'+escHtml(x.fecha)+'">'+
   '<h3>Asistencia real ratificada · '+escHtml(fechaBonita(x.fecha))+'</h3>'+
-  '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>';
+  '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>'+
+  (ac.dotacionEfectiva?'<p class="sub"><strong>Dotación efectiva: '+(ac.dotacionEfectiva.minimoCumplido?'mínimo cumplido':'INCOMPLETA')+'</strong> · '+ac.dotacionEfectiva.total+' presentes; '+ac.dotacionEfectiva.voluntarios+' voluntarios, '+(ac.dotacionEfectiva.maquinista?'maquinista presente':'sin maquinista')+', '+(ac.dotacionEfectiva.obac?'OBAC presente':'sin OBAC')+'. La ausencia se registra aunque no requiera reemplazo.</p>':'');
  for(const p of personas){
   const id=String(p.id),presente=ac.asistencias?.[id]==="presente",excusa=ac.excusas?.[id];
   const adicional=p.rol==="Asistente adicional";
@@ -208,24 +265,48 @@ function clasificarControl(x){
  if(x.finalizada)return {texto:"Falta cierre OBAC",clase:"falta"};
  return {texto:"Programada / en curso",clase:""};
 }
-function abrirControlAdmin(){
+async function abrirControlAdmin(fecha){
  if(!admin&&!oficial)return;
+ if(editando&&!confirm("Tienes cambios de asistencia sin guardar. ¿Salir y descartarlos?"))return;
+ if(editando){editando=false;pintarOficial();pintarControlAdmin();}
+ const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ const anioDestino=elegida?elegida.slice(0,4):anioElegido;
+ const cambiaAnio=anioElegido!==anioDestino;
+ if(cambiaAnio){anioElegido=anioDestino;historial=null;}
  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("control-guardia-diaria");
- if(!historial) cargarHistorial();
- setTimeout(()=>{const caja=$("lgnAdminPanel");if(caja&&!caja.hidden)caja.scrollIntoView({behavior:"smooth",block:"start"});},80);
+ if(!historial||elegida&&!historial.some(x=>x.fecha===elegida))await cargarHistorial();
+ const caja=$("lgnAdminPanel");
+ const ficha=elegida?Array.from(caja?.querySelectorAll(".lgn-control-dia")||[]).find(el=>el.dataset.fecha===elegida):null;
+ if(ficha){
+  caja.querySelectorAll(".lgn-control-dia").forEach(otra=>{otra.open=otra===ficha;});
+  ficha.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ else if(caja&&!caja.hidden)caja.scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function cargarHistorial(){
  if(historialCargando||!actual||(!admin&&!oficial))return;
  historialCargando=true;
  const actorId=actual,anio=anioElegido,host=$("lgnAdminPanel");
- if(host)host.innerHTML='<h2>Control Guardia Diaria</h2><p class="sub">Cargando las guardias del año '+escHtml(anio)+'…</p>';
+ if(host&&!historial&&!host.querySelector(".lgn-control-dia"))
+  host.innerHTML='<h2>Control Guardia Diaria</h2><p class="sub">Cargando las guardias del año '+escHtml(anio)+'…</p>';
  try{
   const r=await fetch("/api/guardia/libro?historial=1&anio="+encodeURIComponent(anio)+"&actorId="+encodeURIComponent(actorId),{cache:"no-store"});
   if(!r.ok)throw Error("No fue posible cargar el historial.");
   const d=await r.json();
   if(actual===actorId&&anioElegido===anio){historial=Array.isArray(d.items)?d.items:[];pintarControlAdmin();}
- }catch(e){if(host)host.innerHTML='<h2>Control Guardia Diaria</h2><p role="alert">'+escHtml(e.message||"Error al cargar guardias")+'</p><button type="button" class="btn small secondary" id="lgnReintentar">Reintentar</button>';const retry=$("lgnReintentar");if(retry)retry.onclick=cargarHistorial;}
- finally{historialCargando=false;}
+ }catch(e){
+  // Una respuesta tardía de otro usuario o año no debe modificar el panel actual.
+  if(actual!==actorId||anioElegido!==anio)return;
+  if(host&&!host.querySelector(".lgn-control-dia")){
+   host.innerHTML='<h2>Control Guardia Diaria</h2><p role="alert">'+escHtml(e.message||"Error al cargar guardias")+'</p><button type="button" class="btn small secondary" id="lgnReintentar">Reintentar</button>';
+   const retry=$("lgnReintentar");if(retry)retry.onclick=cargarHistorial;
+  }else console.warn("No se actualizó el historial; se conservan las fichas cargadas",e);
+ }
+ finally{
+  historialCargando=false;
+  // Si se cambió de año mientras llegaba una respuesta, consultar el año nuevo.
+  if(actual===actorId&&anioElegido!==anio&&historial===null)void cargarHistorial();
+ }
 }
 function pintarControlAdmin(){
  const boton=$("btnAdminGuardia"),home=$("lgnAdminHome"),panel=$("lgnAdminPanel");
@@ -305,26 +386,65 @@ function pintarControlAdmin(){
    }else if(x.cierre){
     html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. La programación original no acredita presencia.</p>';
    }
+   if(t3 || (capitan&&x.acreditacionVigente)){
+    html+='<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><p><strong>Reemplazantes externos:</strong> registro documental independiente de asistencia y estadísticas.</p><div data-lgn-externos-lista>Consulta pendiente.</div><button type="button" class="btn small secondary" data-lgn-ver-externos>Consultar externos</button></div>';
+   }
    if(t3&&x.cierre){
     html+='<button class="btn small secondary lgn-correccion-ir" type="button" data-lgn-corregir="'+escHtml(x.fecha)+'">'+
      (x.acreditacionVigente?"Corregir asistencia ratificada":"Revisar y ratificar esta guardia")+'</button>';
    }
-   if(capitan&&x.acreditacionVigente&&!x.vistoCapitan){
-   html+='<button type="button" class="btn secondary small" data-lgn-visto="'+escHtml(x.fecha)+'">Visto · Capitán</button>';
-  }
+   if(capitan&&x.acreditacionVigente){
+    const version=Number(x.acreditacionVersion||0);
+    html+='<p class="sub"><strong>Informe vigente</strong>'+(version>0?' · Versión '+version:'')+'</p>';
+    if(x.vistoCapitan)html+='<p class="lgn-control-confirmacion" role="status"><strong>Visto bueno registrado · Capitán</strong></p>';
+    else html+='<p class="sub">Pendiente de revisión del Capitán para esta versión.</p>'+
+      '<button type="button" class="btn secondary small" data-lgn-visto="'+escHtml(x.fecha)+'">Dar visto bueno · Capitán</button>';
+   }
+  html+='<button type="button" class="btn secondary small" data-lgn-atras-ficha="'+escHtml(x.fecha)+'">Atrás · Lista de noches</button>';
   html+='</div></details>';
  }
  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+
   '<button type="button" class="btn secondary small" id="lgnAdminActualizar">Actualizar control</button>'+
-  '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a Inicio</button></div>';
+  '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a mi espacio</button></div>';
  panel.innerHTML=html;
  const anio=$("lgnAnioControl");
  if(anio)anio.onchange=()=>{anioElegido=anio.value;historial=null;cargarHistorial();};
  const ref=$("lgnAdminActualizar");
- if(ref)ref.onclick=()=>{historial=null;cargarHistorial();cargar(true);};
+ if(ref)ref.onclick=async()=>{
+  if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Descartarlos y actualizar el control?"))return;
+  const fechasAbiertas=[...panel.querySelectorAll(".lgn-control-dia[open]")].map(el=>el.dataset.fecha);
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();}
+  historial=null;
+  await cargarHistorial();
+  await cargar(true);
+  const nuevas=$("lgnAdminPanel");
+  if(nuevas){
+   for(const fecha of fechasAbiertas){
+    const ficha=[...nuevas.querySelectorAll(".lgn-control-dia")].find(el=>el.dataset.fecha===fecha);
+    if(ficha)ficha.open=true;
+   }
+  }
+ };
  const inicio=$("lgnAdminInicio");
- if(inicio)inicio.onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
+ if(inicio)inicio.onclick=()=>{
+  if(editando&&!confirm("Hay cambios sin guardar. ¿Volver a tu espacio y descartarlos?"))return;
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();}
+  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");
+ };
+ panel.querySelectorAll("[data-lgn-atras-ficha]").forEach(btn=>btn.onclick=()=>{
+  if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Volver a la lista y descartarlos?"))return;
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();return;}
+  const ficha=btn.closest(".lgn-control-dia");
+  if(ficha){ficha.open=false;ficha.scrollIntoView({behavior:"smooth",block:"start"});}
+ });
  panel.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
+ panel.querySelectorAll("[data-lgn-ver-externos]").forEach(btn=>btn.onclick=()=>consultarExternos(btn));
  panel.querySelectorAll("[data-lgn-corregir]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnCorregir));
 }
 
@@ -334,9 +454,11 @@ function pintarResumenMando(){
  const terminadas=items.filter(x=>x.finalizada);
  const actuales=terminadas.filter(x=>semanaDe(x.fecha)===semanaActual);
  if(capitan&&!t3){
-  const ratificadas=actuales.filter(x=>x.acreditacionVigente);
+  // Avisar todas las ratificaciones recientes sin visto, incluso de semanas anteriores.
+  const ratificadas=terminadas.filter(x=>x.acreditacionVigente);
   if(!ratificadas.length){host.innerHTML="";return;}
-  const nuevas=ratificadas.filter(x=>!x.vistoCapitan);
+  const nuevas=ratificadas.filter(x=>!x.vistoCapitan).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const visibles=nuevas.slice(0,5);
   if(!nuevas.length){
    host.innerHTML='<button class="btn secondary small" type="button" id="lgnMandoIr">'+
     'Guardias ratificadas · '+ratificadas.length+'</button>';
@@ -346,32 +468,53 @@ function pintarResumenMando(){
   host.innerHTML='<section class="card" aria-label="Informes ratificados para el Capitán">'+
    '<h2>Informe de guardia · Capitán</h2>'+
    '<p class="sub">'+nuevas.length+' noche(s) ratificada(s) por el Teniente Tercero pendientes de Visto.</p>'+
-   nuevas.map(x=>'<div class="lgn-control-dia" style="padding:10px;margin:7px 0">'+
+   visibles.map(x=>'<div class="lgn-control-dia" style="padding:10px;margin:7px 0">'+
      '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+
-     '<button type="button" class="btn small secondary" data-lgn-consultar="'+escHtml(x.fecha)+'">Ver informe</button>'+
-     '<button type="button" class="btn small" data-lgn-visto="'+escHtml(x.fecha)+'">Visto</button></div></div>').join("")+
+     '<button type="button" class="btn small secondary" data-lgn-consultar="'+escHtml(x.fecha)+'">Ver informe y dar visto bueno</button></div></div>').join("")+
+   (nuevas.length>visibles.length?'<p class="sub">Hay '+(nuevas.length-visibles.length)+' informe(s) pendiente(s) adicional(es). Revísalos en Control de Guardia Diaria.</p>':'')+
+   '<button type="button" class="btn secondary small" id="lgnMandoIr">Ver todos los informes</button>'+
    '</section>';
-  host.querySelectorAll("[data-lgn-consultar]").forEach(btn=>btn.onclick=abrirControlAdmin);
+  host.querySelectorAll("[data-lgn-consultar]").forEach(btn=>btn.onclick=()=>abrirControlAdmin(btn.dataset.lgnConsultar));
+  const verTodos=$("lgnMandoIr");if(verTodos)verTodos.onclick=()=>abrirControlAdmin();
   host.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
   return;
  }
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
  const semanaEnCurso=items.some(x=>semanaDe(x.fecha)===semanaActual);
- // T3: durante la semana, o después de ella solo si hay registros pendientes.
+ // Mantener un resumen de cierre cuando todas las noches ya fueron ratificadas.
+ if(!semanaEnCurso&&!pendientes.length&&terminadas.length){
+  host.innerHTML='<section class="card" aria-label="Guardias ratificadas">'+
+   '<h2>Control de guardia · Teniente Tercero</h2>'+
+   '<p class="sub">No tienes noches pendientes de ratificación. Los informes quedan disponibles en Control Guardia Diaria para consulta y para el Capitán.</p>'+
+   '<button type="button" class="btn small secondary" id="lgnMandoIr">Ver guardias ratificadas</button></section>';
+  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
+  return;
+ }
  if(!semanaEnCurso&&!pendientes.length){host.innerHTML="";return;}
  const conCierre=pendientes.filter(x=>x.cierre).length;
  const sinCierre=pendientes.filter(x=>!x.cierre).length;
  const mensaje=pendientes.length?
   conCierre+' cierre(s) OBAC por ratificar. '+sinCierre+' noche(s) sin cierre del OBAC.':
   'Sin noches pendientes de ratificación. Revisa la semana en curso.';
+ // Priorizar tareas ejecutables: primero cierres OBAC recibidos, después noches bloqueadas.
+ const tareas=pendientes.slice().sort((a,b)=>Number(!!b.cierre)-Number(!!a.cierre)||a.fecha.localeCompare(b.fecha));
+ const visibles=tareas.slice(0,7);
  host.innerHTML='<section class="card" aria-label="Acreditación de guardia nocturna">'+
    '<h2>Control de guardia · Teniente Tercero</h2><p class="sub">'+escHtml(mensaje)+'</p>'+
-   '<button type="button" class="btn secondary" id="lgnMandoIr">Revisar y ratificar noches</button></section>';
- const ir=$("lgnMandoIr");if(ir)ir.onclick=abrirPanelMando;
+   visibles.map(x=>'<div class="lgn-control-dia" style="padding:10px;margin:7px 0">'+
+    '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
+    '<p class="sub">'+(x.cierre?'Cierre OBAC recibido · pendiente de ratificación':'Falta cierre del OBAC · ratificación bloqueada')+'</p>'+
+    '<button type="button" class="btn small secondary" data-lgn-t3-noche="'+escHtml(x.fecha)+'">'+
+     (x.cierre?'Revisar y ratificar':'Ver guardia pendiente')+'</button></div>').join("")+
+   (tareas.length>visibles.length?'<p class="sub">Hay '+(tareas.length-visibles.length)+' noche(s) pendiente(s) adicionales.</p>':'')+
+   '<button type="button" class="btn secondary small" id="lgnMandoIr">Ver todas las guardias</button></section>';
+ host.querySelectorAll("[data-lgn-t3-noche]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnT3Noche));
+ const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
 }
 async function marcarVisto(fecha,boton){
  if(!capitan||!actual||!boton||boton.disabled)return;
+ if(!confirm("¿Confirmas que revisaste la asistencia, novedades, reemplazos y fotografía del libro de esta noche antes de dar tu visto bueno?"))return;
  boton.disabled=true;
  const rotulo=boton.textContent;
  boton.textContent="Guardando Visto…";
@@ -379,22 +522,34 @@ async function marcarVisto(fecha,boton){
   const r=await fetch("/api/guardia/visto",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({fecha,actorId:actual})});
   const d=await r.json().catch(()=>({}));
+  if(r.status===409){
+   boton.disabled=false;boton.textContent=rotulo;
+   alert("El informe cambió mientras lo revisabas. Actualiza Control Guardia Diaria y confirma la versión vigente antes de dar el visto bueno.");
+   return;
+  }
   if(!r.ok)throw Error(d.error||"No se pudo guardar el Visto.");
   const item=items.find(x=>x.fecha===fecha);
   if(item)item.vistoCapitan=true;
   if(historial){const anterior=historial.find(x=>x.fecha===fecha);if(anterior)anterior.vistoCapitan=true;}
   pintarResumenMando();pintarControlAdmin();
+  const ficha=Array.from($("lgnAdminPanel")?.querySelectorAll(".lgn-control-dia")||[]).find(el=>el.dataset.fecha===fecha);
+  if(ficha){ficha.open=true;ficha.scrollIntoView({behavior:"smooth",block:"start"});}
  }catch(e){
   boton.disabled=false;boton.textContent=rotulo;
-  alert("No se guardó el Visto: "+(e.message||"Error de conexión"));
+  alert("No se confirmó el visto bueno: "+(e.message||"Error de conexión")+". Antes de reintentar, actualiza el informe para comprobar si ya quedó registrado.");
  }
 }
 
 function abrirPanelMando(fecha){
+ if(editando&&!confirm("Tienes cambios de asistencia sin guardar. ¿Descartarlos para abrir otra guardia?"))return;
+ if(editando){editando=false;pintarOficial();pintarControlAdmin();}
  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
  const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
  setTimeout(async()=>{
+  const actorAlAbrir=actual;
   await cargar(true);
+  // Evitar abrir un expediente en la sesión de otro voluntario tras una recarga.
+  if(!actorAlAbrir||actual!==actorAlAbrir||!t3&&!capitan)return;
   // Para corregir guardias antiguas, no depender de las 8 semanas recientes del Inicio.
   if(t3&&elegida&&!items.some(x=>x.fecha===elegida)){
    try{
@@ -418,13 +573,15 @@ function pintarOficial(){
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
  const actualizados=(t3?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
+ const diasDisponibles=actualizados.map(x=>x.fecha);
  pintarResumenMando();
  let h='<h2>'+(t3?"Acreditación de guardia nocturna":"Informes de noches ratificadas")+'</h2>'+
  '<p class="sub">'+(t3?"Ratifica cada noche solamente después del cierre del libro por el OBAC.":"Solo consulta: aquí aparecen las noches después de la ratificación del Teniente Tercero. No puedes modificar sus registros.")+'</p>'+
  '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. El cierre OBAC no suma asistencia por sí solo.":"Informes recibidos: "+actualizados.length+". La información es de solo lectura.")+'</p>'+
  '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+ (t3&&diasDisponibles.length>1?'<label class="sub" for="lgnIrNoche">Ir a noche: <select id="lgnIrNoche" class="rv-sel"><option value="">Seleccionar…</option>'+diasDisponibles.map(f=>'<option value="'+escHtml(f)+'">'+escHtml(fechaBonita(f))+'</option>').join("")+'</select></label>':"")+
  '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>'+
- '<button type="button" class="btn small secondary" id="lgnVolverInicio">Volver al inicio</button></div>'+
+ '<button type="button" class="btn small secondary" id="lgnVolverInicio">Volver a mi espacio</button></div>'+
  (ultimaRatificacion?'<p class="lgn-control-estado ok" role="status">Guardia del '+escHtml(fechaBonita(ultimaRatificacion))+' ratificada correctamente.</p>':"");
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
@@ -464,14 +621,41 @@ function pintarOficial(){
       '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
       '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
       '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
+      '<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>'+ 
       '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
     h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
  area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
- $("lgnRefrescar").onclick=()=>{editando=false;cargar(true);};
- $("lgnVolverInicio").onclick=()=>{if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");};
+ const irNoche=$("lgnIrNoche");
+ if(irNoche)irNoche.onchange=()=>{
+  const fecha=irNoche.value;if(!fecha)return;
+  if(editando&&!confirm("Hay cambios sin guardar. ¿Descartarlos y abrir otra noche?")){irNoche.value="";return;}
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();}
+  const panelActual=$("lgnRatif");
+  const dia=panelActual?.querySelector('[data-lgn-dia="'+fecha+'"]');
+  if(dia){
+   panelActual.querySelectorAll("[data-lgn-dia]").forEach(otra=>{otra.open=otra===dia;});
+   dia.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+ };
+ $("lgnRefrescar").onclick=()=>{
+  if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Descartarlos y actualizar?"))return;
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();}
+  cargar(true);
+ };
+ $("lgnVolverInicio").onclick=()=>{
+  if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Salir y descartarlos?"))return;
+  const descartado=editando;
+  editando=false;
+  if(descartado){pintarOficial();pintarControlAdmin();}
+  if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("germania");
+ };
  area.querySelectorAll("[data-lgn-id]").forEach(sel=>{
    estadoSeleccionAsistencia(sel);
    sel.addEventListener("change",()=>{
@@ -485,11 +669,56 @@ function pintarOficial(){
    if(sel){sel.value="excusado";sel.dispatchEvent(new Event("change"));}
  });
  area.querySelectorAll("[data-lgn-excusa]").forEach(el=>el.addEventListener("input",()=>{editando=true;}));
- area.querySelectorAll("[data-lgn-comprobado]").forEach(el=>el.addEventListener("change",()=>{editando=true;}));
+ // La confirmación de lectura no modifica por sí sola la dotación.
+ area.querySelectorAll("[data-lgn-comprobado]").forEach(el=>el.addEventListener("change",()=>{}));
  area.querySelectorAll("[data-lgn-agregar]").forEach(btn=>btn.onclick=()=>agregarRez(btn));
+ area.querySelectorAll("[data-lgn-ver-externos]").forEach(btn=>btn.onclick=()=>consultarExternos(btn));
+ area.querySelectorAll("[data-lgn-nuevo-externo]").forEach(btn=>btn.onclick=()=>registrarExterno(btn));
  area.querySelectorAll("[data-lgn-quitar]").forEach(btn=>btn.onclick=()=>quitarRez(btn));
  area.querySelectorAll("[data-lgn-ratificar]").forEach(b=>b.onclick=()=>ratificar(b.dataset.lgnRatificar,b));
 }
+
+async function consultarExternos(btn){
+ const zona=btn.closest("[data-lgn-externos]"),fecha=zona?.dataset.lgnExternos;
+ const lista=zona?.querySelector("[data-lgn-externos-lista]");if(!fecha||!lista||!(t3||capitan))return;
+ lista.textContent="Consultando registros…";
+ try{
+  const r=await fetch("/api/guardia/externos?fecha="+encodeURIComponent(fecha)+"&actorId="+encodeURIComponent(actual),{cache:"no-store"});
+  const d=await r.json();if(!r.ok)throw Error(d.error||"No disponible");
+  zona.dataset.lgnVersion=String(d.version);
+  lista.innerHTML=(d.items||[]).length?(d.items||[]).map(p=>'<div class="lgn-asistencia-fila"><strong>'+escHtml(p.nombre)+'</strong> · '+escHtml(p.funcion)+' · '+escHtml(p.procedencia)+'<p class="sub">Autoriza: '+escHtml(p.autorizadoPor)+' · Libro: '+escHtml(p.referenciaLibro)+' · No acreditado</p></div>').join(""):'<p class="sub">No hay externos documentados.</p>';
+ }catch(e){lista.textContent="No se pudo consultar: "+e.message;}
+}
+async function registrarExterno(btn){
+ const zona=btn.closest("[data-lgn-externos]"),fecha=zona?.dataset.lgnExternos;
+ if(!fecha||!t3)return;
+ if(!navigator.onLine){alert("Sin conexión: no se puede confirmar el registro externo.");return;}
+ await consultarExternos(zona.querySelector("[data-lgn-ver-externos]"));
+ if(!zona.dataset.lgnVersion)return;
+ const ask=(etiqueta)=>{const v=prompt(etiqueta,"");return v===null?null:v.trim();};
+ const nombre=ask("Nombre completo del reemplazante externo");if(!nombre)return;
+ const procedencia=ask("Compañía de origen o Cuartel Central");if(!procedencia)return;
+ const funcion=ask("Función: maquinista, obac o voluntario");if(!["maquinista","obac","voluntario"].includes(funcion))return alert("Función no válida.");
+ const motivo=ask("Motivo del reemplazo");if(!motivo)return;
+ const autorizadoPor=ask("Nombre/cargo de quien autorizó");if(!autorizadoPor)return;
+ const habilitacionVerificadaPor=ask("Nombre/cargo de quien verificó la habilitación");if(!habilitacionVerificadaPor)return;
+ const referenciaLibro=ask("Referencia al libro físico de guardia");if(!referenciaLibro)return;
+ const horaIngreso=ask("Hora real de ingreso (HH:MM)");if(!horaIngreso)return;
+ const pernocta=confirm("¿Es persona ajena a la guardia que pernoctará? Aceptar: sí; Cancelar: no.");
+ let referenciaAutorizacionEscrita="",autorizacionPernoctacionEscrita=false;
+ if(pernocta){referenciaAutorizacionEscrita=ask("Referencia a la autorización ESCRITA de Comandancia");if(!referenciaAutorizacionEscrita)return;autorizacionPernoctacionEscrita=confirm("¿Comprobaste la autorización escrita?");if(!autorizacionPernoctacionEscrita)return;}
+ if(!confirm("¿Confirmas que verificaste personalmente la habilitación y autorización de "+nombre+"?"))return;
+ const externo={nombre,procedencia,funcion,motivo,autorizadoPor,habilitacionVerificadaPor,referenciaLibro,horaIngreso,pernocta,referenciaAutorizacionEscrita,autorizacionPernoctacionEscrita,habilitacionConfirmada:true,autorizacionConfirmada:true};
+ if(!confirm("Registrar en expediente "+fecha+" como DOCUMENTADO, NO ACREDITADO. ¿Continuar?"))return;
+ btn.disabled=true;
+ try{
+  const r=await fetch("/api/guardia/externos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fecha,actorId:actual,ifVersion:Number(zona.dataset.lgnVersion),externo})});
+  const d=await r.json();if(!r.ok)throw Error(d.error||"No se guardó");
+  await consultarExternos(zona.querySelector("[data-lgn-ver-externos]"));
+  alert("Externo documentado. No se ha acreditado asistencia.");
+ }catch(e){alert("No se guardó: "+e.message)}finally{btn.disabled=false;}
+}
+
 function refrescarRez(zona){
  const ocupados=new Set([
   ...[...zona.querySelectorAll("[data-lgn-id]")].map(e=>e.dataset.lgnId),
@@ -559,11 +788,37 @@ async function ratificar(fecha,boton){
   const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
   const d=await r.json().catch(()=>({}));
+  if(r.status===409){
+   boton.disabled=false;
+   msg.textContent="La ratificación cambió mientras la revisabas. Actualiza el expediente antes de guardar otra corrección.";
+   return;
+  }
   if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
+  // La confirmación HTTP es el punto de guardado: no confundir un fallo de recarga con fallo de ratificación.
   ultimaRatificacion=fecha;
   historial=null;
-  editando=false;await cargar(true);
- }catch(e){boton.disabled=false;msg.textContent="No se guardó: "+(e.message||"Error de conexión");}
+  editando=false;
+  msg.textContent="Ratificación guardada. Actualizando expediente…";
+  try{
+   const sincronizado=await cargar(true);
+   if(!sincronizado){
+    const aviso=$("lgnRatif")?.querySelector('[data-lgn-estado="'+fecha+'"]');
+    if(aviso)aviso.textContent="Ratificación guardada. No se pudo sincronizar la pantalla; usa Actualizar cierres.";
+    return;
+   }
+   // Después de ratificar, llevar al T3 a la próxima noche con cierre pendiente.
+   const siguiente=items.filter(x=>x.finalizada&&x.cierre&&!x.acreditacionVigente)
+     .sort((a,b)=>a.fecha.localeCompare(b.fecha))[0];
+   const destino=siguiente?.fecha||fecha;
+   const dia=Array.from($("lgnRatif")?.querySelectorAll("[data-lgn-dia]")||[]).find(el=>el.dataset.lgnDia===destino);
+   if(dia){
+    $("lgnRatif").querySelectorAll("[data-lgn-dia]").forEach(otra=>{otra.open=otra===dia;});
+    dia.scrollIntoView({behavior:"smooth",block:"start"});
+   }
+  }catch(error){
+   msg.textContent="Ratificación guardada, pero no se pudo actualizar la pantalla. Usa Actualizar cierres.";
+  }
+ }catch(e){boton.disabled=false;msg.textContent="No se confirmó el guardado: "+(e.message||"Error de conexión")+". Antes de reintentar, actualiza y comprueba si la ratificación figura registrada.";}
 }
 function init(){
  const adminBtn=$("btnAdminGuardia");
