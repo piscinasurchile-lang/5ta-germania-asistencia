@@ -342,10 +342,11 @@ function pintarControlAdmin(){
  const fuente=historial===null?items:historial;
  const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
- const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0};
+ const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0,finales:0};
  for(const x of terminadas){
   if(x.cierre)resumen.cerradas++;
   if(x.acreditacionVigente)resumen.acreditadas++;
+  if(x.acreditacionVigente&&x.cumplimientoFinal)resumen.finales++;
   else if(x.cierre)resumen.pendiente++;
   else resumen.falta++;
  }
@@ -353,7 +354,7 @@ function pintarControlAdmin(){
   '<p class="sub">Consulta cronológica de guardias. Pueden ratificar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente los registros ratificados.</p>';
  const indicadores='<div class="lgn-control-totales">'+
   (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
-    [resumen.pendiente,"Pendientes de ratificar"],[resumen.acreditadas,"Ratificadas"],
+    [resumen.pendiente,"Pendientes de ratificar"],[resumen.acreditadas,"Ratificadas"],[resumen.finales,"Acreditadas T3"],
     [resumen.falta,"Sin cierre OBAC"]]:[[resumen.acreditadas,"Guardias ratificadas"]])
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){

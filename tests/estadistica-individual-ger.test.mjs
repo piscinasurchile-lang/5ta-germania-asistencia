@@ -49,6 +49,6 @@ test("control separado cuenta cierres OBAC y ratificaciones T3",()=>{
  assert.match(cierres,/resumen\.cerradas\+\+/);
  assert.match(cierres,/resumen\.acreditadas\+\+/);
  assert.match(cierres,/Cierres OBAC recibidos/);
- assert.match(cierres,/Ratificadas T3/);
+ assert.match(cierres,/Acreditadas T3/);
  assert.match(cierres,/window\.__mostrarPestana\("control-guardia-diaria"\)/);
 });

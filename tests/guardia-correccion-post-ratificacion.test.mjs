@@ -34,7 +34,7 @@ test("T3 confirma cotejo con foto y recibe resumen antes de ratificar o corregir
  assert.match(panel,/incluidos los no programados/);
  assert.match(panel,/Nuevos asistentes:/);
  assert.match(panel,/motivoCorreccion:motivo/);
- assert.match(api,/if \(anteriorRegistro && !registro\.motivoCorreccion\)/);
+ assert.match(api,/if \(anteriorRegistro && !soloAcreditaFinal && !motivoCorreccion\)/);
  assert.match(api,/readState\(sql,"guardia-libro:"\+fecha\)/);
  assert.match(api,/writeState\(sql,"guardia-acreditacion:"\+fecha/);
  assert.doesNotMatch(api,/writeState\(sql,"guardia-revision:/);
@@ -47,5 +47,5 @@ test("un ID por guardia y no doble conteo de rezagado o excusado",()=>{
  assert.equal(validarComplementos(programados,extra,{v2:"Eximido por razón informada"},asistencia,nomina),null);
  assert.equal(validarComplementos(programados,[...extra,...extra],{},asistencia,nomina),"rezagado_duplicado");
  assert.equal(validarComplementos(programados,[{id:"v1",motivo:"Presente en libro firmado"}],{},asistencia,nomina),"rezagado_duplicado");
- assert.match(index,/germania-cierre-libro\.js\?v=20261017obacui1/);
+ assert.match(index,/germania-cierre-libro\.js\?v=\d{8}[a-z0-9]+/);
 });

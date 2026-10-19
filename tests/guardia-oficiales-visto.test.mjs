@@ -7,11 +7,11 @@ const js=readFileSync(new URL("../public/legacy/germania-cierre-libro.js",import
 const api=readFileSync(new URL("../app/api/guardia/libro/route.js",import.meta.url),"utf8");
 const visto=readFileSync(new URL("../app/api/guardia/visto/route.js",import.meta.url),"utf8");
 const noche={obac:"francisco",maq:"conductor",vol:["v1","v2","v3"]};
-test("oficiales de Germania pueden consultar fotos solo tras ratificación T3",()=>{
+test("Capitán y Tenientes 1°-3° consultan el libro para ratificar; los demás oficiales solo tras la ratificación",()=>{
  for(const cargo of ["Capitán","Teniente 1","Teniente 2","Teniente 3","Ayudante","Director","Secretario","Tesorero","Tesorero General","Jefe de Máquinas"]){
   assert.equal(esOficialGuardia(cargo),true,cargo);
   const persona={id:"oficial",cargo,activo:true};
-  assert.equal(puedeVerLibro(persona,noche,false),cargo==="Teniente 3",cargo+" no ratificado");
+  assert.equal(puedeVerLibro(persona,noche,false),["Capitán","Teniente 1","Teniente 2","Teniente 3"].includes(cargo),cargo+" no ratificado");
   assert.equal(puedeVerLibro(persona,noche,true),true,cargo+" ratificado");
  }
  for(const cargo of ["Voluntario","Voluntaria","Conductor","Postulante","Aspirante"]){
@@ -36,7 +36,7 @@ test("semana miércoles a martes; avisos semanales no borran historial",()=>{
  assert.match(js,/historial=1&anio=/);
  assert.match(js,/data-lgn-visto/);
  assert.match(js,/Guardias ratificadas/);
- assert.match(js,/Visto · Capitán/);
+ assert.match(js,/Dar visto bueno · Capitán/);
  assert.match(js,/lgnAnioControl/);
 });
 test("consulta por año y fotos ratificadas, filtro server-side para los demás oficiales",()=>{
