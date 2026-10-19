@@ -133,3 +133,11 @@ test("B5: un borrador inválido se aparta para revisión sin detener los siguien
  assert.match(fuente,/item\.estado="revision"/);
  assert.match(fuente,/await cambiarBorrador\(item\);revision\+\+;onUpdate\(\);continue;/);
 });
+
+test("B5: fecha actual en formulario vacío sin alterar una captura con marcas",()=>{
+ const fuente=fs.readFileSync(new URL("../app/b5/captura/page.js",import.meta.url),"utf8");
+ assert.match(fuente,/const conMarcas=edit&&Object\.values\(edit\.records\|\|\{\}\)/);
+ assert.match(fuente,/const conDatos=edit&&Object\.entries\(edit\)/);
+ assert.match(fuente,/const formulario=edit&&\(conMarcas\|\|conDatos\)\?edit:blanco\(tipo\)/);
+ assert.match(fuente,/setForm\(formulario\)/);
+});
