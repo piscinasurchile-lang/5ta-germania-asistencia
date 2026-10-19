@@ -29,6 +29,14 @@ export async function GET(request){
       lote.forEach((x,j)=>{
         const v=valores[j].value;
         if(!v)return;
+        // Los partes derivados de emergencias pertenecen al historial de
+        // emergencias, no a la lista de citaciones. No se borran ni se
+        // altera su posible contabilización estadística.
+        const emergencia=tipo==="lista" &&
+          (v.origenAsistencia==="emergencia_b5" ||
+           v.servicioB5===true && /^emergencia(?:\\s|$)/i.test(String(v.tipo||"")) ||
+           /^emergencia(?:\\s|$)/i.test(String(v.tipo||"")));
+        if(emergencia)return;
         const fecha=tipo==="lista"?v.date:v.svFecha;
         const presentes=Object.values(tipo==="lista"?v.records||{}:v.concurrencia||{}).filter(s=>s===(tipo==="lista"?"presente":"si")).length;
         items.push({clave:x.clave,fecha,numero:v.numero||null,anio:v.anio||null,
