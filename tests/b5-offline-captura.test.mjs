@@ -58,6 +58,7 @@ test("nunca sobrescribe un registro remoto anterior con la misma fecha y tipo",a
  await integrarBorradorB5(sql,asistencia());
  const diferente=asistencia("00000000-0000-4000-8000-000000000003");
  diferente.datos.records.v1="ausente";
+ diferente.datos.records.v2="presente";
  await assert.rejects(()=>integrarBorradorB5(sql,diferente),ConflictoB5);
  assert.equal((await readState(sql,"parte:2026-10-14__citacion-de-compania")).value.records.v1,"presente");
 });
