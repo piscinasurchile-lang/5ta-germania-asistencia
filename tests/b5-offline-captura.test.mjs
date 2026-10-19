@@ -128,7 +128,7 @@ test("bloquea emergencias sin dirección o sin concurrentes",()=>{
 
 
 test("B5: un borrador inválido se aparta para revisión sin detener los siguientes",()=>{
- const fuente=readFileSync(new URL("../lib/b5-offline-browser.js",import.meta.url),"utf8");
+ const fuente=fs.readFileSync(new URL("../lib/b5-offline-browser.js",import.meta.url),"utf8");
  assert.match(fuente,/response\.status===409\|\|response\.status===400\|\|response\.status===422/);
  assert.match(fuente,/item\.estado="revision"/);
  assert.match(fuente,/await cambiarBorrador\(item\);revision\+\+;onUpdate\(\);continue;/);
