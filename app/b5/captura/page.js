@@ -864,6 +864,16 @@ export default function CapturaB5(){
         .registro.registroB5{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
         .guiaGuardado{background:#172d3d;border:1px solid #426882;border-radius:10px;padding:11px 13px;color:#dfebf3;font-size:14px;line-height:1.55}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
+        /* Tablet B-5: formulario compacto sin reducir las zonas táctiles. */
+        @media(min-width:621px) and (max-width:900px){
+          .capturaB5{padding:9px 12px 20px}
+          .contenido{padding:12px}
+          .campos{gap:8px 12px;margin:9px 0}
+          .campos label{gap:4px}
+          .campos input,.campos select,.campos textarea{padding:8px 10px;min-height:44px}
+          .franja h2{font-size:19px}
+          .persona{padding:8px 0}
+        }
         @media(max-width:620px){.capturaB5{padding:10px}.campos{grid-template-columns:1fr}
           .persona{flex-direction:column;align-items:stretch}.opciones{justify-content:stretch}.opciones button{flex:1;padding:9px 5px}
           .barra h1{font-size:18px}}
