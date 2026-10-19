@@ -5,6 +5,7 @@ import {prepararPartePDF,crearArchivoPartePDF,prepararEmergenciaPDF,crearEmergen
 import {guardarNómina,leerNómina,guardarEdicion,leerEdicion,borrarEdicion,
   guardarBorrador,listarBorradores,cambiarBorrador,borrarBorradorLocal,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
 
+const TIPOS_EMERGENCIA_BASE=["Inflamación de ducto","Incendio estructural","Olor indeterminado"];
 const SERVICIOS=["Emergencia","Acto de servicio","Carga de combustible","Ejercicio con material","Mantención","Traslado","Otro"];
 const CITACIONES=["Citación de Compañía","Instrucción","Ejercicio","Curso práctico","Capacitación","Sesión ordinaria","Otro"];
 const CAMPOS=[
@@ -130,7 +131,10 @@ export default function CapturaB5(){
     const clase=new URLSearchParams(window.location.search).get("tipo");
     setTipo(clase==="servicio"?"servicio":"lista");
     setModoServicio(new URLSearchParams(window.location.search).get("modo")==="carro"?"carro":"emergencia");
-    try{setTiposEmergencia(JSON.parse(localStorage.getItem("b5:tipos-emergencia:v1")||"[]"));}catch{setTiposEmergencia([]);}
+    try{
+      const guardados=JSON.parse(localStorage.getItem("b5:tipos-emergencia:v1")||"[]");
+      setTiposEmergencia([...new Set([...TIPOS_EMERGENCIA_BASE,...(Array.isArray(guardados)?guardados:[])])].sort((a,b)=>a.localeCompare(b,"es")));
+    }catch{setTiposEmergencia(TIPOS_EMERGENCIA_BASE);}
     abortRef.current=false;
     return()=>{abortRef.current=true;};
   },[]);
@@ -589,6 +593,7 @@ export default function CapturaB5(){
           </div>
           <h3 className="seccionFicha">2. Información de la emergencia</h3>
           <div className="campos">
+            <label>Clave de despacho *<input inputMode="text" placeholder="Ej.: 10-01" value={form.svClave||""} onChange={e=>actualizarCampo("svClave",e.target.value)}/></label>
             <label>Tipo de emergencia *
               <select value={form.svTipoEmergencia||""} onChange={e=>actualizarCampo("svTipoEmergencia",e.target.value)}>
                 <option value="">Seleccionar tipo</option>
@@ -598,8 +603,8 @@ export default function CapturaB5(){
             <button type="button" className="agregarTipo" onClick={agregarTipoEmergencia}>+ Agregar tipo de emergencia</button>
           </div>
           <div className="campos">
-          <label>Hora de la emergencia<input type="time" value={form.svHoraEmergencia||""} onChange={e=>actualizarCampo("svHoraEmergencia",e.target.value)}/></label>
-          <label>Hora de lista (al terminar y ordenar el carro)<input type="time" value={form.svHoraLista||""} onChange={e=>actualizarCampo("svHoraLista",e.target.value)}/></label>
+          <label>Hora del llamado * <small>(formato 24 horas, HH:MM)</small><input type="time" lang="es-CL" step="60" value={form.svHoraEmergencia||""} onChange={e=>actualizarCampo("svHoraEmergencia",e.target.value)}/></label>
+          <label>Hora de lista final * <small>(después de ordenar el carro, HH:MM)</small><input type="time" lang="es-CL" step="60" value={form.svHoraLista||""} onChange={e=>actualizarCampo("svHoraLista",e.target.value)}/></label>
           <label>Clave de despacho<input value={form.svClave||""} onChange={e=>actualizarCampo("svClave",e.target.value)}/></label>
           <label>Dirección / calle<input value={form.svCalle||""} onChange={e=>actualizarCampo("svCalle",e.target.value)}/></label>
           <label>Número<input value={form.svNumeracion||""} onChange={e=>actualizarCampo("svNumeracion",e.target.value)}/></label>
