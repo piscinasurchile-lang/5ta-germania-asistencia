@@ -36,7 +36,7 @@ test("semana miércoles a martes; avisos semanales no borran historial",()=>{
  assert.match(js,/historial=1&anio=/);
  assert.match(js,/data-lgn-visto/);
  assert.match(js,/Guardias ratificadas/);
- assert.match(js,/Visto · Capitán/);
+ assert.match(js,/Dar visto bueno · Capitán/);
  assert.match(js,/lgnAnioControl/);
 });
 test("consulta por año y fotos ratificadas, filtro server-side para los demás oficiales",()=>{
