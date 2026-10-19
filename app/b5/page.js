@@ -8,8 +8,9 @@ const FOTO_KEY="germania:b5-foto-dispositivo:v1";
 const VOL_KEY="germania:voluntario-dispositivo:v2";
 
 const DESTINOS=[
-  {id:"servicio",titulo:"Emergencias B-5",detalle:"Hoja de servicio del carro",color:"#ee5757",simbolo:"🚒"},
-  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"}
+  {id:"servicio",titulo:"Emergencia B-5",detalle:"Parte de emergencia y lista final",color:"#ee5757",simbolo:"🚒"},
+  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"},
+  {id:"carro",titulo:"Servicio Carro",detalle:"Mantención, combustible y traslados",color:"#e0b45c",simbolo:"⚙"}
 ];
 
 function limpiarIdentidadAnterior(){
@@ -178,7 +179,7 @@ export default function TabletB5(){
     limpiarIdentidadAnterior();
     // Captura local en los DOS accesos de esta tablet. El resto de Germania
     // conserva su navegación y persistencia central originales.
-    window.location.assign("/b5/captura?tipo="+encodeURIComponent(destino));
+    window.location.assign("/b5/captura?tipo="+encodeURIComponent(destino==="carro"?"servicio":destino)+(destino==="carro"?"&modo=carro":""));
   }
 
   function salir(){
