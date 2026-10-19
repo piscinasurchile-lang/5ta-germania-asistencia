@@ -386,6 +386,13 @@ export default function CapturaB5(){
     if(guardando||!nomina.length||!listaPreparada)return;
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
     if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Indica la fecha y el tipo de servicio.");
+    if(tipo==="servicio"){
+      const presentes=nomina.filter(p=>form.records?.[p.id]==="si").length;
+      const direccion=[form.svCalle,form.svNumeracion,form.svSector].filter(v=>String(v||"").trim()).join(" ").trim();
+      if(!direccion||!String(form.svTipoAct||"").trim()||!String(form.svFecha||"").trim()||!presentes){
+        return setMensaje("PARTE INCOMPLETO: faltan datos de la emergencia o voluntarios presentes. No se guardará ni enviará a Neon. Los borradores vacíos podrán eliminarse del historial tras revisión.");
+      }
+    }
     const defecto=tipo==="servicio"?"no":"ausente";
     const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
     const datos={...form,records};
