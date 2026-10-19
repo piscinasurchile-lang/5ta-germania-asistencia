@@ -1,39 +1,43 @@
-# Informe de traspaso para auditoría Claude — Germania
-Fecha de corte: 18–19 octubre 2026 (Chile)
+# Informe actualizado para Claude — Germania PR #207
+Fecha: 19 octubre 2026. Estado: NO-GO. No fusionar ni publicar.
 
-## Estado verificable
-- Producción: rama `main`, NO modificada ni fusionada.
-- Integración: rama `integracion-staging-20261018`, PR draft #207: https://github.com/piscinasurchile-lang/5ta-germania-asistencia/pull/207
-- Último CI analizado: commit `dd28440fef65f2103b12af5e89facc59af955aa9`, GitHub Actions CI **294 aprobadas / 20 fallidas / 314 total**. Workflow Build: success. Vercel preview: success. No interpretar build exitoso como aprobación funcional.
-- Se trasladaron 17 archivos funcionales/de pruebas en commits de integración previos; dos archivos de pruebas se ajustaron posteriormente. La integración **NO está completa**.
-- No se ha ejecutado auditoría Claude, E2E con navegador real, prueba con guardia real ni respaldo de Neon.
+## Autoridad normativa (prioridad máxima)
+El **Reglamento de Guardia Nocturna oficial**, artículo 9, manda por encima de decisiones previas, código y pruebas. Dotación mínima: **4 personas = 1 conductor/maquinista + 1 oficial/OBAC + 2 voluntarios**. Fuente oficial del proyecto: `public/legacy/reglamentos/reglamento-guardia-nocturna.pdf` en rama `main`. No modificar la norma para adaptar el software. Ante otra contradicción, documentarla y solicitar resolución antes de cambiar lógica.
 
-## Bloqueos observados
-1. `lib/guardia-acreditacion.js` ahora exige OBAC + maquinista + **3 voluntarios** (mínimo cinco). Pruebas históricas `tests/guardia-acreditacion.test.mjs`, estadísticas y otros escenarios siguen armando guardias de dos voluntarios y fallan. Distinguir tests obsoletos de regresiones; NO rebajar mínimo para hacer pasar pruebas.
-2. `tests/domingo-quinta.test.mjs` falla porque `public/legacy/index.html` todavía no contiene `id="domingoQuinta"`. Módulos de domingo/citaciones/emergencia fueron copiados sin activación de interfaz. No considerar funcionalidad integrada hasta cableado y validación.
-3. `tests/guardia-oficiales-visto.test.mjs` espera texto `Visto · Capitán` ausente en la versión del cierre OBAC. Revisar semántica, permisos y presentación.
-4. `public/legacy/app.js` de staging contiene RUT ficticios (serie 90.000...), mientras producción tiene RUT reales. **PROHIBIDO copiar íntegro** sin reconciliación; preservar identificadores y datos reales, sin publicar RUT en informes.
-5. `lib/guardia-foto-oct2026.mjs` staging también incorpora un RUT ficticio en SQL de migración. Conservar lógica y valores reales de producción, revisar migraciones una por una.
-6. `public/legacy/index.html` staging contiene banda visible «COPIA DE PRUEBA · STAGING». No copiarla a producción. `app/page.js` difiere solo en versión de iframe/cache; revisar antes de cambiar.
-7. Quedan diferencias en `public/legacy/index.html`, `public/legacy/app.js`, `lib/alerta-telegram.js`, `lib/germania-webpush.mjs`, `package-lock.json`, `public/legacy/dashboard-preview.html` y documentación. Evitar alterar alertas Telegram o activar notificaciones por accidente.
-8. La producción tiene aproximadamente 120 archivos que no están en staging; **nunca reemplazar el árbol completo**.
+## Decisión de alcance
+**Domingo de Quinta queda expresamente fuera del PR #207**, reservado para un proyecto de guardia distinto. Se retiraron del branch cinco archivos: `app/api/domingo-quinta/route.js`, `lib/domingo-quinta.mjs`, `public/legacy/germania-domingo-quinta.js`, `public/legacy/germania-domingo-quinta.css`, `tests/domingo-quinta.test.mjs`. No reintroducirlos ni cablearlos en la interfaz actual.
 
-## Reglas funcionales innegociables
-- Guardia nocturna: mínimo 1 OBAC + 1 maquinista + 3 voluntarios. Si falta un inscrito pero la dotación efectiva cumple mínimo, registrar ausencia sin obligar reemplazo. Si baja del mínimo, registrar incumplimiento y gestionar reemplazo.
-- Cierre libro: OBAC sube foto y novedades; T3 ratifica asistencia real, excusas y rezagados. Sin ratificación T3 no acreditar asistencia. Capitán recibe visto/informe posterior, solo lectura. La ODD aprobada permanece intacta.
-- Una persona no suma doble asistencia; rezagados justificados pueden contarse una vez; excusados no son presentes. Mantener trazabilidad e histórico.
-- Asistencia B-5 y citaciones: guardar/recuperar/editar/borrar con confirmación; PDF y WhatsApp; importación Excel idempotente sin duplicados.
-- Tablet B-5 Android 10: uso ligero y funcionamiento offline con sincronización segura cuando vuelve Wi-Fi.
-- No mezclar proyecto Telegram con Germania.
+## Auditoría Claude recibida (NO-GO)
+Claude auditó el PR de solo lectura, base `main` 8b6ac9f, 20 archivos en ese corte. Halló que el mínimo erróneo de 3 voluntarios explicaba la mayoría de 20 fallos CI; con mínimo reglamentario de 2 voluntarios persistían fallas de expediente excepcional, domingo quinta (interfaz desconectada) y visto Capitán (texto de prueba desactualizado). Indicó que main ya tenía fallas antiguas y que no deben confundirse con regresiones del PR. La auditoría no ejecutó despliegue ni fusión.
 
-## Trabajo solicitado a Claude
-1. Auditar PR #207 contra `main` y contra staging; enumerar archivo por archivo: integrado, pendiente, conflicto, excluido y por qué.
-2. Identificar causa exacta de las 20 fallas de CI y corregir código/tests de manera que representen la dotación vigente, sin debilitar reglas. Exigir CI 100% verde.
-3. Reconciliar `app.js` e `index.html` por cambios mínimos, preservar roster real y datos de producción; integrar módulos de interfaz sin banner ni identidades de prueba.
-4. Revisar seguridad de rutas, roles OBAC/T3/Capitán, concurrencia/versionado, integridad y migraciones, manejo de offline, no duplicación y PDF.
-5. Ejecutar pruebas unitarias, integración, navegador móvil/escritorio, casos ficticios reforzada/incompleta/reemplazo/ausencia/rezagado/OBAC/maquinista, sin alterar registros reales.
-6. Entregar informe con evidencia, defectos críticos, riesgos residuales, checklist de aceptación y recomendación GO/NO-GO. No fusionar PR ni desplegar producción.
-7. Antes de cualquier publicación futura: respaldo verificable de Neon, plan rollback y autorización explícita.
+## Correcciones aplicadas después de esa auditoría, exclusivamente al branch
+- `lib/guardia-acreditacion.js`: firma, validación y recuento con 2 voluntarios; 4 personas en total.
+- `lib/guardia-asistencia-efectiva.js`: `minimoCumplido` y `faltanVoluntarios` con 2 voluntarios.
+- `tests/guardia-oficiales-visto.test.mjs`: expectativa de etiqueta «Dar visto bueno · Capitán».
+- `tests/guardia-expediente-excepciones.test.mjs`: escenario reducido a 2 voluntarios, presentes/ausentes/excusas consistentes.
+- Retirados los cinco archivos de Domingo de Quinta antes mencionados.
+Estas modificaciones **todavía necesitan verificación de CI**; no afirmar que pasaron sin resultado.
 
-## Criterio de salida
-NO-GO mientras haya CI rojo, interfaces desconectadas, identidades ficticias sin reconciliar, pruebas E2E ausentes o respaldo Neon pendiente. Claude debe informar resultados, no asumir que una compilación Vercel equivale a operación validada.
+## Integración pendiente y riesgos
+- Citaciones y emergencia B-5: scripts copiados pero no cableados en `public/legacy/index.html`; decidir activación solo con cambios mínimos, pruebas y aprobación. Sus comentarios «(STAGING)» no deben quedar en producción.
+- `lib/guardia-externos.js` y API externa: sin interfaz conectada; revisar o dejar fuera del alcance.
+- `public/legacy/germania-cierre-libro.js`: cambios amplios; verificar OBAC, ratificación T3, vista Capitán, permisos y no duplicación.
+- NO copiar `public/legacy/app.js` completo desde staging: contiene RUT ficticios. No copiar `lib/guardia-foto-oct2026.mjs` desde staging por RUT ficticio en SQL. NO incorporar banner «COPIA DE PRUEBA · STAGING» de `index.html`.
+- Preservar archivos y datos reales exclusivos de producción; no tocar `main`, Neon productivo, Telegram/webpush ni notificaciones no aprobadas.
+- Respaldo existente reportado: `backup-pre-etapa2-20261018`. Verificar integridad y actualidad antes de cualquier futura publicación; su existencia no equivale a backup pre-release actualizado.
+
+## Reglas de negocio que deben verificarse
+- Dotación aprobada mínima: 1 conductor, 1 OBAC, 2 voluntarios. Si hay ausencia, T3 la registra aunque la noche quede bajo mínimo; calcular dotación efectiva y alertar incumplimiento sin falsear presentes. Si hay suficientes efectivos, no exigir reemplazo innecesario.
+- Cierre OBAC: foto y novedades; T3 ratifica asistencia real y puede justificar excusas, rezagados y reemplazos con trazabilidad. Solo T3 acredita. Capitán revisa después sin modificar el libro; ODD aprobada intacta.
+- Sin doble conteo, roles separados, firmas coherentes, autorización servidor, sincronización offline sin sobrescrituras, historial, PDF y WhatsApp.
+
+## Encargo a Claude
+1. Revisar el diff **actual** de PR #207 contra `main` y confirmar que cumple artículo 9, sin introducir Domingo de Quinta.
+2. Ejecutar CI del nuevo head; reportar total, aprobadas y fallidas, separando fallos preexistentes de regresiones nuevas. Corregir fallos genuinos sin rebajar controles.
+3. Evaluar módulos aún desconectados (citaciones, emergencia, externos) y proponer incluirlos de forma segura o postergarlos; **no activarlos automáticamente**.
+4. Probar guardias ficticias: mínimo reglamentario, reforzada, incompleta, ausencia, excusa, reemplazo, rezagado, cambio OBAC/maquinista, cierre y ratificación, visto Capitán, histórico.
+5. Revisar frontend móvil/tablet B-5, permisos API, datos reales, persistencia y PDF; registrar evidencia de pruebas E2E.
+6. Entregar auditoría final GO/NO-GO con riesgos, checklist, commit exacto, CI y plan de rollback. No fusionar ni desplegar `main` sin autorización explícita.
+
+## Estado
+PR draft: https://github.com/piscinasurchile-lang/5ta-germania-asistencia/pull/207 . La producción sigue sin modificaciones por esta integración. **NO-GO hasta pruebas verificadas, backup vigente y aprobación explícita.**
