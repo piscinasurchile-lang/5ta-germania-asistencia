@@ -400,6 +400,12 @@ export default function CapturaB5(){
       }
     }
     if(tipo==="lista" && !nomina.some(p=>form.records?.[p.id]==="presente"))return setMensaje("ASISTENCIA INCOMPLETA: marca al menos un voluntario presente. No se guardará una lista vacía.");
+    const fechaCaptura=tipo==="servicio"?form.svFecha:form.date;
+    if(fechaCaptura!==fechaLocal()&&!window.confirm(
+      "La fecha del parte es "+fechaLegible(fechaCaptura)+", distinta de hoy ("+
+      fechaLegible(fechaLocal())+"). ¿Confirmas que corresponde al día real del servicio?"+
+      " La sincronización no cambiará esta fecha."
+    ))return;
     const defecto=tipo==="servicio"?"no":"ausente";
     const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
     const datos={...form,records};
