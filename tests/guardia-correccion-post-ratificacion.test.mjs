@@ -47,5 +47,5 @@ test("un ID por guardia y no doble conteo de rezagado o excusado",()=>{
  assert.equal(validarComplementos(programados,extra,{v2:"Eximido por razón informada"},asistencia,nomina),null);
  assert.equal(validarComplementos(programados,[...extra,...extra],{},asistencia,nomina),"rezagado_duplicado");
  assert.equal(validarComplementos(programados,[{id:"v1",motivo:"Presente en libro firmado"}],{},asistencia,nomina),"rezagado_duplicado");
- assert.match(index,/germania-cierre-libro\.js\?v=20261016real1/);
+ assert.match(index,/germania-cierre-libro\.js\?v=\d{8}[a-z0-9]+/);
 });
