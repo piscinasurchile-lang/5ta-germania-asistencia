@@ -141,3 +141,9 @@ test("B5: fecha actual en formulario vacío sin alterar una captura con marcas",
  assert.match(fuente,/const formulario=edit&&\(conMarcas\|\|conDatos\)\?edit:blanco\(tipo\)/);
  assert.match(fuente,/setForm\(formulario\)/);
 });
+
+test("B5: advierte antes de guardar una fecha distinta al día actual",()=>{
+ const fuente=fs.readFileSync(new URL("../app/b5/captura/page.js",import.meta.url),"utf8");
+ assert.match(fuente,/fechaCaptura!==fechaLocal\(\)&&!window\.confirm/);
+ assert.match(fuente,/La sincronización no cambiará esta fecha/);
+});
