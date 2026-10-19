@@ -2787,6 +2787,7 @@ async function gnHistorialDatos(inicio){
       if(dias.includes(fecha))(inscritos[fecha]||(inscritos[fecha]=[])).push(id);
     }
   }
+  const acreds=await Promise.all(dias.map(f=>sGet("guardia-acreditacion:"+f,null).catch(()=>null)));
   return dias.map(fecha=>{
     const r=revision?.noches?.[fecha];
     let vol=[],maq=[],obac=[],fuente="Inscripción";
@@ -2813,26 +2814,66 @@ async function gnHistorialDatos(inicio){
       String(revision.noches[fecha].apoyoExterno.nombre||"Sin identificar"):nombre(id);
     const falta=valid?.razones||[];
     return {fecha,vol:vol.map(nombre),maq:maq.map(apoyo),obac:obac.map(nombre),
+      efectiva:gnHistorialEfectiva(fecha,acreds[dias.indexOf(fecha)]),
       completa:valid?.completa===true,fuente,
       motivo:valid?falta.join(" · "):"Dotación pendiente de verificar",
       estadoRevision:revision?.estado||"sin revisión"};
   });
 }
+/* Cumplimiento efectivo = asistencia ratificada de esa noche (solo lectura; no modifica nada). */
+function gnHistorialEfectiva(fecha,ac){
+  if(Date.now()<instanteChile(gnAdd(fecha,1),"06:00"))return {estado:"espera",corto:"Aún no termina",texto:"La noche aún no termina"};
+  if(!ac||ac.estado!=="acreditada")return {estado:"pend",corto:"Pendiente",texto:"Pendiente de ratificación"};
+  const de=ac.dotacionEfectiva;
+  if(!de)return {estado:"pend",corto:"Sin detalle",texto:"Ratificada, sin detalle de dotación"};
+  return de.minimoCumplido
+    ?{estado:"ok",corto:"Cumplido",texto:"Mínimo cumplido · "+de.total+" presentes"}
+    :{estado:"falta",corto:"Incompleto",texto:"Dotación incompleta · "+de.total+" presentes"};
+}
+function gnHistorialDiaLargo(f){const t=new Date(f+"T12:00:00").toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"});return t.charAt(0).toUpperCase()+t.slice(1);}
+function gnHistorialDiaCorto(f){return new Date(f+"T12:00:00").toLocaleDateString("es-CL",{weekday:"short",day:"numeric",month:"short"}).replace(".","");}
 function gnHistorialRenderDetalle(inicio,filas){
   const box=document.getElementById("gnHistorialDetalle");
   if(!box)return;
-  const cantidad=filas.filter(x=>x.completa).length;
+  const aprobadas=filas.filter(x=>x.completa).length;
+  const efectivas=filas.filter(x=>x.efectiva&&x.efectiva.estado==="ok").length;
+  const minVol=(typeof GN_DOTACION_MIN!=="undefined"&&GN_DOTACION_MIN.voluntarios)||2;
   box.hidden=false;
-  box.innerHTML='<h3>'+esc(gnHistorialEtiqueta(inicio))+'</h3>'+
-    '<p class="sub">Programación: '+cantidad+' de 7 noches con dotación completa. Esta vista no acredita asistencia ni reemplaza la revisión del Teniente Tercero.</p>'+
-    '<div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Programación</th></tr></thead><tbody>'+
+  /* Escritorio y tablet: tabla tradicional. */
+  const tabla='<div class="minute-table-wrap gh-tabla"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Dotación aprobada</th><th>Cumplimiento efectivo</th></tr></thead><tbody>'+
     filas.map(g=>'<tr><td><b>'+esc(gnFmt(g.fecha))+'</b></td>'+
       '<td>'+(g.vol.length?g.vol.map(x=>'<div><small>'+esc(x)+'</small></div>').join(""):'<small>Sin asignar</small>')+'</td>'+
       '<td>'+esc(g.maq.join(" · ")||"Sin asignar")+'</td>'+
       '<td>'+esc(g.obac.join(" · ")||"Sin asignar")+'</td>'+
-      '<td><b>'+esc(g.completa?"Completa":"Incompleta")+'</b><br><small>'+esc(g.fuente)+'</small>'+
-      (g.motivo?'<br><small>'+esc(g.motivo)+'</small>':"")+'</td></tr>').join("")+
+      '<td><b>'+esc(g.completa?"Completa":"Incompleta")+'</b>'+(g.completa||!g.motivo?"":'<br><small>'+esc(g.motivo)+'</small>')+'</td>'+
+      '<td><span class="gh-ef gh-ef-'+esc(g.efectiva.estado)+'">'+esc(g.efectiva.texto)+'</span></td></tr>').join("")+
     '</tbody></table></div>';
+  /* Teléfono: siete tarjetas plegables (una abierta a la vez). */
+  const tarjetas='<div class="gh-tarjetas">'+filas.map(g=>{
+    const nVol=g.vol.length;
+    return '<details class="gh-noche '+(g.completa?'gh-ok':'gh-falta')+'" data-f="'+esc(g.fecha)+'">'+
+      '<summary><span class="gh-dia">'+esc(gnHistorialDiaCorto(g.fecha))+'</span>'+
+      '<span class="gh-chips"><span class="gh-chip gh-chip-'+(g.completa?'ok':'falta')+'">Aprobada · '+(g.completa?'completa':'incompleta')+'</span>'+
+      '<span class="gh-chip gh-chip-'+esc(g.efectiva.estado)+'">Efectiva · '+esc(g.efectiva.corto.toLowerCase())+'</span></span></summary>'+
+      '<div class="gh-cuerpo"><p class="gh-fecha">'+esc(gnHistorialDiaLargo(g.fecha))+'</p>'+
+      '<dl><dt>OBAC</dt><dd>'+esc(g.obac.join(" · ")||"Sin asignar")+'</dd>'+
+      '<dt>Maquinista</dt><dd>'+esc(g.maq.join(" · ")||"Sin asignar")+'</dd>'+
+      '<dt>Voluntarios <small>'+nVol+'/'+minVol+'</small></dt><dd>'+
+        (nVol?'<ol class="gh-vol">'+g.vol.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ol>':'Sin asignar')+'</dd></dl>'+
+      '<p class="gh-linea"><b>Dotación aprobada:</b> '+esc(g.completa?"completa":(g.motivo||"incompleta"))+'</p>'+
+      '<p class="gh-linea"><b>Cumplimiento efectivo:</b> '+esc(g.efectiva.texto)+'</p></div></details>';
+  }).join("")+'</div>';
+  box.innerHTML='<h3>'+esc(gnHistorialEtiqueta(inicio))+'</h3>'+
+    '<p class="sub gh-resumen"><b>Aprobadas completas: '+aprobadas+'/7</b> · <b>Cumplidas: '+efectivas+'/7</b></p>'+
+    tabla+tarjetas+
+    '<p class="sub gh-nota">Aprobada = programación de la noche. Efectiva = asistencia ratificada por oficiales. Solo lectura.</p>';
+  /* Una tarjeta abierta a la vez. */
+  const det=[...box.querySelectorAll(".gh-tarjetas details")];
+  det.forEach(d=>d.addEventListener("toggle",()=>{
+    if(!d.open)return;
+    det.forEach(o=>{if(o!==d&&o.open)o.open=false;});
+    try{d.scrollIntoView({block:"nearest",behavior:"smooth"});}catch(e){}
+  }));
 }
 async function gnHistorialMostrar(inicio){
   const msg=document.getElementById("gnHistorialMsg"),sol=++gnHistorialSolicitud;

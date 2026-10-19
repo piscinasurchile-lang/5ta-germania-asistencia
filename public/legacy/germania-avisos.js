@@ -74,7 +74,7 @@
     rg.addEventListener("click",abrirReglamentos);ref.appendChild(rg);
     /* también desde el menú ☰ */
     var menu=$("mobileMenu");
-    if(menu&&!menu.querySelector("[data-reglamentos]")){var mb=document.createElement("button");mb.type="button";mb.setAttribute("data-reglamentos","1");mb.textContent="📖 Reglamentos";mb.addEventListener("click",function(){var t=$("menuToggle");if(t&&t.getAttribute("aria-expanded")==="true")t.click();abrirReglamentos();});menu.insertBefore(mb,menu.querySelector("[data-ayuda-toggle]"));}
+    if(menu&&!menu.querySelector("[data-reglamentos]")){var mb=document.createElement("button");mb.type="button";mb.setAttribute("data-reglamentos","1");mb.textContent="Reglamentos";mb.addEventListener("click",function(){var t=$("menuToggle");if(t&&t.getAttribute("aria-expanded")==="true")t.click();abrirReglamentos();});menu.insertBefore(mb,menu.querySelector("[data-ayuda-toggle]"));}
   }
   /* ---------- Reglamentos (consulta para todos los voluntarios, solo lectura) ---------- */
   function abrirReglamentos(){
