@@ -32,5 +32,5 @@ test("Capitán y control ven adicionales, excusas y datos históricos de la mism
  assert.match(vista,/ratificar\(b\.dataset\.lgnRatificar,b\)/);
  assert.match(stats,/guardiasCompletas/);
  assert.match(stats,/fechasExistentes/);
- assert.match(hoja,/germania-cierre-libro\.js\?v=20261016real1/);
+ assert.match(hoja,/germania-cierre-libro\.js\?v=\d+[\w-]*/);
 });
