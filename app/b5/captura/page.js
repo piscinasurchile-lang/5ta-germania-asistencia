@@ -386,7 +386,7 @@ export default function CapturaB5(){
     if(guardando||!nomina.length||!listaPreparada)return;
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
     if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Indica la fecha y el tipo de servicio.");
-    if(tipo==="servicio"){
+    if(tipo==="servicio" && form.svTipoAct==="Emergencia"){
       const presentes=nomina.filter(p=>form.records?.[p.id]==="si").length;
       const direccion=[form.svCalle,form.svNumeracion,form.svSector].filter(v=>String(v||"").trim()).join(" ").trim();
       if(!direccion||!String(form.svTipoAct||"").trim()||!String(form.svFecha||"").trim()||!presentes){
