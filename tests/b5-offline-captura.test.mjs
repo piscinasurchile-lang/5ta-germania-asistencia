@@ -27,7 +27,7 @@ const asistencia=(id="00000000-0000-4000-8000-000000000001")=>({
 const servicio=(id="00000000-0000-4000-8000-000000000002")=>({
   id,tipo:"servicio",datos:{svFecha:"2026-10-14",svTipoAct:"Emergencia",svHoraSalida:"18:15",
     svConductor:"Maquinista B-5",svUnidadCargo:"OBAC B-5",svSector:"Villarrica",
-    svHoraEmergencia:"18:10",svHoraLista:"19:45",svClave:"10-01",registrarAsistencia:true,
+    svHoraEmergencia:"18:10",svHoraLista:"19:45",svClave:"10-01",svTipoEmergencia:"Incendio estructural",registrarAsistencia:true,
     records:{v1:"si",v2:"no"}}
 });
 
@@ -174,4 +174,30 @@ test("B5: el código de captura conserva datos locales y el servidor usa hora de
  assert.match(frontend,/guardarEdicion\(tipo,form\)/);
  assert.match(frontend,/guardarBorrador\(tipo,datos\)/);
  assert.match(backend,/tipo==="Emergencia"\?d\.svHoraEmergencia:d\.svHoraSalida/);
+});
+
+
+test("contadores separados: asistencia, emergencia y servicio carro",async()=>{
+ const {sql}=await base();
+ const a=await integrarBorradorB5(sql,asistencia());
+ const e=await integrarBorradorB5(sql,servicio());
+ assert.equal(a.numero,1);
+ assert.equal(e.numero,1);
+ assert.equal((await readState(sql,"correlativo:emergencia:2026")).value.actual,1);
+ assert.equal((await readState(sql,"correlativo:parte:2026")).value.actual,2);
+ const carro=servicio("00000000-0000-4000-8000-000000000090");
+ carro.datos.svTipoAct="Mantención";
+ carro.datos.svHoraSalida="21:00";
+ carro.datos.registrarAsistencia=false;
+ const s=await integrarBorradorB5(sql,carro);
+ assert.equal(s.numero,1);
+ assert.equal((await readState(sql,"correlativo:servicio:2026")).value.actual,1);
+ assert.equal((await integrarBorradorB5(sql,carro)).numero,1);
+});
+test("la nueva serie de emergencia comienza después del último servicio histórico",async()=>{
+ const {sql}=await base();
+ await writeState(sql,"correlativo:servicio:2026",{actual:27});
+ const e=await integrarBorradorB5(sql,servicio());
+ assert.equal(e.numero,28);
+ assert.equal((await readState(sql,"correlativo:emergencia:2026")).value.actual,28);
 });
