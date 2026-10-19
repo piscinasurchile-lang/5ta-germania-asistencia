@@ -11,8 +11,9 @@ test("cuatro personas distintas, estado de asistencia explícito y T3",()=>{
  assert.deepEqual(integrantesNoche(n),["maq","obac","v1","v2"]);
  assert.equal(validarAcreditacion(args),null);
 });
-test("capitán no puede acreditar como T3",()=>{
- assert.equal(validarAcreditacion({...args,actor:"cap"}),"solo_teniente_tercero");
+test("ratifica cualquier oficial autorizado (Capitán, T1-T3); un voluntario no (el cumplimiento final lo acredita solo el T3 en /acreditar-final)",()=>{
+ assert.equal(validarAcreditacion({...args,actor:"cap"}),null);
+ assert.equal(validarAcreditacion({...args,actor:"vol",roster:[...roster,{id:"vol",cargo:"Voluntario",activo:true}]}),"solo_oficiales_autorizados");
 });
 test("dos roles iguales impiden acreditar",()=>{
  assert.equal(validarAcreditacion({...args,noche:{...n,obac:"maq"}}),"dotacion_duplicada");

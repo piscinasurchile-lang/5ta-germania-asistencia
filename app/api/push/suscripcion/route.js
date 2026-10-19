@@ -13,18 +13,21 @@ export async function POST(request){
   if(!origenCoincide(request))return error("origen_invalido",403);
   const config=configuracion(),sql=baseDatos();
   if(!config||!sql)return error("push_no_configurado",503);
-  let sub;
-  try{sub=validarSuscripcion(await request.json())}catch(e){return error(e.message||"suscripcion_invalida",400)}
+  let sub,voluntario=null;
+  try{const cuerpo=await request.json();sub=validarSuscripcion(cuerpo);
+    if(cuerpo&&cuerpo.voluntarioId!=null&&/^[A-Za-z0-9_-]{1,12}$/.test(String(cuerpo.voluntarioId)))voluntario=String(cuerpo.voluntarioId);
+  }catch(e){return error(e.message||"suscripcion_invalida",400)}
   const origen=new URL(request.url).origin;
   try{
     await asegurarSuscripciones(sql);
     await sql`INSERT INTO germania_push_suscripciones
-      (endpoint_hash,endpoint,p256dh,auth,vapid_public,origen,invalida)
-      VALUES (${sub.endpointHash},${sub.endpoint},${sub.p256dh},${sub.auth},${config.publicKey},${origen},false)
+      (endpoint_hash,endpoint,p256dh,auth,vapid_public,origen,invalida,voluntario_id)
+      VALUES (${sub.endpointHash},${sub.endpoint},${sub.p256dh},${sub.auth},${config.publicKey},${origen},false,${voluntario})
       ON CONFLICT (endpoint_hash) DO UPDATE SET
       endpoint=EXCLUDED.endpoint,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth,
       vapid_public=EXCLUDED.vapid_public,origen=EXCLUDED.origen,
-      actualizado_en=now(),invalida=false`;
+      actualizado_en=now(),invalida=false,
+      voluntario_id=COALESCE(EXCLUDED.voluntario_id,germania_push_suscripciones.voluntario_id)`;
     return Response.json({ok:true},{headers:cache});
   }catch(e){console.error("push registro",e);return error("error_registro_push",500)}
 }

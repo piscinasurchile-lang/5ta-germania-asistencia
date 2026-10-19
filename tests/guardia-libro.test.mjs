@@ -29,7 +29,7 @@ test("solo el OBAC designado puede cerrar, mando puede consultar",()=>{
  assert.equal(puedeVerLibro(francisco,noche),true);
  assert.equal(puedeVerLibro(otro,noche),false);
  assert.equal(puedeVerLibro(teniente,noche),true);
- assert.equal(puedeVerLibro(capitan,noche),false);
+ assert.equal(puedeVerLibro(capitan,noche),true,"el Capitán consulta para ratificar");
  assert.equal(puedeVerLibro(capitan,noche,true),true);
  assert.equal(puedeVerLibro({...francisco,activo:false},noche),false);
  assert.equal(cargoT3(teniente.cargo),true);
@@ -69,7 +69,7 @@ test("administrador ve todas las noches pero NO puede acreditar",()=>{
  const rev={estado:"aprobada",aprobadaEn:"2026-10-14T12:00:00Z",noches:{[fecha]:noche}};
  assert.equal(validarAcreditacion({fecha,noche,revision:rev,ahoraLocal:"2026-10-15T06:01",
    asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"presente"},
-   actor:admin.id,roster:[admin]}),"solo_teniente_tercero");
+   actor:admin.id,roster:[admin]}),"solo_oficiales_autorizados");
 });
 
 test("ratificar noche se abre en pantalla propia y nunca activa la gestión Guardia Nocturna",async()=>{

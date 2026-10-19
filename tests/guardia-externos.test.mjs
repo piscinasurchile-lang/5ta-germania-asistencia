@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {validarExterno,crearExterno} from "../lib/guardia-externos.js";
+const base={nombre:"Conductor de apoyo",procedencia:"Otra compañía CBV",funcion:"maquinista",motivo:"Reemplazo por ausencia",autorizadoPor:"Oficial autorizado",habilitacionVerificadaPor:"Oficial verificador",referenciaLibro:"Libro guardia folio 10",horaIngreso:"22:45",habilitacionConfirmada:true,autorizacionConfirmada:true,pernocta:false};
+test("registro documental externo válido, no acreditación",()=>{assert.equal(validarExterno(base),null);const v=crearExterno(base,"t3");assert.equal(v.registro.estado,"documentado_no_acreditado");assert.equal(v.registro.registradoPor,"t3")});
+test("rechaza sin verificación de habilitación",()=>assert.equal(validarExterno({...base,habilitacionConfirmada:false}),"autorizacion_no_verificada"));
+test("rechaza sin autorización",()=>assert.equal(validarExterno({...base,autorizacionConfirmada:false}),"autorizacion_no_verificada"));
+test("rechaza pernoctación ajena sin respaldo escrito",()=>assert.equal(validarExterno({...base,pernocta:true}),"pernoctacion_sin_respaldo"));
+test("permite pernoctación solo con constancia de autorización escrita",()=>assert.equal(validarExterno({...base,pernocta:true,autorizacionPernoctacionEscrita:true,referenciaAutorizacionEscrita:"Comandancia oficio 22"}),null));
+test("rechaza horario inválido",()=>assert.equal(validarExterno({...base,horaIngreso:"25:99"}),"hora_invalida"));

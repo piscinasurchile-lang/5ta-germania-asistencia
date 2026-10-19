@@ -77,7 +77,7 @@
     const respuesta = await fetch("/api/push/suscripcion", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(suscripcion.toJSON())
+      body: JSON.stringify(Object.assign({}, suscripcion.toJSON(), { voluntarioId: (document.getElementById("miVoluntario") || {}).value || null }))
     });
     if (!respuesta.ok) throw new Error("No se pudo registrar el teléfono. Intenta nuevamente.");
     ocultar();

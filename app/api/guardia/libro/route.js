@@ -1,8 +1,9 @@
 import {neon} from "@neondatabase/serverless";
 import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
-import {firmaDotacion} from "../../../../lib/guardia-acreditacion.js";
-import {miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
+import {firmaDotacion,cumplimientoFinalT3} from "../../../../lib/guardia-acreditacion.js";
+import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
+import {cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const MAX_PHOTO=1600000;
@@ -52,7 +53,7 @@ export async function GET(req){
    return new Response(Buffer.from(rows[0].b64,"base64"),{headers:{"Content-Type":cierre.fotoMime||"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
   }
   const ahora=horaCivilChile(),esAdmin=esAdministradorGuardia(actor);
-  const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo);
+  const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo),puedeRatificar=cargoAutorizadoGuardia(actor.cargo);
   const esOficial=esOficialGuardia(actor.cargo);
   const historico=u.searchParams.get("historial")==="1";
   const anio=u.searchParams.get("anio")||ahora.slice(0,4);
@@ -68,18 +69,22 @@ export async function GET(req){
     "LEFT JOIN app_state ac ON ac.key='guardia-acreditacion:'||n.fecha "+
     "LEFT JOIN app_state vc ON vc.key='guardia-visto-capitan:'||n.fecha "+
     "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT $4";
-  const rows=await sql.query(q,[ahora.slice(0,10),patron,historico?70:(esAdmin?260:8),historico?500:(esAdmin?1820:56)]);
+  // El Capitán necesita detectar correcciones de semanas anteriores sin abrir el historial anual.
+  // Se consulta hasta 26 semanas para su bandeja de avisos; el historial sigue disponible por año.
+  const semanasConsulta=historico?70:(esAdmin?260:(esCapitan?26:8));
+  const filasConsulta=historico?500:(esAdmin?1820:(esCapitan?182:56));
+  const rows=await sql.query(q,[ahora.slice(0,10),patron,semanasConsulta,filasConsulta]);
   const items=rows.map(r=>{
     const revision={estado:"aprobada",aprobadaEn:r.aprobada_en,noches:{[r.fecha]:r.dotacion}};
     const ratificada=informeRatificado({acreditacion:r.acreditacion,revision,noche:r.dotacion,cierre:r.cierre});
     return {fecha:r.fecha,revisionAprobadaEn:r.aprobada_en,dotacion:r.dotacion,
       cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
       finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
-      acreditacionVigente:ratificada,
+      acreditacionVigente:ratificada,cumplimientoFinal:!!(ratificada&&cumplimientoFinalT3(r.acreditacion)),
       vistoCapitan:!!(ratificada&&vistoCapitanValido(r.visto_capitan,r.acreditacion))};
-  }).filter(r=>esAdmin||esT3||String(r.dotacion?.obac||"")===String(actor.id)||
+  }).filter(r=>esAdmin||esT3||puedeRatificar||String(r.dotacion?.obac||"")===String(actor.id)||
       (esOficial&&r.acreditacionVigente));
-  return Response.json({items,esT3,esCapitan,esAdmin,esOficial,
+  return Response.json({items,esT3,puedeRatificar,esCapitan,esAdmin,esOficial,
     semanaActual:miercolesSemana(ahora.slice(0,10)),anio:historico?anio:null,historico},
     {headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro GET",e);return error("database_error",500);}
@@ -100,19 +105,27 @@ export async function POST(req){
   if(!ventanaCierreOBAC(fecha,ahora))return error("fuera_de_ventana_cierre",409);
   const firma=firmaDotacion(g.noche);
   if(!firma)return error("dotacion_incompleta",409);
-  if((await readState(sql,"guardia-libro:"+fecha)).value)return error("libro_ya_cerrado",409);
   const fotoClave="guardia_libro_"+fecha,hash=createHash("sha256").update(bytes).digest("hex");
+  const existente=(await readState(sql,"guardia-libro:"+fecha)).value;
+  // Reintento tras un corte de internet: el mismo OBAC con la misma fotografía no duplica el cierre.
+  if(existente&&existente.obacId===String(actor.id)&&existente.fotoSHA256===hash)return Response.json({ok:true,repetido:true,fecha,obac:existente.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
+  if(existente)return error("libro_ya_cerrado",409);
   const meta={fecha,estado:"enviado",obacId:String(actor.id),obacNombre:nombre(actor),
     novedades,fotoClave,fotoMime:mime,fotoBytes:bytes.length,fotoSHA256:hash,
     revisionAprobadaEn:g.revision.aprobadaEn,dotacionFirma:firma,
-    enviadoEn:new Date().toISOString(),destinatarios:["teniente_tercero"],
-    informeCapitan:"despues_de_ratificacion_t3"};
+    enviadoEn:new Date().toISOString(),destinatarios:["oficiales_autorizados"],
+    informeCapitan:"despues_de_ratificacion"};
   const query="WITH foto AS (INSERT INTO document_assets(key,data,active,source,effective_year,updated_at) "+
     "VALUES ($1,decode($2,'base64'),true,'guardia_libro',$3,now()) ON CONFLICT(key) DO NOTHING RETURNING key), "+
     "cierre AS (INSERT INTO app_state(key,value,updated_at,version) SELECT $4,$5::jsonb,now(),1 FROM foto "+
     "ON CONFLICT(key) DO NOTHING RETURNING version) SELECT EXISTS(SELECT 1 FROM cierre) AS ok";
   const rows=await sql.query(query,[fotoClave,bytes.toString("base64"),Number(fecha.slice(0,4)),"guardia-libro:"+fecha,JSON.stringify(meta)]);
-  if(!rows[0]?.ok)return error("cierre_existente_o_conflicto",409);
+  if(!rows[0]?.ok){
+   const ya=(await readState(sql,"guardia-libro:"+fecha)).value;
+   if(ya&&ya.obacId===String(actor.id)&&ya.fotoSHA256===hash)return Response.json({ok:true,repetido:true,fecha,obac:ya.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
+   return error("cierre_existente_o_conflicto",409);
+  }
+  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro entregado por el OBAC · "+fecha+" · pendiente de ratificación",porNombre:meta.obacNombre});
   return Response.json({ok:true,fecha,obac:meta.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro POST",e);return error("database_error",500);}
 }

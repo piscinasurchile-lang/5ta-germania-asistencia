@@ -16,7 +16,7 @@ test("T3 agrega rezagados de nómina, confirma presencia fotografiada y tiene bo
  assert.match(vista,/fotografía del libro/);
  assert.match(vista,/adicionales\.push\(\{id,motivo:/);
  assert.match(vista,/asistencias\[id\]="presente"/);
- assert.match(vista,/body:JSON\.stringify\(\{fecha,actorId:actual,asistencias,excusas,adicionales/);
+ assert.match(vista,/const payload=\{fecha,actorId:actual,asistencias,excusas,adicionales/);
 });
 test("API no modifica programación ni crea nueva guardia",()=>{
  assert.match(api,/idsEfectivos\(programados,adicionales\)/);
@@ -32,5 +32,5 @@ test("Capitán y control ven adicionales, excusas y datos históricos de la mism
  assert.match(vista,/ratificar\(b\.dataset\.lgnRatificar,b\)/);
  assert.match(stats,/guardiasCompletas/);
  assert.match(stats,/fechasExistentes/);
- assert.match(hoja,/germania-cierre-libro\.js\?v=20261017obacui1/);
+ assert.match(hoja,/germania-cierre-libro\.js\?v=\d+[\w-]*/);
 });

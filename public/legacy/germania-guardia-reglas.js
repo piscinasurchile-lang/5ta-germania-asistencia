@@ -40,6 +40,8 @@
   }
   function acreditacionVigente(ac,revision,fecha){
     var n=revision&&revision.noches&&revision.noches[fecha];
+    /* Cumplimiento final: lo acredita solo el T3. Registros anteriores al flujo (sin acreditadoPorCargo) los creaba solo el T3. */
+    if(ac&&(ac.cumplimientoFinal?ac.cumplimientoFinal.estado!=="acreditado":ac.acreditadoPorCargo!==undefined))return false;
     if(!ac||!n||ac.estado!=="acreditada"||revision.estado!=="aprobada"||
        ac.fecha!==fecha||ac.revisionAprobadaEn!==revision.aprobadaEn||
        !ac.dotacionFirma||ac.dotacionFirma!==firmaDotacion(n)||
@@ -47,7 +49,7 @@
        !Array.isArray(ac.asistentes)||!Array.isArray(ac.ausentes))return false;
     var base=[String(n.maq),String(n.obac)].concat(n.vol.map(String)),
         extras=ac.adicionales||[],excusas=ac.excusas||{};
-    if(!Array.isArray(extras)||extras.length>15||!excusas||typeof excusas!=="object"||
+    if(!Array.isArray(extras)||extras.length>200||!excusas||typeof excusas!=="object"||
        Array.isArray(excusas))return false;
     var ids=base.concat(extras.map(function(p){return String(p&&p.id||"");}));
     if(ids.length!==new Set(ids).size||
