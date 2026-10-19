@@ -605,7 +605,6 @@ export default function CapturaB5(){
           <div className="campos">
           <label>Hora del llamado * <small>(formato 24 horas, HH:MM)</small><input type="time" lang="es-CL" step="60" value={form.svHoraEmergencia||""} onChange={e=>actualizarCampo("svHoraEmergencia",e.target.value)}/></label>
           <label>Hora de lista final * <small>(después de ordenar el carro, HH:MM)</small><input type="time" lang="es-CL" step="60" value={form.svHoraLista||""} onChange={e=>actualizarCampo("svHoraLista",e.target.value)}/></label>
-          <label>Clave de despacho<input value={form.svClave||""} onChange={e=>actualizarCampo("svClave",e.target.value)}/></label>
           <label>Dirección / calle<input value={form.svCalle||""} onChange={e=>actualizarCampo("svCalle",e.target.value)}/></label>
           <label>Número<input value={form.svNumeracion||""} onChange={e=>actualizarCampo("svNumeracion",e.target.value)}/></label>
           <label>Sector (opcional)<input value={form.svSector||""} onChange={e=>actualizarCampo("svSector",e.target.value)}/></label>
