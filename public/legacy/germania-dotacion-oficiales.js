@@ -49,30 +49,34 @@ function cuentas(f,dot,ctx){
   return n;
 }
 var tok=0;
+async function leerClave(k){
+  try{var r=await fetch("/api/state/"+encodeURIComponent(k),{cache:"no-store"});if(!r.ok)return undefined;var j=await r.json();return j.value===undefined?null:j.value;}catch(e){return undefined;}
+}
+/* Se consultan SOLO las claves de las noches que se muestran (por fecha): así el listado nunca se acerca al límite de 500 claves. */
 async function pintar(){
   var mi=++tok,host=$("dotacionOficiales");
   if(!autorizado()){if(host)host.remove();return;}
   var ref=$("misNochesInicio");if(!ref||!ref.parentNode)return;
-  var hoy=new Date(),f0=null,rev,avs,ass,acs;
-  var base=hoy.toISOString().slice(0,10);
-  var sems={},cand=[];
-  for(var k=-2;k<=1;k++){var d=new Date(Date.now()+k*864e5).toISOString().slice(0,10);sems[miercoles(d)]=1;}
-  var revItems=await lista("guardia-revision:");
-  var avItems=await lista("guardia-aviso:"),asItems=await lista("guardia-asiste:"),acItems=await lista("guardia-acreditacion:");
-  if(mi!==tok)return;
-  if(revItems===null){return;}
-  var noches={};
-  revItems.forEach(function(it){var v=it.value;if(!v||v.estado!=="aprobada"||!v.noches)return;Object.keys(v.noches).forEach(function(f){noches[f]=v.noches[f];});});
-  var ctx={aviso:{},asiste:{},acred:{},reemplazos:{}};
-  (avItems||[]).forEach(function(it){var v=it.value;if(!v||!v.f)return;ctx.aviso[v.f+":"+v.id]=v;if(v.reemplazoId)ctx.reemplazos[v.f+":"+v.reemplazoId]=v.id;});
-  (asItems||[]).forEach(function(it){var v=it.value;if(v&&v.f)ctx.asiste[v.f+":"+v.id]=v;});
-  (acItems||[]).forEach(function(it){var v=it.value;if(v&&v.fecha)ctx.acred[v.fecha]=v;});
-  var fechas=Object.keys(noches).sort();
-  var ahora=Date.now();
+  var semanas={};
+  for(var k=-3;k<=1;k++){var d=new Date(Date.now()+k*864e5).toISOString().slice(0,10);semanas[miercoles(d)]=1;}
+  var noches={},fallo=false;
+  var revs=await Promise.all(Object.keys(semanas).map(function(w){return leerClave("guardia-revision:"+w);}));
+  revs.forEach(function(v){if(v===undefined){fallo=true;return;}if(!v||v.estado!=="aprobada"||!v.noches)return;Object.keys(v.noches).forEach(function(f){noches[f]=v.noches[f];});});
+  if(fallo||mi!==tok)return;
+  var fechas=Object.keys(noches).sort(),ahora=Date.now();
   var vigente=fechas.filter(function(f){return fin(f)>ahora;})[0]||null;           /* en curso o próxima */
   var previa=fechas.filter(function(f){return fin(f)<=ahora;}).pop()||null;        /* la última terminada */
   var mostrar=[vigente,previa&&ahora-fin(previa)<2*864e5?previa:null].filter(Boolean);
   if(!mostrar.length){if(host)host.remove();return;}
+  var ctx={aviso:{},asiste:{},acred:{},reemplazos:{}},leyo=true;
+  await Promise.all(mostrar.map(async function(f){
+    var r=await Promise.all([lista("guardia-aviso:"+f+":"),lista("guardia-asiste:"+f+":"),leerClave("guardia-acreditacion:"+f)]);
+    if(r[0]===null||r[1]===null||r[2]===undefined){leyo=false;return;}
+    r[0].forEach(function(it){var v=it.value;if(!v||!v.f)return;ctx.aviso[v.f+":"+v.id]=v;if(v.reemplazoId)ctx.reemplazos[v.f+":"+v.reemplazoId]=v.id;});
+    r[1].forEach(function(it){var v=it.value;if(v&&v.f)ctx.asiste[v.f+":"+v.id]=v;});
+    if(r[2])ctx.acred[f]=r[2];
+  }));
+  if(!leyo||mi!==tok)return; /* lectura incompleta: no se pinta nada a medias */
   if(!host){host=document.createElement("section");host.id="dotacionOficiales";host.className="card";host.style.cssText="grid-column:1 / -1;min-width:0";ref.parentNode.insertBefore(host,ref);}
   var abierto=host.querySelector("details")?host.querySelector("details").open:true;
   var h='<details'+(abierto?' open':'')+'><summary style="cursor:pointer;font-weight:700;font-size:1.05em">Dotación de guardia · estado de cada integrante</summary>';
