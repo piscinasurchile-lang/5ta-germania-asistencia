@@ -56,7 +56,8 @@ export async function PUT(request, { params }) {
   if (key === "informaciones-prueba:v1" || key.startsWith("informaciones-prueba-lecturas:")) return Response.json({ error: "forbidden_key" }, { status: 403 });
   if (key === "novedades:v1") return Response.json({ error: "ruta_informaciones_requerida" }, { status: 409, headers: { "Cache-Control": "no-store" } });
   // Inscripción titular exclusiva y acreditación real solo por rutas dedicadas.
-  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
+  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:") ||
+      key.startsWith("guardia-libro:") || key.startsWith("guardia-visto-capitan:") || key.startsWith("guardia-incidencias:") || key.startsWith("guardia-cierre-semanal:") || key.startsWith("guardia-aviso-oficial:"))
     return Response.json({error:"ruta_especializada_requerida"},{status:409,headers:{"Cache-Control":"no-store"}});
 
 
@@ -123,7 +124,8 @@ export async function PATCH(request, { params }) {
   if (key === "informaciones-prueba:v1" || key.startsWith("informaciones-prueba-lecturas:")) return Response.json({ error: "forbidden_key" }, { status: 403 });
   if (key === "novedades:v1") return Response.json({ error: "ruta_informaciones_requerida" }, { status: 409, headers: { "Cache-Control": "no-store" } });
   // Inscripción titular exclusiva y acreditación real solo por rutas dedicadas.
-  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:"))
+  if (key.startsWith("guardia-acreditacion:") || key.startsWith("guardia-maq:") || key.startsWith("guardia-conductor:") ||
+      key.startsWith("guardia-libro:") || key.startsWith("guardia-visto-capitan:") || key.startsWith("guardia-incidencias:") || key.startsWith("guardia-cierre-semanal:") || key.startsWith("guardia-aviso-oficial:"))
     return Response.json({error:"ruta_especializada_requerida"},{status:409,headers:{"Cache-Control":"no-store"}});
 
 

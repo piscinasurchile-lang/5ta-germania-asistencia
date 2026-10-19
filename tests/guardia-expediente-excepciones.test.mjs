@@ -52,7 +52,7 @@ test("duplicados de rezagados se rechazan",()=>{
  assert.equal(validarComplementos(["m1"],[{id:"r1",motivo:"Reemplazo autorizado"},{id:"r1",motivo:"Segundo reemplazo"}],{}, {r1:"presente"},roster),"rezagado_duplicado");
 });
 test("sólo T3 activo puede acreditar",()=>{
- assert.equal(validar({actor:"v1"}),"solo_teniente_tercero");
+ assert.equal(validar({actor:"v1"}),"solo_oficiales_autorizados");
 });
 test("no se acredita antes de terminar la noche",()=>{
  assert.equal(validar({ahoraLocal:"2026-10-15T23:00"}),"noche_no_finalizada");

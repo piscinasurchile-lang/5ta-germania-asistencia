@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
+let actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -44,7 +44,7 @@ async function cargar(forzar){
   const d=await r.json();
   if(elegido()&&String(elegido().id)===id){
    if(actual!==id){historial=null;anioElegido=String(new Date().getFullYear());}
-   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.esT3;capitan=!!d.esCapitan;admin=!!d.esAdmin;
+   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!(d.puedeRatificar||d.esT3);esT3Real=!!d.esT3;capitan=!!d.esCapitan;admin=!!d.esAdmin;
    oficial=!!d.esOficial;semanaActual=d.semanaActual||semanaDe(d.items?.[0]?.fecha||"");
    ultimaCarga=Date.now();pintarOBAC();pintarOficial();pintarControlAdmin();
    return true;
@@ -106,7 +106,7 @@ function pintarOBAC(){
    '<p class="sub">'+escHtml(fechaBonita(f))+' · OBAC: '+escHtml(nombre(actual))+'</p>';
   if(!habilitado){
    html+='<p class="sub"><strong>Tu guardia comienza hoy a las 22:45.</strong> Esta ficha está visible desde las 22:30.</p>'+
-    '<p class="sub">Al finalizar tu guardia, mañana desde las 06:00 podrás fotografiar el libro, registrar las novedades y enviarlo al Teniente Tercero.</p>';
+    '<p class="sub">Al finalizar tu guardia, mañana desde las 06:00 podrás fotografiar el libro, registrar las novedades y enviarlo a los oficiales.</p>';
   }else{
    html+='<p class="sub">La guardia finalizó. Envía la fotografía del libro y las novedades antes de las 06:00 del día siguiente.</p>'+
     '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
@@ -117,7 +117,7 @@ function pintarOBAC(){
     '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
     '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
     '<p class="sub">Las novedades escritas se conservan en este dispositivo hasta el envío. Si cierras Germania, tendrás que seleccionar nuevamente la fotografía.</p>'+ 
-    '<p class="sub">El cierre y las novedades llegan primero al Teniente Tercero. Tras su ratificación, el Capitán y los oficiales podrán consultar el informe.</p>'+
+    '<p class="sub">El cierre y las novedades llegan primero a los oficiales autorizados (Capitán y tenientes). Tras la ratificación de uno de ellos, el Capitán y los oficiales podrán consultar el informe.</p>'+
     '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+ 
     '<button type="button" id="lgnObacAtras" class="btn secondary small">Atrás</button>'+
     '<p id="lgnMensaje" role="status" aria-live="polite"></p></div>';
@@ -133,7 +133,7 @@ function pintarOBAC(){
  for(const x of result.confirmaciones){
   const hora=x.cierre?.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
   html+='<div class="lgn-obac-confirmacion" role="status">'+
-   '<strong>✓ Libro de guardia enviado correctamente al Teniente Tercero</strong>'+
+   '<strong>✓ Libro de guardia enviado correctamente a los oficiales</strong>'+
    '<span>'+escHtml(fechaBonita(x.fecha))+(hora?' · Enviado '+escHtml(hora):"")+'</span>'+
    '<small>Confirmación visible durante 24 horas desde el envío.</small></div>';
  }
@@ -182,7 +182,7 @@ async function comprimir(foto){
 async function enviar(fecha){
  const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=fotoSeleccionada,nov=$("lgnNovedades")?.value.trim();
  if(!file||!nov){msg.textContent="Necesitas la fotografía y el texto de novedades (puede ser Sin novedades).";return;}
- if(!confirm("¿Enviar el cierre del libro de "+fecha+" al Teniente Tercero para ratificación?"))return;
+ if(!confirm("¿Enviar el cierre del libro de "+fecha+" a los oficiales para ratificación?"))return;
  boton.disabled=true;msg.textContent="Preparando fotografía y enviando cierre…";
  try{
   const foto=await comprimir(file);
@@ -226,7 +226,9 @@ function htmlAsistenciaRatificada(x){
  let h='<section class="lgn-acta-efectiva" data-lgn-acta-fecha="'+escHtml(x.fecha)+'">'+
   '<h3>Asistencia real ratificada · '+escHtml(fechaBonita(x.fecha))+'</h3>'+
   '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>'+
-  (ac.t3Participante?'<p class="sub lgn-t3-participo"><strong>Trazabilidad:</strong> ratificada por el Teniente Tercero, quien participó en esta guardia como '+escHtml(ac.t3Participante.rol)+' ('+(ac.t3Participante.asistencia==="presente"?"presente":"ausente")+').</p>':'')+
+  (ac.t3Participante?'<p class="sub lgn-t3-participo"><strong>Trazabilidad:</strong> ratificada por '+escHtml(ac.acreditadoPorNombre||'un oficial')+', quien participó en esta guardia como '+escHtml(ac.t3Participante.rol)+' ('+(ac.t3Participante.asistencia==="presente"?"presente":"ausente")+').</p>':'')+
+  '<p class="sub gf-estado"><strong>Registro del libro:</strong> cerrado'+(x.cierre?.sinFoto?' sin fotografía (cierre de oficial)':' con fotografía')+' · <strong>Guardia:</strong> ratificada · <strong>Cumplimiento reglamentario:</strong> '+(ac.cumplimiento?(ac.cumplimiento.estado==='acreditado'?'acreditado':'NO acreditado ('+escHtml((ac.cumplimiento.motivos||[]).map(m=>({obac_ausente:'OBAC ausente',conductor_ausente:'conductor ausente',voluntarios_insuficientes:'menos de 2 voluntarios',sin_fotografia:'sin fotografía'}[m]||m)).join(', '))+')'):'sin evaluar')+'</p>'+
+  ((ac.obacEfectivoId&&String(ac.obacEfectivoId)!==String(x.dotacion?.obac))||(ac.conductorEfectivoId&&String(ac.conductorEfectivoId)!==String(x.dotacion?.maq))?'<p class="sub"><strong>Cambios durante la guardia:</strong> OBAC efectivo '+escHtml(nombre(ac.obacEfectivoId||x.dotacion?.obac))+' · Conductor efectivo '+escHtml(nombre(ac.conductorEfectivoId||x.dotacion?.maq))+(ac.motivoPrecedencia?' · Constancia de precedencia: '+escHtml(ac.motivoPrecedencia):'')+'</p>':'')+
   (ac.dotacionEfectiva?'<p class="sub"><strong>Dotación efectiva: '+(ac.dotacionEfectiva.minimoCumplido?'mínimo cumplido':'INCOMPLETA')+'</strong> · '+ac.dotacionEfectiva.total+' presentes; '+ac.dotacionEfectiva.voluntarios+' voluntarios, '+(ac.dotacionEfectiva.maquinista?'maquinista presente':'sin maquinista')+', '+(ac.dotacionEfectiva.obac?'OBAC presente':'sin OBAC')+'. La ausencia se registra aunque no requiera reemplazo.</p>':'');
  for(const p of personas){
   const id=String(p.id),presente=ac.asistencias?.[id]==="presente",excusa=ac.excusas?.[id];
@@ -237,10 +239,27 @@ function htmlAsistenciaRatificada(x){
   h+='</div>';
  }
  if((ac.adicionales||[]).length){
-  h+='<p class="lgn-control-nota">Asistentes adicionales incorporados por el Teniente Tercero con respaldo de la fotografía del libro físico.</p>';
+  h+='<p class="lgn-control-nota">Asistentes adicionales incorporados por el oficial que ratificó con respaldo de la fotografía del libro físico.</p>';
  }
  return h+'</section>';
 }
+function opcionesPersonas(sel){
+ if(typeof ROSTER==="undefined")return '';
+ return ROSTER.filter(p=>p.activo!==false).sort((a,b)=>nombre(a.id).localeCompare(nombre(b.id),"es"))
+  .map(p=>'<option value="'+escHtml(p.id)+'"'+(String(p.id)===String(sel)?' selected':'')+'>'+escHtml(nombre(p.id))+'</option>').join('');
+}
+/* Cambios durante la noche: OBAC o conductor efectivo distintos de los programados (deben figurar presentes). */
+function htmlRolesEfectivos(x){
+ const ac=x.acreditacion||{},obac=ac.obacEfectivoId||x.dotacion?.obac,cond=ac.conductorEfectivoId||x.dotacion?.maq;
+ return '<div class="lgn-rezagados gf-roles"><h3>OBAC y conductor efectivos</h3>'+
+  '<p class="sub">Si cambió alguno durante la noche, elige quién cumplió la función. Debe figurar presente (agrégalo como rezagado si no estaba programado). El conductor reemplazante debe estar habilitado. El Capitán puede conducir, pero no ser OBAC a la vez.</p>'+
+  '<label class="rv-lbl" for="gfObac'+escHtml(x.fecha)+'">OBAC efectivo</label><select class="rv-sel" id="gfObac'+escHtml(x.fecha)+'" data-lgn-obac-ef data-prog="'+escHtml(x.dotacion?.obac)+'">'+opcionesPersonas(obac)+'</select>'+
+  '<label class="rv-lbl" for="gfCond'+escHtml(x.fecha)+'">Conductor efectivo</label><select class="rv-sel" id="gfCond'+escHtml(x.fecha)+'" data-lgn-cond-ef data-prog="'+escHtml(x.dotacion?.maq)+'">'+opcionesPersonas(cond)+'</select>'+
+  '<input type="text" maxlength="300" class="lgn-excusa-input" data-lgn-precedencia placeholder="Constancia de precedencia (opcional; no bloquea)" value="'+escHtml(ac.motivoPrecedencia||"")+'"></div>';
+}
+const ERRORES_RATIF={solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden ratificar.",conductor_no_habilitado:"El conductor reemplazante no está habilitado en la nómina.",
+ obac_y_conductor_deben_ser_distintos:"Una misma persona no puede ser OBAC y conductor.",precedencia_obac_requiere_motivo:"El OBAC reemplazante no es el más antiguo presente: escribe la constancia de precedencia.",
+ reemplazo_debe_estar_presente:"El OBAC o conductor reemplazante debe figurar presente.",noche_no_finalizada:"La noche aún no termina (06:00).",libro_no_cerrado_o_desactualizado:"El libro no está cerrado o cambió la dotación."};
 function seleccionarRez(ocupados){
  if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
  return '<option value="">Seleccionar asistente no programado…</option>'+
@@ -261,8 +280,9 @@ function semanaDe(fecha){
  return d.toISOString().slice(0,10);
 }
 function clasificarControl(x){
- if(x.acreditacionVigente)return {texto:"Acreditada",clase:"ok"};
- if(x.cierre)return {texto:"Pendiente de ratificación T3",clase:"pend"};
+ if(x.acreditacionVigente&&x.cumplimientoFinal)return {texto:"Cumplimiento acreditado · T3",clase:"ok"};
+ if(x.acreditacionVigente)return {texto:"Ratificada · falta acreditación T3",clase:"pend"};
+ if(x.cierre)return {texto:"Libro cerrado · falta ratificar",clase:"pend"};
  if(x.finalizada)return {texto:"Falta cierre OBAC",clase:"falta"};
  return {texto:"Programada / en curso",clase:""};
 }
@@ -330,10 +350,10 @@ function pintarControlAdmin(){
   else resumen.falta++;
  }
  const encabezado='<h2>Control Guardia Diaria</h2>'+
-  '<p class="sub">Consulta cronológica de guardias. Solo el Teniente Tercero puede ratificar. Los demás oficiales ven exclusivamente los registros ratificados.</p>';
+  '<p class="sub">Consulta cronológica de guardias. Pueden ratificar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente los registros ratificados.</p>';
  const indicadores='<div class="lgn-control-totales">'+
   (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
-    [resumen.pendiente,"Pendientes T3"],[resumen.acreditadas,"Ratificadas T3"],
+    [resumen.pendiente,"Pendientes de ratificar"],[resumen.acreditadas,"Ratificadas"],
     [resumen.falta,"Sin cierre OBAC"]]:[[resumen.acreditadas,"Guardias ratificadas"]])
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
@@ -351,7 +371,7 @@ function pintarControlAdmin(){
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
   '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
-  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Solo el Teniente Tercero puede corregir el acta.</p>';
+  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
  if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
  let grupoAnterior="";
  for(const x of terminadas){
@@ -381,11 +401,14 @@ function pintarControlAdmin(){
   }else html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>';
   if(x.acreditacionVigente&&x.acreditacion){
     const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
-    html+='<p><strong>Ratificada por T3:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+    html+='<p><strong>Ratificada por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
      (ratificada?' · '+escHtml(ratificada):"")+'</p>';
+    html+=(x.cumplimientoFinal||!x.acreditacionVigente?'':'')+(x.cumplimientoFinal?'<p><strong>Cumplimiento final:</strong> acreditado por el Teniente 3°</p>':
+     '<p class="sub"><strong>Falta la acreditación del cumplimiento final por el Teniente 3°.</strong> La noche ya está ratificada, pero aún no cuenta en estadísticas.</p>'+
+     (esT3Real?'<button type="button" class="btn small" data-lgn-final="'+escHtml(x.fecha)+'">Acreditar cumplimiento · T3</button>':''));
     html+=htmlAsistenciaRatificada(x);
    }else if(x.cierre){
-    html+='<p class="sub">Pendiente de ratificación del Teniente Tercero. La programación original no acredita presencia.</p>';
+    html+='<p class="sub">Pendiente de ratificación por un oficial autorizado. La programación original no acredita presencia.</p>';
    }
    if(t3 || (capitan&&x.acreditacionVigente)){
     html+='<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><p><strong>Reemplazantes externos:</strong> registro documental independiente de asistencia y estadísticas.</p><div data-lgn-externos-lista>Consulta pendiente.</div><button type="button" class="btn small secondary" data-lgn-ver-externos>Consultar externos</button></div>';
@@ -479,15 +502,18 @@ function pintarResumenMando(){
   host.querySelectorAll("[data-lgn-consultar]").forEach(btn=>btn.onclick=()=>abrirControlAdmin(btn.dataset.lgnConsultar));
   const verTodos=$("lgnMandoIr");if(verTodos)verTodos.onclick=()=>abrirControlAdmin();
   host.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
+  host.querySelectorAll("[data-lgn-final]").forEach(btn=>btn.onclick=()=>acreditarFinal(btn.dataset.lgnFinal,btn));
   return;
  }
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
+ const porVisto=capitan?terminadas.filter(x=>x.acreditacionVigente&&!x.vistoCapitan):[];
+ const textoVisto=porVisto.length?'<p class="sub"><strong>'+porVisto.length+' informe(s) ratificado(s) pendiente(s) de tu visto bueno.</strong> Ábrelos en «Ver guardias ratificadas».</p>':'';
  const semanaEnCurso=items.some(x=>semanaDe(x.fecha)===semanaActual);
  // Mantener un resumen de cierre cuando todas las noches ya fueron ratificadas.
  if(!semanaEnCurso&&!pendientes.length&&terminadas.length){
   host.innerHTML='<section class="card" aria-label="Guardias ratificadas">'+
-   '<h2>Control de guardia · Teniente Tercero</h2>'+
-   '<p class="sub">No tienes noches pendientes de ratificación. Los informes quedan disponibles en Control Guardia Diaria para consulta y para el Capitán.</p>'+
+   '<h2>Control de guardia · Oficiales</h2>'+
+   '<p class="sub">No tienes noches pendientes de ratificación. Los informes quedan disponibles en Control Guardia Diaria para consulta y para el Capitán.</p>'+textoVisto+
    '<button type="button" class="btn small secondary" id="lgnMandoIr">Ver guardias ratificadas</button></section>';
   const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
   return;
@@ -502,7 +528,7 @@ function pintarResumenMando(){
  const tareas=pendientes.slice().sort((a,b)=>Number(!!b.cierre)-Number(!!a.cierre)||a.fecha.localeCompare(b.fecha));
  const visibles=tareas.slice(0,7);
  host.innerHTML='<section class="card" aria-label="Acreditación de guardia nocturna">'+
-   '<h2>Control de guardia · Teniente Tercero</h2><p class="sub">'+escHtml(mensaje)+'</p>'+
+   '<h2>Control de guardia · Oficiales</h2><p class="sub">'+escHtml(mensaje)+'</p>'+textoVisto+
    visibles.map(x=>'<div class="lgn-control-dia" style="padding:10px;margin:7px 0">'+
     '<strong>'+escHtml(etiquetaGuardia(x.fecha))+'</strong>'+
     '<p class="sub">'+(x.cierre?'Cierre OBAC recibido · pendiente de ratificación':'Falta cierre del OBAC · ratificación bloqueada')+'</p>'+
@@ -512,6 +538,20 @@ function pintarResumenMando(){
    '<button type="button" class="btn secondary small" id="lgnMandoIr">Ver todas las guardias</button></section>';
  host.querySelectorAll("[data-lgn-t3-noche]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnT3Noche));
  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
+}
+async function acreditarFinal(fecha,boton){
+ if(!esT3Real||!actual||!boton||boton.disabled)return;
+ const it=items.find(x=>x.fecha===fecha);
+ if(!confirm("¿Confirmas que revisaste esta noche y acreditas su cumplimiento final? Desde ahora cuenta en las estadísticas."))return;
+ boton.disabled=true;const rotulo=boton.textContent;boton.textContent="Guardando…";
+ try{
+  const r=await fetch("/api/guardia/acreditar-final",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({fecha,actorId:actual,ifVersion:Number(it?.acreditacionVersion||0)})});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===409){boton.disabled=false;boton.textContent=rotulo;alert(d.error==="version_conflict"?"Otro oficial corrigió la noche mientras la revisabas. Actualiza y vuelve a revisar.":"La noche aún no está ratificada.");return;}
+  if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
+  await cargar(true);
+ }catch(e){boton.disabled=false;boton.textContent=rotulo;alert(String(e.message||"No se pudo acreditar. Reintenta."));}
 }
 async function marcarVisto(fecha,boton){
  if(!capitan||!actual||!boton||boton.disabled)return;
@@ -598,14 +638,14 @@ function pintarOficial(){
       '<a href="'+fotoUrl(x.fecha)+'" target="_blank" rel="noopener" class="btn secondary" style="display:inline-block;margin-bottom:8px">Ver fotografía del libro</a>';
   }else h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede acreditar.</p>';
   if(ac && x.acreditacion){
-    h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Teniente Tercero")+
+    h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
   if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
   if(t3 && rec){
     h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
     const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
-    if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes ratificarla; quedará registrado en el informe del Capitán que el Teniente Tercero ratificó una guardia en la que participó.</p>';
+    if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes ratificarla; quedará registrado en el informe que el oficial que ratificó participó en esta guardia.</p>';
     for(const p of participantes(x.dotacion)){
       const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
       const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
@@ -625,12 +665,13 @@ function pintarOficial(){
       '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
       '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
       '<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>'+ 
+      htmlRolesEfectivos(x)+
       '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
     h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de acreditación":"Ratificar noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
- area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados por el Teniente Tercero.")+'</p>');
+ area.innerHTML=h+(actualizados.length?"":'<p class="sub">'+(t3?"Todavía no hay noches terminadas.":"No hay informes ratificados.")+'</p>');
  const irNoche=$("lgnIrNoche");
  if(irNoche)irNoche.onchange=()=>{
   const fecha=irNoche.value;if(!fecha)return;
@@ -749,6 +790,14 @@ function agregarRez(boton){
  zona.querySelectorAll("[data-lgn-quitar]").forEach(b=>b.onclick=()=>quitarRez(b));
  editando=true;refrescarRez(zona);
 }
+/* Fallas de conexión: el servidor trata un envío repetido con el mismo contenido como el mismo acto, así que reintentar es seguro. */
+async function fetchReintento(url,opts,intentos=3){
+ let ultimo;
+ for(let i=0;i<intentos;i++){
+  try{return await fetch(url,opts);}catch(e){ultimo=e;await new Promise(r=>setTimeout(r,1200*(i+1)));}
+ }
+ throw ultimo;
+}
 async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
@@ -781,6 +830,19 @@ async function ratificar(fecha,boton){
   motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
   if(!motivo.trim())return;
  }
+ const selO=zona.querySelector("[data-lgn-obac-ef]"),selC=zona.querySelector("[data-lgn-cond-ef]"),prec=zona.querySelector("[data-lgn-precedencia]");
+ const obacEf=selO?.value||"",condEf=selC?.value||"";
+ if(selO&&selC){
+  for(const [id,rol,sl] of [[obacEf,"OBAC",selO],[condEf,"conductor",selC]]){
+   if(id&&String(id)!==String(sl.dataset.prog)&&asistencias[id]!=="presente"){
+    msg.textContent="El "+rol+" efectivo ("+nombre(id)+") debe figurar presente. Agrégalo como rezagado si no estaba programado.";return;}
+  }
+  if(obacEf&&obacEf===condEf){msg.textContent="Una misma persona no puede ser OBAC y conductor.";return;}
+ }
+ const payload={fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo};
+ if(selO&&obacEf&&obacEf!==selO.dataset.prog)payload.obacEfectivoId=obacEf;
+ if(selC&&condEf&&condEf!==selC.dataset.prog)payload.conductorEfectivoId=condEf;
+ if(prec&&prec.value.trim())payload.motivoPrecedencia=prec.value.trim();
  const total=Object.values(asistencias).filter(v=>v==="presente").length;
  const advertencia=(x.acreditacion?"¿Guardar corrección de la guardia ":"¿Ratificar la guardia ")+fecha+
   "?\nPresentes: "+total+" · Nuevos asistentes: "+adicionales.length+" · Excusados: "+Object.keys(excusas).length+
@@ -788,20 +850,20 @@ async function ratificar(fecha,boton){
  if(!confirm(advertencia))return;
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
-  const r=await fetch("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:motivo})});
+  const r=await fetchReintento("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(payload)});
   const d=await r.json().catch(()=>({}));
-  if(r.status===409){
+  if(r.status===409&&d.error==="version_conflict"){
    boton.disabled=false;
-   msg.textContent="La ratificación cambió mientras la revisabas. Actualiza el expediente antes de guardar otra corrección.";
+   msg.textContent="Otro oficial modificó esta ratificación mientras la revisabas. Actualiza el expediente antes de guardar otra corrección.";
    return;
   }
-  if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
+  if(!r.ok){boton.disabled=false;msg.textContent=ERRORES_RATIF[d.error]||("No se pudo ratificar: "+(d.error||r.status));return;}
   // La confirmación HTTP es el punto de guardado: no confundir un fallo de recarga con fallo de ratificación.
   ultimaRatificacion=fecha;
   historial=null;
   editando=false;
-  msg.textContent="Ratificación guardada. El Capitán fue informado automáticamente. Actualizando expediente…";
+  msg.textContent=(d.repetida?"Esta noche ya estaba ratificada con los mismos datos (no se duplicó). ":"Ratificación guardada. El Capitán fue informado automáticamente. ")+"Actualizando expediente…";
   try{
    const sincronizado=await cargar(true);
    if(!sincronizado){
@@ -821,8 +883,9 @@ async function ratificar(fecha,boton){
   }catch(error){
    msg.textContent="Ratificación guardada, pero no se pudo actualizar la pantalla. Usa Actualizar cierres.";
   }
- }catch(e){boton.disabled=false;msg.textContent="No se confirmó el guardado: "+(e.message||"Error de conexión")+". Antes de reintentar, actualiza y comprueba si la ratificación figura registrada.";}
+ }catch(e){boton.disabled=false;msg.textContent="Sin conexión: no se confirmó el guardado. Puedes volver a presionar el botón cuando haya señal; si la ratificación ya se había guardado, no se duplicará.";}
 }
+window.GermaniaLibro={abrirNoche:(f)=>abrirPanelMando(f),refrescar:()=>cargar(true)};
 function init(){
  const adminBtn=$("btnAdminGuardia");
  if(adminBtn&&!adminBtn.dataset.lgnReady){

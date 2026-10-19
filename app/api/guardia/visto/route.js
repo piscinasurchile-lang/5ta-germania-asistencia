@@ -1,4 +1,5 @@
 import {neon} from "@neondatabase/serverless";
+import {exigirSesionOficial} from "../../../../lib/guardia-sesion-oficial.js";
 import {ensureSchema,readState,writeState} from "../../../../lib/state-store.js";
 import {miercolesSemana,cargoCapitan,informeRatificado,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
 
@@ -12,6 +13,7 @@ function mismoOrigen(req){
 /** Único efecto de este botón: guardar acuse de lectura del Capitán, no acreditar asistencias. */
 export async function POST(req){
  if(!mismoOrigen(req))return error("origen_no_permitido",403);
+ const sesion=exigirSesionOficial(req);if(sesion)return sesion;
  let body;try{body=await req.json();}catch{return error("datos_invalidos",400);}
  const fecha=String(body?.fecha||""),actorId=String(body?.actorId||"");
  if(!miercolesSemana(fecha)||!actorId)return error("datos_invalidos",400);

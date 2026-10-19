@@ -68,8 +68,10 @@
        (ac.adicionales||[]).forEach(function(p){if(presentes.has(String(p.id)))suma(String(p.id),"adicionales",f);});
       var remplazan=new Set(reemplazos.values());
       remplazan.forEach(function(id){if(presentes.has(id))suma(id,"cubrio",f);});
-      if(n?.obac&&presentes.has(String(n.obac)))suma(String(n.obac),"obac",f);
-      if(n?.maq&&presentes.has(String(n.maq)))suma(String(n.maq),"maq",f);
+      /* OBAC y conductor que de verdad cumplieron la función (si hubo cambio durante la noche, se acreditan los efectivos). */
+      var obacId=ac.obacEfectivoId||(n&&n.obac),maqId=ac.conductorEfectivoId||(n&&n.maq);
+      if(obacId&&presentes.has(String(obacId)))suma(String(obacId),"obac",f);
+      if(maqId&&presentes.has(String(maqId)))suma(String(maqId),"maq",f);
     });
     var filas=Object.keys(por).filter(function(id){return !(bajas&&bajas[id]!==undefined&&bajas[id]!==null);}).map(function(id){return por[id];});
     resultado.sin=filas.filter(q=>!q.hechas&&!q.asig).length;
