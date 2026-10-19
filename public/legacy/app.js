@@ -3347,7 +3347,11 @@ async function datosPanel(desde,hasta){
     if(parteCuentaAsistencia(pt)) partes.push(pt);
   });
   const fallidos=resultados.filter(x=>x.status==="rejected").length;
-  if(fallidos) console.error("Dashboard: partes no disponibles:",fallidos);
+  const ausentes=resultados.filter(x=>x.status==="fulfilled"&&!x.value).length;
+  if(fallidos||ausentes){
+    console.error("Dashboard: lectura estadística incompleta",{fallidos,ausentes});
+    throw new Error("Estadísticas no verificables: "+fallidos+" lecturas fallidas y "+ausentes+" partes sin datos. No se mostrarán porcentajes parciales.");
+  }
   partes.sort((a,b)=>a.date<b.date?-1:1);
   const activos=sortedRoster(false);
   const stats={};
