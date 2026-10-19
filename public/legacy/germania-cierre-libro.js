@@ -226,6 +226,7 @@ function htmlAsistenciaRatificada(x){
  let h='<section class="lgn-acta-efectiva" data-lgn-acta-fecha="'+escHtml(x.fecha)+'">'+
   '<h3>Asistencia real ratificada · '+escHtml(fechaBonita(x.fecha))+'</h3>'+
   '<p class="sub"><strong>'+presentes+' asistieron · '+excusados+' excusados · '+ausentes+' ausentes</strong>. Esta lista es la utilizada para las estadísticas y el informe del Capitán.</p>'+
+  (ac.t3Participante?'<p class="sub lgn-t3-participo"><strong>Trazabilidad:</strong> ratificada por el Teniente Tercero, quien participó en esta guardia como '+escHtml(ac.t3Participante.rol)+' ('+(ac.t3Participante.asistencia==="presente"?"presente":"ausente")+').</p>':'')+
   (ac.dotacionEfectiva?'<p class="sub"><strong>Dotación efectiva: '+(ac.dotacionEfectiva.minimoCumplido?'mínimo cumplido':'INCOMPLETA')+'</strong> · '+ac.dotacionEfectiva.total+' presentes; '+ac.dotacionEfectiva.voluntarios+' voluntarios, '+(ac.dotacionEfectiva.maquinista?'maquinista presente':'sin maquinista')+', '+(ac.dotacionEfectiva.obac?'OBAC presente':'sin OBAC')+'. La ausencia se registra aunque no requiera reemplazo.</p>':'');
  for(const p of personas){
   const id=String(p.id),presente=ac.asistencias?.[id]==="presente",excusa=ac.excusas?.[id];
@@ -603,6 +604,8 @@ function pintarOficial(){
   if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
   if(t3 && rec){
     h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
+    const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
+    if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes ratificarla; quedará registrado en el informe del Capitán que el Teniente Tercero ratificó una guardia en la que participó.</p>';
     for(const p of participantes(x.dotacion)){
       const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
       const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
@@ -798,7 +801,7 @@ async function ratificar(fecha,boton){
   ultimaRatificacion=fecha;
   historial=null;
   editando=false;
-  msg.textContent="Ratificación guardada. Actualizando expediente…";
+  msg.textContent="Ratificación guardada. El Capitán fue informado automáticamente. Actualizando expediente…";
   try{
    const sincronizado=await cargar(true);
    if(!sincronizado){
