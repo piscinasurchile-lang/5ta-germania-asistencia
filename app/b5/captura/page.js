@@ -393,6 +393,7 @@ export default function CapturaB5(){
         return setMensaje("PARTE INCOMPLETO: faltan datos de la emergencia o voluntarios presentes. No se guardará ni enviará a Neon. Los borradores vacíos podrán eliminarse del historial tras revisión.");
       }
     }
+    if(tipo==="lista" && !nomina.some(p=>form.records?.[p.id]==="presente"))return setMensaje("ASISTENCIA INCOMPLETA: marca al menos un voluntario presente. No se guardará una lista vacía.");
     const defecto=tipo==="servicio"?"no":"ausente";
     const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
     const datos={...form,records};
