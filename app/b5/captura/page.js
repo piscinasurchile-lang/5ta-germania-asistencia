@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect,useRef,useState} from "react";
-import {prepararPartePDF,crearArchivoPartePDF} from "../../../lib/b5-parte-pdf.mjs";
+import {prepararPartePDF,crearArchivoPartePDF,prepararEmergenciaPDF,crearEmergenciaPDF} from "../../../lib/b5-parte-pdf.mjs";
 import {guardarNómina,leerNómina,guardarEdicion,leerEdicion,borrarEdicion,
   guardarBorrador,listarBorradores,cambiarBorrador,borrarBorradorLocal,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
 
@@ -53,6 +53,8 @@ const fechaLegible=d=>d?d.split("-").reverse().join("-"):"Sin fecha";
 
 export default function CapturaB5(){
   const [tipo,setTipo]=useState("");
+  const [modoServicio,setModoServicio]=useState("emergencia");
+  const [tiposEmergencia,setTiposEmergencia]=useState([]);
   const [form,setForm]=useState({});
   const [nomina,setNomina]=useState([]);
   const [nominaFecha,setNominaFecha]=useState("");
@@ -127,6 +129,8 @@ export default function CapturaB5(){
   useEffect(()=>{
     const clase=new URLSearchParams(window.location.search).get("tipo");
     setTipo(clase==="servicio"?"servicio":"lista");
+    setModoServicio(new URLSearchParams(window.location.search).get("modo")==="carro"?"carro":"emergencia");
+    try{setTiposEmergencia(JSON.parse(localStorage.getItem("b5:tipos-emergencia:v1")||"[]"));}catch{setTiposEmergencia([]);}
     abortRef.current=false;
     return()=>{abortRef.current=true;};
   },[]);
@@ -137,7 +141,13 @@ export default function CapturaB5(){
       try{
         const [edit,roster,queue]=await Promise.all([leerEdicion(tipo),leerNómina(),listarBorradores()]);
         if(!activo)return;
-        setForm(edit||blanco(tipo));
+        // Mantener intacta cualquier captura con datos; renovar solo fechas de formularios vacíos.
+        const conMarcas=edit&&Object.values(edit.records||{}).some(v=>["si","presente","justificado"].includes(v));
+        const conDatos=edit&&Object.entries(edit).some(([k,v])=>
+          !["date","svFecha","tipo","svTipoAct","registrarAsistencia","records"].includes(k)
+          && String(v??"").trim()!=="");
+        const formulario=edit&&(conMarcas||conDatos)?edit:blanco(tipo);
+        setForm(formulario);
         if(roster){setNomina(roster.lista);setNominaFecha(roster.actualizada);}
         setCola(queue);
         setListaPreparada(true);
@@ -167,6 +177,22 @@ export default function CapturaB5(){
   },[tipo]);
 
   function actualizarCampo(k,v){setForm(d=>({...d,[k]:v}));}
+  function agregarTipoEmergencia(){
+    const nuevo=window.prompt("Nuevo tipo de emergencia:");
+    if(!nuevo)return;
+    const limpio=nuevo.trim().replace(/\\s+/g," ").slice(0,100);
+    if(!limpio)return;
+    const existente=tiposEmergencia.find(t=>t.toLocaleLowerCase("es")===limpio.toLocaleLowerCase("es"));
+    const elegido=existente||limpio;
+    if(!existente){
+      const siguientes=[...tiposEmergencia,limpio].sort((a,b)=>a.localeCompare(b,"es"));
+      try{localStorage.setItem("b5:tipos-emergencia:v1",JSON.stringify(siguientes));}catch{
+        setMensaje("No se pudo guardar el tipo en esta tablet.");return;
+      }
+      setTiposEmergencia(siguientes);
+    }
+    actualizarCampo("svTipoEmergencia",elegido);
+  }
   function marcar(id,v){setForm(d=>({...d,records:{...d.records,[id]:v}}));}
 
   async function verRegistro(item,abrirEditor=false){
@@ -386,6 +412,22 @@ export default function CapturaB5(){
     if(guardando||!nomina.length||!listaPreparada)return;
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
     if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Indica la fecha y el tipo de servicio.");
+    if(tipo==="servicio" && form.svTipoAct==="Emergencia"){
+      if(!String(form.svTipoEmergencia||"").trim())return setMensaje("Selecciona o agrega el tipo de emergencia.");
+      if(!form.svHoraEmergencia||!form.svHoraLista||!String(form.svClave||"").trim()||!String(form.svUnidadCargo||"").trim()||!String(form.svConductor||"").trim())return setMensaje("Completa las dos horas, clave, OBAC y maquinista antes de guardar.");
+      const presentes=nomina.filter(p=>form.records?.[p.id]==="si").length;
+      const direccion=[form.svCalle,form.svNumeracion,form.svSector].filter(v=>String(v||"").trim()).join(" ").trim();
+      if(!direccion||!String(form.svTipoAct||"").trim()||!String(form.svFecha||"").trim()||!presentes){
+        return setMensaje("PARTE INCOMPLETO: faltan datos de la emergencia o voluntarios presentes. No se guardará ni enviará a Neon. Los borradores vacíos podrán eliminarse del historial tras revisión.");
+      }
+    }
+    if(tipo==="lista" && !nomina.some(p=>form.records?.[p.id]==="presente"))return setMensaje("ASISTENCIA INCOMPLETA: marca al menos un voluntario presente. No se guardará una lista vacía.");
+    const fechaCaptura=tipo==="servicio"?form.svFecha:form.date;
+    if(fechaCaptura!==fechaLocal()&&!window.confirm(
+      "La fecha del parte es "+fechaLegible(fechaCaptura)+", distinta de hoy ("+
+      fechaLegible(fechaLocal())+"). ¿Confirmas que corresponde al día real del servicio?"+
+      " La sincronización no cambiará esta fecha."
+    ))return;
     const defecto=tipo==="servicio"?"no":"ausente";
     const records=Object.fromEntries(nomina.map(p=>[String(p.id),form.records?.[p.id]||defecto]));
     const datos={...form,records};
@@ -442,10 +484,24 @@ export default function CapturaB5(){
   }
 
   async function compartirParte(item,modo){
-    if(item.tipo!=="lista"||item.estado!=="sincronizado"||procesandoArchivo)return;
+    if(item.estado!=="sincronizado"||procesandoArchivo)return;
     setProcesandoArchivo(item.id+modo);
     setMensajeArchivo("");
     try{
+      if(item.tipo==="servicio"){
+        const modelo=prepararEmergenciaPDF(item,item.datos,nomina);
+        const {blob,nombre:archivo}=await crearEmergenciaPDF(modelo);
+        if(modo==="whatsapp"){
+          const file=new File([blob],archivo,{type:"application/pdf"});
+          if(navigator.canShare?.({files:[file]})&&navigator.share){
+            try{await navigator.share({files:[file],title:"Emergencia B-5 "+modelo.numero});return;}
+            catch(e){if(e.name==="AbortError")return;}
+          }
+        }
+        await descargarPDF(blob,archivo);
+        setMensajeArchivo(modo==="whatsapp"?"PDF descargado; adjúntalo en WhatsApp.":"PDF de emergencia descargado.");
+        return;
+      }
       if(conexion!=="online")throw new Error("Conecta la tablet a Internet para obtener el parte oficial actualizado.");
       const params=new URLSearchParams({id:item.id,date:item.datos.date,tipo:item.datos.tipo});
       const r=await fetch("/api/b5/registros?"+params.toString(),{cache:"no-store",credentials:"same-origin"});
@@ -487,7 +543,7 @@ export default function CapturaB5(){
   return (
     <main className="capturaB5">
       <header className="barra">
-        <div><h1>GERMANIA · B-5</h1><p>{tipo==="servicio"?"Emergencias · Hoja de servicio":"Asistencia · Pasar lista"}</p></div>
+        <div><h1>GERMANIA · B-5</h1><p>{tipo==="servicio"?modoServicio==="carro"?"Servicio Carro":"Emergencia B-5":"Asistencia · Pasar lista"}</p></div>
         <button onClick={()=>window.location.assign("/b5")}>Volver a B-5</button>
       </header>
       <section className={"estado "+(conexion==="online"?"enlinea":"sinred")} role="status">
@@ -499,7 +555,7 @@ export default function CapturaB5(){
       {!!mensaje&&<p className="mensaje" role="status">{mensaje}</p>}
       <section className="contenido">
         <div className="franja">
-          <h2>{tipo==="servicio"?"Hoja de servicio B-5":"Parte de asistencia"}</h2>
+          <h2>{tipo==="servicio"?modoServicio==="carro"?"Servicio Carro":"Parte de Emergencia B-5":"Parte de asistencia"}</h2>
           <small>{nomina.length?nomina.length+" voluntarios en nómina local":"Nómina local no preparada"}</small>
         </div>
         {!nomina.length&&<p className="alarma">Para trabajar sin Internet, abre la tablet una vez con conexión para descargar la nómina. No se guardará una lista incompleta.</p>}
@@ -507,12 +563,12 @@ export default function CapturaB5(){
         <div className="campos">
           {tipo==="servicio"?<>
             <label>Fecha<input type="date" value={form.svFecha||""} onChange={e=>actualizarCampo("svFecha",e.target.value)}/></label>
-            <label>Tipo de actividad
+            {modoServicio==="carro"&&<label>Tipo de actividad
               <select value={form.svTipoAct||"Emergencia"} onChange={e=>setForm(d=>({...d,svTipoAct:e.target.value,
                   registrarAsistencia:e.target.value==="Emergencia"||e.target.value==="Acto de servicio"}))}>
-                {SERVICIOS.map(x=><option key={x}>{x}</option>)}
+                {SERVICIOS.filter(x=>x!=="Emergencia").map(x=><option key={x}>{x}</option>)}
               </select>
-            </label>
+            </label>}
           </>:<>
             <label>Fecha<input type="date" value={form.date||""} onChange={e=>actualizarCampo("date",e.target.value)}/></label>
             <label>Tipo de citación
@@ -525,7 +581,38 @@ export default function CapturaB5(){
             <label>Detalle<input value={form.detalle||""} onChange={e=>actualizarCampo("detalle",e.target.value)}/></label>
           </>}
         </div>
-        {tipo==="servicio"&&CAMPOS.map(([grupo,campos],idx)=>
+        {tipo==="servicio"&&modoServicio==="emergencia"&&<>
+          <h3 className="seccionFicha">1. Personal a cargo</h3>
+          <div className="campos">
+            <label>OBAC *<input value={form.svUnidadCargo||""} onChange={e=>actualizarCampo("svUnidadCargo",e.target.value)}/></label>
+            <label>Maquinista *<input value={form.svConductor||""} onChange={e=>actualizarCampo("svConductor",e.target.value)}/></label>
+          </div>
+          <h3 className="seccionFicha">2. Información de la emergencia</h3>
+          <div className="campos">
+            <label>Tipo de emergencia *
+              <select value={form.svTipoEmergencia||""} onChange={e=>actualizarCampo("svTipoEmergencia",e.target.value)}>
+                <option value="">Seleccionar tipo</option>
+                {tiposEmergencia.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <button type="button" className="agregarTipo" onClick={agregarTipoEmergencia}>+ Agregar tipo de emergencia</button>
+          </div>
+          <div className="campos">
+          <label>Hora de la emergencia<input type="time" value={form.svHoraEmergencia||""} onChange={e=>actualizarCampo("svHoraEmergencia",e.target.value)}/></label>
+          <label>Hora de lista (al terminar y ordenar el carro)<input type="time" value={form.svHoraLista||""} onChange={e=>actualizarCampo("svHoraLista",e.target.value)}/></label>
+          <label>Clave de despacho<input value={form.svClave||""} onChange={e=>actualizarCampo("svClave",e.target.value)}/></label>
+          <label>Dirección / calle<input value={form.svCalle||""} onChange={e=>actualizarCampo("svCalle",e.target.value)}/></label>
+          <label>Número<input value={form.svNumeracion||""} onChange={e=>actualizarCampo("svNumeracion",e.target.value)}/></label>
+          <label>Sector (opcional)<input value={form.svSector||""} onChange={e=>actualizarCampo("svSector",e.target.value)}/></label>
+          </div>
+          <h3 className="seccionFicha">3. Observaciones y recursos</h3>
+          <div className="campos">
+            <label>Observaciones<textarea value={form.svObservaciones||""} onChange={e=>actualizarCampo("svObservaciones",e.target.value)}/></label>
+            <label>Unidades de apoyo<input value={form.svApoyo||""} onChange={e=>actualizarCampo("svApoyo",e.target.value)}/></label>
+            <label>Material utilizado<input value={form.svMaterial||""} onChange={e=>actualizarCampo("svMaterial",e.target.value)}/></label>
+          </div>
+        </>}
+        {tipo==="servicio"&&modoServicio==="carro"&&CAMPOS.map(([grupo,campos],idx)=>
           <details key={grupo} open={idx===0}>
             <summary>{grupo}</summary>
             <div className="campos">
@@ -537,7 +624,7 @@ export default function CapturaB5(){
         )}
         <section className="asistencia">
           <div className="filaTitulo">
-            <h3>{tipo==="servicio"?"Concurrencia de voluntarios":"Pasar lista"}</h3>
+            <h3>{tipo==="servicio"&&modoServicio==="emergencia"?"4. Nómina de concurrentes":tipo==="servicio"?"Concurrencia de voluntarios":"Pasar lista"}</h3>
             <span>{nomina.filter(p=>(form.records?.[p.id]||"")===(tipo==="servicio"?"si":"presente")).length} {tipo==="servicio"?"concurrentes":"presentes"}</span>
           </div>
           {nomina.map(p=>{
@@ -551,7 +638,7 @@ export default function CapturaB5(){
                   onClick={()=>marcar(p.id,v)} aria-pressed={valor===v}>{label}</button>)}</div>
             </div>;
           })}
-          {tipo==="servicio"&&<label className="check">
+          {tipo==="servicio"&&modoServicio!=="emergencia"&&<label className="check">
             <input type="checkbox" checked={form.registrarAsistencia!==false}
               onChange={e=>actualizarCampo("registrarAsistencia",e.target.checked)}/>
             Sumar esta salida al control de asistencia
@@ -559,7 +646,7 @@ export default function CapturaB5(){
         </section>
         <p className="guiaGuardado">1. Marca a cada voluntario. 2. Revisa los totales. 3. Confirma que la asistencia está correcta. Si alguien no se marca, quedará como ausente.</p>
         <button className="guardar" disabled={!nomina.length||guardando||!listaPreparada} onClick={solicitarGuardar}>
-          {guardando?"Guardando en la tablet…":"Revisar antes de guardar"}
+          {guardando?"Guardando en la tablet…":"5. Revisar antes de guardar"}
         </button>
         <p className="explicacion">Primero se guarda en la memoria de la tablet. Solo aparecerá como sincronizado cuando Neon confirme la recepción y asigne el número oficial. No borres los datos del navegador si hay pendientes.</p>
         {conexion==="online"&&<a className="formularioCompleto" href={"/?b5dest="+tipo}>
@@ -585,7 +672,7 @@ export default function CapturaB5(){
               <div className="accionesRegistro">
                 <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
                 <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"||x.estado==="sustituido"} onClick={()=>verRegistro(x,true)}>Editar</button>
-                {x.tipo==="lista"&&<>
+                {(x.tipo==="lista"||x.datos?.svTipoAct==="Emergencia")&&<>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
                     onClick={()=>compartirParte(x,"pdf")}>PDF</button>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
@@ -609,6 +696,7 @@ export default function CapturaB5(){
               <button type="button" onClick={()=>{setSeleccion(null);setEdicionRegistro(null);setMensajeDetalle("");}}>Cerrar</button>
             </div>
             <p>{seleccion.datos.tipo||seleccion.datos.svTipoAct} · {seleccion.datos.detalle||"Sin detalle"}</p>
+            {seleccion.item.tipo==="servicio"&&seleccion.datos.svTipoAct==="Emergencia"&&<p>Hora de emergencia: {seleccion.datos.svHoraEmergencia||"Sin registrar"} · Hora de lista: {seleccion.datos.svHoraLista||"Sin registrar"} · Clave: {seleccion.datos.svClave||"Sin registrar"}</p>}
             {seleccion.item.estado==="sincronizado"&&!seleccion.remoto&&
               <p className="avisoLocal">Vista desde la copia de esta tablet. Para corregir o anular se necesita confirmar el parte vigente en Neon.</p>}
             {seleccion.datos.anulado&&<p className="alertaVacia">Este parte está anulado. Se conserva para auditoría y no suma asistencia.</p>}
@@ -624,7 +712,7 @@ export default function CapturaB5(){
                 onChange={e=>setEdicionRegistro(v=>({...v,registradoPor:e.target.value}))}/></label>
             </div>}
             <div className="detallePersonas">
-              {Object.entries((edicionRegistro||seleccion.datos).records||{}).map(([id,status])=>{
+              {Object.entries((edicionRegistro||seleccion.datos).records||{}).filter(([,status])=>seleccion.item.tipo!=="servicio"||status==="si").map(([id,status])=>{
                 const persona=nomina.find(p=>String(p.id)===String(id));
                 const estados=seleccion.item.tipo==="servicio"?[["si","Concurre"],["no","No concurre"]]:
                   [["presente","Presente"],["ausente","Ausente"],["justificado","Justificado"]];
@@ -689,13 +777,22 @@ export default function CapturaB5(){
       {confirmacion&&<div className="confirmacionFondo">
         <section className="confirmacionPanel" role="dialog" aria-modal="true" aria-labelledby="tituloConfirmacionB5">
           <div className="confirmacionPaso">PASO FINAL · VERIFICACIÓN</div>
-          <h2 id="tituloConfirmacionB5">¿Está seguro de guardar esta asistencia?</h2>
+          <h2 id="tituloConfirmacionB5">¿Está seguro de guardar este parte?</h2>
           <p>{confirmacion.modo==="correccion"?
             "Se corregirá el parte existente, conservando su número oficial y el historial de cambios.":
             "Primero quedará guardada en esta tablet. Con Internet se enviará automáticamente a Neon."}</p>
           <div className="confirmacionDatos">
             <div><strong>Fecha</strong><span>{fechaLegible(confirmacion.fecha)}</span></div>
             <div><strong>Actividad</strong><span>{confirmacion.actividad}</span></div>
+            {confirmacion.clase==="servicio"&&confirmacion.datos.svTipoAct==="Emergencia"&&<>
+              <div><strong>Hora emergencia</strong><span>{confirmacion.datos.svHoraEmergencia}</span></div>
+              <div><strong>Hora lista</strong><span>{confirmacion.datos.svHoraLista}</span></div>
+              <div><strong>Clave</strong><span>{confirmacion.datos.svClave}</span></div>
+              <div><strong>Tipo emergencia</strong><span>{confirmacion.datos.svTipoEmergencia}</span></div>
+              <div><strong>Dirección</strong><span>{[confirmacion.datos.svCalle,confirmacion.datos.svNumeracion,confirmacion.datos.svSector].filter(Boolean).join(" ")}</span></div>
+              <div><strong>OBAC</strong><span>{confirmacion.datos.svUnidadCargo}</span></div>
+              <div><strong>Maquinista</strong><span>{confirmacion.datos.svConductor}</span></div>
+            </>}
             {confirmacion.numero&&<div><strong>Parte</strong><span>N.º {String(confirmacion.numero).padStart(3,"0")}</span></div>}
           </div>
           {(()=>{const r=resumenParte(confirmacion.datos.records,confirmacion.clase);
@@ -743,6 +840,9 @@ export default function CapturaB5(){
         .fechaNomina{font-size:12px;color:#a6bacd}
         .alarma{background:#4d290e;color:#fff;padding:13px;border-radius:8px}
         .mensaje{max-width:1050px;margin:8px auto;color:#ffdc89;padding:10px;border:1px solid #9f8149;border-radius:8px}
+        .seccionFicha{margin:18px 0 7px;padding:9px 12px;background:#1b3448;border-left:4px solid #e4ba58;border-radius:5px;font-size:17px}
+        .agregarTipo{align-self:end;min-height:44px;background:#243f57;color:#fff;border:1px solid #819bb1;border-radius:8px;font-weight:700}
+        .campos textarea{width:100%;min-height:80px;background:#081522;color:white;border:1px solid #587089;border-radius:8px;padding:10px;font:inherit}
         .campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:13px 0}
         .campos label{display:grid;gap:6px;font-size:13px}
         input,select{width:100%;border:1px solid #587089;background:#081522;color:#fff;padding:12px;font-size:16px;border-radius:8px;min-width:0}
@@ -810,6 +910,16 @@ export default function CapturaB5(){
         .registro.registroB5{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
         .guiaGuardado{background:#172d3d;border:1px solid #426882;border-radius:10px;padding:11px 13px;color:#dfebf3;font-size:14px;line-height:1.55}
         .registro strong{color:#f4d37b}.registro small{width:100%;color:#ffcc85}
+        /* Tablet B-5: formulario compacto sin reducir las zonas táctiles. */
+        @media(min-width:621px) and (max-width:900px){
+          .capturaB5{padding:9px 12px 20px}
+          .contenido{padding:12px}
+          .campos{gap:8px 12px;margin:9px 0}
+          .campos label{gap:4px}
+          .campos input,.campos select,.campos textarea{padding:8px 10px;min-height:44px}
+          .franja h2{font-size:19px}
+          .persona{padding:8px 0}
+        }
         @media(max-width:620px){.capturaB5{padding:10px}.campos{grid-template-columns:1fr}
           .persona{flex-direction:column;align-items:stretch}.opciones{justify-content:stretch}.opciones button{flex:1;padding:9px 5px}
           .barra h1{font-size:18px}}
