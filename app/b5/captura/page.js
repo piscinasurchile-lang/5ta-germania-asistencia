@@ -137,7 +137,13 @@ export default function CapturaB5(){
       try{
         const [edit,roster,queue]=await Promise.all([leerEdicion(tipo),leerNómina(),listarBorradores()]);
         if(!activo)return;
-        setForm(edit||blanco(tipo));
+        // Mantener intacta cualquier captura con datos; renovar solo fechas de formularios vacíos.
+        const conMarcas=edit&&Object.values(edit.records||{}).some(v=>["si","presente","justificado"].includes(v));
+        const conDatos=edit&&Object.entries(edit).some(([k,v])=>
+          !["date","svFecha","tipo","svTipoAct","registrarAsistencia","records"].includes(k)
+          && String(v??"").trim()!=="");
+        const formulario=edit&&(conMarcas||conDatos)?edit:blanco(tipo);
+        setForm(formulario);
         if(roster){setNomina(roster.lista);setNominaFecha(roster.actualizada);}
         setCola(queue);
         setListaPreparada(true);
