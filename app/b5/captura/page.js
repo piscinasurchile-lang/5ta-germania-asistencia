@@ -61,6 +61,8 @@ export default function CapturaB5(){
   const [nominaFecha,setNominaFecha]=useState("");
   const [conexion,setConexion]=useState("comprobando");
   const [cola,setCola]=useState([]);
+  const [historialNeon,setHistorialNeon]=useState([]);
+  const [errorHistorial,setErrorHistorial]=useState("");
   const [mensaje,setMensaje]=useState("");
   const [guardando,setGuardando]=useState(false);
   const [listaPreparada,setListaPreparada]=useState(false);
@@ -80,6 +82,15 @@ export default function CapturaB5(){
   const sincronizandoRef=useRef(false);
   const abortRef=useRef(false);
 
+  async function cargarHistorialNeon(clase){
+    if(!["lista","servicio"].includes(clase))return;
+    try{
+      const r=await fetch("/api/b5/historial?tipo="+clase,{cache:"no-store",credentials:"same-origin"});
+      if(!r.ok)throw Error(r.status===403?"Tablet no registrada":"No se pudo consultar Neon");
+      const j=await r.json();
+      if(!abortRef.current){setHistorialNeon(j.items||[]);setErrorHistorial("");}
+    }catch(e){if(!abortRef.current){setHistorialNeon([]);setErrorHistorial(e.message);}}
+  }
   async function recargarCola(){
     try{setCola(await listarBorradores());}catch(e){setMensaje(e.message);}
   }
@@ -124,6 +135,7 @@ export default function CapturaB5(){
       await refrescarNomina();
       await sincronizarBorradores(recargarCola);
       await recargarCola();
+      await cargarHistorialNeon(tipo);
     }finally{sincronizandoRef.current=false;}
   }
 
@@ -658,6 +670,21 @@ export default function CapturaB5(){
         {conexion==="online"&&<a className="formularioCompleto" href={"/?b5dest="+tipo}>
           Abrir formulario completo y PDF (solo con Internet)
         </a>}
+        <section className="historial" aria-label="Partes oficiales en Neon">
+          <h3>Partes oficiales registrados · {tipo==="lista"?"Asistencia":"Servicio y emergencias"}</h3>
+          <p className="explicacion">Estos partes están guardados en Neon y siguen visibles aunque se cambie de tablet. Los anulados no cuentan como asistencia.</p>
+          <button type="button" onClick={()=>cargarHistorialNeon(tipo)} disabled={conexion!=="online"}>Actualizar historial oficial</button>
+          {conexion!=="online"&&<p className="avisoLocal">Sin Internet: consulta los registros locales que aparecen debajo.</p>}
+          {!!errorHistorial&&<p className="avisoLocal">Historial oficial no disponible: {errorHistorial}</p>}
+          {historialNeon.filter(x=>!x.anulado).slice(0,30).map(x=><div className="registro registroB5" key={x.clave}>
+            <div className="registroEncabezado"><strong>N.º {x.numero||"—"}/{x.anio||"—"} · {fechaLegible(x.fecha)}</strong><span>Guardado en Neon</span></div>
+            <div>{x.tipo||"Sin tipo"}{x.claveDespacho?" · Clave "+x.claveDespacho:""} · {x.presentes} presentes</div>
+            {x.vinculacion&&<small>Asistencia vinculada a un servicio B-5; no corresponde a una nueva citación.</small>}
+          </div>)}
+          {!!historialNeon.filter(x=>x.anulado).length&&<details className="historialAuditoria"><summary>Partes oficiales anulados · {historialNeon.filter(x=>x.anulado).length}</summary>
+            {historialNeon.filter(x=>x.anulado).map(x=><p key={x.clave}>N.º {x.numero||"—"} · {fechaLegible(x.fecha)} · {x.tipo} · Anulado</p>)}
+          </details>}
+        </section>
         {(visibles.length>0||historicos.length>0)&&<section className="historial">
           <h3>Registros de esta tablet</h3>
           {visibles.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>{
