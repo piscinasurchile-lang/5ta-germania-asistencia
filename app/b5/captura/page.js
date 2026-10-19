@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect,useRef,useState} from "react";
-import {prepararPartePDF,crearArchivoPartePDF} from "../../../lib/b5-parte-pdf.mjs";
+import {prepararPartePDF,crearArchivoPartePDF,prepararEmergenciaPDF,crearEmergenciaPDF} from "../../../lib/b5-parte-pdf.mjs";
 import {guardarNómina,leerNómina,guardarEdicion,leerEdicion,borrarEdicion,
   guardarBorrador,listarBorradores,cambiarBorrador,borrarBorradorLocal,contarPendientes,sincronizarBorradores} from "../../../lib/b5-offline-browser.js";
 
@@ -465,10 +465,24 @@ export default function CapturaB5(){
   }
 
   async function compartirParte(item,modo){
-    if(item.tipo!=="lista"||item.estado!=="sincronizado"||procesandoArchivo)return;
+    if(item.estado!=="sincronizado"||procesandoArchivo)return;
     setProcesandoArchivo(item.id+modo);
     setMensajeArchivo("");
     try{
+      if(item.tipo==="servicio"){
+        const modelo=prepararEmergenciaPDF(item,item.datos,nomina);
+        const {blob,nombre:archivo}=await crearEmergenciaPDF(modelo);
+        if(modo==="whatsapp"){
+          const file=new File([blob],archivo,{type:"application/pdf"});
+          if(navigator.canShare?.({files:[file]})&&navigator.share){
+            try{await navigator.share({files:[file],title:"Emergencia B-5 "+modelo.numero});return;}
+            catch(e){if(e.name==="AbortError")return;}
+          }
+        }
+        await descargarPDF(blob,archivo);
+        setMensajeArchivo(modo==="whatsapp"?"PDF descargado; adjúntalo en WhatsApp.":"PDF de emergencia descargado.");
+        return;
+      }
       if(conexion!=="online")throw new Error("Conecta la tablet a Internet para obtener el parte oficial actualizado.");
       const params=new URLSearchParams({id:item.id,date:item.datos.date,tipo:item.datos.tipo});
       const r=await fetch("/api/b5/registros?"+params.toString(),{cache:"no-store",credentials:"same-origin"});
@@ -619,7 +633,7 @@ export default function CapturaB5(){
               <div className="accionesRegistro">
                 <button type="button" onClick={()=>verRegistro(x)}>Ver</button>
                 <button type="button" disabled={x.tipo!=="lista"||x.estado==="anulado"||x.estado==="sustituido"} onClick={()=>verRegistro(x,true)}>Editar</button>
-                {x.tipo==="lista"&&<>
+                {(x.tipo==="lista"||x.datos?.svTipoAct==="Emergencia")&&<>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
                     onClick={()=>compartirParte(x,"pdf")}>PDF</button>
                   <button type="button" disabled={x.estado!=="sincronizado"||conexion!=="online"||!!procesandoArchivo}
@@ -643,6 +657,7 @@ export default function CapturaB5(){
               <button type="button" onClick={()=>{setSeleccion(null);setEdicionRegistro(null);setMensajeDetalle("");}}>Cerrar</button>
             </div>
             <p>{seleccion.datos.tipo||seleccion.datos.svTipoAct} · {seleccion.datos.detalle||"Sin detalle"}</p>
+            {seleccion.item.tipo==="servicio"&&seleccion.datos.svTipoAct==="Emergencia"&&<p>Hora de emergencia: {seleccion.datos.svHoraEmergencia||"Sin registrar"} · Hora de lista: {seleccion.datos.svHoraLista||"Sin registrar"} · Clave: {seleccion.datos.svClave||"Sin registrar"}</p>}
             {seleccion.item.estado==="sincronizado"&&!seleccion.remoto&&
               <p className="avisoLocal">Vista desde la copia de esta tablet. Para corregir o anular se necesita confirmar el parte vigente en Neon.</p>}
             {seleccion.datos.anulado&&<p className="alertaVacia">Este parte está anulado. Se conserva para auditoría y no suma asistencia.</p>}
@@ -723,13 +738,18 @@ export default function CapturaB5(){
       {confirmacion&&<div className="confirmacionFondo">
         <section className="confirmacionPanel" role="dialog" aria-modal="true" aria-labelledby="tituloConfirmacionB5">
           <div className="confirmacionPaso">PASO FINAL · VERIFICACIÓN</div>
-          <h2 id="tituloConfirmacionB5">¿Está seguro de guardar esta asistencia?</h2>
+          <h2 id="tituloConfirmacionB5">¿Está seguro de guardar este parte?</h2>
           <p>{confirmacion.modo==="correccion"?
             "Se corregirá el parte existente, conservando su número oficial y el historial de cambios.":
             "Primero quedará guardada en esta tablet. Con Internet se enviará automáticamente a Neon."}</p>
           <div className="confirmacionDatos">
             <div><strong>Fecha</strong><span>{fechaLegible(confirmacion.fecha)}</span></div>
             <div><strong>Actividad</strong><span>{confirmacion.actividad}</span></div>
+            {confirmacion.clase==="servicio"&&confirmacion.datos.svTipoAct==="Emergencia"&&<>
+              <div><strong>Hora emergencia</strong><span>{confirmacion.datos.svHoraEmergencia}</span></div>
+              <div><strong>Hora lista</strong><span>{confirmacion.datos.svHoraLista}</span></div>
+              <div><strong>Clave</strong><span>{confirmacion.datos.svClave}</span></div>
+            </>}
             {confirmacion.numero&&<div><strong>Parte</strong><span>N.º {String(confirmacion.numero).padStart(3,"0")}</span></div>}
           </div>
           {(()=>{const r=resumenParte(confirmacion.datos.records,confirmacion.clase);
