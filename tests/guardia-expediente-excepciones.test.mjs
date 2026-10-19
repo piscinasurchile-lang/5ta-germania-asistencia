@@ -5,13 +5,13 @@ import {firmaDotacion,validarAcreditacion,registroVigente} from "../lib/guardia-
 import {validarComplementos,resumenEfectivo} from "../lib/guardia-asistencia-efectiva.js";
 
 const fecha="2026-10-15";
-const noche={maq:"m1",obac:"o1",vol:["v1","v2","v3"]};
+const noche={maq:"m1",obac:"o1",vol:["v1","v2"]};
 const roster=[
  {id:"t3",activo:true,cargo:"Teniente Tercero"},
- ...["m1","o1","v1","v2","v3","r1"].map(id=>({id,activo:true,cargo:"Bombero"}))
+ ...["m1","o1","v1","v2","r1"].map(id=>({id,activo:true,cargo:"Bombero"}))
 ];
 const revision={estado:"aprobada",aprobadaEn:"2026-10-14T16:00:00Z",noches:{[fecha]:noche}};
-const asistencia={m1:"presente",o1:"presente",v1:"presente",v2:"presente",v3:"ausente"};
+const asistencia={m1:"presente",o1:"presente",v1:"presente",v2:"ausente"};
 const validar=(overrides={})=>validarAcreditacion({
  fecha,noche,revision,asistencias:asistencia,ahoraLocal:"2026-10-16T06:30",
  actor:"t3",roster,...overrides
@@ -23,7 +23,7 @@ test("dotación: firma cambia al reemplazar OBAC o maquinista",()=>{
  assert.notEqual(firmaDotacion({...noche,maq:"r1"}),base);
 });
 test("T3: no acredita asistencia por nómina sin marcar",()=>{
- assert.equal(validar({asistencias:{...asistencia,v2:undefined}}),"asistencia_incompleta");
+ assert.equal(validar({asistencias:{...asistencia,v1:undefined}}),"asistencia_incompleta");
 });
 test("T3: reemplazante de nómina puede figurar como adicional presente",()=>{
  assert.equal(validar({adicionales:[{id:"r1",motivo:"Reemplazo autorizado por T3"}],
@@ -34,13 +34,13 @@ test("PENDIENTE funcional: externo fuera de nómina sigue bloqueado",()=>{
   asistencias:{...asistencia,externo:"presente"}}),"rezagado_no_en_nomina");
 });
 test("guardia reforzada: ausencia sigue siendo ausencia, no presente",()=>{
- const res=resumenEfectivo({asistentes:["m1","o1","v1","v2"],ausentes:["v3"],excusas:{}});
- assert.deepEqual(res.faltantes,["v3"]);
+ const res=resumenEfectivo({asistentes:["m1","o1","v1"],ausentes:["v2"],excusas:{}});
+ assert.deepEqual(res.faltantes,["v2"]);
 });
 test("excusa: no equivale a asistencia",()=>{
- assert.equal(validar({excusas:{v3:"Imposibilidad informada"}}),null);
+ assert.equal(validar({excusas:{v2:"Imposibilidad informada"}}),null);
  const res=resumenEfectivo({asistentes:["m1","o1","v1","v2"],ausentes:["v3"],excusas:{v3:"Imposibilidad informada"}});
- assert.deepEqual(res.excusados,["v3"]);assert.ok(!res.presentes.includes("v3"));
+ assert.deepEqual(res.excusados,["v3"]);assert.ok(!res.presentes.includes("v2"));
 });
 test("acreditación antigua se invalida si cambia rol en dotación",()=>{
  const ac={fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firmaDotacion(noche),
