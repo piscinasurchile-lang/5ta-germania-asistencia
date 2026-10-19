@@ -111,3 +111,16 @@ test("el modo PWA offline existe exclusivamente bajo /b5 y nunca cachea /api",()
  assert.match(api,/buscarDispositivo\(registro,token\)/);
  assert.match(api,/origen_no_permitido/);
 });
+
+test("bloquea asistencias sin ningún presente",()=>{
+ const item=asistencia();item.datos.records={v1:"ausente",v2:"ausente"};
+ assert.throws(()=>validarBorrador(item),/al menos un voluntario presente/);
+});
+test("bloquea emergencias sin dirección o sin concurrentes",()=>{
+ const item=servicio();delete item.datos.svSector;
+ assert.throws(()=>validarBorrador(item),/Emergencia incompleta/);
+ item.datos.svCalle="Calle Central";item.datos.records={v1:"no",v2:"no"};
+ assert.throws(()=>validarBorrador(item),/Emergencia incompleta/);
+ item.datos.records.v1="si";
+ assert.equal(validarBorrador(item),true);
+});
