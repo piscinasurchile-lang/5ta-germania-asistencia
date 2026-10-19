@@ -53,6 +53,7 @@ const fechaLegible=d=>d?d.split("-").reverse().join("-"):"Sin fecha";
 
 export default function CapturaB5(){
   const [tipo,setTipo]=useState("");
+  const [modoServicio,setModoServicio]=useState("emergencia");
   const [form,setForm]=useState({});
   const [nomina,setNomina]=useState([]);
   const [nominaFecha,setNominaFecha]=useState("");
@@ -127,6 +128,7 @@ export default function CapturaB5(){
   useEffect(()=>{
     const clase=new URLSearchParams(window.location.search).get("tipo");
     setTipo(clase==="servicio"?"servicio":"lista");
+    setModoServicio(new URLSearchParams(window.location.search).get("modo")==="carro"?"carro":"emergencia");
     abortRef.current=false;
     return()=>{abortRef.current=true;};
   },[]);
@@ -393,6 +395,7 @@ export default function CapturaB5(){
     if(tipo==="lista"&&(!form.date||!form.tipo))return setMensaje("Indica la fecha y el tipo de citación.");
     if(tipo==="servicio"&&(!form.svFecha||!form.svTipoAct))return setMensaje("Indica la fecha y el tipo de servicio.");
     if(tipo==="servicio" && form.svTipoAct==="Emergencia"){
+      if(!form.svHoraEmergencia||!form.svHoraLista||!String(form.svClave||"").trim()||!String(form.svUnidadCargo||"").trim()||!String(form.svConductor||"").trim())return setMensaje("Completa las dos horas, clave, OBAC y maquinista antes de guardar.");
       const presentes=nomina.filter(p=>form.records?.[p.id]==="si").length;
       const direccion=[form.svCalle,form.svNumeracion,form.svSector].filter(v=>String(v||"").trim()).join(" ").trim();
       if(!direccion||!String(form.svTipoAct||"").trim()||!String(form.svFecha||"").trim()||!presentes){
@@ -507,7 +510,7 @@ export default function CapturaB5(){
   return (
     <main className="capturaB5">
       <header className="barra">
-        <div><h1>GERMANIA · B-5</h1><p>{tipo==="servicio"?"Emergencias · Hoja de servicio":"Asistencia · Pasar lista"}</p></div>
+        <div><h1>GERMANIA · B-5</h1><p>{tipo==="servicio"?modoServicio==="carro"?"Servicio Carro":"Emergencia B-5":"Asistencia · Pasar lista"}</p></div>
         <button onClick={()=>window.location.assign("/b5")}>Volver a B-5</button>
       </header>
       <section className={"estado "+(conexion==="online"?"enlinea":"sinred")} role="status">
@@ -519,7 +522,7 @@ export default function CapturaB5(){
       {!!mensaje&&<p className="mensaje" role="status">{mensaje}</p>}
       <section className="contenido">
         <div className="franja">
-          <h2>{tipo==="servicio"?"Hoja de servicio B-5":"Parte de asistencia"}</h2>
+          <h2>{tipo==="servicio"?modoServicio==="carro"?"Servicio Carro":"Parte de Emergencia B-5":"Parte de asistencia"}</h2>
           <small>{nomina.length?nomina.length+" voluntarios en nómina local":"Nómina local no preparada"}</small>
         </div>
         {!nomina.length&&<p className="alarma">Para trabajar sin Internet, abre la tablet una vez con conexión para descargar la nómina. No se guardará una lista incompleta.</p>}
@@ -527,12 +530,12 @@ export default function CapturaB5(){
         <div className="campos">
           {tipo==="servicio"?<>
             <label>Fecha<input type="date" value={form.svFecha||""} onChange={e=>actualizarCampo("svFecha",e.target.value)}/></label>
-            <label>Tipo de actividad
+            {modoServicio==="carro"&&<label>Tipo de actividad
               <select value={form.svTipoAct||"Emergencia"} onChange={e=>setForm(d=>({...d,svTipoAct:e.target.value,
                   registrarAsistencia:e.target.value==="Emergencia"||e.target.value==="Acto de servicio"}))}>
-                {SERVICIOS.map(x=><option key={x}>{x}</option>)}
+                {SERVICIOS.filter(x=>x!=="Emergencia").map(x=><option key={x}>{x}</option>)}
               </select>
-            </label>
+            </label>}
           </>:<>
             <label>Fecha<input type="date" value={form.date||""} onChange={e=>actualizarCampo("date",e.target.value)}/></label>
             <label>Tipo de citación
@@ -545,7 +548,18 @@ export default function CapturaB5(){
             <label>Detalle<input value={form.detalle||""} onChange={e=>actualizarCampo("detalle",e.target.value)}/></label>
           </>}
         </div>
-        {tipo==="servicio"&&CAMPOS.map(([grupo,campos],idx)=>
+        {tipo==="servicio"&&modoServicio==="emergencia"&&<div className="campos">
+          <label>Hora de la emergencia<input type="time" value={form.svHoraEmergencia||""} onChange={e=>actualizarCampo("svHoraEmergencia",e.target.value)}/></label>
+          <label>Hora de lista (al terminar y ordenar el carro)<input type="time" value={form.svHoraLista||""} onChange={e=>actualizarCampo("svHoraLista",e.target.value)}/></label>
+          <label>Clave de despacho<input value={form.svClave||""} onChange={e=>actualizarCampo("svClave",e.target.value)}/></label>
+          <label>Dirección / calle<input value={form.svCalle||""} onChange={e=>actualizarCampo("svCalle",e.target.value)}/></label>
+          <label>Número<input value={form.svNumeracion||""} onChange={e=>actualizarCampo("svNumeracion",e.target.value)}/></label>
+          <label>Sector (opcional)<input value={form.svSector||""} onChange={e=>actualizarCampo("svSector",e.target.value)}/></label>
+          <label>OBAC<input value={form.svUnidadCargo||""} onChange={e=>actualizarCampo("svUnidadCargo",e.target.value)}/></label>
+          <label>Maquinista<input value={form.svConductor||""} onChange={e=>actualizarCampo("svConductor",e.target.value)}/></label>
+          <label>Observaciones<textarea value={form.svObservaciones||""} onChange={e=>actualizarCampo("svObservaciones",e.target.value)}/></label>
+        </div>}
+        {tipo==="servicio"&&modoServicio==="carro"&&CAMPOS.map(([grupo,campos],idx)=>
           <details key={grupo} open={idx===0}>
             <summary>{grupo}</summary>
             <div className="campos">
