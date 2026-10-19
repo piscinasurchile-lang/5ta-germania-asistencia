@@ -632,7 +632,7 @@ export default function CapturaB5(){
                 onChange={e=>setEdicionRegistro(v=>({...v,registradoPor:e.target.value}))}/></label>
             </div>}
             <div className="detallePersonas">
-              {Object.entries((edicionRegistro||seleccion.datos).records||{}).map(([id,status])=>{
+              {Object.entries((edicionRegistro||seleccion.datos).records||{}).filter(([,status])=>seleccion.item.tipo!=="servicio"||status==="si").map(([id,status])=>{
                 const persona=nomina.find(p=>String(p.id)===String(id));
                 const estados=seleccion.item.tipo==="servicio"?[["si","Concurre"],["no","No concurre"]]:
                   [["presente","Presente"],["ausente","Ausente"],["justificado","Justificado"]];
