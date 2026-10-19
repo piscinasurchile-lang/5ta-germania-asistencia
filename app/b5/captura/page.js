@@ -540,6 +540,8 @@ export default function CapturaB5(){
   const pendientes=contarPendientes(cola);
   const bloqueados=cola.filter(i=>i.estado==="revision");
   const confirmados=cola.filter(i=>i.estado==="sincronizado");
+  const visibles=cola.filter(i=>i.tipo===tipo && !["anulado","sustituido"].includes(i.estado));
+  const historicos=cola.filter(i=>i.tipo===tipo && ["anulado","sustituido"].includes(i.estado));
   const etiqueta=conexion==="online"?
     (bloqueados.length&&pendientes===bloqueados.length?"EN LÍNEA · Registros para revisión":
       pendientes?"EN LÍNEA · Sincronizando registros pendientes":"EN LÍNEA · Neon disponible"):
@@ -656,9 +658,9 @@ export default function CapturaB5(){
         {conexion==="online"&&<a className="formularioCompleto" href={"/?b5dest="+tipo}>
           Abrir formulario completo y PDF (solo con Internet)
         </a>}
-        {cola.length>0&&<section className="historial">
+        {(visibles.length>0||historicos.length>0)&&<section className="historial">
           <h3>Registros de esta tablet</h3>
-          {cola.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>{
+          {visibles.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>{
             const r=resumenParte(x.datos?.records,x.tipo);
             return <div className="registro registroB5" key={x.id}>
               <div className="registroEncabezado">
@@ -693,6 +695,7 @@ export default function CapturaB5(){
               </div>
             </div>;
           })}
+          {!!historicos.length&&<details className="historialAuditoria"><summary>Historial de auditoría · {historicos.length} copias anuladas o anteriores</summary><p>Estos registros se conservan para auditoría y no deben contabilizarse como asistencias vigentes.</p>{historicos.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).map(x=><div className="registro registroB5" key={x.id}><strong>{fechaLegible(x.datos?.date||x.datos?.svFecha)} · N.º {x.numero||"sin número"}</strong><p>{x.estado==="sustituido"?"Copia anterior conservada":"Parte anulado"} · {x.datos?.tipo||x.datos?.svTipoAct}</p><button type="button" onClick={()=>verRegistro(x)}>Ver respaldo</button></div>)}</details>}
           {!!mensajeArchivo&&<p className="avisoLocal" role="status">{mensajeArchivo}</p>}
           {seleccion&&<section className="detalleRegistro" id="detalleRegistroB5">
             <div className="registroEncabezado">
