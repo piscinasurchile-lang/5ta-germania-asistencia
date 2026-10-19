@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
-import {idsEfectivos} from "../../../../lib/guardia-asistencia-efectiva.js";
+import {idsEfectivos,evaluarDotacionEfectiva} from "../../../../lib/guardia-asistencia-efectiva.js";
 export const runtime = "nodejs";
 
 // Identificación provisoria por nombre y apellidos de la nómina institucional.
@@ -72,8 +72,17 @@ export async function POST(req) {
        adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),
        excusas:Object.fromEntries(Object.entries(excusas).map(([id,motivo])=>[String(id),motivo.trim()])),
       asistentes,ausentes,
+      dotacionEfectiva:evaluarDotacionEfectiva(revision.noches[fecha],b.asistencias,adicionales),
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoEn:new Date().toISOString(),
       motivoCorreccion:String(b.motivoCorreccion||"").trim().slice(0,400),
+      /* Trazabilidad: el T3 puede ratificar una guardia en la que participó, pero queda registrado quién y en qué rol. */
+      t3Participante:ids.includes(String(actor))?{
+        id:String(actor),nombre:oficialNombre,
+        rol:String(revision.noches[fecha].obac)===String(actor)?"OBAC":String(revision.noches[fecha].maq)===String(actor)?"Maquinista":programados.includes(String(actor))?"Voluntario":"Asistente adicional",
+        asistencia:b.asistencias[String(actor)]
+      }:null,
+      /* El Capitán recibe el informe automáticamente al ratificar: queda constancia de cuándo se puso a su disposición. */
+      informeCapitan:{estado:"disponible_automatico",en:new Date().toISOString()},
       historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
         porNombre:anteriorRegistro.acreditadoPorNombre||null,

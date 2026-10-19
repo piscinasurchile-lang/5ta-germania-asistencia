@@ -68,7 +68,11 @@ export async function GET(req){
     "LEFT JOIN app_state ac ON ac.key='guardia-acreditacion:'||n.fecha "+
     "LEFT JOIN app_state vc ON vc.key='guardia-visto-capitan:'||n.fecha "+
     "WHERE g.value->>'estado'='aprobada' AND n.fecha<=$1 ORDER BY n.fecha DESC LIMIT $4";
-  const rows=await sql.query(q,[ahora.slice(0,10),patron,historico?70:(esAdmin?260:8),historico?500:(esAdmin?1820:56)]);
+  // El Capitán necesita detectar correcciones de semanas anteriores sin abrir el historial anual.
+  // Se consulta hasta 26 semanas para su bandeja de avisos; el historial sigue disponible por año.
+  const semanasConsulta=historico?70:(esAdmin?260:(esCapitan?26:8));
+  const filasConsulta=historico?500:(esAdmin?1820:(esCapitan?182:56));
+  const rows=await sql.query(q,[ahora.slice(0,10),patron,semanasConsulta,filasConsulta]);
   const items=rows.map(r=>{
     const revision={estado:"aprobada",aprobadaEn:r.aprobada_en,noches:{[r.fecha]:r.dotacion}};
     const ratificada=informeRatificado({acreditacion:r.acreditacion,revision,noche:r.dotacion,cierre:r.cierre});
