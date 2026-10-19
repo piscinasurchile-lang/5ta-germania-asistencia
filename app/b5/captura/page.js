@@ -671,7 +671,7 @@ export default function CapturaB5(){
           Abrir formulario completo y PDF (solo con Internet)
         </a>}
         <section className="historial" aria-label="Partes oficiales en Neon">
-          <h3>Partes oficiales registrados · {tipo==="lista"?"Asistencia":"Servicio y emergencias"}</h3>
+          <h3>Partes oficiales registrados · {tipo==="lista"?"Asistencia":"Servicio y emergencias"}</h3>\n          <details className="historialAuditoria" key={"historial-"+tipo}>\n            <summary>{tipo==="servicio"?"Emergencias realizadas":"Asistencias registradas"} · {historialNeon.filter(x=>!x.anulado).length}</summary>\n            <div style={{maxHeight:"340px",overflowY:"auto",overscrollBehavior:"contain",padding:"8px 2px"}}>
           <p className="explicacion">Estos partes están guardados en Neon y siguen visibles aunque se cambie de tablet. Los anulados no cuentan como asistencia.</p>
           <button type="button" onClick={()=>cargarHistorialNeon(tipo)} disabled={conexion!=="online"}>Actualizar historial oficial</button>
           {conexion!=="online"&&<p className="avisoLocal">Sin Internet: consulta los registros locales que aparecen debajo.</p>}
@@ -684,7 +684,7 @@ export default function CapturaB5(){
           {!!historialNeon.filter(x=>x.anulado).length&&<details className="historialAuditoria"><summary>Partes oficiales anulados · {historialNeon.filter(x=>x.anulado).length}</summary>
             {historialNeon.filter(x=>x.anulado).map(x=><p key={x.clave}>N.º {x.numero||"—"} · {fechaLegible(x.fecha)} · {x.tipo} · Anulado</p>)}
           </details>}
-        </section>
+            </div>\n          </details>\n        </section>
         {(visibles.length>0||historicos.length>0)&&<section className="historial">
           <h3>Registros de esta tablet</h3>
           {visibles.slice().sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)).slice(0,20).map(x=>{
