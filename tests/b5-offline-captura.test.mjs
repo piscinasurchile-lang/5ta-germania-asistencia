@@ -26,7 +26,8 @@ const asistencia=(id="00000000-0000-4000-8000-000000000001")=>({
 });
 const servicio=(id="00000000-0000-4000-8000-000000000002")=>({
   id,tipo:"servicio",datos:{svFecha:"2026-10-14",svTipoAct:"Emergencia",svHoraSalida:"18:15",
-    svConductor:"Maquinista B-5",svSector:"Villarrica",registrarAsistencia:true,
+    svConductor:"Maquinista B-5",svUnidadCargo:"OBAC B-5",svSector:"Villarrica",
+    svHoraEmergencia:"18:10",svHoraLista:"19:45",svClave:"10-01",registrarAsistencia:true,
     records:{v1:"si",v2:"no"}}
 });
 
@@ -146,4 +147,31 @@ test("B5: advierte antes de guardar una fecha distinta al día actual",()=>{
  const fuente=fs.readFileSync(new URL("../app/b5/captura/page.js",import.meta.url),"utf8");
  assert.match(fuente,/fechaCaptura!==fechaLocal\(\)&&!window\.confirm/);
  assert.match(fuente,/La sincronización no cambiará esta fecha/);
+});
+
+test("B5: el nuevo formato exige exactamente los dos horarios de emergencia",()=>{
+ const b=servicio();delete b.datos.svHoraEmergencia;
+ assert.throws(()=>validarBorrador(b),/hora de emergencia/);
+ b.datos.svHoraEmergencia="18:10";delete b.datos.svHoraLista;
+ assert.throws(()=>validarBorrador(b),/hora de lista/);
+ b.datos.svHoraLista="19:45";delete b.datos.svClave;
+ assert.throws(()=>validarBorrador(b),/clave/);
+ b.datos.svClave="10-01";
+ assert.equal(validarBorrador(b),true);
+});
+test("B5: el PDF conserva los datos antiguos sin inventar horas",async()=>{
+ const {prepararEmergenciaPDF}=await import("../lib/b5-parte-pdf.mjs");
+ const b=servicio();
+ delete b.datos.svHoraEmergencia;delete b.datos.svHoraLista;
+ const pdf=prepararEmergenciaPDF({...b,estado:"sincronizado",numero:3},b.datos,[{id:"v1",nombre:"Ana"}]);
+ assert.equal(pdf.horaEmergencia,"Sin registrar");
+ assert.equal(pdf.horaLista,"Sin registrar");
+ assert.deepEqual(pdf.concurrentes,["Ana"]);
+});
+test("B5: el código de captura conserva datos locales y el servidor usa hora de emergencia",()=>{
+ const frontend=fs.readFileSync(new URL("../app/b5/captura/page.js",import.meta.url),"utf8");
+ const backend=fs.readFileSync(new URL("../lib/b5-offline-server.mjs",import.meta.url),"utf8");
+ assert.match(frontend,/guardarEdicion\(tipo,form\)/);
+ assert.match(frontend,/guardarBorrador\(tipo,datos\)/);
+ assert.match(backend,/tipo==="Emergencia"\?d\.svHoraEmergencia:d\.svHoraSalida/);
 });
