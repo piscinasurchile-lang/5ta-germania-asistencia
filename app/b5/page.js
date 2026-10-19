@@ -9,8 +9,7 @@ const VOL_KEY="germania:voluntario-dispositivo:v2";
 
 const DESTINOS=[
   {id:"servicio",titulo:"Emergencia B-5",detalle:"Parte de emergencia y lista final",color:"#ee5757",simbolo:"🚒"},
-  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"},
-  {id:"carro",titulo:"Servicio Carro",detalle:"Mantención, combustible y traslados",color:"#e0b45c",simbolo:"⚙"}
+  {id:"lista",titulo:"Asistencia",detalle:"Pasar lista",color:"#55a8eb",simbolo:"✓"}
 ];
 
 function limpiarIdentidadAnterior(){
