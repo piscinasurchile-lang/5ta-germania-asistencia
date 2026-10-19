@@ -39,12 +39,12 @@ test("guardia reforzada: ausencia sigue siendo ausencia, no presente",()=>{
 });
 test("excusa: no equivale a asistencia",()=>{
  assert.equal(validar({excusas:{v2:"Imposibilidad informada"}}),null);
- const res=resumenEfectivo({asistentes:["m1","o1","v1","v2"],ausentes:["v3"],excusas:{v3:"Imposibilidad informada"}});
- assert.deepEqual(res.excusados,["v3"]);assert.ok(!res.presentes.includes("v2"));
+ const res=resumenEfectivo({asistentes:["m1","o1","v1"],ausentes:["v2"],excusas:{v2:"Imposibilidad informada"}});
+ assert.deepEqual(res.excusados,["v2"]);assert.ok(!res.presentes.includes("v2"));
 });
 test("acreditación antigua se invalida si cambia rol en dotación",()=>{
  const ac={fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firmaDotacion(noche),
-  asistencias:asistencia,asistentes:["m1","o1","v1","v2"],ausentes:["v3"]};
+  asistencias:asistencia,asistentes:["m1","o1","v1"],ausentes:["v2"]};
  assert.equal(registroVigente(ac,revision),true);
  assert.equal(registroVigente(ac,{...revision,noches:{[fecha]:{...noche,maq:"r1"}}}),false);
 });
@@ -61,7 +61,7 @@ test("no se acredita antes de terminar la noche",()=>{
 test("informe del Capitán solo con cierre y ratificación coherentes",()=>{
  const foto="sha256-foto-ejemplo";
  const cierre={estado:"enviado",fotoClave:"foto-demo",fotoSHA256:foto,enviadoEn:"2026-10-16T06:10:00Z",revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firmaDotacion(noche)};
- const acreditacion={fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firmaDotacion(noche),asistencias:asistencia,asistentes:["m1","o1","v1","v2"],ausentes:["v3"],cierreLibroFotoSHA256:foto,cierreLibroEn:cierre.enviadoEn};
+ const acreditacion={fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,dotacionFirma:firmaDotacion(noche),asistencias:asistencia,asistentes:["m1","o1","v1"],ausentes:["v2"],cierreLibroFotoSHA256:foto,cierreLibroEn:cierre.enviadoEn};
  assert.equal(informeRatificado({acreditacion,revision,noche,cierre}),true);
  assert.equal(informeRatificado({acreditacion,revision,noche,cierre:{...cierre,fotoSHA256:"foto-diferente"}}),false);
  assert.equal(informeRatificado({acreditacion,revision,noche:{...noche,obac:"r1"},cierre}),false);
