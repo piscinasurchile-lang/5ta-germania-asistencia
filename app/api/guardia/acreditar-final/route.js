@@ -1,7 +1,7 @@
 import {neon} from "@neondatabase/serverless";
 import {exigirSesionOficial} from "../../../../lib/guardia-sesion-oficial.js";
 import {ensureSchema,readState,writeState} from "../../../../lib/state-store.js";
-import {cargoAutorizadoGuardia,cumplimientoFinalT3,firmaContenido} from "../../../../lib/guardia-acreditacion.js";
+import {cargoAutorizadoGuardia,cargoTeniente3,cumplimientoFinalT3,firmaContenido} from "../../../../lib/guardia-acreditacion.js";
 import {miercolesSemana,informeRatificado} from "../../../../lib/guardia-libro.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
 export const runtime="nodejs";
@@ -26,6 +26,13 @@ export async function POST(req){
   const noche=rev.value?.noches?.[fecha];
   if(!noche||!informeRatificado({acreditacion:ac.value,revision:rev.value,noche,cierre:lb.value}))return error("noche_no_ratificada",409);
   if(cumplimientoFinalT3(ac.value))return Response.json({ok:true,repetida:true,version:ac.version},{headers:{"Cache-Control":"no-store"}});
+  // Ventana: 06:00 del dia siguiente en Chile; 48 horas de prioridad exclusiva para T3.
+  const partes=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+  const horaLocal=partes.year+"-"+partes.month+"-"+partes.day+"T"+partes.hour+":"+partes.minute;
+  const finFecha=new Date(Date.parse(fecha+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+  const plazoFecha=new Date(Date.parse(finFecha+"T12:00:00Z")+172800000).toISOString().slice(0,10);
+  if(horaLocal<finFecha+"T06:00")return error("noche_no_finalizada",409);
+  if(!cargoTeniente3(actor.cargo)&&horaLocal<plazoFecha+"T06:00")return error("solo_teniente_3_durante_48h",403);
   // La versión que vio el oficial debe ser la vigente: si otro oficial corrigió mientras tanto, debe revisar de nuevo.
   if(Number.isInteger(b?.ifVersion)&&b.ifVersion!==ac.version)return error("version_conflict",409,{version:ac.version});
   const nombre=[actor.nombre,actor.apellidoPaterno,actor.apellidoMaterno].filter(Boolean).join(" ").trim();
