@@ -1,7 +1,7 @@
 /* El modo sin conexión solo precarga la pantalla B-5.
  * El resto de Germania mantiene navegación en línea y jamás cachea /api/.
  */
-const CACHE="germania-static-v10-b5";
+const CACHE="germania-static-v11-b5";
 const ASSETS=["/manifest.webmanifest","/legacy/germania-icon.svg","/legacy/germania-192.png",
   "/legacy/germania-512.png","/legacy/apple-touch-icon.png","/legacy/carro-b5.webp"];
 const B5_PAGES=["/b5","/b5/captura"];
