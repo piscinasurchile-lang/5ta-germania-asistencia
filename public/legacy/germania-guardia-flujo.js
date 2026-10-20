@@ -21,7 +21,7 @@ function larga(f){return new Date(f+"T12:00:00Z").toLocaleDateString("es-CL",{ti
 function hora(iso){try{return new Date(iso).toLocaleString("es-CL",{timeZone:"America/Santiago"});}catch(e){return iso||"";}}
 var ESTADOS={
   en_curso_o_futura:["Aún no termina","gris"],sin_cierre_de_libro:["Falta cerrar el libro","rojo"],registro_cerrado:["Libro cerrado · falta ratificar","amarillo"],
-  ratificada_pendiente_t3:["Ratificada · falta acreditación T3","naranja"],acreditada_t3:["Cumplimiento acreditado · T3","verde"]};
+  ratificada_pendiente_acreditacion:["Ratificada · falta acreditación oficial","naranja"],acreditada_oficial:["Cumplimiento acreditado · oficial","verde"]};
 var MOTIVOS={obac_ausente:"OBAC ausente",conductor_ausente:"conductor ausente",voluntarios_insuficientes:"menos de 2 voluntarios",sin_fotografia:"sin fotografía"};
 var TIPOS={no_llega:"Voluntario que no llega",obac_ausente:"OBAC ausente",conductor_ausente:"Conductor ausente",retiro_obac_conductor:"OBAC o conductor se retira",llega_tarde:"Voluntario que llega tarde",
   retiro_anticipado:"Voluntario se retira antes",reemplazo_durante:"Reemplazo durante la guardia",refuerzos:"Solicitud de refuerzos",dotacion_insuficiente:"Dotación bajo el mínimo",
@@ -57,7 +57,7 @@ async function enviar(url,cuerpo){
   }
   return {status:0,d:{error:"sin_conexion"},ultimo:ultimo};
 }
-var ERR={noches_pendientes:"Hay noches sin ratificar o sin acreditar por el T3.",solo_teniente_3:"Solo el Teniente 3° acredita el cumplimiento final.",noche_no_ratificada:"La noche aún no está ratificada.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
+var ERR={noches_pendientes:"Hay noches sin ratificar o sin acreditar por un oficial autorizado.",solo_teniente_3:"La acreditación requiere un oficial autorizado.",noche_no_ratificada:"La noche aún no está ratificada.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
   libro_ya_cerrado:"El libro de esa noche ya estaba cerrado.",noche_no_finalizada:"La noche aún no termina (06:00).",motivo_requerido:"Escribe un motivo (mínimo 8 letras).",novedades_requeridas:"Escribe las novedades.",
   detalle_requerido:"Escribe el detalle.",version_conflict:"Otro oficial modificó esto a la vez. Actualiza e inténtalo de nuevo."};
 function err(d){return ERR[d&&d.error]||("No se pudo completar: "+(d&&d.error||"error"));}
@@ -66,9 +66,9 @@ function err(d){return ERR[d&&d.error]||("No se pudo completar: "+(d&&d.error||"
 function chip(n){var e=ESTADOS[n.estado]||[n.estado,"gris"];return '<span class="gf-chip gf-'+e[1]+'">'+esc(e[0])+'</span>';}
 function resumenLinea(){
   var d=S.data;if(!d)return "Sin datos";if(!d.aprobada)return "Semana sin programación aprobada";
-  var rat=d.noches.filter(function(n){return n.estado==="acreditada_t3";}).length,rt=d.noches.filter(function(n){return !!n.ratificacion;}).length,ab=0;
+  var rat=d.noches.filter(function(n){return n.estado==="acreditada_oficial";}).length,rt=d.noches.filter(function(n){return !!n.ratificacion;}).length,ab=0;
   d.noches.forEach(function(n){ab+=n.incidencias.abiertas;});
-  return rat+"/"+d.noches.length+" acreditadas por T3 ("+rt+" ratificadas)"+(d.cierre?(d.cierreVigente?" · semana cerrada":" · cierre desactualizado"):"")+(ab?" · "+ab+" incidencia(s) abierta(s)":"");
+  return rat+"/"+d.noches.length+" acreditadas por oficiales ("+rt+" ratificadas)"+(d.cierre?(d.cierreVigente?" · semana cerrada":" · cierre desactualizado"):"")+(ab?" · "+ab+" incidencia(s) abierta(s)":"");
 }
 function etapa(n,titulo,estado,cuerpo,abiertas){
   return '<details class="gf-et" data-et="'+n+'"'+(abiertas.indexOf(String(n))>=0?" open":"")+'><summary><b>'+n+'.</b> '+esc(titulo)+'<span class="gf-est">'+esc(estado)+'</span></summary><div class="gf-cuerpo">'+cuerpo+'</div></details>';
@@ -126,21 +126,21 @@ function render(){
   /* 6: ratificación */
   var f6=noches.map(function(n){
     var btn=puede&&n.libro.cerrado&&n.finalizada?'<button type="button" class="btn small secondary" data-ratif="'+n.fecha+'">'+(n.ratificacion?"Revisar o corregir":"Revisar y ratificar")+'</button>':"";
-    var btnF=esT3(yo())&&n.ratificacion&&n.estado==="ratificada_pendiente_t3"?'<button type="button" class="btn small" data-final="'+n.fecha+'" data-v="'+(n.ratificacion.version||0)+'">Acreditar cumplimiento · T3</button>':"";
+    var btnF=autorizado(yo())&&n.ratificacion&&n.estado==="ratificada_pendiente_acreditacion"?'<button type="button" class="btn small" data-final="'+n.fecha+'" data-v="'+(n.ratificacion.version||0)+'">Acreditar cumplimiento</button>':"";
     var r=n.ratificacion?'<br><span class="sub">Ratificó '+esc(n.ratificacion.porNombre||"")+(n.ratificacion.porCargo?' ('+esc(n.ratificacion.porCargo)+')':'')+' · '+esc(hora(n.ratificacion.en))+(n.ratificacion.cumplimiento&&n.ratificacion.cumplimiento.motivos.length?' · '+esc(n.ratificacion.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):'')+'</span>':"";
     return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+r+'</span>'+btn+btnF+'</div>';
   }).join("");
-  var pend=noches.filter(function(n){return n.estado!=="acreditada_t3";}).length;
-  h+=etapa(6,"Ratificación y acreditación",pend?pend+" pendiente(s)":"Todas acreditadas",(f6||'<p class="sub">Sin noches.</p>')+'<p class="sub">Paso 1: ratifica cualquiera (Capitán, Teniente 1°, 2° o 3°). Paso 2: solo el Teniente 3° acredita el cumplimiento final; recién ahí la noche cuenta en estadísticas. Queda registrado quién, cuándo y qué cambió.</p>',abiertas);
+  var pend=noches.filter(function(n){return n.estado!=="acreditada_oficial";}).length;
+  h+=etapa(6,"Ratificación y acreditación",pend?pend+" pendiente(s)":"Todas acreditadas",(f6||'<p class="sub">Sin noches.</p>')+'<p class="sub">Paso 1: ratifica cualquiera (Capitán, Teniente 1°, 2° o 3°). Paso 2: el T3 acredita prioritariamente; si queda pendiente, puede acreditar Capitán, T1 o T2; recién ahí la noche cuenta en estadísticas. Queda registrado quién, cuándo y qué cambió.</p>',abiertas);
   /* 7: cierre semanal, estadísticas y PDF */
   var tabla=noches.map(function(n){var r=n.ratificacion;return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+'<br><span class="sub">Programados '+n.programada.total+(r?' · Presentes '+r.asistentes.length+' · Ausentes '+r.ausentes.length+' · Reemplazos/adicionales '+r.adicionales.length+' · OBAC '+esc(nom(r.obacEfectivoId))+' · Conductor '+esc(nom(r.conductorEfectivoId)):'')+(n.incidencias.total?' · Incidencias '+n.incidencias.total:'')+'</span></span>'+
     '<span class="gf-pdf"><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="descargar">PDF</button><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="imprimir">Imprimir</button><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="whatsapp">WhatsApp</button></span></div>';}).join("");
   var cierre=d.cierre?'<p class="sub"><b>'+(d.cierreVigente?"Semana cerrada":"Cierre desactualizado (hubo correcciones)")+'</b> por '+esc(d.cierre.cerradaPorNombre)+' ('+esc(d.cierre.cerradaPorCargo)+') · '+esc(hora(d.cierre.cerradaEn))+'</p>':'';
-  var btnCierre=puede?'<button type="button" class="btn small" id="gfCerrarSemana"'+(d.puedeCerrar?"":" disabled")+'>'+(d.cierre?"Volver a cerrar la semana":"Cerrar la semana")+'</button>'+(d.pendientes.length?'<p class="sub">No se puede cerrar: faltan '+d.pendientes.length+' noche(s) por terminar, ratificar o acreditar (T3).</p>':''):'';
+  var btnCierre=puede?'<button type="button" class="btn small" id="gfCerrarSemana"'+(d.puedeCerrar?"":" disabled")+'>'+(d.cierre?"Volver a cerrar la semana":"Cerrar la semana")+'</button>'+(d.pendientes.length?'<p class="sub">No se puede cerrar: faltan '+d.pendientes.length+' noche(s) por terminar, ratificar o acreditar (oficial).</p>':''):'';
   h+=etapa(7,"Cierre semanal, estadísticas y PDF",d.cierre?(d.cierreVigente?"Cerrada":"Reabrir"):(d.pendientes.length?"Faltan "+d.pendientes.length:"Lista para cerrar"),
     cierre+(tabla||'<p class="sub">Sin noches.</p>')+(puede?'<label class="gf-lbl" for="gfObs">Observaciones del cierre (opcional)</label><input id="gfObs" type="text" maxlength="600" class="gf-in">':'')+btnCierre+
     (noches.length?'<div class="gf-pdf" style="margin-top:8px"><button type="button" class="btn small secondary" data-pdf="s" data-a="descargar">PDF semana completa</button><button type="button" class="btn small secondary" data-pdf="s" data-a="imprimir">Imprimir</button><button type="button" class="btn small secondary" data-pdf="s" data-a="whatsapp">WhatsApp</button></div>':'')+
-    '<p class="sub">Las estadísticas individuales se calculan solo con noches ratificadas y acreditadas por el T3 (vigentes), una vez por noche.</p><p class="status-msg" data-msg="7" role="status">'+esc(S.msg["7"]||"")+'</p>',abiertas);
+    '<p class="sub">Las estadísticas individuales se calculan solo con noches ratificadas y acreditadas por un oficial autorizado (vigentes), una vez por noche.</p><p class="status-msg" data-msg="7" role="status">'+esc(S.msg["7"]||"")+'</p>',abiertas);
   h+='</details>';
   host.innerHTML=h;enlazar(host);
 }
@@ -218,7 +218,7 @@ async function seccionNoche(doc,n,nuevaPagina){
   var filas=[["Registro del libro",l.cerrado?(l.sinFoto?"Cerrado SIN fotografía por "+((l.cierrePorOficial&&l.cierrePorOficial.nombre)||"un oficial")+" — "+(l.motivoSinFoto||""):"Cerrado con fotografía por "+(l.obacNombre||nom(n.programada.obac))+" · "+hora(l.enviadoEn)):"Sin cerrar"],
     ["Guardia ratificada",r?"Sí — "+r.porNombre+" ("+(r.porCargo||"oficial")+", código "+r.porId+") · "+hora(r.en):"No"],
     ["Cumplimiento reglamentario",r&&r.cumplimiento?(r.cumplimiento.estado==="acreditado"?"Acreditado":"NO acreditado: "+r.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):"Sin evaluar"],
-    ["Cumplimiento final (Teniente 3°)",n.cumplimientoFinal?"Acreditado por "+(n.cumplimientoFinal.porNombre||"T3")+" ("+(n.cumplimientoFinal.porCargo||"Teniente 3°")+") · "+(n.cumplimientoFinal.en?hora(n.cumplimientoFinal.en):"registro anterior al flujo"):(r?"PENDIENTE de acreditación del Teniente 3°":"No aplica")],
+    ["Cumplimiento final (oficial)",n.cumplimientoFinal?"Acreditado por "+(n.cumplimientoFinal.porNombre||"T3")+" ("+(n.cumplimientoFinal.porCargo||"Teniente 3°")+") · "+(n.cumplimientoFinal.en?hora(n.cumplimientoFinal.en):"registro anterior al flujo"):(r?"PENDIENTE de acreditación oficial":"No aplica")],
     ["Estado general",e[0]]];
   doc.autoTable({startY:(nuevaPagina?48:46),body:filas,theme:"grid",styles:{fontSize:8,cellPadding:2},columnStyles:{0:{fontStyle:"bold",cellWidth:46}},margin:{left:14,right:14,top:46,bottom:16}});
   var P=n.programada;
