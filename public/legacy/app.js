@@ -5810,7 +5810,7 @@ document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementB
   document.addEventListener("click",function(e){
     const enlace=e.target.closest('[data-go="historial"],[data-tab="historial"]');
     if(!enlace)return;
-    window.__abrirHistorialPersonal();
+    if(!window.__historialPersonalActivo)window.__abrirHistorialPersonal();
   },true);
   const institucional=document.getElementById("hpInstitucional");
   institucional.addEventListener("click",function(){activar(false);renderHistorial();});
