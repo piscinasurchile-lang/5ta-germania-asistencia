@@ -2047,7 +2047,7 @@ async function renderGnTablaSemanal(){
     : inscripcionCerrada
       ? '<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>'
       : "";
-  box.innerHTML=nota+'<p class="sub">Los voluntarios de cada noche están ordenados por precedencia oficial. Los cargos administrativos no implican mando operativo.</p><div class="minute-table-wrap"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
+  box.innerHTML=nota+'<p class="sub">Los voluntarios de cada noche están ordenados por precedencia oficial. Los cargos administrativos no implican mando operativo.</p><div class="minute-table-wrap gn-dotacion-responsive"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
     +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
