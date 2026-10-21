@@ -4,7 +4,7 @@
 var anterior=[],navegando=false;
 function activo(){var p=document.querySelector(".panel.active");return p?p.id.replace(/^panel-/,""):"germania";}
 function permitido(){return !window.GermaniaAtras||!window.GermaniaAtras.puedeSalir||window.GermaniaAtras.puedeSalir();}
-function ir(destino){if(!destino||destino===activo())return;if(!permitido())return;navegando=true;try{window.__mostrarPestana(destino);}finally{navegando=false;}}
+function ir(destino){if(!destino||destino===activo())return false;if(!permitido())return false;navegando=true;try{window.__mostrarPestana(destino);return true;}finally{navegando=false;}}
 function barra(panel){
  if(panel.id==="panel-germania"||panel.querySelector(".g-nav-retorno"))return;
  var nav=document.createElement("nav");nav.className="g-nav-retorno";nav.setAttribute("aria-label","Navegación de pantalla");
@@ -12,7 +12,7 @@ function barra(panel){
  [["← Atrás","atras"],["⌂ Inicio","inicio"]].forEach(function(item){
  var b=document.createElement("button");b.type="button";b.className="btn small secondary";b.textContent=item[0];
  b.style.cssText="padding:7px 12px;min-height:36px;font-size:13px;flex:0 0 auto";
- b.onclick=function(){if(item[1]==="inicio"){anterior=[];ir("germania");}else{var destino=anterior.length?anterior.pop():"germania";ir(destino);}};
+ b.onclick=function(){if(item[1]==="inicio"){if(ir("germania"))anterior=[];}else{var destino=anterior.length?anterior[anterior.length-1]:"germania";if(ir(destino)&&anterior.length)anterior.pop();}};
  nav.appendChild(b);
  });panel.insertBefore(nav,panel.firstChild);
 }
