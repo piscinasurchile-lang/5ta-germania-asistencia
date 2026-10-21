@@ -91,7 +91,7 @@ async function pintar(){
     if(term&&ac&&ac.dotacionEfectiva)h+='<p class="sub"><b>Dotación efectiva: '+(ac.dotacionEfectiva.minimoCumplido?'mínimo cumplido':'INCOMPLETA')+'</b> · '+ac.dotacionEfectiva.total+' presentes.</p>';
     h+='</div>';
   });
-  h+='<p class="sub">Solo lectura. La asistencia la ratifica el Teniente Tercero con la foto del libro.</p></details>';
+  h+='<p class="sub">Solo lectura. Capitán y Tenientes 1°, 2° y 3° pueden ratificar una vez cerrado el libro. La acreditación final corresponde al T3 durante las primeras 48 horas desde las 06:00.</p></details>';
   host.innerHTML=h;
 }
 var css=".gdo-noche{margin:10px 0;padding-top:6px;border-top:1px solid #2c3a44}.gdo-noche h3{margin:6px 0;text-transform:capitalize;font-size:1em}.gdo-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;padding:6px 0;border-bottom:1px solid #1d272e}.gdo-nom{flex:1 1 55%;min-width:0}.gdo-chip{flex:0 1 auto;font-size:.82em;padding:3px 9px;border-radius:12px;border:1px solid #56626b;max-width:100%}.gdo-verde{border-color:#2e9e5b;color:#8ee0ae}.gdo-rojo{border-color:#ef4444;color:#ff9a95}.gdo-gris{color:#c3ccd2}";
