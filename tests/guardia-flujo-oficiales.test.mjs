@@ -85,13 +85,13 @@ test("cierre de libro por oficial sin foto cuenta como registro cerrado, no como
  assert.equal(informeRatificado({acreditacion:ac,revision,noche,cierre}),true);
  assert.equal(informeRatificado({acreditacion:ac,revision,noche,cierre:{...cierre,sinFoto:false}}),false,"sin foto y sin marca sinFoto no vale");
  const r=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:{...ac,cumplimiento:{estado:"con_incumplimientos",motivos:["obac_ausente","sin_fotografia"]},dotacionEfectiva:{}},incidencias:[],revision,ahora:"2026-10-21T07:00"});
- assert.equal(r.estado,"acreditada_t3","registro anterior al flujo (sin cargo) lo creó el T3");
+ assert.equal(r.estado,"acreditada_oficial","registro anterior al flujo se conserva como acreditación histórica");
  assert.equal(r.reglamento,"con_incumplimientos");
  const porCapitan=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:{...ac,acreditadoPorCargo:"Capitán",cumplimientoFinal:null,cumplimiento:{estado:"acreditado",motivos:[]},dotacionEfectiva:{}},incidencias:[],revision,ahora:"2026-10-21T07:00"});
- assert.equal(porCapitan.estado,"ratificada_pendiente_t3","ratificada por otro oficial: falta el T3");
+ assert.equal(porCapitan.estado,"ratificada_pendiente_acreditacion","ratificada por otro oficial: falta acreditación final");
  assert.equal(nochesPendientesSemana([porCapitan]).length,1,"bloquea el cierre semanal");
  const porT3=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:{...ac,acreditadoPorCargo:"Teniente Tercero",cumplimientoFinal:{estado:"acreditado",porId:"9"},cumplimiento:{estado:"acreditado",motivos:[]},dotacionEfectiva:{}},incidencias:[],revision,ahora:"2026-10-21T07:00"});
- assert.equal(porT3.estado,"acreditada_t3");assert.equal(nochesPendientesSemana([porT3]).length,0);
+ assert.equal(porT3.estado,"acreditada_oficial");assert.equal(nochesPendientesSemana([porT3]).length,0);
  const reg=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"});
  assert.equal(reg.estado,"registro_cerrado");
  assert.equal(resumenNoche({fecha:"2026-10-17",noche,libro:null,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"}).estado,"sin_cierre_de_libro");
