@@ -71,6 +71,6 @@ function iniciar(){
     document.addEventListener("click",limpiarTrasEnvio,true);
   }catch(e){}
 }
-window.GermaniaAtras={_alAtras:alAtras,_sucios:sucios};
+window.GermaniaAtras={_alAtras:alAtras,_sucios:sucios,puedeSalir:function(){if(!hayCambios())return true;if(!window.confirm("Tienes datos escritos sin guardar. ¿Salir de esta pantalla?"))return false;delete sucios["panel-"+panelActivo()];return true;}};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",iniciar);else iniciar();
 })();
