@@ -5803,9 +5803,15 @@ document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementB
   const activar=(personal)=>{
     window.__historialPersonalActivo=personal;
     vista.hidden=!personal;
-    general.forEach(el=>{el.hidden=personal;});
+    vista.style.setProperty("display",personal?"block":"none","important");
+    general.forEach(el=>{el.hidden=personal;el.style.setProperty("display",personal?"none":"","important");if(!personal)el.style.removeProperty("display");});
   };
   window.__abrirHistorialPersonal=function(){activar(true);void cargarPersonal();};
+  document.addEventListener("click",function(e){
+    const enlace=e.target.closest('[data-go="historial"],[data-tab="historial"]');
+    if(!enlace)return;
+    window.__abrirHistorialPersonal();
+  },true);
   const institucional=document.getElementById("hpInstitucional");
   institucional.addEventListener("click",function(){activar(false);renderHistorial();});
 
