@@ -5693,7 +5693,7 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
 /* ============ TABS ============ */
 function switchTabExtra(name){
   if(name==="germania") renderDisponibilidad();
-  if(name==="historial" && !window.__historialPersonalActivo) renderHistorial();
+  if(name==="historial"){ if(window.__abrirHistorialPersonal) window.__abrirHistorialPersonal(); else renderHistorial(); }
   if(name==="servicio"){
     const f=document.getElementById("svFecha");
     if(f && !f.value) f.value=todayISO();
@@ -5794,7 +5794,7 @@ document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementB
   const vista=document.createElement("section");
   vista.id="historialPersonalVista";
   vista.hidden=true;
-  vista.innerHTML='<div class="card"><h2>Mi historial de asistencia</h2><div id="historialPersonalContenido" role="status" aria-live="polite"></div></div>';
+  vista.innerHTML='<div class="card"><h2>Mi historial de asistencia</h2><div id="historialPersonalContenido" role="status" aria-live="polite"></div><button type="button" id="hpInstitucional" class="btn small secondary">Ver historial institucional</button></div>';
   panel.prepend(vista);
   const estilo=document.createElement("style");
   estilo.textContent='#historialPersonalVista .hp-resumen{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}#historialPersonalVista .hp-kpi{flex:1;min-width:95px;border:1px solid #40454d;border-radius:9px;padding:12px;text-align:center}#historialPersonalVista .hp-kpi strong{display:block;font-size:23px}#historialPersonalVista .hp-fila{display:grid;grid-template-columns:minmax(0,1fr) 70px 70px;align-items:center;gap:8px;border-bottom:1px solid #343940;padding:9px 0}#historialPersonalVista .hp-fila button{padding:8px 3px;border:1px solid #666;border-radius:7px;background:#222a31;color:#fff;cursor:pointer}#historialPersonalVista .hp-fila button:focus-visible{outline:2px solid #f0bd55}#historialPersonalVista .hp-detalle{padding:8px 12px;margin:6px 0 12px;border-left:3px solid #bc3131;background:#1d242b}#historialPersonalVista .hp-detalle p{margin:7px 0;font-size:13px}';
@@ -5805,12 +5805,11 @@ document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementB
     vista.hidden=!personal;
     general.forEach(el=>{el.hidden=personal;});
   };
-  document.querySelectorAll('[data-go="historial"]').forEach(el=>el.addEventListener("click",()=>{
-    const personal=el===boton;
-    activar(personal);
-    if(personal)void cargarPersonal();
-  },true));
-  document.querySelectorAll('[data-tab="historial"],[data-nav="historial"]').forEach(el=>el.addEventListener("click",()=>activar(false),true));
+  window.__abrirHistorialPersonal=function(){activar(true);void cargarPersonal();};
+  const institucional=document.getElementById("hpInstitucional");
+  institucional.addEventListener("click",function(){activar(false);renderHistorial();});
+  document.querySelectorAll('[data-go="historial"]').forEach(el=>el.addEventListener("click",()=>window.__abrirHistorialPersonal(),true));
+
   let secuencia=0;
   async function cargarPersonal(){
     const turno=++secuencia,contenedor=document.getElementById("historialPersonalContenido");
