@@ -58,11 +58,13 @@ test("un cierre anterior no enviado tiene prioridad sobre otro turno por cerrar"
  assert.equal(r.principal.fecha,"2026-10-14");
  assert.equal(r.proximas[0].fecha,"2026-10-15");
 });
-test("notificación es breve y no incluye novedades; formulario requiere foto y texto",()=>{
+test("notificación es breve; formulario OBAC requiere foto y no muestra novedades",()=>{
  assert.match(pantalla,/lgn-obac-confirmacion/);
  assert.match(pantalla,/24 horas/);
  assert.match(pantalla,/id="lgnFoto"/);
- assert.match(pantalla,/id="lgnNovedades"/);
+ assert.doesNotMatch(pantalla,/id="lgnNovedades"/);
+ assert.match(pantalla,/nov="Sin novedades"/);
+ assert.match(pantalla,/if\(!file\)/);
  assert.match(pantalla,/cierreHabilitado===true/);
  assert.match(index,/germania-obac-avisos\.js\?v=20261015obac1/);
  assert.match(index,/germania-cierre-libro\.js\?v=\d{8}[a-z0-9]+/);
