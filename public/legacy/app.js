@@ -5808,7 +5808,7 @@ document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementB
   window.__abrirHistorialPersonal=function(){activar(true);void cargarPersonal();};
   const institucional=document.getElementById("hpInstitucional");
   institucional.addEventListener("click",function(){activar(false);renderHistorial();});
-  document.querySelectorAll('[data-go="historial"]').forEach(el=>el.addEventListener("click",()=>window.__abrirHistorialPersonal(),true));
+
 
   let secuencia=0;
   async function cargarPersonal(){
