@@ -57,7 +57,7 @@ async function enviar(url,cuerpo){
   }
   return {status:0,d:{error:"sin_conexion"},ultimo:ultimo};
 }
-var ERR={noches_pendientes:"Hay noches sin ratificar o sin acreditar por un oficial autorizado.",solo_teniente_3:"La acreditación requiere un oficial autorizado.",noche_no_ratificada:"La noche aún no está ratificada.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
+var ERR={noches_pendientes:"Hay noches sin ratificar o sin acreditar por un oficial autorizado.",solo_teniente_3:"La acreditación requiere un oficial autorizado.",solo_teniente_3_durante_48h:"Durante las primeras 48 horas después de las 06:00, solo el Teniente Tercero puede acreditar.",noche_no_ratificada:"La noche aún no está ratificada.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
   libro_ya_cerrado:"El libro de esa noche ya estaba cerrado.",noche_no_finalizada:"La noche aún no termina (06:00).",motivo_requerido:"Escribe un motivo (mínimo 8 letras).",novedades_requeridas:"Escribe las novedades.",
   detalle_requerido:"Escribe el detalle.",version_conflict:"Otro oficial modificó esto a la vez. Actualiza e inténtalo de nuevo."};
 function err(d){return ERR[d&&d.error]||("No se pudo completar: "+(d&&d.error||"error"));}
@@ -126,7 +126,11 @@ function render(){
   /* 6: ratificación */
   var f6=noches.map(function(n){
     var btn=puede&&n.libro.cerrado&&n.finalizada?'<button type="button" class="btn small secondary" data-ratif="'+n.fecha+'">'+(n.ratificacion?"Revisar o corregir":"Revisar y ratificar")+'</button>':"";
-    var btnF=autorizado(yo())&&n.ratificacion&&n.estado==="ratificada_pendiente_acreditacion"?'<button type="button" class="btn small" data-final="'+n.fecha+'" data-v="'+(n.ratificacion.version||0)+'">Acreditar cumplimiento</button>':"";
+    var fin=new Date(n.fecha+"T12:00:00Z");fin.setUTCDate(fin.getUTCDate()+1);var finFecha=fin.toISOString().slice(0,10);var t48=new Date(fin.getTime()+172800000).toISOString().slice(0,10);
+    var partes=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).map(function(x){return [x.type,x.value];}));
+    var ahoraChile=partes.year+"-"+partes.month+"-"+partes.day+"T"+partes.hour+":"+partes.minute;
+    var puedeFinal=esT3(yo())?ahoraChile>=finFecha+"T06:00":autorizado(yo())&&ahoraChile>=t48+"T06:00";
+    var btnF=puedeFinal&&n.ratificacion&&n.estado==="ratificada_pendiente_acreditacion"?'<button type="button" class="btn small" data-final="'+n.fecha+'" data-v="'+(n.ratificacion.version||0)+'">Acreditar cumplimiento</button>':"";
     var r=n.ratificacion?'<br><span class="sub">Ratificó '+esc(n.ratificacion.porNombre||"")+(n.ratificacion.porCargo?' ('+esc(n.ratificacion.porCargo)+')':'')+' · '+esc(hora(n.ratificacion.en))+(n.ratificacion.cumplimiento&&n.ratificacion.cumplimiento.motivos.length?' · '+esc(n.ratificacion.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):'')+'</span>':"";
     return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+r+'</span>'+btn+btnF+'</div>';
   }).join("");
