@@ -106,18 +106,15 @@ function pintarOBAC(){
    '<p class="sub">'+escHtml(fechaBonita(f))+' · OBAC: '+escHtml(nombre(actual))+'</p>';
   if(!habilitado){
    html+='<p class="sub"><strong>Tu guardia comienza hoy a las 22:45.</strong> Esta ficha está visible desde las 22:30.</p>'+
-    '<p class="sub">Al finalizar tu guardia, mañana desde las 06:00 podrás fotografiar el libro, registrar las novedades y enviarlo a los oficiales.</p>';
+    '<p class="sub">Al finalizar tu guardia, desde las 06:00 podrás fotografiar el libro y enviarlo a los oficiales.</p>';
   }else{
-   html+='<p class="sub">La guardia finalizó. Envía la fotografía del libro y las novedades antes de las 06:00 del día siguiente.</p>'+
+   html+='<p class="sub">La guardia finalizó. Envía la fotografía del libro a los oficiales para su ratificación.</p>'+
     '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
     '<div id="lgnFormulario" hidden style="margin-top:12px">'+
     '<label for="lgnFoto" class="rv-lbl">Fotografía del libro físico de guardia (obligatoria)</label>'+
     '<div style="display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px"><button type="button" id="lgnAdjuntar" class="btn small secondary" style="min-height:44px">Elegir foto guardada</button><button type="button" id="lgnTomarFoto" class="btn small secondary" style="min-height:44px">Tomar foto ahora</button></div><input id="lgnFoto" type="file" accept="image/*" style="display:none"><input id="lgnCamara" type="file" accept="image/*" capture="environment" style="display:none"><p class="sub">Puedes seleccionar una foto guardada o tomar una nueva. Revisa la vista previa antes de enviar.</p>'+
     '<div id="lgnVistaFoto"></div>'+
-    '<label for="lgnNovedades" class="rv-lbl">Novedades de la noche (obligatorio)</label>'+
-    '<textarea id="lgnNovedades" rows="3" maxlength="1800" style="width:100%;box-sizing:border-box;padding:10px;color:#fff;background:#11171c;border:1px solid #8b959b;border-radius:6px" placeholder="Escribe Sin novedades, o detalla lo ocurrido."></textarea>'+
-    '<p class="sub">Las novedades escritas se conservan en este dispositivo hasta el envío. Si cierras Germania, tendrás que seleccionar nuevamente la fotografía.</p>'+ 
-    '<p class="sub">El cierre y las novedades llegan primero a los oficiales autorizados (Capitán y tenientes). Tras la ratificación de uno de ellos, el Capitán y los oficiales podrán consultar el informe.</p>'+
+    '<p class="sub">El cierre con fotografía llega a los oficiales autorizados para su ratificación.</p>'+
     '<button type="button" id="lgnEnviar" class="btn">Enviar cierre del libro</button>'+ 
     '<button type="button" id="lgnObacAtras" class="btn secondary small">Atrás</button>'+
     '<p id="lgnMensaje" role="status" aria-live="polite"></p></div>';
@@ -150,11 +147,6 @@ function pintarOBAC(){
  }
  $("lgnFoto").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
  $("lgnCamara").onchange=function(){alSeleccionarFoto(this.files?.[0]);};
- const campoNovedades=$("lgnNovedades");
- if(campoNovedades){
-  campoNovedades.value=leerBorradorObac(parte.fecha);
-  campoNovedades.addEventListener("input",()=>guardarBorradorObac(parte.fecha,campoNovedades.value));
- }
  $("lgnEnviar").onclick=function(){enviar(parte.fecha);};
  $("lgnObacAtras").onclick=function(){
   // Atrás solo oculta el formulario: mantiene foto y novedades en memoria.
@@ -180,8 +172,8 @@ async function comprimir(foto){
  }finally{URL.revokeObjectURL(url);}
 }
 async function enviar(fecha){
- const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=fotoSeleccionada,nov=$("lgnNovedades")?.value.trim();
- if(!file||!nov){msg.textContent="Necesitas la fotografía y el texto de novedades (puede ser Sin novedades).";return;}
+ const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=fotoSeleccionada,nov="Sin novedades";
+ if(!file){msg.textContent="Debes adjuntar una fotografía del libro de guardia.";return;}
  if(!confirm("¿Enviar el cierre del libro de "+fecha+" a los oficiales para ratificación?"))return;
  boton.disabled=true;msg.textContent="Preparando fotografía y enviando cierre…";
  try{
