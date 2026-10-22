@@ -14,7 +14,7 @@ export const metadata = {
     ],
     apple: [{ url: "/legacy/apple-touch-icon.png?v=4", sizes: "180x180", type: "image/png" }]
   },
-  appleWebApp: { capable: true, title: "GERMANIA", statusBarStyle: "black-translucent", startupImage: ["/legacy/splash-1170x2532.png?v=4"] },
+  appleWebApp: { capable: true, title: "GERMANIA", statusBarStyle: "black-translucent", startupImage: ["/legacy/splash-1170x2532.jpg?v=5"] },
   formatDetection: { telephone: false }
 };
 
