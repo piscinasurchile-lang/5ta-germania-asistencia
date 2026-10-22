@@ -76,7 +76,7 @@ Fuera de alcance (según PDF §7): permisos avanzados de Oficiales, Inventario, 
 - Cada inscripción = persona + noche + rol + estado. Sin doble conteo.
 - Reemplazo: resta al titular, suma al reemplazante, queda registrado quién, cuándo y por qué.
 - Un oficial que conduce cuenta solo como conductor esa noche.
-- Noche completa = 3 voluntarios + 1 conductor + 1 OBAC, definido en **una sola constante** (`GN_DOTACION_MIN`); los voluntarios adicionales son refuerzos.
+- Noche completa = 2 voluntarios + 1 conductor + 1 OBAC (4 personas, Art. 9 del Reglamento de Guardia Nocturna), definido en **una sola constante** (`GN_DOTACION_MIN`); los voluntarios adicionales son refuerzos. La emisión de la ODD de guardia exige además 3 voluntarios por seguridad de la compañía (decisión del 22-10-2026; ver `docs/ODD-063-PLANTILLA.md`): esa diferencia es intencional.
 - Dotación incompleta: la ODD se puede emitir, pero con aviso visible (decisión del 08-10-2026, ver §7).
 
 ### 5.2 Protección de datos (todas retrocompatibles)
@@ -102,7 +102,7 @@ Compatibilidad: si el cliente no envía `ifVersion`, el servidor se comporta com
 
 ## 7. Decisiones
 
-**Resuelta (08-10-2026):** dotación mínima por noche = **3 voluntarios + 1 conductor + 1 OBAC**. Los voluntarios que se sumen sobre esos 3 son **refuerzos**. Cada voluntario se inscribe en **al menos 2 noches**. En el código: `GN_DOTACION_MIN` y `GN_NOCHES_MIN` (`public/legacy/app.js`). El formulario del turno muestra «mínimo de 3 completo / faltan N / N refuerzos».
+**Vigente (desde el 10-10-2026):** dotación mínima por noche = **2 voluntarios + 1 conductor + 1 OBAC**, según el Art. 9 del Reglamento de Guardia Nocturna. Los voluntarios que se sumen sobre esos 2 son **refuerzos**. Cada voluntario se inscribe en **al menos 2 noches**. En el código: `GN_DOTACION_MIN` y `GN_NOCHES_MIN` (`public/legacy/app.js`). El formulario del turno muestra «mínimo de 2 completo / faltan N / N refuerzos».
 
 **Resuelta (08-10-2026):** una noche incompleta **solo avisa**, no bloquea la emisión de la ODD. El aviso debe quedar visible y en lenguaje simple (ya es el comportamiento actual). Esto se aparta del PDF §3 («ODD no se emite como válida con dotación incompleta») por decisión del usuario.
 
@@ -128,7 +128,7 @@ Decisiones del usuario (08-10-2026): todos son voluntarios; los oficiales tienen
 | Voluntario | todos | elige noches (mín. 2), ve cupos x/3 y refuerzos, confirma o justifica |
 | Maquinista | `conductor: true` en la nómina | elige noches como maquinista (1 por noche); titular = quien eligió primero |
 | OBAC | quien figura en la precedencia vigente | elige noches como OBAC (1 por noche); titular = mejor lugar en la precedencia, los demás quedan de reserva |
-| Información | Capitán, Teniente 3° y administradores (`ADMINISTRADORES` en `germania-roles.js`, hoy clave 517) | cobertura por noche 3+1+1, faltantes, voluntarios sin elegir |
+| Información | Capitán, Teniente 3° y administradores (`ADMINISTRADORES` en `germania-roles.js`, hoy clave 517) | cobertura por noche 2+1+1, faltantes, voluntarios sin elegir |
 
 Reglas: un voluntario ocupa un solo rol por noche; datos en `guardia-inscripcion:`, `guardia-maq:`, `guardia-obac:` y `guardia-confirmacion:` (+ `<inicio>:<id>`); lectura por lote `GET /api/state?prefix=`.
 Visibilidad: Programación, «Quiénes están de guardia», Informes y el acceso Oficiales solo aparecen para oficiales/mando (clase `solo-oficiales`). Es orden visual: el PIN de Oficialidad sigue siendo la protección real cuando se desactive el modo prueba.
