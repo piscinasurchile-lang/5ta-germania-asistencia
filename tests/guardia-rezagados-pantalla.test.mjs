@@ -24,7 +24,7 @@ test("API no modifica programación ni crea nueva guardia",()=>{
  assert.match(api,/ifVersion:b\.ifVersion/);
  assert.match(api,/writeState\(sql,"guardia-acreditacion:"\+fecha/);
  assert.doesNotMatch(api,/writeState\(sql,"guardia-revision:/);
- assert.match(api,/cierreLibroFotoSHA256:libro\.value\.fotoSHA256/);
+ assert.match(api,/cierreLibroFotoSHA256:libroVigente\?\.fotoSHA256/,"el libro ya no es requisito; si existe y está vigente se conserva su referencia");
 });
 test("Capitán y control ven adicionales, excusas y datos históricos de la misma acreditación",()=>{
  assert.match(vista,/participantesEfectivos\(x\)/);

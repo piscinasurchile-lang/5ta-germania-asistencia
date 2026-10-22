@@ -1,7 +1,7 @@
 import {neon} from "@neondatabase/serverless";
 import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
-import {firmaDotacion,cumplimientoFinalT3} from "../../../../lib/guardia-acreditacion.js";
+import {firmaDotacion,registroVigente} from "../../../../lib/guardia-acreditacion.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
 import {cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
 export const runtime="nodejs";
@@ -76,11 +76,12 @@ export async function GET(req){
   const rows=await sql.query(q,[ahora.slice(0,10),patron,semanasConsulta,filasConsulta]);
   const items=rows.map(r=>{
     const revision={estado:"aprobada",aprobadaEn:r.aprobada_en,noches:{[r.fecha]:r.dotacion}};
-    const ratificada=informeRatificado({acreditacion:r.acreditacion,revision,noche:r.dotacion,cierre:r.cierre});
+    // Sin cierre OBAC ni paso T3: un acta íntegra y vigente basta (incluye las ratificadas con el flujo anterior).
+    const ratificada=!!r.acreditacion&&(informeRatificado({acreditacion:r.acreditacion,revision,noche:r.dotacion,cierre:r.cierre})||registroVigente(r.acreditacion,revision));
     return {fecha:r.fecha,revisionAprobadaEn:r.aprobada_en,dotacion:r.dotacion,
       cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
       finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
-      acreditacionVigente:ratificada,cumplimientoFinal:!!(ratificada&&cumplimientoFinalT3(r.acreditacion)),
+      acreditacionVigente:ratificada,cumplimientoFinal:ratificada,
       vistoCapitan:!!(ratificada&&vistoCapitanValido(r.visto_capitan,r.acreditacion))};
   }).filter(r=>esAdmin||esT3||puedeRatificar||String(r.dotacion?.obac||"")===String(actor.id)||
       (esOficial&&r.acreditacionVigente));

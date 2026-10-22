@@ -2,6 +2,10 @@
    La foto es respaldo documental; solo la acreditación T3 modifica estadísticas. */
 (function(){
 "use strict";
+/* Instrucción del Capitán (oct-2026): ya no hay cierre OBAC, ratificación de otros oficiales, acreditación T3, visto bueno
+   ni avisos a oficiales. La noche terminada cuenta como cumplida y un oficial autorizado puede modificarla (borrar,
+   cambiar por otro voluntario o justificar). Con `true` se restablece el flujo anterior sin tocar datos guardados. */
+const CIERRE_OFICIAL_ACTIVO=false;
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
@@ -95,7 +99,7 @@ function pintarOBAC(){
  const motor=window.GermaniaObacAvisos;
  if(!motor){host.innerHTML="";return;}
  const result=motor.seleccionar(items,actual);
- const parte=result.principal;
+ const parte=CIERRE_OFICIAL_ACTIVO?result.principal:(result.proximas[0]||null);
  // No interrumpir al OBAC mientras escribe novedades o selecciona la fotografía.
  if(formAbierto&&host.querySelector("#lgnEnviar"))return;
  let html="";
@@ -106,7 +110,7 @@ function pintarOBAC(){
    '<p class="sub">'+escHtml(fechaBonita(f))+' · OBAC: '+escHtml(nombre(actual))+'</p>';
   if(!habilitado){
    html+='<p class="sub"><strong>Tu guardia comienza hoy a las 22:45.</strong> Esta ficha está visible desde las 22:30.</p>'+
-    '<p class="sub">Al finalizar tu guardia, desde las 06:00 podrás fotografiar el libro y enviarlo a los oficiales.</p>';
+    (CIERRE_OFICIAL_ACTIVO?'<p class="sub">Al finalizar tu guardia, desde las 06:00 podrás fotografiar el libro y enviarlo a los oficiales.</p>':"");
   }else{
    html+='<p class="sub">La guardia finalizó. Envía la fotografía del libro a los oficiales para su ratificación.</p>'+
     '<button type="button" class="btn" id="lgnAbrir">Cierre libro guardia nocturna</button>'+
@@ -125,9 +129,9 @@ function pintarOBAC(){
  for(const x of result.proximas){
   if(x===parte)continue;
   html+='<p class="lgn-obac-aviso-previo"><strong>Próxima guardia OBAC:</strong> '+escHtml(fechaBonita(x.fecha))+
-   ' · desde las 22:30. Cierre habilitado al terminar, desde las 06:00.</p>';
+   ' · desde las 22:30.'+(CIERRE_OFICIAL_ACTIVO?' Cierre habilitado al terminar, desde las 06:00.':'')+'</p>';
  }
- for(const x of result.confirmaciones){
+ for(const x of (CIERRE_OFICIAL_ACTIVO?result.confirmaciones:[])){
   const hora=x.cierre?.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
   html+='<div class="lgn-obac-confirmacion" role="status">'+
    '<strong>✓ Libro de guardia enviado correctamente a los oficiales</strong>'+
@@ -251,7 +255,7 @@ function htmlRolesEfectivos(x){
 }
 const ERRORES_RATIF={solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden ratificar.",conductor_no_habilitado:"El conductor reemplazante no está habilitado en la nómina.",
  obac_y_conductor_deben_ser_distintos:"Una misma persona no puede ser OBAC y conductor.",precedencia_obac_requiere_motivo:"El OBAC reemplazante no es el más antiguo presente: escribe la constancia de precedencia.",
- reemplazo_debe_estar_presente:"El OBAC o conductor reemplazante debe figurar presente.",noche_no_finalizada:"La noche aún no termina (06:00).",libro_no_cerrado_o_desactualizado:"El libro no está cerrado o cambió la dotación."};
+ reemplazo_debe_estar_presente:"El OBAC o conductor reemplazante debe figurar presente.",noche_no_finalizada:"La noche aún no termina (06:00).",libro_no_cerrado_o_desactualizado:"Cambió la dotación de esta noche. Actualiza y vuelve a intentar."};
 function seleccionarRez(ocupados){
  if(typeof ROSTER==="undefined")return '<option value="">Nómina no disponible</option>';
  return '<option value="">Seleccionar asistente no programado…</option>'+
@@ -272,6 +276,10 @@ function semanaDe(fecha){
  return d.toISOString().slice(0,10);
 }
 function clasificarControl(x){
+ if(!CIERRE_OFICIAL_ACTIVO){
+  if(x.acreditacionVigente&&x.acreditacion)return {texto:"Modificada por un oficial",clase:"pend"};
+  return x.finalizada?{texto:"Cumplida",clase:"ok"}:{texto:"Programada / en curso",clase:""};
+ }
  if(x.acreditacionVigente&&x.cumplimientoFinal)return {texto:"Cumplimiento acreditado · T3",clase:"ok"};
  if(x.acreditacionVigente)return {texto:"Ratificada · falta acreditación T3",clase:"pend"};
  if(x.cierre)return {texto:"Libro cerrado · falta ratificar",clase:"pend"};
@@ -332,7 +340,7 @@ function pintarControlAdmin(){
  }
  // Los oficiales consultan solo ratificadas; el administrador y T3 ven pendientes.
  const fuente=historial===null?items:historial;
- const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
+ const terminadas=fuente.filter(x=>x.finalizada&&(!CIERRE_OFICIAL_ACTIVO||admin||t3||x.acreditacionVigente))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
  const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0,finales:0};
  for(const x of terminadas){
@@ -343,9 +351,11 @@ function pintarControlAdmin(){
   else resumen.falta++;
  }
  const encabezado='<h2>Control Guardia Diaria</h2>'+
-  '<p class="sub">Consulta cronológica de guardias. Pueden ratificar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente los registros ratificados.</p>';
+  (CIERRE_OFICIAL_ACTIVO?'<p class="sub">Consulta cronológica de guardias. Pueden ratificar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente los registros ratificados.</p>'
+   :'<p class="sub">Consulta cronológica de guardias. Toda noche terminada cuenta como cumplida con su dotación programada. El Capitán y los tenientes pueden modificar una noche (borrar, cambiar a un voluntario por otro o justificar).</p>');
  const indicadores='<div class="lgn-control-totales">'+
-  (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
+  (!CIERRE_OFICIAL_ACTIVO?[[terminadas.length,"Noches terminadas"],[terminadas.filter(x=>x.acreditacionVigente&&x.acreditacion).length,"Modificadas por un oficial"]]
+  :admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
     [resumen.pendiente,"Pendientes de ratificar"],[resumen.acreditadas,"Ratificadas"],[resumen.finales,"Acreditadas T3"],
     [resumen.falta,"Sin cierre OBAC"]]:[[resumen.acreditadas,"Guardias ratificadas"]])
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
@@ -364,7 +374,7 @@ function pintarControlAdmin(){
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
   '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
-  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
+  '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. Si una noche se modifica, la asistencia modificada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
  if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
  let grupoAnterior="";
  for(const x of terminadas){
@@ -384,6 +394,19 @@ function pintarControlAdmin(){
    '<p><strong>Maquinista:</strong> '+escHtml(nombre(x.dotacion?.maq))+'</p>'+
    '<p><strong>Voluntarios programados en la ODD original (no implica asistencia):</strong> '+
    ((x.dotacion?.vol||[]).length?x.dotacion.vol.map(id=>escHtml(nombre(id))).join(", "):"Sin asignar")+'</p>';
+  if(!CIERRE_OFICIAL_ACTIVO){
+   if(x.acreditacionVigente&&x.acreditacion){
+    const mod=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
+    html+='<p><strong>Modificada por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+(mod?' · '+escHtml(mod):"")+'</p>';
+    if(x.acreditacion.motivoCorreccion)html+='<p><strong>Motivo:</strong> '+escHtml(x.acreditacion.motivoCorreccion)+'</p>';
+    html+=htmlAsistenciaRatificada(x);
+   }else if(x.finalizada){
+    html+='<p class="sub"><strong>Noche cumplida:</strong> cuenta con toda la dotación programada como presente.</p>';
+   }
+   if(t3&&x.finalizada){
+    html+='<button class="btn small secondary lgn-correccion-ir" type="button" data-lgn-corregir="'+escHtml(x.fecha)+'">Modificar esta noche</button>';
+   }
+  }else{
   if(x.cierre){
    const fechaEnvio=x.cierre.enviadoEn?new Date(x.cierre.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"Sin fecha";
    html+='<p><strong>Cierre OBAC:</strong> '+escHtml(fechaEnvio)+
@@ -417,6 +440,7 @@ function pintarControlAdmin(){
     else html+='<p class="sub">Pendiente de revisión del Capitán para esta versión.</p>'+
       '<button type="button" class="btn secondary small" data-lgn-visto="'+escHtml(x.fecha)+'">Dar visto bueno · Capitán</button>';
    }
+  }
   html+='<button type="button" class="btn secondary small" data-lgn-atras-ficha="'+escHtml(x.fecha)+'">Atrás · Lista de noches</button>';
   html+='</div></details>';
  }
@@ -466,6 +490,7 @@ function pintarControlAdmin(){
 }
 
 function pintarResumenMando(){
+ if(!CIERRE_OFICIAL_ACTIVO){const h=$("lgnMandoHome");if(h)h.innerHTML="";return;}
  const host=$("lgnMandoHome");if(!host)return;
  if(!t3&&!capitan){host.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
@@ -602,19 +627,22 @@ function abrirPanelMando(fecha){
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
  const mando=t3||capitan;area.hidden=!mando;
- if(btn){btn.hidden=!mando;btn.textContent=t3?"Control Guardia Diaria · Ratificar":"Control Guardia Diaria · Informes";}
+ if(btn){btn.hidden=!mando;btn.textContent=CIERRE_OFICIAL_ACTIVO?(t3?"Control Guardia Diaria · Ratificar":"Control Guardia Diaria · Informes"):"Modificar noches de guardia";}
  if(!mando){area.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
- const actualizados=(t3?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
+ const actualizados=((t3||!CIERRE_OFICIAL_ACTIVO)?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
  const diasDisponibles=actualizados.map(x=>x.fecha);
  pintarResumenMando();
- let h='<h2>'+(t3?"Acreditación de guardia nocturna":"Informes de noches ratificadas")+'</h2>'+
+ let h=(CIERRE_OFICIAL_ACTIVO?
+ '<h2>'+(t3?"Acreditación de guardia nocturna":"Informes de noches ratificadas")+'</h2>'+
  '<p class="sub">'+(t3?"Ratifica cada noche solamente después del cierre del libro por el OBAC.":"Solo consulta: aquí aparecen las noches después de la ratificación del Teniente Tercero. No puedes modificar sus registros.")+'</p>'+
- '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. El cierre OBAC no suma asistencia por sí solo.":"Informes recibidos: "+actualizados.length+". La información es de solo lectura.")+'</p>'+
+ '<p class="sub">'+(t3?pendientes.length+" noche(s) pendiente(s) de ratificación. El cierre OBAC no suma asistencia por sí solo.":"Informes recibidos: "+actualizados.length+". La información es de solo lectura.")+'</p>'
+ :'<h2>Modificar noches de guardia</h2>'+
+ '<p class="sub">Toda noche terminada ya cuenta como cumplida con su dotación programada. Modifica solo si hace falta: marca quién no llegó, justifica a quien corresponda o suma a quien reemplazó. Si falta el conductor, informa quién condujo.</p>')+
  '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
  (t3&&diasDisponibles.length>1?'<label class="sub" for="lgnIrNoche">Ir a noche: <select id="lgnIrNoche" class="rv-sel"><option value="">Seleccionar…</option>'+diasDisponibles.map(f=>'<option value="'+escHtml(f)+'">'+escHtml(fechaBonita(f))+'</option>').join("")+'</select></label>':"")+
- '<button type="button" class="btn small secondary" id="lgnRefrescar">Actualizar cierres</button>'+
+ '<button type="button" class="btn small secondary" id="lgnRefrescar">'+(CIERRE_OFICIAL_ACTIVO?"Actualizar cierres":"Actualizar")+'</button>'+
  '<button type="button" class="btn small secondary" id="lgnVolverInicio">Volver a mi espacio</button></div>'+
  (ultimaRatificacion?'<p class="lgn-control-estado ok" role="status">Guardia del '+escHtml(fechaBonita(ultimaRatificacion))+' ratificada correctamente.</p>':"");
  for(const [i,x] of actualizados.entries()){
@@ -622,29 +650,29 @@ function pintarOficial(){
   const titulo=etiquetaGuardia(x.fecha);
   h+='<details class="gr-det" data-lgn-dia="'+escHtml(x.fecha)+'" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
     '<summary style="cursor:pointer;font-weight:700">'+escHtml(titulo)+
-    ' · '+(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC")+'</summary>'+
+    ' · '+(CIERRE_OFICIAL_ACTIVO?(ac?"Acreditada":rec?"Cierre recibido / pendiente ratificación":"Falta cierre OBAC"):(ac?"Modificada":"Cumplida"))+'</summary>'+
     '<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · 22:45 a 06:00 del día siguiente.</p>'+ 
     '<p><strong>OBAC:</strong> '+escHtml(nombre(x.dotacion?.obac))+'</p>';
-  if(rec){
+  if(CIERRE_OFICIAL_ACTIVO&&rec){
    h+='<p><strong>Cierre enviado por OBAC:</strong> '+escHtml(new Date(rec.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>'+
       '<p><strong>Novedades:</strong> '+escHtml(rec.novedades)+'</p>'+
       '<a href="'+fotoUrl(x.fecha)+'" target="_blank" rel="noopener" class="btn secondary" style="display:inline-block;margin-bottom:8px">Ver fotografía del libro</a>';
-  }else h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede acreditar.</p>';
+  }else if(CIERRE_OFICIAL_ACTIVO)h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede acreditar.</p>';
   if(ac && x.acreditacion){
     h+='<p><strong>Ratificado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
   if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
-  if(t3 && rec){
-    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
+  if(t3 && (rec||!CIERRE_OFICIAL_ACTIVO)){
+    h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">'+(CIERRE_OFICIAL_ACTIVO?'Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.':'Todos figuran como «Asistió». Cambia solo lo necesario: «No asistió», «Excusado» (con el motivo) o «+ Agregar rezagado» para quien reemplazó. La ODD original no cambia.')+'</p>';
     const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
     if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes ratificarla; quedará registrado en el informe que el oficial que ratificó participó en esta guardia.</p>';
     for(const p of participantes(x.dotacion)){
       const id=String(p.id),motivo=x.acreditacion?.excusas?.[id]||"";
-      const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":"";
+      const estado=motivo?"excusado":ac?x.acreditacion.asistencias?.[id]||"":(CIERRE_OFICIAL_ACTIVO?"":"presente");
       h+='<div class="lgn-fila-edicion"><label class="rv-lbl">'+escHtml(nombre(id))+' · '+escHtml(p.rol)+'</label>'+
       '<select class="rv-sel" data-lgn-id="'+escHtml(id)+'">'+
-      '<option value="">— verificar —</option>'+
+      (CIERRE_OFICIAL_ACTIVO?'<option value="">— verificar —</option>':'')+
       '<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'+
       '<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option>'+
       '<option value="excusado"'+(estado==="excusado"?" selected":"")+'>Excusado</option></select>'+
@@ -659,8 +687,8 @@ function pintarOficial(){
       '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
       '<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>'+ 
       htmlRolesEfectivos(x)+
-      '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
-    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de acreditación":"Ratificar noche")+'</button>';
+      (CIERRE_OFICIAL_ACTIVO?'<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>':'');
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(CIERRE_OFICIAL_ACTIVO?(ac?"Guardar corrección de acreditación":"Ratificar noche"):"Guardar cambios de la noche")+'</button>';
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
@@ -795,7 +823,7 @@ async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
  const msg=$("lgnRatif")?.querySelector('[data-lgn-estado="'+fecha+'"]');
- if(!x||!x.cierre||!zona||!msg)return;
+ if(!x||(CIERRE_OFICIAL_ACTIVO&&!x.cierre)||!zona||!msg)return;
  const asistencias={},excusas={},adicionales=[];
  let ok=true;
  zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{
@@ -814,13 +842,13 @@ async function ratificar(fecha,boton){
    adicionales.push({id,motivo:fila.querySelector("[data-lgn-motivo-rez]")?.value||""});
  });
  if(!ok){msg.textContent="Verifica cada estado y escribe los motivos de las excusas.";return;}
- if(!zona.querySelector("[data-lgn-comprobado]")?.checked){
+ if(CIERRE_OFICIAL_ACTIVO&&!zona.querySelector("[data-lgn-comprobado]")?.checked){
   msg.textContent="Confirma que revisaste la fotografía del libro y agregaste a todos los asistentes, aunque no estuvieran programados.";
   return;
  }
  let motivo="";
- if(x.acreditacion){
-  motivo=prompt("Motivo obligatorio para corregir la acreditación:","")||"";
+ if(x.acreditacion||!CIERRE_OFICIAL_ACTIVO){
+  motivo=prompt(CIERRE_OFICIAL_ACTIVO?"Motivo obligatorio para corregir la acreditación:":"Motivo de la modificación (obligatorio; queda registrado):","")||"";
   if(!motivo.trim())return;
  }
  const selO=zona.querySelector("[data-lgn-obac-ef]"),selC=zona.querySelector("[data-lgn-cond-ef]"),prec=zona.querySelector("[data-lgn-precedencia]");
@@ -837,9 +865,9 @@ async function ratificar(fecha,boton){
  if(selC&&condEf&&condEf!==selC.dataset.prog)payload.conductorEfectivoId=condEf;
  if(prec&&prec.value.trim())payload.motivoPrecedencia=prec.value.trim();
  const total=Object.values(asistencias).filter(v=>v==="presente").length;
- const advertencia=(x.acreditacion?"¿Guardar corrección de la guardia ":"¿Ratificar la guardia ")+fecha+
+ const advertencia=(!CIERRE_OFICIAL_ACTIVO?"¿Guardar los cambios de la guardia ":x.acreditacion?"¿Guardar corrección de la guardia ":"¿Ratificar la guardia ")+fecha+
   "?\nPresentes: "+total+" · Nuevos asistentes: "+adicionales.length+" · Excusados: "+Object.keys(excusas).length+
-  "\nEstos datos actualizan las estadísticas y el informe del Capitán. La ODD original permanece intacta.";
+  "\nEstos datos actualizan las estadísticas. La ODD original permanece intacta.";
  if(!confirm(advertencia))return;
  boton.disabled=true;msg.textContent="Guardando acreditación…";
  try{
@@ -856,7 +884,7 @@ async function ratificar(fecha,boton){
   ultimaRatificacion=fecha;
   historial=null;
   editando=false;
-  msg.textContent=(d.repetida?"Esta noche ya estaba ratificada con los mismos datos (no se duplicó). ":"Ratificación guardada. El Capitán fue informado automáticamente. ")+"Actualizando expediente…";
+  msg.textContent=(d.repetida?"Esta noche ya tenía estos mismos datos (no se duplicó). ":(CIERRE_OFICIAL_ACTIVO?"Ratificación guardada. El Capitán fue informado automáticamente. ":"Cambios guardados. "))+"Actualizando expediente…";
   try{
    const sincronizado=await cargar(true);
    if(!sincronizado){
@@ -865,7 +893,7 @@ async function ratificar(fecha,boton){
     return;
    }
    // Después de ratificar, llevar al T3 a la próxima noche con cierre pendiente.
-   const siguiente=items.filter(x=>x.finalizada&&x.cierre&&!x.acreditacionVigente)
+   const siguiente=!CIERRE_OFICIAL_ACTIVO?null:items.filter(x=>x.finalizada&&x.cierre&&!x.acreditacionVigente)
      .sort((a,b)=>a.fecha.localeCompare(b.fecha))[0];
    const destino=siguiente?.fecha||fecha;
    const dia=Array.from($("lgnRatif")?.querySelectorAll("[data-lgn-dia]")||[]).find(el=>el.dataset.lgnDia===destino);
