@@ -68,7 +68,8 @@ export async function POST(req) {
     if (!oficialNombre) return Response.json({error:"identidad_nombre_no_disponible"},{status:409});
     const fin=/^\d{2}:\d{2}$/.test(hr.value?.fin||"")?hr.value.fin:"06:00";
     if (horaChile() < diaSiguiente(fecha)+"T"+fin) return Response.json({error:"noche_no_finalizada"},{status:409});
-    if (!libro.value || libro.value.estado!=="enviado" || libro.value.revisionAprobadaEn!==revision.aprobadaEn || libro.value.dotacionFirma!==firmaDotacion(revision.noches[fecha])) return Response.json({error:"libro_no_cerrado_o_desactualizado"},{status:409});
+    /* Sin cierre OBAC (instrucción del Capitán, oct-2026): el libro ya no es requisito. Si existiera uno enviado y vigente se conserva su referencia. */
+    const libroVigente=!!(libro.value && libro.value.estado==="enviado" && libro.value.revisionAprobadaEn===revision.aprobadaEn && libro.value.dotacionFirma===firmaDotacion(revision.noches[fecha]))?libro.value:null;
     const noche=revision.noches[fecha];
     const programados=integrantesNoche(noche);
     const {obac:obacEf,cond:condEf,ids}=datosPayload(b,noche,programados);
@@ -88,7 +89,7 @@ export async function POST(req) {
     const ausentes=ids.filter(id=>b.asistencias[id]==="ausente");
     const dotacionEfectiva=evaluarDotacionEfectiva(noche,b.asistencias,adicionales,{obac:obacEf,maq:condEf});
     const cumplimiento=cumplimientoNoche({dotacionEfectiva,obacPresente:b.asistencias[obacEf]==="presente",
-      conductorPresente:b.asistencias[condEf]==="presente",sinFoto:libro.value.sinFoto===true});
+      conductorPresente:b.asistencias[condEf]==="presente",sinFoto:false});
     const actorFicha=roster.find(x=>String(x.id)===actor);
     const ahoraISO=new Date().toISOString();
     const motivoCorreccion=String(b.motivoCorreccion||"").trim().slice(0,400);
@@ -98,7 +99,7 @@ export async function POST(req) {
     const registro={
       fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
       dotacionFirma:firmaDotacion(noche),
-      cierreLibroFotoSHA256:libro.value.fotoSHA256??null,cierreLibroEn:libro.value.enviadoEn,
+      cierreLibroFotoSHA256:libroVigente?.fotoSHA256??null,cierreLibroEn:libroVigente?.enviadoEn??null,
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
        adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),
        excusas:Object.fromEntries(Object.entries(excusas).map(([id,motivo])=>[String(id),motivo.trim()])),
@@ -110,7 +111,8 @@ export async function POST(req) {
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoPorCargo:String(actorFicha?.cargo||""),acreditadoEn:ahoraISO,
       motivoCorreccion:soloAcreditaFinal?(anteriorRegistro.motivoCorreccion||""):motivoCorreccion,
       /* Cumplimiento final: solo el T3 lo acredita. Una ratificación o corrección de otro oficial lo deja pendiente. */
-      cumplimientoFinal:actorEsT3?{estado:"acreditado",porId:actor,porNombre:oficialNombre,porCargo:String(actorFicha?.cargo||""),en:ahoraISO,firma:firmaNueva}:null,
+      /* Ya no hay paso T3: toda modificación de un oficial autorizado queda vigente. */
+      cumplimientoFinal:{estado:"acreditado",porId:actor,porNombre:oficialNombre,porCargo:String(actorFicha?.cargo||""),en:ahoraISO,firma:firmaNueva},
       /* Trazabilidad: quien ratifica puede haber participado en la guardia (cualquier oficial); queda su rol. */
       t3Participante:ids.includes(String(actor))?{
         id:String(actor),nombre:oficialNombre,

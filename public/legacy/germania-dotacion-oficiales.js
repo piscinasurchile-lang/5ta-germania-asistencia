@@ -32,7 +32,7 @@ function estadoPersona(f,id,ctx){
       if(ac.asistencias[id]==="presente")return {t:"Presente (ratificado)",c:"verde"};
       var ex=ac.excusas&&ac.excusas[id];return ex?{t:"Excusado: "+ex,c:"gris"}:{t:"Ausente (ratificado)",c:"rojo"};
     }
-    return {t:"Pendiente de ratificación del Teniente Tercero",c:"gris"};
+    return {t:"Presente (noche cumplida)",c:"verde"};
   }
   if(aviso&&aviso.estado!=="cubierto")return {t:"Avisó que no puede"+(aviso.estado==="sin_reemplazo"?" · sin reemplazo":" · falta reemplazo")+(aviso.motivo?" ("+aviso.motivo+")":""),c:"rojo"};
   if(asiste)return {t:"Confirmó que irá",c:"verde"};
