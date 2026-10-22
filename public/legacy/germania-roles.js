@@ -832,61 +832,6 @@ async function aprobarRevision(pn,D){
   panelRev(pn,D);
 }
 
-/* Acreditación posterior: el T3 verifica personalmente cada rol y voluntario.
-   No equivale a aprobación de dotación. La API requiere oficialidad y valida el cargo.
-   La identidad individual del T3 necesita revisión de seguridad antes de producción. */
-async function pintarAcreditacionReal(D,doc){
-  var caja=$("rvAcreditacion"); if(!caja) return;
-  var terminadas=Object.keys(doc.noches||{}).sort().filter(function(f){return finNoche(f)<=Date.now();});
-  if(!terminadas.length){
-    caja.innerHTML='<h3 class="gr-t">Acreditación real de guardias</h3><p class="sub">Se habilitará después de terminar cada guardia. No se contabiliza automáticamente.</p>';
-    return;
-  }
-  var leidas=await Promise.all(terminadas.map(function(f){return sGetV("guardia-acreditacion:"+f,null);}));
-  caja=$("rvAcreditacion"); if(!caja)return;
-  var nombreTeniente=[D.m.nombre,D.m.apellidoPaterno,D.m.apellidoMaterno].filter(Boolean).join(" ").trim();
-  var html='<h3 class="gr-t">Acreditación real · Teniente Tercero</h3><p class="sub">Responsable: <b>'+E(nombreTeniente)+'</b> (identificado por nómina). Verifica la asistencia real; las noches sin acreditar no cuentan. Las correcciones conservan historial.</p>';
-  terminadas.forEach(function(f,i){
-    var n=doc.noches[f],r=leidas[i],v=r.value;
-    var personas=[{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(function(id){return{id:id,rol:"Voluntario"};})).filter(function(x){return!!x.id;});
-    var ids=personas.map(function(x){return String(x.id);}), nn=nombreNoche(f);
-    if(new Set(ids).size!==ids.length){
-      html+='<p class="gr-falta">Dotación duplicada el '+E(f)+'. No se puede acreditar.</p>'; return;
-    }
-    var vigente=!!(window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.acreditacionVigente(v,doc,f));
-    html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>'+(vigente&&v.acreditadoPorNombre?'<p class="sub">Registró: '+E(v.acreditadoPorNombre)+'</p>':"");
-    personas.forEach(function(p){
-      var id=String(p.id),estado=vigente&&v.asistencias&&v.asistencias[id]||"";
-      html+='<label class="rv-lbl">'+E(nom(id))+' · '+E(p.rol)+'</label>'
-        +'<select class="rv-sel" data-ac-noche="'+E(f)+'" data-ac-id="'+E(id)+'">'
-        +'<option value="">— verificar —</option>'
-        +'<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'
-        +'<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option></select>';
-    });
-    html+='<button type="button" class="btn gr-grande" data-ac-confirmar="'+E(f)+'">'+(r.value?"Corregir acreditación":"Acreditar esta noche")+'</button></div></div>';
-  });
-  caja.innerHTML=html+'<div class="status-msg" id="acMsg"></div>';
-  caja.querySelectorAll("[data-ac-confirmar]").forEach(function(b){b.onclick=async function(){
-    var f=b.dataset.acConfirmar,i=terminadas.indexOf(f),prev=leidas[i],asistencias={},completa=true;
-    caja.querySelectorAll('[data-ac-noche="'+f+'"]').forEach(function(el){if(!el.value)completa=false;asistencias[el.dataset.acId]=el.value;});
-    var msg=$("acMsg");if(!completa){msg.textContent="Marca asistencia o ausencia de cada integrante.";msg.classList.add("err");return;}
-    var motivo="";
-    if(prev.value){motivo=prompt("Motivo obligatorio para corregir el registro:","");if(!motivo||!motivo.trim())return;}
-    if(!confirm("¿Acreditar la asistencia REAL de la noche "+f+" a nombre de "+nombreTeniente+"? Afectará las estadísticas."))return;
-    b.disabled=true;msg.classList.remove("err");msg.textContent="Guardando…";
-    try{
-      var respuesta=await fetch("/api/guardia/acreditacion",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({fecha:f,actorId:String(D.m.id),asistencias:asistencias,ifVersion:prev.version||0,motivoCorreccion:motivo})
-      });
-      var dat=await respuesta.json();
-      if(!respuesta.ok)throw new Error(dat.error||"No se pudo acreditar");
-      MN.cache=null;
-      await pintarAcreditacionReal(D,doc);
-    }catch(e){b.disabled=false;msg.textContent="No se guardó: "+e.message;msg.classList.add("err");}
-  };});
-}
-
 /* ---------- Mis noches / avisos / reemplazos ----------
    Mis noches = las noches donde quedé en una dotación APROBADA (guardia-revision:<inicio>), hasta que la noche termina.
    Una noche terminada pasa a «cumplidas» (historial en Mi estado). Si avisé que no podía y otro la cubrió,
