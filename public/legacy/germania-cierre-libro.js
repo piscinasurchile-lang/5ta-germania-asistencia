@@ -29,7 +29,7 @@ function filaAsistencia(nombrePersona,rolPersona,presente,excusado=false){
 }
 function estadoSeleccionAsistencia(sel){
  if(!sel)return;
- sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente"||sel.value==="excusado");
+ sel.classList.toggle("lgn-asistencia-select-ausente",sel.value==="ausente"||sel.value==="excusado"||sel.value==="justificado");
  sel.classList.toggle("lgn-asistencia-select-presente",sel.value==="presente");
 }
 function rol(m){return String(m?.cargo||"").toLowerCase();}
@@ -252,6 +252,37 @@ function htmlRolesEfectivos(x){
   '<label class="rv-lbl" for="gfObac'+escHtml(x.fecha)+'">OBAC efectivo</label><select class="rv-sel" id="gfObac'+escHtml(x.fecha)+'" data-lgn-obac-ef data-prog="'+escHtml(x.dotacion?.obac)+'">'+opcionesPersonas(obac)+'</select>'+
   '<label class="rv-lbl" for="gfCond'+escHtml(x.fecha)+'">Conductor efectivo</label><select class="rv-sel" id="gfCond'+escHtml(x.fecha)+'" data-lgn-cond-ef data-prog="'+escHtml(x.dotacion?.maq)+'">'+opcionesPersonas(cond)+'</select>'+
   '<input type="text" maxlength="300" class="lgn-excusa-input" data-lgn-precedencia placeholder="Constancia de precedencia (opcional; no bloquea)" value="'+escHtml(ac.motivoPrecedencia||"")+'"></div>';
+}
+/* Editor limpio de una noche (sin cierre OBAC): por integrante, «Asistió», «No llegó», «Justificado» (solo marca) o «Reemplazado por…». Sin textos de motivo. */
+function candidatosReemplazo(rolFila,ocupados){
+ if(typeof ROSTER==="undefined")return [];
+ return ROSTER.filter(p=>p.activo!==false&&!ocupados.has(String(p.id))&&(rolFila!=="Maquinista"||p.conductor===true))
+  .sort((a,b)=>nombre(a.id).localeCompare(nombre(b.id),"es"));
+}
+function estadoFilaGuardada(x,p){
+ const ac=x.acreditacion,id=String(p.id);
+ if(!ac)return {estado:"presente",reemp:""};
+ const adic=(ac.adicionales||[]).find(a=>new RegExp("\\["+id.replace(/[^\w-]/g,"")+"\\]$").test(String(a.motivo||"")));
+ const efectivo=p.rol==="OBAC"?ac.obacEfectivoId:p.rol==="Maquinista"?ac.conductorEfectivoId:null;
+ const reemp=adic?String(adic.id):(efectivo&&String(efectivo)!==id?String(efectivo):"");
+ if(reemp)return {estado:"reemplazado",reemp};
+ if(ac.excusas&&ac.excusas[id])return {estado:"justificado",reemp:""};
+ return {estado:ac.asistencias?.[id]==="ausente"?"ausente":"presente",reemp:""};
+}
+function htmlEditorNoche(x){
+ const prog=participantes(x.dotacion),ocupados=new Set(prog.map(p=>String(p.id)));
+ let h='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Todos figuran como «Asistió». Cambia solo lo necesario.</p>';
+ for(const p of prog){
+  const id=String(p.id),st=estadoFilaGuardada(x,p);
+  const cands=candidatosReemplazo(p.rol,ocupados);
+  if(st.reemp&&!cands.some(c=>String(c.id)===st.reemp))cands.unshift({id:st.reemp});
+  h+='<div class="lgn-fila-edicion"><label class="rv-lbl">'+escHtml(nombre(id))+' · '+escHtml(p.rol)+'</label>'+
+   '<select class="rv-sel" data-lgn-id="'+escHtml(id)+'" data-lgn-rol="'+escHtml(p.rol)+'">'+
+   ['presente|Asistió','ausente|No llegó','justificado|Justificado','reemplazado|Reemplazado por…'].map(o=>{const [v,t]=o.split("|");return '<option value="'+v+'"'+(st.estado===v?" selected":"")+'>'+t+'</option>';}).join("")+'</select>'+
+   '<select class="rv-sel" data-lgn-reemp aria-label="Reemplazante de '+escHtml(nombre(id))+'"'+(st.estado==="reemplazado"?"":" hidden")+'>'+
+   '<option value="">Elegir reemplazante…</option>'+cands.map(c=>'<option value="'+escHtml(c.id)+'"'+(String(c.id)===st.reemp?" selected":"")+'>'+escHtml(nombre(c.id))+'</option>').join("")+'</select></div>';
+ }
+ return h+'</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">Guardar cambios de la noche</button>';
 }
 const ERRORES_RATIF={solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden ratificar.",conductor_no_habilitado:"El conductor reemplazante no está habilitado en la nómina.",
  obac_y_conductor_deben_ser_distintos:"Una misma persona no puede ser OBAC y conductor.",precedencia_obac_requiere_motivo:"El OBAC reemplazante no es el más antiguo presente: escribe la constancia de precedencia.",
@@ -664,7 +695,8 @@ function pintarOficial(){
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
   if(ac){h+=htmlAsistenciaRatificada(x);} // El Capitán y el T3 leen una única acta efectiva.
-  if(t3 && (rec||!CIERRE_OFICIAL_ACTIVO)){
+  if(!CIERRE_OFICIAL_ACTIVO&&t3){h+=htmlEditorNoche(x);}
+  else if(t3 && rec){
     h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">'+(CIERRE_OFICIAL_ACTIVO?'Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.':'Todos figuran como «Asistió». Cambia solo lo necesario: «No asistió», «Excusado» (con el motivo) o «+ Agregar rezagado» para quien reemplazó. La ODD original no cambia.')+'</p>';
     const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
     if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes ratificarla; quedará registrado en el informe que el oficial que ratificó participó en esta guardia.</p>';
@@ -728,6 +760,8 @@ function pintarOficial(){
      editando=true;estadoSeleccionAsistencia(sel);
      const input=sel.parentElement.querySelector("[data-lgn-excusa]");
      if(input)input.hidden=sel.value!=="excusado";
+     const rp=sel.parentElement.querySelector("[data-lgn-reemp]");
+     if(rp)rp.hidden=sel.value!=="reemplazado";
    });
  });
  area.querySelectorAll("[data-lgn-excusar]").forEach(btn=>btn.onclick=()=>{
@@ -820,11 +854,43 @@ async function fetchReintento(url,opts,intentos=3){
  }
  throw ultimo;
 }
+async function guardarNocheLimpia(x,fecha,zona,msg,boton){
+ const asistencias={},excusas={},adicionales=[],prog=participantes(x.dotacion);
+ let obacEf="",condEf="",ok=true;
+ for(const p of prog){
+  const id=String(p.id),sel=zona.querySelector('[data-lgn-id="'+id+'"]');if(!sel)continue;
+  const v=sel.value;
+  if(v==="presente")asistencias[id]="presente";
+  else if(v==="ausente")asistencias[id]="ausente";
+  else if(v==="justificado"){asistencias[id]="ausente";excusas[id]="Justificado";}
+  else if(v==="reemplazado"){
+   const rid=sel.parentElement.querySelector("[data-lgn-reemp]")?.value||"";
+   if(!rid||asistencias[rid]||prog.some(q=>String(q.id)===rid)){ok=false;continue;}
+   asistencias[id]="ausente";asistencias[rid]="presente";
+   adicionales.push({id:rid,motivo:"Reemplaza a "+nombre(id)+" ["+id+"]"});
+   if(p.rol==="OBAC")obacEf=rid;if(p.rol==="Maquinista")condEf=rid;
+  }
+ }
+ if(!ok){msg.textContent="Elige quién reemplaza en cada voluntario marcado como «Reemplazado».";return;}
+ const payload={fecha,actorId:actual,asistencias,excusas,adicionales,ifVersion:x.acreditacionVersion,motivoCorreccion:"Modificación de la noche por un oficial"};
+ if(obacEf){payload.obacEfectivoId=obacEf;payload.motivoPrecedencia="Reemplazo registrado por un oficial";}
+ if(condEf)payload.conductorEfectivoId=condEf;
+ boton.disabled=true;msg.textContent="Guardando…";
+ try{
+  const r=await fetchReintento("/api/guardia/acreditacion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===409&&d.error==="version_conflict"){boton.disabled=false;msg.textContent="Otro oficial modificó esta noche. Actualiza antes de guardar.";return;}
+  if(!r.ok){boton.disabled=false;msg.textContent=ERRORES_RATIF[d.error]||("No se pudo guardar: "+(d.error||r.status));return;}
+  historial=null;editando=false;msg.textContent="Cambios guardados. Actualizando…";
+  await cargar(true);
+ }catch(e){boton.disabled=false;msg.textContent="No se pudo guardar: "+e.message;}
+}
 async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
  const msg=$("lgnRatif")?.querySelector('[data-lgn-estado="'+fecha+'"]');
  if(!x||(CIERRE_OFICIAL_ACTIVO&&!x.cierre)||!zona||!msg)return;
+ if(!CIERRE_OFICIAL_ACTIVO)return guardarNocheLimpia(x,fecha,zona,msg,boton);
  const asistencias={},excusas={},adicionales=[];
  let ok=true;
  zona.querySelectorAll("[data-lgn-id]").forEach(sel=>{

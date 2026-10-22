@@ -780,7 +780,7 @@
 
   <!-- ACREDITACIÓN DIARIA: pantalla hermana de Guardia Nocturna; no entra a gestión de guardias. -->
   <div class="panel" id="panel-acreditacion-guardia">
-    <section class="card solo-oficiales" id="lgnRatif" aria-label="Ratificación de noches de guardia" hidden></section>
+    <section class="card solo-oficiales" id="lgnRatif" aria-label="Modificación de noches de guardia" hidden></section>
   </div>
 
   <!-- GUARDIA NOCTURNA: exclusivamente inscripción, programación y ODD. -->
@@ -850,7 +850,7 @@
 
     <div class="card solo-oficiales solo-gestion" id="gnHistorialCard">
       <h2>Historial de guardias</h2>
-      <p class="sub">Selecciona una semana de miércoles a martes, desde la primera hasta la última. La programación no equivale a asistencia acreditada.</p>
+      <p class="sub">Selecciona una semana de miércoles a martes, desde la primera hasta la última. La programación no equivale a asistencia efectiva.</p>
       <div class="field-row"><div class="field" style="flex:1 1 260px"><label for="gnHistorialSelect">Semanas registradas</label><select id="gnHistorialSelect"><option value="">Consultando semanas…</option></select></div></div>
       <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         <button class="btn small secondary" type="button" id="gnHistorialVer">Ver detalle</button>
@@ -1050,7 +1050,7 @@
           <button class="subtab active" type="button" onclick="window.top.location.href='/odd-maestras'">ODD Maestras</button>
           <button class="subtab" type="button" id="btnOficialesGuardia">Guardia Nocturna</button>
           <button class="subtab" type="button" id="btnAdminGuardia" hidden>Control Guardia Diaria</button>
-          <button class="subtab" type="button" id="btnOficialesAcreditar" hidden>Acreditación de guardia / Novedades</button>
+          <button class="subtab" type="button" id="btnOficialesAcreditar" hidden>Modificar noches de guardia</button>
           <button class="subtab" onclick="window.__mostrarPestana('panel')">Informes</button>
           <button class="subtab" onclick="window.__mostrarPestana('historial')">Historial</button>
         </div>
@@ -1681,7 +1681,7 @@
 <script src="./germania-avisos.js?v=20261022txt1"></script>
 <script src="./germania-menu-compacto.js?v=20261022mas1"></script>
 <script src="./germania-obac-avisos.js?v=20261015obac1"></script>
-<script src="./germania-cierre-libro.js?v=20261022sin1"></script>
+<script src="./germania-cierre-libro.js?v=20261022sin2"></script>
 <script src="./germania-dotacion-oficiales.js?v=20261022sin1"></script>
 <script src="./germania-atras.js?v=20261020atras2"></script>
 <script src="./germania-navegacion.js?v=20261022nav3"></script>

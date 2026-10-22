@@ -403,7 +403,7 @@ function panelVol(pn,D){
  h+='<div class="gu-dias"'+(soloAsignados?' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,115px),1fr));gap:10px;width:100%;min-width:0"':'')+'>';
  h+=D.cov.filter(function(c){return aprobada?(asignadas.has(c.f)&&guardiaTurnoPendiente(c.f)):!soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f),disponible=editable&&!pendiente&&!selected;return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable?'disabled':'')+' style="'+(confirmada?'background:#991b1b;color:#fff;border:3px solid #ef4444;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':disponible?'background:#166534;color:#fff;border:3px solid #22c55e;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">'+(nochesAprobadas[c.f]&&String(nochesAprobadas[c.f].obac)===String(who)?'ERES OBAC · ':'')+'✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
  if(editable)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">'+(soloAsignados?'Actualizar noches elegidas':'Enviar a revisión')+' ('+sel.size+')</button>';
- else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00; la acreditación permanece a cargo del Teniente Tercero.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
+ else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
  pn.innerHTML=h;
  pn.querySelectorAll('[data-gr-vol]').forEach(function(b){b.onclick=function(){var f=b.dataset.grVol;if(sel.has(f))sel.delete(f);else sel.add(f);panelVol(pn,D);};});
  var b=$("giConfirmar");if(b)b.onclick=function(){gnInsConfirmar(D.p,who);};
@@ -938,7 +938,7 @@ async function misNochesDatos(who,forzar){
 }
 function tarjetaNoche(e,conBoton){
   var n=nombreNoche(e.f), av=e.aviso, est="";
-  if(e.adicional) est='<span class="gr-chip azul">Asistencia adicional ratificada</span>';
+  if(e.adicional) est='<span class="gr-chip azul">Asistencia adicional</span>';
   if(e.cubre) est='<span class="gr-chip azul">Cubres a '+E(nom(e.cubre))+'</span>';
   if(av){
     if(av.estado==="cubierto") est='<span class="gr-chip gris">Cubrió '+E(nom(av.reemplazoId))+'</span>';
@@ -1011,9 +1011,9 @@ async function misNochesCumplidas(forzar){
   var m=miembro(); if(!m){ box.innerHTML=""; return; }
   var d; try{ d=await misNochesDatos(String(m.id),forzar); }catch(e){ return; }
   var ok=d.cumpl.filter(function(e){ return e.cuenta; }).length;
-  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+' con asistencia real acreditada por el Teniente Tercero.</p>'
+  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+'.</p>'
    +(d.cumpl.length?'<div class="gr-lista">'+d.cumpl.map(function(e){
-      var n=nombreNoche(e.f), nota=e.cuenta?'<span class="gr-chip verde">Acreditada por T3</span>':e.pendiente?'<span class="gr-chip gris">Pendiente de acreditación</span>':'<span class="gr-chip gris">No cumplida'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
+      var n=nombreNoche(e.f), nota=e.cuenta?'<span class="gr-chip verde">Cumplida</span>':e.pendiente?'<span class="gr-chip gris">Por terminar</span>':'<span class="gr-chip gris">No cumplida'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
       return '<div class="gr-nc"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(ROL_NOCHE[e.rol]||"Voluntario")+'</b>'+nota+'</div></div></div>';
     }).join("")+'</div>':'<div class="empty">Aún no hay noches cumplidas.</div>');
 }
