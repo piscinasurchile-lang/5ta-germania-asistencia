@@ -154,7 +154,7 @@
     if(!OB){ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3><p class="sub">El buscador no está disponible ahora. Recarga la aplicación.</p><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';document.body.appendChild(ov);$("odbC").onclick=function(){ov.remove();};return;}
     var tiposUsados=Array.from(new Set(lista.map(function(o){return o.tipo;}).filter(Boolean)));
     ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3>'+
-      '<input type="search" id="odbQ" placeholder="Buscar por palabra: tema, lugar, título o número" aria-label="Buscar en las ODD" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">'+
+      '<input type="search" id="odbQ" placeholder="Buscar: tema, lugar o título" aria-label="Buscar en las ODD" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">'+
       '<div class="odb-filtros"><select id="odbA" aria-label="Año"><option value="">Todos los años</option>'+OB.anios(lista).map(function(y){return '<option>'+y+'</option>';}).join("")+'</select>'+
       '<select id="odbM" aria-label="Mes"><option value="">Todos los meses</option>'+OB.MESES.map(function(m,i){return '<option value="'+(i+1)+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>';}).join("")+'</select></div>'+
       (tiposUsados.length>1?'<select id="odbT" aria-label="Tipo"><option value="">Todos los tipos</option>'+tiposUsados.map(function(t){return '<option value="'+e2(t)+'">'+e2(TIPOS[t]||t)+'</option>';}).join("")+'</select>':'')+
