@@ -627,7 +627,8 @@ function abrirPanelMando(fecha){
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
  const mando=t3||capitan;area.hidden=!mando;
- if(btn){btn.hidden=!mando;btn.textContent=CIERRE_OFICIAL_ACTIVO?(t3?"Control Guardia Diaria · Ratificar":"Control Guardia Diaria · Informes"):"Modificar noches de guardia";}
+ /* Sin ratificación (instrucción del Capitán): el botón «Acreditación de guardia / Novedades» ya no se usa. Modificar una noche se hace desde cada noche de Control Guardia Diaria. */
+ if(btn){btn.hidden=!CIERRE_OFICIAL_ACTIVO||!mando;if(CIERRE_OFICIAL_ACTIVO)btn.textContent=t3?"Control Guardia Diaria · Ratificar":"Control Guardia Diaria · Informes";}
  if(!mando){area.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);

@@ -36,3 +36,6 @@ test("API: modificar una noche no exige libro cerrado, deja la modificación vig
   assert.match(libro,/registroVigente\(r\.acreditacion,revision\)/);
   assert.ok(!/cumplimientoFinalT3/.test(libro));
 });
+test("el botón «Acreditación de guardia / Novedades» queda oculto sin ratificación",()=>{
+  assert.match(vista,/btn\.hidden=!CIERRE_OFICIAL_ACTIVO\|\|!mando/);
+});
