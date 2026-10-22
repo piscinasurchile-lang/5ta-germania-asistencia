@@ -154,29 +154,70 @@
     if(!OB){ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3><p class="sub">El buscador no está disponible ahora. Recarga la aplicación.</p><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';document.body.appendChild(ov);$("odbC").onclick=function(){ov.remove();};return;}
     var tiposUsados=Array.from(new Set(lista.map(function(o){return o.tipo;}).filter(Boolean)));
     ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3>'+
-      '<input type="search" id="odbQ" placeholder="Buscar: tema, lugar o título" aria-label="Buscar en las ODD" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">'+
+      '<input type="search" id="odbQ" placeholder="Buscar palabra o frase…" aria-label="Buscar en las ODD" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">'+
       '<div class="odb-filtros"><select id="odbA" aria-label="Año"><option value="">Todos los años</option>'+OB.anios(lista).map(function(y){return '<option>'+y+'</option>';}).join("")+'</select>'+
       '<select id="odbM" aria-label="Mes"><option value="">Todos los meses</option>'+OB.MESES.map(function(m,i){return '<option value="'+(i+1)+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>';}).join("")+'</select></div>'+
       (tiposUsados.length>1?'<select id="odbT" aria-label="Tipo"><option value="">Todos los tipos</option>'+tiposUsados.map(function(t){return '<option value="'+e2(t)+'">'+e2(TIPOS[t]||t)+'</option>';}).join("")+'</select>':'')+
-      '<p class="sub" id="odbN" role="status" aria-live="polite"></p><div id="odbL"></div><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';
+      '<div id="odbIdx"></div><p class="sub" id="odbN" role="status" aria-live="polite"></p><div id="odbL"></div><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';
     document.body.appendChild(ov);
     function sel(id){var x=$(id);return x?x.value:"";}
+    var OT=window.GermaniaOddTexto,GB=window.GermaniaBuscar,textos={},detalle=false;
     function pintar(){
-      var f=OB.filtrar(lista,{q:$("odbQ").value,anio:sel("odbA"),mes:sel("odbM"),tipo:sel("odbT")},TIPOS);
+      detalle=false;
+      var q=$("odbQ").value,f=OB.filtrar(lista,{q:q,anio:sel("odbA"),mes:sel("odbM"),tipo:sel("odbT")},TIPOS,textos);
       var filtrando=!!($("odbQ").value.trim()||sel("odbA")||sel("odbM")||sel("odbT"));
       $("odbN").textContent=lista.length?(filtrando?f.length+" de "+lista.length+" ODD":lista.length+(lista.length===1?" ODD guardada":" ODD guardadas")+", la más reciente primero."):"";
       $("odbL").innerHTML=f.length?f.map(function(o){
         var extra=[OB.fechaCorta(OB.fechaOdd(o)),TIPOS[o.tipo]||"",o.lugar||"",o.tema||""].filter(Boolean).join(" · ");
-        return '<div class="ant-fila"><button type="button" class="ant-abrir" data-i="'+lista.indexOf(o)+'">ODD '+e2(o.numero||"s/n")+' · '+e2(o.titulo||"Orden del Día")+'<br><small>'+e2(extra)+(o.anulada?' · RETIRADA':'')+(o.pdf?' · PDF':'')+'</small></button></div>';
+        return '<div class="ant-fila"><button type="button" class="ant-abrir" data-i="'+lista.indexOf(o)+'">ODD '+e2(o.numero||"s/n")+' · '+e2(o.titulo||"Orden del Día")+'<br><small>'+e2(extra)+(o.anulada?' · RETIRADA':'')+(o.pdf?' · PDF':'')+'</small>'+fragmentoPdf(o,q)+'</button></div>';
       }).join(""):'<p class="sub">'+(lista.length?"Ninguna ODD coincide. Prueba con menos palabras o quita un filtro.":"No hay ODD guardadas.")+'</p>';
     }
+    /* Si la búsqueda coincide dentro del PDF, muestra la página y el trozo donde aparece. */
+    function fragmentoPdf(o,q){
+      if(!GB||!q||!q.trim())return "";
+      var r=OB.enPdf(o,q,textos);if(!r)return "";
+      var x=r.resultados[0],p=textos[o.id][x.pagina-1],fr=GB.fragmento(p.texto,x.rangos,60,90);
+      return '<br><small class="odb-pdf">En el PDF · pág. '+x.pagina+(r.paginas>1?' (y '+(r.paginas-1)+' más)':'')+': '+fr.prefijo+GB.resaltar(fr.texto,fr.rangos,e2)+fr.sufijo+'</small>';
+    }
+    /* Lee los índices de texto guardados; solo se usan los que corresponden a la versión actual de la ODD. */
+    var indices={};
+    async function cargarIndices(){
+      if(!OT||!GB)return;
+      await Promise.all(lista.filter(function(o){return o.pdf;}).map(async function(o){
+        var ix=null;try{ix=await sGet(OT.claveTexto(o),null);}catch(e){}
+        if(OT.vigente(ix,o)){indices[o.id]=ix;textos[o.id]=ix.sinTexto?[]:GB.preparar(ix.paginas);}else{delete indices[o.id];delete textos[o.id];}
+      }));
+    }
+    /* Solo oficiales: indexar los PDF que aún no se pueden buscar por dentro. */
+    function panelIndexar(){
+      var c=$("odbIdx");if(!c||!ofi||!OT)return;
+      var pend=OT.pendientes(lista,indices);
+      if(!pend.length){c.innerHTML="";return;}
+      c.innerHTML='<p class="sub">'+pend.length+(pend.length===1?" ODD con PDF aún no se puede buscar por dentro.":" ODD con PDF aún no se pueden buscar por dentro.")+'</p><button type="button" class="btn small" id="odbIx">Indexar PDF para buscar por dentro</button>';
+      $("odbIx").onclick=async function(){
+        var btn=this,fallos=[],sinTexto=[];btn.disabled=true;
+        for(var i=0;i<pend.length;i++){
+          $("odbIdx").querySelector("p").textContent="Indexando "+(i+1)+" de "+pend.length+" (ODD "+(pend[i].numero||"s/n")+")…";
+          try{var r=await OT.indexarUno(pend[i],sGet,sSet);if(r.sinTexto)sinTexto.push(pend[i].numero||"s/n");}
+          catch(e){fallos.push((pend[i].numero||"s/n")+": "+((e&&e.message)||"error"));}
+        }
+        await cargarIndices();if(!detalle)pintar();
+        var resto=OT.pendientes(lista,indices).length;
+        var msg=(pend.length-fallos.length)+" ODD indexada"+((pend.length-fallos.length)===1?"":"s")+".";
+        if(sinTexto.length)msg+=" Sin texto (el PDF es una imagen): ODD "+sinTexto.join(", ")+".";
+        if(fallos.length)msg+=" No se pudo: "+fallos.join("; ")+".";
+        panelIndexar();
+        if(!resto)$("odbIdx").innerHTML='<p class="sub">'+e2(msg)+'</p>';else $("odbIdx").insertAdjacentHTML("afterbegin",'<p class="sub">'+e2(msg)+'</p>');
+      };
+    }
     pintar();
+    cargarIndices().then(function(){if(!ov.isConnected)return;if(!detalle)pintar();panelIndexar();}).catch(function(){});
     $("odbQ").addEventListener("input",pintar);["odbA","odbM","odbT"].forEach(function(id){var x=$(id);if(x)x.addEventListener("change",pintar);});
     $("odbC").onclick=function(){ov.remove();};
     ov.addEventListener("click",function(ev){if(ev.target===ov)ov.remove();});
     $("odbL").addEventListener("click",function(ev){
       var b=ev.target.closest("[data-i]");if(!b)return;var o=lista[+b.dataset.i];
-      var d=o.cuando||{};
+      var d=o.cuando||{};detalle=true;
       var filas=[["Tipo",TIPOS[o.tipo]||""],["Fecha",[OB.fechaCorta(d.fecha),d.hora].filter(Boolean).join(" · ")],["Lugar",o.lugar],["Tema",o.tema],["Vestimenta",o.vestimenta],["Puntualidad",o.puntualidad?"Se exige puntualidad":""],["Excusas",o.excusas]].filter(function(r){return r[1];});
       $("odbL").innerHTML='<h3>ODD '+e2(o.numero||"")+' · '+e2(o.titulo||"")+(o.anulada?' <small>(RETIRADA)</small>':'')+'</h3>'+
         (filas.length?'<dl class="odb-det">'+filas.map(function(r){return '<dt>'+e2(r[0])+'</dt><dd>'+e2(r[1])+'</dd>';}).join("")+'</dl>':'')+
@@ -218,6 +259,7 @@
   "#odbOv input,#odbOv select{display:block;box-sizing:border-box;width:100%;min-height:48px;padding:10px 14px;border-radius:10px;border:2px solid #d4a82a;background:#0f1215;color:#fff;font:inherit;font-size:16px}"+
   "#odbOv .ant-abrir{display:block;box-sizing:border-box;width:100%;min-height:48px;margin:6px 0;padding:10px 14px;border-radius:10px;border:1px solid #343b40;background:#0f1215;color:#fff;font:inherit;font-weight:700;text-align:left}#odbOv .ant-abrir small{font-weight:400;opacity:.75}"+
   "#odbOv .cit-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}#odbOv .cit-acc .btn{flex:1 1 140px;min-height:48px;border-radius:10px;font:inherit;font-weight:700;text-align:center;color:inherit}"+
+  "#odbOv .odb-pdf{display:block;margin-top:4px;font-weight:400;line-height:1.35;opacity:.95}#odbOv mark{background:#d4a82a;color:#000;border-radius:3px;padding:0 1px}#odbOv #odbIdx .btn{width:100%;min-height:48px;margin:0 0 8px;border-radius:10px;font:inherit;font-weight:700}"+
   "#odbOv #odbL{max-height:55vh;overflow:auto}#odbOv input,#odbOv select{margin:0 0 8px}#odbOv .odb-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px}"+
   "#odbOv .odb-det{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:8px 0;font-size:14px}#odbOv .odb-det dt{opacity:.7}#odbOv .odb-det dd{margin:0;white-space:pre-wrap}";
   var st=document.createElement("style");st.textContent=css;document.head.appendChild(st);

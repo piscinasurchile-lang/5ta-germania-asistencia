@@ -1,0 +1,7 @@
+PDF.js (Mozilla) 4.10.38, compilación "legacy" minificada, licencia Apache-2.0 (ver LICENSE).
+Origen: paquete npm pdfjs-dist@4.10.38 → legacy/build/pdf.min.mjs y pdf.worker.min.mjs, sin modificar.
+Uso: solo para extraer el texto de los PDF de las ODD y poder buscar en ellos (germania-odd-texto.js).
+Se carga bajo demanda (import dinámico) y solo cuando un oficial indexa PDF; no se carga al abrir la app.
+Se usa siempre con isEvalSupported:false.
+Para actualizar: reemplazar ambos .mjs por los de la nueva versión y cambiar la versión en
+germania-odd-texto.js (PDFJS_VERSION) y en la prueba tests/odd-texto-pdf.test.mjs.
