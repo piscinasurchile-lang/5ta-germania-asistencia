@@ -928,8 +928,8 @@ async function misNochesDatos(who,forzar){
   prox.sort(function(a,b){ return a.f.localeCompare(b.f); }); cumpl.sort(function(a,b){ return b.f.localeCompare(a.f); });
   /* SOLO cuenta si el T3 acreditó presencialmente, con la última aprobación de dotación. */
   cumpl.forEach(function(e){
-    var ac=acreditaciones[e.f], valida=!!(window.GermaniaGuardiaReglas &&
-      window.GermaniaGuardiaReglas.acreditacionVigente(ac,e.revision,e.f));
+    var ac=window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.actaEfectiva?window.GermaniaGuardiaReglas.actaEfectiva(acreditaciones[e.f],e.revision,e.f):null,
+      valida=!!ac;
     e.pendiente=!valida && !(e.aviso&&e.aviso.estado==="cubierto");
     e.cuenta=valida && ac.asistentes.map(String).includes(who) && ac.asistencias[who]==="presente";
   });

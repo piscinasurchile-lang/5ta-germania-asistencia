@@ -88,15 +88,18 @@ test("cierre de libro por oficial sin foto cuenta como registro cerrado, no como
  assert.equal(r.estado,"acreditada_oficial","registro anterior al flujo se conserva como acreditación histórica");
  assert.equal(r.reglamento,"con_incumplimientos");
  const porCapitan=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:{...ac,acreditadoPorCargo:"Capitán",cumplimientoFinal:null,cumplimiento:{estado:"acreditado",motivos:[]},dotacionEfectiva:{}},incidencias:[],revision,ahora:"2026-10-21T07:00"});
- assert.equal(porCapitan.estado,"ratificada_pendiente_acreditacion","ratificada por otro oficial: falta acreditación final");
- assert.equal(nochesPendientesSemana([porCapitan]).length,1,"bloquea el cierre semanal");
+ assert.equal(porCapitan.estado,"acreditada_oficial","ya no hay paso T3: un acta real válida basta");
+ assert.equal(nochesPendientesSemana([porCapitan]).length,0,"no bloquea el cierre semanal");
  const porT3=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:{...ac,acreditadoPorCargo:"Teniente Tercero",cumplimientoFinal:{estado:"acreditado",porId:"9"},cumplimiento:{estado:"acreditado",motivos:[]},dotacionEfectiva:{}},incidencias:[],revision,ahora:"2026-10-21T07:00"});
  assert.equal(porT3.estado,"acreditada_oficial");assert.equal(nochesPendientesSemana([porT3]).length,0);
  const reg=resumenNoche({fecha:"2026-10-17",noche,libro:cierre,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"});
- assert.equal(reg.estado,"registro_cerrado");
- assert.equal(resumenNoche({fecha:"2026-10-17",noche,libro:null,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"}).estado,"sin_cierre_de_libro");
+ assert.equal(reg.estado,"acreditada_oficial","noche terminada sin acta: cuenta cumplida con la dotación programada");
+ assert.equal(reg.ratificacion.asistentes.length,4);assert.deepEqual(reg.ratificacion.ausentes,[]);
+ const auto=resumenNoche({fecha:"2026-10-17",noche,libro:null,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"});
+ assert.equal(auto.estado,"acreditada_oficial","sin cierre OBAC tampoco bloquea");
+ assert.equal(resumenNoche({fecha:"2026-10-17",noche:{...noche,maq:null},libro:null,acreditacion:null,incidencias:[],revision,ahora:"2026-10-21T07:00"}).reglamento,"con_incumplimientos","sin conductor queda marcado");
  assert.equal(resumenNoche({fecha:"2026-10-17",noche,libro:null,acreditacion:null,incidencias:[],revision,ahora:"2026-10-17T23:00"}).estado,"en_curso_o_futura");
- assert.deepEqual(nochesPendientesSemana([r,reg]).map(x=>x.fecha),["2026-10-17"]);
+ assert.deepEqual(nochesPendientesSemana([r,reg]).map(x=>x.fecha),[]);
 });
 test("libro visible para oficiales autorizados aun antes de ratificar",()=>{
  assert.equal(puedeVerLibro(roster[0],noche,false),true);
