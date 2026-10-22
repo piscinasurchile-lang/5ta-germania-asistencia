@@ -2975,7 +2975,7 @@ async function renderGnLista(){
   if(!turnos){box.innerHTML='<div class="empty">'+(programadas.size?'Hay '+programadas.size+' noche(s) programada(s) y aprobada(s) en el período, pero aún no hay registros de guardia efectiva. Las asistencias se contabilizan solo después de su acreditación.':'No hay guardias registradas ni noches aprobadas en este período.')+'</div>';return;}
   box.innerHTML=lista.slice().reverse().map(g=>{
     const r=pares[g.fechaIng],n=r?.revision?.noches?.[g.fechaIng];
-    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(r?.acta,r?.revision,g.fechaIng)?r.acta:null;
+    const ac=window.GermaniaGuardiaReglas.actaEfectiva(r?.acta,r?.revision,g.fechaIng);
     const quienes=n?[n.maq,n.obac,...n.vol].filter(Boolean):[g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
     const detalle=ac?"Acreditados: "+ac.asistentes.map(id=>esc(nombrePorId(id))).join(", ")+
       (ac.ausentes.length?" · No asistieron: "+ac.ausentes.map(id=>esc(nombrePorId(id))).join(", "):""):
@@ -3084,7 +3084,7 @@ on("gnInfo","click",async()=>{
   const noches=lista.map(g=>{
     const [yy,mm,dd]=g.fechaIng.split("-").map(Number),dia=new Date(yy,mm-1,dd);
     const par=pares[g.fechaIng]||{},rev=par.revision,n=rev?.noches?.[g.fechaIng];
-    const ac=window.GermaniaGuardiaReglas.acreditacionVigente(par.acta,rev,g.fechaIng)?par.acta:null;
+    const ac=window.GermaniaGuardiaReglas.actaEfectiva(par.acta,rev,g.fechaIng);
     const designados=n?[n.maq,n.obac,...n.vol].filter(Boolean):
       [g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
     return {g,dia,acreditado:!!ac,programados:ac?[]:[...new Set(designados)].map(id=>({id})),

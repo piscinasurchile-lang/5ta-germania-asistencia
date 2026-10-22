@@ -22,13 +22,15 @@ function resumen({guardia=g,rev=r,actaReal=null,ahora="2026-10-15T09:00"}={}){
     rosterIds:ids,ahoraChile:ahora
   });
 }
-test("inscritos / dotación aprobada / noche vencida no generan cumplimiento",()=>{
+test("noche terminada cuenta con la dotación programada; una noche en curso no cuenta",()=>{
  const out=resumen();
- assert.equal(out.pendientes,1);
+ assert.equal(out.pendientes,0);
  assert.equal(out.asign,4);
- assert.deepEqual(ids.map(id=>out.por[id].hechas),[0,0,0,0,0]);
- assert.equal(out.por.o1.obac,0);
- assert.equal(out.por.m1.maq,0);
+ assert.deepEqual(ids.map(id=>out.por[id].hechas),[1,1,1,1,0]);
+ assert.equal(out.por.o1.obac,1);
+ assert.equal(out.por.m1.maq,1);
+ const enCurso=resumen({ahora:"2026-10-14T23:00"});
+ assert.deepEqual(ids.map(id=>enCurso.por[id].hechas),[0,0,0,0,0],"inscritos / dotación aprobada de una noche en curso no generan cumplimiento");
 });
 test("acreditación real suma a cada asistente exactamente una vez, incluyendo roles",()=>{
  const out=resumen({actaReal:acta(n,["m1","o1","v1"],["v2"])});
@@ -38,14 +40,14 @@ test("acreditación real suma a cada asistente exactamente una vez, incluyendo r
  assert.equal(out.por.m1.maq,1);
  assert.equal(out.por.v2.falto,1);
 });
-test("cambio posterior de voluntario invalida acreditación previa, sin borrar historial",()=>{
+test("cambio posterior de voluntario invalida el acta previa: cuenta la dotación programada vigente",()=>{
  const nuevo={...n,vol:["v1","v3"]};
  const nuevoR={...r,noches:{[f]:nuevo}};
  const actaVieja=acta(n,["m1","o1","v1","v2"]);
  const out=resumen({rev:nuevoR,actaReal:actaVieja});
- assert.equal(out.pendientes,1);
- assert.equal(out.por.v2.hechas,0);
- assert.equal(out.por.v3.hechas,0);
+ assert.equal(out.pendientes,0);
+ assert.equal(out.por.v2.hechas,0,"quien salió de la dotación no suma");
+ assert.equal(out.por.v3.hechas,1,"quien entró suma como programado");
 });
 test("reemplazo acreditado: sale original y gana únicamente quien cubrió",()=>{
  const nuevo={...n,vol:["v1","v3"]};

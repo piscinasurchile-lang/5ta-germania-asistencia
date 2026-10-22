@@ -39,9 +39,13 @@
     return JSON.stringify({maq:String(noche.maq),obac:String(noche.obac),vol:vol.sort()});
   }
   function acreditacionVigente(ac,revision,fecha){
-    var n=revision&&revision.noches&&revision.noches[fecha];
     /* Cumplimiento final: lo acredita solo el T3. Registros anteriores al flujo (sin acreditadoPorCargo) los creaba solo el T3. */
     if(ac&&(ac.cumplimientoFinal?ac.cumplimientoFinal.estado!=="acreditado":ac.acreditadoPorCargo!==undefined))return false;
+    return actaValida(ac,revision,fecha);
+  }
+  /* Acta real íntegra (dotación vigente, asistencias coherentes), sin exigir el paso T3 que ya no existe. */
+  function actaValida(ac,revision,fecha){
+    var n=revision&&revision.noches&&revision.noches[fecha];
     if(!ac||!n||ac.estado!=="acreditada"||revision.estado!=="aprobada"||
        ac.fecha!==fecha||ac.revisionAprobadaEn!==revision.aprobadaEn||
        !ac.dotacionFirma||ac.dotacionFirma!==firmaDotacion(n)||
@@ -68,5 +72,36 @@
       pres.every(function(id){return ac.asistentes.includes(id);})&&
       aus.every(function(id){return ac.ausentes.includes(id);});
   }
-  root.GermaniaGuardiaReglas={evaluarDotacion:evaluarDotacion,firmaDotacion:firmaDotacion,acreditacionVigente:acreditacionVigente};
+  /* Noche terminada = cumplida (instrucción del Capitán, oct-2026): ya no hay cierre OBAC, ratificación ni acreditación T3.
+     Si no hay un acta real vigente, una noche terminada de una revisión aprobada cuenta con toda su dotación programada
+     como presente (conductor y OBAC incluidos). Solo lectura: no escribe nada ni modifica actas guardadas. */
+  function ahoraChile(){
+    try{
+      var d={};new Intl.DateTimeFormat("en-GB",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",
+        hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).forEach(function(x){d[x.type]=x.value;});
+      return d.year+"-"+d.month+"-"+d.day+"T"+d.hour+":"+d.minute;
+    }catch(e){return "";}
+  }
+  function nocheTerminada(fecha,ahora){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha||"")||!ahora)return false;
+    var sig=new Date(Date.parse(fecha+"T12:00:00Z")+864e5).toISOString().slice(0,10);
+    return ahora>=sig+"T06:00";
+  }
+  function actaAutomatica(fecha,n){
+    var ids=[];
+    [n&&n.maq,n&&n.obac].concat((n&&n.vol)||[]).forEach(function(x){
+      var v=x==null?"":String(x).trim();if(v&&ids.indexOf(v)<0)ids.push(v);
+    });
+    var asistencias={};ids.forEach(function(id){asistencias[id]="presente";});
+    return {estado:"acreditada",fecha:fecha,automatica:true,asistentes:ids.slice(),ausentes:[],asistencias:asistencias,
+      adicionales:[],excusas:{},obacEfectivoId:n&&n.obac?String(n.obac):"",conductorEfectivoId:n&&n.maq?String(n.maq):""};
+  }
+  function actaEfectiva(ac,revision,fecha,ahora){
+    if(actaValida(ac,revision,fecha))return ac;
+    var n=revision&&revision.noches&&revision.noches[fecha];
+    if(!n||revision.estado!=="aprobada"||!Array.isArray(n.vol))return null;
+    return nocheTerminada(fecha,ahora||ahoraChile())?actaAutomatica(fecha,n):null;
+  }
+  root.GermaniaGuardiaReglas={evaluarDotacion:evaluarDotacion,firmaDotacion:firmaDotacion,acreditacionVigente:acreditacionVigente,actaValida:actaValida,
+    actaEfectiva:actaEfectiva,nocheTerminada:nocheTerminada,ahoraChile:ahoraChile};
 })(typeof window!=="undefined"?window:globalThis);

@@ -26,7 +26,7 @@
       var f=g.fechaIng, par=acreditaciones?.[f]||null, rev=par?.revision||null,
           candidato=par?.acta||null, n=rev?.noches?.[f]||null;
       var guardiaReglas=root.GermaniaGuardiaReglas;
-      var ac=guardiaReglas?.acreditacionVigente(candidato,rev,f)?candidato:null;
+      var ac=guardiaReglas?.actaEfectiva?guardiaReglas.actaEfectiva(candidato,rev,f,ahoraChile):(guardiaReglas?.acreditacionVigente(candidato,rev,f)?candidato:null);
       var sal=g.fechaSal||siguienteDia(f), hora=g.horaSal||"08:00";
       if(!ac && sal && ahoraChile && ahoraChile>=sal+"T"+hora) resultado.pendientes++;
       var originales=Array.isArray(g.guardianes)?g.guardianes:[];
