@@ -393,10 +393,11 @@
 /* Celular (≤700 px): el ☰ del encabezado repetía «Más» de la barra inferior. Se oculta solo a la vista:
    #menuToggle sigue en la página porque «Más» (germania-ui.js) lo acciona por código. De 701 px en adelante no cambia. */
 @media(max-width:700px){.g-sticky-shell .masthead .menu-toggle{display:none!important}.g-sticky-shell .masthead{grid-template-columns:minmax(0,1fr)!important}.g-sticky-shell .masthead .brand{grid-column:1!important}}
-/* Celular (≤700 px): el menú «Más» deja solo lo que no tiene otro acceso (Historial, Ayuda y, para oficiales, Oficiales / Administración).
-   Inicio, Mi estado y Emergencia están en la barra inferior; Asistencia, Estadísticas y Reglamentos, en las tarjetas de Inicio.
+/* Celular (≤700 px): el menú «Más» deja solo lo que no tiene otro acceso (Historial, Reglamentos, Ayuda y, para oficiales, Oficiales / Administración).
+   «Reglamentos» (data-reglamentos) abre solo el visor de reglamentos: no navega a ninguna pantalla ni al módulo de Oficiales.
+   Inicio, Mi estado y Emergencia están en la barra inferior; Asistencia y Estadísticas, en las tarjetas de Inicio.
    Solo se ocultan a la vista: los botones siguen en la página con sus funciones. De 701 px en adelante no cambia. */
-@media(max-width:700px){#mobileMenu button[data-go="germania"],#mobileMenu button[data-go="estado"],#mobileMenu button[data-go="servicio"],#mobileMenu button[data-go="lista"],#mobileMenu button[data-go="panel"],#mobileMenu button[data-reglamentos]{display:none!important}}
+@media(max-width:700px){#mobileMenu button[data-go="germania"],#mobileMenu button[data-go="estado"],#mobileMenu button[data-go="servicio"],#mobileMenu button[data-go="lista"],#mobileMenu button[data-go="panel"]{display:none!important}}
 /* Celular (≤700 px): con tan pocas opciones, el menú «Más» deja de ser un panel de alto completo: pasa a una ventana pequeña
    sobre el botón «Más» (abajo a la derecha), sin título y sin oscurecer la pantalla. Tocar fuera sigue cerrándolo. */
 @media(max-width:700px){
