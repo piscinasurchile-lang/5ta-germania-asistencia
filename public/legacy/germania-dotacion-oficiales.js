@@ -29,8 +29,8 @@ function estadoPersona(f,id,ctx){
   var aviso=ctx.aviso[f+":"+id],asiste=ctx.asiste[f+":"+id];
   if(terminada){
     if(ac&&ac.estado==="acreditada"&&ac.asistencias&&ac.asistencias[id]){
-      if(ac.asistencias[id]==="presente")return {t:"Presente (ratificado)",c:"verde"};
-      var ex=ac.excusas&&ac.excusas[id];return ex?{t:"Excusado: "+ex,c:"gris"}:{t:"Ausente (ratificado)",c:"rojo"};
+      if(ac.asistencias[id]==="presente")return {t:"Presente",c:"verde"};
+      var ex=ac.excusas&&ac.excusas[id];return ex?{t:"Excusado: "+ex,c:"gris"}:{t:"No asistió",c:"rojo"};
     }
     return {t:"Presente (noche cumplida)",c:"verde"};
   }

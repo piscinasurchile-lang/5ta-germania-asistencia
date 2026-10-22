@@ -2823,9 +2823,9 @@ async function gnHistorialDatos(inicio){
 /* Cumplimiento efectivo = asistencia ratificada de esa noche (solo lectura; no modifica nada). */
 function gnHistorialEfectiva(fecha,ac){
   if(Date.now()<instanteChile(gnAdd(fecha,1),"06:00"))return {estado:"espera",corto:"Aún no termina",texto:"La noche aún no termina"};
-  if(!ac||ac.estado!=="acreditada")return {estado:"pend",corto:"Pendiente",texto:"Pendiente de ratificación"};
+  if(!ac||ac.estado!=="acreditada")return {estado:"ok",corto:"Cumplida",texto:"Noche cumplida con la dotación programada"};
   const de=ac.dotacionEfectiva;
-  if(!de)return {estado:"pend",corto:"Sin detalle",texto:"Ratificada, sin detalle de dotación"};
+  if(!de)return {estado:"ok",corto:"Cumplida",texto:"Noche cumplida"};
   return de.minimoCumplido
     ?{estado:"ok",corto:"Cumplido",texto:"Mínimo cumplido · "+de.total+" presentes"}
     :{estado:"falta",corto:"Incompleto",texto:"Dotación incompleta · "+de.total+" presentes"};
@@ -2866,7 +2866,7 @@ function gnHistorialRenderDetalle(inicio,filas){
   box.innerHTML='<h3>'+esc(gnHistorialEtiqueta(inicio))+'</h3>'+
     '<p class="sub gh-resumen"><b>Aprobadas completas: '+aprobadas+'/7</b> · <b>Cumplidas: '+efectivas+'/7</b></p>'+
     tabla+tarjetas+
-    '<p class="sub gh-nota">Aprobada = programación de la noche. Efectiva = asistencia ratificada por oficiales. Solo lectura.</p>';
+    '<p class="sub gh-nota">Aprobada = programación de la noche. Efectiva = noche cumplida (o modificada por un oficial). Solo lectura.</p>';
   /* Una tarjeta abierta a la vez. */
   const det=[...box.querySelectorAll(".gh-tarjetas details")];
   det.forEach(d=>d.addEventListener("toggle",()=>{
@@ -2920,7 +2920,7 @@ async function gnHistorialDescargar(inicio){
     let y=doc.lastAutoTable.finalY+8;
     if(y>272){doc.addPage();y=51;gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");}
     doc.setFontSize(8);doc.setFont("helvetica","normal");
-    doc.text("Programación informativa. No certifica asistencia efectiva ni acreditación del Teniente Tercero.",12,y,{maxWidth:185});
+    doc.text("Programación informativa. No certifica asistencia efectiva.",12,y,{maxWidth:185});
     doc.save("guardia_semana_"+inicio+"_a_"+gnAdd(inicio,6)+".pdf");
     if(msg)msg.textContent="PDF semanal descargado. Incluye los siete días.";
   }catch(e){if(msg)msg.textContent=e?.message||"No se pudo descargar PDF."}
@@ -2965,21 +2965,21 @@ async function renderGnLista(){
   const inasistencias=Object.values(resumen.por).reduce((s,x)=>s+x.falto,0);
   const conNov=lista.filter(g=>g.novedades && !/^sin novedad/i.test(g.novedades)).length;
   res.innerHTML=
-    '<div class="summary-item"><div class="big">'+programadas.size+'</div><div class="lbl">Noches programadas (aprobadas, no acreditadas)</div></div>'+
+    '<div class="summary-item"><div class="big">'+programadas.size+'</div><div class="lbl">Noches programadas (aprobadas)</div></div>'+
     '<div class="summary-item"><div class="big">'+turnos+'</div><div class="lbl">Guardias registradas</div></div>'+
-    '<div class="summary-item"><div class="big">'+acreditadas+'</div><div class="lbl">Asistencias acreditadas</div></div>'+
-    '<div class="summary-item"><div class="big">'+resumen.pendientes+'</div><div class="lbl">Noches por acreditar</div></div>'+
+    '<div class="summary-item"><div class="big">'+acreditadas+'</div><div class="lbl">Asistencias</div></div>'+
+    '<div class="summary-item"><div class="big">'+resumen.pendientes+'</div><div class="lbl">Noches sin dotación aprobada</div></div>'+
     '<div class="summary-item"><div class="big">'+inasistencias+'</div><div class="lbl">Ausencias verificadas</div></div>'+
     '<div class="summary-item"><div class="big">'+resumen.reemp+'</div><div class="lbl">Reemplazos registrados</div></div>'+
     '<div class="summary-item"><div class="big">'+conNov+'</div><div class="lbl">Con novedad</div></div>';
-  if(!turnos){box.innerHTML='<div class="empty">'+(programadas.size?'Hay '+programadas.size+' noche(s) programada(s) y aprobada(s) en el período, pero aún no hay registros de guardia efectiva. Las asistencias se contabilizan solo después de su acreditación.':'No hay guardias registradas ni noches aprobadas en este período.')+'</div>';return;}
+  if(!turnos){box.innerHTML='<div class="empty">'+(programadas.size?'Hay '+programadas.size+' noche(s) programada(s) y aprobada(s) en el período, pero todavía no terminan. Cada noche terminada cuenta como cumplida con su dotación.':'No hay guardias registradas ni noches aprobadas en este período.')+'</div>';return;}
   box.innerHTML=lista.slice().reverse().map(g=>{
     const r=pares[g.fechaIng],n=r?.revision?.noches?.[g.fechaIng];
     const ac=window.GermaniaGuardiaReglas.acreditacionVigente(r?.acta,r?.revision,g.fechaIng)?r.acta:null;
     const quienes=n?[n.maq,n.obac,...n.vol].filter(Boolean):[g.oficial,g.conductor,...normalizaTurno(g.guardianes).map(x=>x.id)].filter(Boolean);
-    const detalle=ac?"Acreditados: "+ac.asistentes.map(id=>esc(nombrePorId(id))).join(", ")+
+    const detalle=ac?"Asistieron: "+ac.asistentes.map(id=>esc(nombrePorId(id))).join(", ")+
       (ac.ausentes.length?" · No asistieron: "+ac.ausentes.map(id=>esc(nombrePorId(id))).join(", "):""):
-      "Designados (sin acreditar): "+[...new Set(quienes)].map(id=>esc(nombrePorId(id))).join(", ");
+      "Designados: "+[...new Set(quienes)].map(id=>esc(nombrePorId(id))).join(", ");
     const nov=g.novedades?" · "+esc(g.novedades):"";
     return '<div class="hist-item"><div><div class="hist-date">'+esc(fmtDateLong(g.fechaIng))+
       ' · '+esc(g.horaIng||"")+' a '+esc(g.horaSal||"")+'</div><div class="hist-acto">'+detalle+
@@ -3024,7 +3024,7 @@ on("gnPdfEstad","click",async()=>{
   if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
   let resumen;
   try{resumen=(await gnResumenAcreditado(lista)).resumen;}
-  catch(e){alert("No se generó el informe: falta verificar la información de acreditaciones.");return;}
+  catch(e){alert("No se generó el informe: falta verificar la información de las guardias.");return;}
   const q=Object.values(resumen.por);
   const cumplidas=q.reduce((t,x)=>t+x.hechas,0), ausentes=q.reduce((t,x)=>t+x.falto,0),
     cubrio=q.reduce((t,x)=>t+x.cubrio,0),
@@ -3038,11 +3038,11 @@ on("gnPdfEstad","click",async()=>{
     head:[["Resumen",""]],
     body:[
       ["Guardias registradas",String(resumen.turnos)],
-      ["Noches finalizadas pendientes de acreditación",String(resumen.pendientes)],
-      ["Asistencias reales acreditadas",String(cumplidas)],
-      ["Ausencias verificadas por Teniente Tercero",String(ausentes)],
+      ["Noches finalizadas sin dotación aprobada",String(resumen.pendientes)],
+      ["Asistencias",String(cumplidas)],
+      ["Ausencias registradas",String(ausentes)],
       ["Reemplazos registrados",String(resumen.reemp)],
-      ["Reemplazos con asistencia acreditada",String(cubrio)],
+      ["Reemplazos con asistencia",String(cubrio)],
       ["Noches con novedad",String(conNov)]
     ]});
   const filas=sortedRoster(false).map(p=>({p,q:resumen.por[String(p.id)]||{
@@ -3050,16 +3050,16 @@ on("gnPdfEstad","click",async()=>{
   }})).sort((a,b)=>b.q.hechas-a.q.hechas);
   doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},
     headStyles:{fillColor:[100,90,80]},
-    head:[["N°","Clave","Voluntario","Designado","Cumplidas T3","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
+    head:[["N°","Clave","Voluntario","Designado","Cumplidas","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
     body:filas.map(({p,q})=>[p.n||"",p.clave||"—",nombreCompleto(p),
       String(q.asig),String(q.hechas),String(q.falto),String(q.ced),String(q.cubrio),
       String(q.obac),String(q.maq)])});
   doc.setFontSize(8);
   const y=doc.lastAutoTable.finalY+8;
-  if(y<280)doc.text("Solo una acreditación válida del Teniente Tercero registra una guardia cumplida.",14,y);
+  if(y<280)doc.text("Toda noche terminada cuenta como cumplida con su dotación, salvo la modificación de un oficial.",14,y);
   await sharePdfDoc(doc,
     'estadistica_guardias_'+(d||"inicio")+'_a_'+(h||"hoy")+'.pdf',
-    "Estadística de guardias nocturnas acreditadas");
+    "Estadística de guardias nocturnas");
 });
 
 /* ---- INFOGRAFÍA DE GUARDIAS ---- */
@@ -3068,7 +3068,7 @@ on("gnInfo","click",async()=>{
   if(!lista.length){alert("No hay guardias registradas en ese período.");return;}
   let datos;
   try{datos=await gnResumenAcreditado(lista);}
-  catch(e){alert("No se generó la infografía: no fue posible verificar las acreditaciones.");return;}
+  catch(e){alert("No se generó la infografía: no fue posible verificar las guardias.");return;}
   const {resumen,pares}=datos;
   const DIAS=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const f1=x=>x.toFixed(1);
@@ -3149,10 +3149,10 @@ td{padding:5px 8px;border:1px solid #e3e9f2}
 
 <div class="sec"><h3>RESUMEN DEL PERÍODO</h3><div class="in"><div class="kpis">
 <div class="k"><div class="n">${lista.length}</div><div class="t">Noches con guardia</div></div>
-<div class="k v"><div class="n">${cubiertos}</div><div class="t">Asistencias acreditadas</div></div>
-<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Acreditadas por noche</div></div>
+<div class="k v"><div class="n">${cubiertos}</div><div class="t">Asistencias</div></div>
+<div class="k"><div class="n">${f1(cubiertos/lista.length)}</div><div class="t">Asistencias por noche</div></div>
 <div class="k"><div class="n">${inasist}</div><div class="t">Ausencias verificadas</div></div>
-<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Por acreditar</div></div>
+<div class="k ${sinR?"r":"v"}"><div class="n">${sinR}</div><div class="t">Sin dotación aprobada</div></div>
 <div class="k"><div class="n">${conNov}</div><div class="t">Noches con novedad</div></div>
 </div></div></div>
 
@@ -3162,34 +3162,34 @@ ${noches.map(n=>`
   <div class="noche">
     <div class="cab">
       <b>${DIAS[n.dia.getDay()]} ${n.dia.getDate()}</b>
-      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Acreditada por T3":"Sin acreditar"}</span>
+      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Cumplida":"Sin dotación aprobada"}</span>
     </div>
     <div class="cnt">
-      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ T3</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ</em>${esc(nombrePorId(x.id))}</div>`).join("")}
       ${n.programados.map(x=>`<div class="g"><em class="e-h">DESIGNADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
       
       ${n.faltan.map(x=>`
-        <div class="g"><em class="e-n">NO ASISTIÓ T3</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
+        <div class="g"><em class="e-n">NO ASISTIÓ</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
       <div class="ofi">Oficial a cargo: <b>${n.g.oficial?esc(nombrePorId(n.g.oficial)):"—"}</b></div>
       ${n.g.novedades && !/^sin novedad/i.test(n.g.novedades)?`<div class="nov"><b>Novedad:</b> ${esc(n.g.novedades)}</div>`:""}
     </div>
   </div>`).join("")}
 </div>
 <div class="leyenda">
-  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ T3</em> asistencia acreditada</span>
-  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">DESIGNADO</em> sin acreditar</span>
-  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZO</em> solo cuenta al acreditarse</span>
-  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ T3</em> ausencia verificada</span>
+  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ</em> asistencia</span>
+  <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">DESIGNADO</em> sin dotación aprobada</span>
+  <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZO</em> cubrió a otro voluntario</span>
+  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ</em> ausencia registrada</span>
 </div>
 </div></div>
 
 <div class="sec"><h3>PARTICIPACIÓN POR VOLUNTARIO</h3><div class="in">
-<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió T3</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC acreditado</th></tr>
+<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC</th></tr>
 ${ranking.map(x=>`<tr><td>${x.p.n||""}</td><td><b>${esc(nombreCompleto(x.p))}</b></td>
 <td>${x.d}</td><td>${x.n}</td><td>${x.f}</td><td>${x.r}</td>
 <td><b>${x.obac}</b></td></tr>`).join("")}
 </table>
-${inasist||sinR?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;"><b>Asistencia:</b> ${inasist} ausencia(s) verificadas; ${reemplazos} reemplazo(s) con asistencia acreditada; ${sinR} noche(s) finalizada(s) pendiente(s) de acreditar.</div>`:""}
+${inasist||sinR?`<div style="margin-top:12px;background:#fdf4f3;border:1px solid #f6c6c6;border-radius:7px;padding:10px 12px;font-size:11.5px;color:#8f1d1d;"><b>Asistencia:</b> ${inasist} ausencia(s) registradas; ${reemplazos} reemplazo(s) con asistencia; ${sinR} noche(s) finalizada(s) sin dotación aprobada.</div>`:""}
 </div></div>
 
 </div>
