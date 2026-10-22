@@ -390,6 +390,22 @@
 @media(max-width:480px){.masthead .brand h1{max-width:210px}#panel-germania .home-tiles .tile{min-height:75px!important}}
 
 @media(min-width:720px){.g-sticky-shell{grid-template-columns:1fr 1fr!important}.g-sticky-shell .masthead,.g-sticky-shell .home-hero{min-height:88px!important}.g-sticky-shell .masthead .crest{width:58px!important;height:65px!important}.g-sticky-shell #miFoto{width:56px!important;height:56px!important;flex-basis:56px!important}.g-sticky-shell #miNombre{font-size:17px!important}.g-sticky-shell #miCargo{font-size:13px!important}.g-sticky-shell .masthead{grid-template-columns:44px minmax(0,1fr)!important;column-gap:9px!important}.g-sticky-shell .masthead .menu-toggle{width:44px!important;min-width:44px!important}.g-sticky-shell .masthead .brand .crest{flex-basis:58px!important;width:58px!important;height:65px!important}}
+/* Celular (≤700 px): el ☰ del encabezado repetía «Más» de la barra inferior. Se oculta solo a la vista:
+   #menuToggle sigue en la página porque «Más» (germania-ui.js) lo acciona por código. De 701 px en adelante no cambia. */
+@media(max-width:700px){.g-sticky-shell .masthead .menu-toggle{display:none!important}.g-sticky-shell .masthead{grid-template-columns:minmax(0,1fr)!important}.g-sticky-shell .masthead .brand{grid-column:1!important}}
+/* Celular (≤700 px): el menú «Más» deja solo lo que no tiene otro acceso (Historial, Reglamentos, Ayuda y, para oficiales, Oficiales / Administración).
+   «Reglamentos» (data-reglamentos) abre solo el visor de reglamentos: no navega a ninguna pantalla ni al módulo de Oficiales.
+   Inicio, Mi estado y Emergencia están en la barra inferior; Asistencia y Estadísticas, en las tarjetas de Inicio.
+   Solo se ocultan a la vista: los botones siguen en la página con sus funciones. De 701 px en adelante no cambia. */
+@media(max-width:700px){#mobileMenu button[data-go="germania"],#mobileMenu button[data-go="estado"],#mobileMenu button[data-go="servicio"],#mobileMenu button[data-go="lista"],#mobileMenu button[data-go="panel"]{display:none!important}}
+/* Celular (≤700 px): con tan pocas opciones, el menú «Más» deja de ser un panel de alto completo: pasa a una ventana pequeña
+   sobre el botón «Más» (abajo a la derecha), sin título y sin oscurecer la pantalla. Tocar fuera sigue cerrándolo. */
+@media(max-width:700px){
+#mobileMenu{top:auto!important;left:auto!important;right:10px!important;bottom:calc(76px + env(safe-area-inset-bottom))!important;width:auto!important;min-width:190px;max-width:calc(100vw - 20px);height:auto!important;max-height:60vh;padding:6px!important;border:1px solid #343b40!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,.6)!important}
+#mobileMenu:before{display:none!important}
+#mobileMenu button{margin:0!important}
+.g-menu-fondo{background:transparent!important}
+}
 /* Encabezado B: barra de maquinistas y bandera */
 .g-sticky-shell #indConductores{justify-content:flex-start!important}
 .g-sticky-shell #indConductores .mq-ico{width:22px;height:22px;flex:0 0 22px}
@@ -1646,7 +1662,6 @@
 
 <script src="/legacy/germania-fixes-20261002.js?v=20261002"></script>
 <script src="./germania-ui.js?v=20261008f"></script>
-<script src="./germania-volver.js?v=20261019volver1"></script>
 <script src="./germania-obac.js?v=20261009a"></script>
 <script src="./germania-guardia-franja.js?v=20261010a"></script>
 <script src="./germania-apoyo-guardia.js?v=20261014guardia1"></script>
@@ -1661,7 +1676,7 @@
 <script src="./germania-cierre-libro.js?v=20261021obac1"></script>
 <script src="./germania-dotacion-oficiales.js?v=20261020dot2"></script>
 <script src="./germania-atras.js?v=20261020atras2"></script>
-<script src="./germania-navegacion.js?v=20261020nav2"></script>
+<script src="./germania-navegacion.js?v=20261022nav3"></script>
 <script src="./germania-guardia-flujo.js?v=20261020t3-48h"></script>
 <script src="./germania-nomina.js?v=20261008f"></script>
 <script src="./germania-ayuda.js?v=20261009a"></script>
