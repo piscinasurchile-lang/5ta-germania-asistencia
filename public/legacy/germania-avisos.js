@@ -150,7 +150,7 @@
     lista=lista.filter(function(o){return o&&(ofi||(!o.anulada&&Array.isArray(o.destinatarios)&&o.destinatarios.indexOf("voluntarios")>=0));})
       .sort(function(x,y){return String(y.publicadaEn||y.modificadaEn||"").localeCompare(String(x.publicadaEn||x.modificadaEn||""));});
     var anios=Array.from(new Set(lista.map(function(o){return String(o.publicadaEn||"").slice(0,4);}).filter(Boolean)));
-    var ov=document.createElement("div");ov.className="cit-ov";ov.style.alignItems="flex-start";
+    var ov=document.createElement("div");ov.className="cit-ov";ov.id="odbOv";ov.style.alignItems="flex-start";
     ov.innerHTML='<div class="cit-modal" style="max-height:92vh;overflow:auto"><h3>Archivo de ODD</h3><div class="field-row"><div class="field"><input type="text" id="odbQ" placeholder="Buscar por número o título"></div><div class="field"><select id="odbA"><option value="">Todos los años</option>'+anios.map(function(y){return '<option>'+y+'</option>';}).join("")+'</select></div></div><div id="odbL"></div><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';
     document.body.appendChild(ov);
     function pintar(){
@@ -186,9 +186,9 @@
   "#informacionesCard{display:none!important}.nov-ofi-head{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:48px;background:transparent;border:0;color:inherit;font:inherit;font-weight:800;font-size:17px;text-align:left}.nov-ofi-dot{min-width:24px;height:24px;border-radius:12px;background:#e0202c;color:#fff;font-style:normal;font-size:13px;line-height:24px;text-align:center;padding:0 6px}.nov-ofi-dot[hidden]{display:none}"+
   ".nov-ofi-item{border-bottom:1px solid #2a3037;padding:10px 4px}.nov-ofi-item.nueva{border-left:4px solid #e0202c;padding-left:8px}.nov-ofi-meta{font-size:12px;opacity:.7}.nov-ofi-txt{margin-top:2px;white-space:pre-wrap}.tile{position:relative}.tile-badge{position:absolute;top:6px;right:8px;min-width:22px;height:22px;border-radius:11px;background:#e0202c;color:#fff;font-size:12px;line-height:22px;text-align:center;padding:0 5px}";
   css+=
-  "#regOv{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.72);padding:10px;overflow:auto;-webkit-overflow-scrolling:touch}"+
-  "#regOv .cit-modal{width:100%;max-width:560px;box-sizing:border-box;background:#171a1e;color:#fff;border:1px solid #343b40;border-radius:14px;padding:14px;margin:auto 0}"+
-  "#regOv h3{margin:4px 0 2px;font-size:19px}#regOv .sub{margin:2px 0 10px;font-size:13px;opacity:.75}"+
+  "#regOv,#odbOv{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-start;justify-content:center;background:rgba(0,0,0,.72);padding:10px;overflow:auto;-webkit-overflow-scrolling:touch}"+
+  "#regOv .cit-modal,#odbOv .cit-modal{width:100%;max-width:560px;box-sizing:border-box;background:#171a1e;color:#fff;border:1px solid #343b40;border-radius:14px;padding:14px;margin:auto 0}"+
+  "#regOv h3,#odbOv h3{margin:4px 0 2px;font-size:19px}#regOv .sub,#odbOv .sub{margin:2px 0 10px;font-size:13px;opacity:.75}"+
   "#regOv .btn,#regOv .reg-abrir{display:block;box-sizing:border-box;width:100%;min-height:48px;margin:8px 0;padding:10px 14px;border-radius:10px;font:inherit;font-weight:700;text-align:left;text-decoration:none;color:inherit}"+
   "#regOv .reg-doc small{font-weight:400;opacity:.75}#regOv .reg-lupa{display:block;margin-top:4px;font-size:13px;color:#d4a82a}"+
   "#regOv .reg-volver,#regOv .reg-pdf,#regOv .reg-cerrar{text-align:center}"+
@@ -198,6 +198,12 @@
   "#regOv .reg-pag{max-height:50vh;overflow:auto;padding:4px 12px 10px;white-space:pre-wrap;font-size:14px;line-height:1.5;border-top:1px solid #343b40}"+
   "#regOv .reg-abrir{min-height:44px;margin:0;border-top:1px solid #343b40;border-radius:0 0 10px 10px;color:#d4a82a}"+
   "#regOv mark{background:#d4a82a;color:#000;border-radius:3px;padding:0 1px}";
+  css+=
+  "#odbOv .field-row{display:flex;flex-direction:column;gap:8px;margin:8px 0}#odbOv .field{width:100%}"+
+  "#odbOv input,#odbOv select{display:block;box-sizing:border-box;width:100%;min-height:48px;padding:10px 14px;border-radius:10px;border:2px solid #d4a82a;background:#0f1215;color:#fff;font:inherit;font-size:16px}"+
+  "#odbOv .ant-abrir{display:block;box-sizing:border-box;width:100%;min-height:48px;margin:6px 0;padding:10px 14px;border-radius:10px;border:1px solid #343b40;background:#0f1215;color:#fff;font:inherit;font-weight:700;text-align:left}#odbOv .ant-abrir small{font-weight:400;opacity:.75}"+
+  "#odbOv .cit-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}#odbOv .cit-acc .btn{flex:1 1 140px;min-height:48px;border-radius:10px;font:inherit;font-weight:700;text-align:center;color:inherit}"+
+  "#odbOv #odbL{max-height:60vh;overflow:auto}";
   var st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
   function ciclo(){montar();render();citPendientes();}
   function iniciar(){ciclo();setInterval(function(){if(!document.hidden)ciclo();},60000);var s=$("miVoluntario");if(s)s.addEventListener("change",function(){setTimeout(ciclo,400);});}
