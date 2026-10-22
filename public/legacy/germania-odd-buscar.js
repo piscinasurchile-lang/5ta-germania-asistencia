@@ -1,10 +1,16 @@
 /* GERMANIA · Búsqueda y filtros del «Archivo de ODD» (solo lógica, sin pantalla).
    - Busca sin importar mayúsculas ni tildes, en número, título, tema, lugar, vestimenta y tipo.
    - Varias palabras: deben estar todas (en cualquier orden).
+   - También busca dentro del texto de los PDF cuando existe su índice (germania-odd-texto.js): `textos` = {id de ODD: páginas ya preparadas con GermaniaBuscar.preparar}.
    - Filtra por año, mes y tipo usando la fecha de la actividad (o, si no tiene, la de publicación).
    La pantalla está en germania-avisos.js. No lee ni escribe datos, ni toca permisos. */
 (function(root){
 "use strict";
+
+function buscador(){
+  if(typeof module!=="undefined"&&module.exports){try{return require("./germania-reglamentos-buscar.js");}catch(e){return null;}}
+  return root.GermaniaBuscar||null;
+}
 
 var MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
@@ -24,8 +30,18 @@ function textoOdd(o,tipos){
   return norm([o.numero,o.titulo,o.tema,o.lugar,o.vestimenta,(tipos&&tipos[o.tipo])||o.tipo].join(" "));
 }
 
-/* f = {q, anio:"2026", mes:"1".."12" o "", tipo:"citacion"…}. Devuelve las ODD (más reciente primero). */
-function filtrar(lista,f,tipos){
+/* Coincidencias dentro del PDF de una ODD (o null si no hay índice o no hay coincidencia).
+   Devuelve lo mismo que GermaniaBuscar.buscar: {estado:"frase"|"palabras", resultados:[{pagina,rangos}], …}. */
+function enPdf(o,q,textos){
+  var GB=buscador(),pags=textos&&o&&textos[o.id];
+  if(!GB||!pags||!pags.length)return null;
+  var r=GB.buscar(pags,q);
+  return (r.estado==="frase"||r.estado==="palabras")?r:null;
+}
+
+/* f = {q, anio:"2026", mes:"1".."12" o "", tipo:"citacion"…}. Devuelve las ODD (más reciente primero).
+   Una ODD coincide si todas las palabras están en sus datos (título, tema, lugar…) o si el texto de su PDF las contiene. */
+function filtrar(lista,f,tipos,textos){
   f=f||{};
   var pal=norm(f.q).split(" ").filter(Boolean);
   return (lista||[]).filter(function(o){
@@ -34,7 +50,11 @@ function filtrar(lista,f,tipos){
     if(f.anio&&d.slice(0,4)!==String(f.anio))return false;
     if(f.mes&&(d.slice(5,7)!==String(f.mes).padStart(2,"0")))return false;
     if(f.tipo&&o.tipo!==f.tipo)return false;
-    if(pal.length){var t=textoOdd(o,tipos);if(!pal.every(function(w){return t.indexOf(w)>=0;}))return false;}
+    if(pal.length){
+      var t=textoOdd(o,tipos);
+      var enDatos=pal.every(function(w){return t.indexOf(w)>=0;});
+      if(!enDatos&&!enPdf(o,f.q,textos))return false;
+    }
     return true;
   }).sort(function(a,b){return fechaOdd(b).localeCompare(fechaOdd(a))||String(b.numero||"").localeCompare(String(a.numero||""));});
 }
@@ -50,7 +70,7 @@ function fechaCorta(iso){
   return m?(+m[3])+" "+MESES[+m[2]-1].slice(0,3)+" "+m[1]:"";
 }
 
-var api={norm:norm,fechaOdd:fechaOdd,filtrar:filtrar,anios:anios,fechaCorta:fechaCorta,MESES:MESES};
+var api={norm:norm,fechaOdd:fechaOdd,filtrar:filtrar,enPdf:enPdf,anios:anios,fechaCorta:fechaCorta,MESES:MESES};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 else root.GermaniaOddBuscar=api;
 })(typeof window!=="undefined"?window:globalThis);
