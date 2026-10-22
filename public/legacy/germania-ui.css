@@ -67,7 +67,7 @@ button,select,input,textarea{font-family:inherit;}
 
 /* ---------- Pestañas superiores (PC/tablet) ---------- */
 .tabs{gap:var(--sp-2);border-bottom:1px solid var(--g-line);margin-bottom:var(--sp-4);}
-.tab{min-height:var(--g-tap);padding:var(--sp-2) var(--sp-4);margin:0;font-size:16px;letter-spacing:.03em;text-transform:uppercase;color:var(--g-muted);border-bottom:3px solid transparent;}
+.tab,.tab-mas{min-height:var(--g-tap);padding:var(--sp-2) var(--sp-4);margin:0;font-size:16px;letter-spacing:.03em;text-transform:uppercase;color:var(--g-muted);border-bottom:3px solid transparent;}
 .tab.active{color:#fff;border-bottom-color:var(--g-red);}
 .subtabs{gap:var(--sp-2);}
 .subtab{min-height:44px;padding:var(--sp-2) var(--sp-4);font-size:15px;}

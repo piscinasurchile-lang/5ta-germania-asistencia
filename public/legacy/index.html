@@ -89,8 +89,8 @@
   .masthead .today{color:var(--muted);font-size:13px;text-align:right;}
 
   .tabs{display:flex;margin-bottom:22px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
-  .tab{font-family:'Oswald',sans-serif;font-weight:500;font-size:14.5px;background:none;border:none;color:var(--muted);padding:10px 4px;margin-right:22px;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
-  .tab:hover{color:var(--text);}
+  .tab,.tab-mas{font-family:'Oswald',sans-serif;font-weight:500;font-size:14.5px;background:none;border:none;color:var(--muted);padding:10px 4px;margin-right:22px;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+  .tab:hover,.tab-mas:hover{color:var(--text);}
   .tab.active{color:var(--text);border-bottom-color:var(--fire);}
 
   .subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
@@ -245,7 +245,7 @@
   @media (min-width:760px){
     .wrap{max-width:1060px;padding:30px 26px 50px;}
     .brand h1{font-size:25px;}
-    .tab{font-size:15.5px;margin-right:26px;}
+    .tab,.tab-mas{font-size:15.5px;margin-right:26px;}
     .card{padding:20px 22px 22px;}
     .kpis{grid-template-columns:repeat(5,1fr);}
     .seg button{font-size:13px;padding:7px 13px;}
@@ -393,6 +393,12 @@
 /* Celular (≤700 px): el ☰ del encabezado repetía «Más» de la barra inferior. Se oculta solo a la vista:
    #menuToggle sigue en la página porque «Más» (germania-ui.js) lo acciona por código. De 701 px en adelante no cambia. */
 @media(max-width:700px){.g-sticky-shell .masthead .menu-toggle{display:none!important}.g-sticky-shell .masthead{grid-template-columns:minmax(0,1fr)!important}.g-sticky-shell .masthead .brand{grid-column:1!important}}
+/* PC/tablet (≥701 px): se quita el ☰ del encabezado. Su función pasa a la pestaña «Más», que abre el mismo menú
+   (Mi estado, Historial, Estadísticas, Reglamentos, Ayuda…). #menuToggle sigue en la página: «Más» lo acciona por código. */
+.tab-mas:hover,.tab-mas[aria-expanded="true"]{color:var(--text)}
+.tab-mas[aria-expanded="true"]{border-bottom-color:var(--fire)}
+@media(min-width:701px){.g-sticky-shell .masthead .menu-toggle{display:none!important}}
+@media(max-width:700px){.tab-mas{display:none!important}}
 /* Celular (≤700 px): el menú «Más» deja solo lo que no tiene otro acceso (Historial, Reglamentos, Ayuda y, para oficiales, Oficiales / Administración).
    «Reglamentos» (data-reglamentos) abre solo el visor de reglamentos: no navega a ninguna pantalla ni al módulo de Oficiales.
    Inicio, Mi estado y Emergencia están en la barra inferior; Asistencia y Estadísticas, en las tarjetas de Inicio.
@@ -455,7 +461,7 @@
 .gn-head,.gn-cal-head,.gn-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.gn-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:16px}.gn-weekdays,.gn-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.gn-weekdays span{text-align:center;font-weight:800;color:#8b6c08;padding:6px}.gn-day{min-height:54px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:inherit;font-weight:800;position:relative}.gn-day.other{opacity:.35}.gn-day.plan{background:#f4c62b;color:#171717;border-color:#a97d00}.gn-day.open{background:#42a85d;color:#fff}.gn-day.day{background:#fff;color:#222}.gn-day.mixed{background:linear-gradient(135deg,#f4c62b 0 50%,#fff 50%);color:#171717}.gn-day.red{background:#c92b2b;color:#fff}.gn-day.complete:after{content:"✓";position:absolute;right:5px;top:3px}.gn-day .mini{display:block;font-size:9px;line-height:1.05;margin-top:2px}.gn-period-box{padding:14px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);margin-bottom:14px}.gn-switch{display:flex;align-items:center;gap:8px;font-weight:800;margin:12px 0}.gn-switch input{width:20px;height:20px}.gn-actions{justify-content:flex-end;margin-top:14px}.gn-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12px}.gn-legend .g{display:inline-block;width:17px;height:17px;border:1px solid #777;border-radius:4px;vertical-align:middle;margin-right:4px}.g.green{background:#42a85d}.g.yellow{background:#f4c62b}.g.white{background:#fff}.g.red{background:#c92b2b}.g.split{background:linear-gradient(135deg,#f4c62b 0 50%,#fff 50%)}.gi-noches{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin:12px 0}.gi-n{border:2px solid rgba(128,128,128,.45);background:transparent;color:inherit;border-radius:10px;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font:inherit;padding:2px;min-width:0}.gi-n b{font-size:13px}.gi-n span{font:700 20px Oswald,sans-serif}.gi-n.on{background:#c9a227;border-color:#c9a227;color:#000}.gn-vol-week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.gn-vol-day{padding:12px 7px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);text-align:center}.gn-vol-day.available{background:#42a85d;color:#fff;cursor:pointer}.gn-vol-day.selected{background:#f4c62b;color:#171717;box-shadow:inset 0 0 0 3px #111}.volunteer-avatar{color:transparent}.volunteer-avatar.loading{background:linear-gradient(90deg,#252b30 25%,#3b4248 50%,#252b30 75%);background-size:200% 100%;animation:gnsh 1.2s infinite}.volunteer-avatar.loading{visibility:visible}.app-loading{position:fixed;inset:0;background:rgba(8,11,14,.94);z-index:9999;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff}.app-loading.hidden{display:none}.app-loading-box{padding:28px;max-width:320px}.app-loading-box strong{display:block;font-size:20px;margin:12px}.app-loading-spin{width:38px;height:38px;border:4px solid #444;border-top-color:#f2c230;border-radius:50%;animation:spin .8s linear infinite;margin:auto}@keyframes spin{to{transform:rotate(360deg)}}@keyframes gnsh{to{background-position:-200% 0}}
 @media(max-width:850px){.gn-layout{grid-template-columns:1fr}.gn-vol-week{grid-template-columns:repeat(4,1fr)}}@media(max-width:520px){.gn-vol-week{grid-template-columns:repeat(2,1fr)}.gn-day{min-height:46px;font-size:12px}}
 </style>
-<link rel="stylesheet" href="./germania-ui.css?v=20261016real1">
+<link rel="stylesheet" href="./germania-ui.css?v=20261022mas1">
 <link rel="stylesheet" href="./germania-inicio.css?v=20261015pushbienvenida1">
 <link rel="stylesheet" href="./germania-movil-compacto.css?v=20261019mc1">
 <link rel="stylesheet" href="./germania-dotacion-movil.css?v=20261020a">
@@ -494,6 +500,7 @@
     <button class="tab" data-tab="lista">Pasar lista</button>
     <button class="tab" data-tab="servicio">Salida B-5</button>
     <button class="tab" data-tab="config">Oficiales</button>
+    <button type="button" class="tab-mas" id="tabMas" data-mas aria-expanded="false" aria-controls="mobileMenu">Más</button>
   </div>
 
   <!-- INICIO GERMANIA -->
@@ -1672,7 +1679,7 @@
 <script src="./germania-odd-buscar.js?v=20261022txt1"></script>
 <script src="./germania-odd-texto.js?v=20261022txt1"></script>
 <script src="./germania-avisos.js?v=20261022txt1"></script>
-<script src="./germania-menu-compacto.js?v=20261019mc1"></script>
+<script src="./germania-menu-compacto.js?v=20261022mas1"></script>
 <script src="./germania-obac-avisos.js?v=20261015obac1"></script>
 <script src="./germania-cierre-libro.js?v=20261021obac1"></script>
 <script src="./germania-dotacion-oficiales.js?v=20261020dot2"></script>
