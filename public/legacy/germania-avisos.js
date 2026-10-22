@@ -149,24 +149,39 @@
     var ofi=oficial();
     lista=lista.filter(function(o){return o&&(ofi||(!o.anulada&&Array.isArray(o.destinatarios)&&o.destinatarios.indexOf("voluntarios")>=0));})
       .sort(function(x,y){return String(y.publicadaEn||y.modificadaEn||"").localeCompare(String(x.publicadaEn||x.modificadaEn||""));});
-    var anios=Array.from(new Set(lista.map(function(o){return String(o.publicadaEn||"").slice(0,4);}).filter(Boolean)));
+    var OB=window.GermaniaOddBuscar,TIPOS=(typeof AVISO_TIPOS!=="undefined"&&AVISO_TIPOS)||{};
     var ov=document.createElement("div");ov.className="cit-ov";ov.id="odbOv";ov.style.alignItems="flex-start";
-    ov.innerHTML='<div class="cit-modal" style="max-height:92vh;overflow:auto"><h3>Archivo de ODD</h3><div class="field-row"><div class="field"><input type="text" id="odbQ" placeholder="Buscar por número o título"></div><div class="field"><select id="odbA"><option value="">Todos los años</option>'+anios.map(function(y){return '<option>'+y+'</option>';}).join("")+'</select></div></div><div id="odbL"></div><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';
+    if(!OB){ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3><p class="sub">El buscador no está disponible ahora. Recarga la aplicación.</p><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';document.body.appendChild(ov);$("odbC").onclick=function(){ov.remove();};return;}
+    var tiposUsados=Array.from(new Set(lista.map(function(o){return o.tipo;}).filter(Boolean)));
+    ov.innerHTML='<div class="cit-modal"><h3>Archivo de ODD</h3>'+
+      '<input type="search" id="odbQ" placeholder="Buscar: tema, lugar o título" aria-label="Buscar en las ODD" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">'+
+      '<div class="odb-filtros"><select id="odbA" aria-label="Año"><option value="">Todos los años</option>'+OB.anios(lista).map(function(y){return '<option>'+y+'</option>';}).join("")+'</select>'+
+      '<select id="odbM" aria-label="Mes"><option value="">Todos los meses</option>'+OB.MESES.map(function(m,i){return '<option value="'+(i+1)+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>';}).join("")+'</select></div>'+
+      (tiposUsados.length>1?'<select id="odbT" aria-label="Tipo"><option value="">Todos los tipos</option>'+tiposUsados.map(function(t){return '<option value="'+e2(t)+'">'+e2(TIPOS[t]||t)+'</option>';}).join("")+'</select>':'')+
+      '<p class="sub" id="odbN" role="status" aria-live="polite"></p><div id="odbL"></div><div class="cit-acc"><button type="button" class="btn small secondary" id="odbC">Cerrar</button></div></div>';
     document.body.appendChild(ov);
+    function sel(id){var x=$(id);return x?x.value:"";}
     function pintar(){
-      var q=($("odbQ").value||"").toLowerCase(),y=$("odbA").value;
-      var f=lista.filter(function(o){return (!y||String(o.publicadaEn||"").slice(0,4)===y)&&(!q||(String(o.numero||"")+" "+String(o.titulo||"")).toLowerCase().indexOf(q)>=0);});
-      $("odbL").innerHTML=f.length?f.map(function(o,i){
-        var c=o.cuando&&o.cuando.fecha?o.cuando.fecha:String(o.publicadaEn||"").slice(0,10);
-        return '<div class="ant-fila"><button type="button" class="ant-abrir" data-i="'+lista.indexOf(o)+'">ODD '+e2(o.numero||"s/n")+' · '+e2(o.titulo||"Orden del Día")+'<br><small>'+e2(c)+(o.anulada?' · RETIRADA':'')+(o.pdf?' · PDF':'')+'</small></button></div>';
-      }).join(""):'<p class="sub">No hay ODD guardadas con ese criterio.</p>';
+      var f=OB.filtrar(lista,{q:$("odbQ").value,anio:sel("odbA"),mes:sel("odbM"),tipo:sel("odbT")},TIPOS);
+      var filtrando=!!($("odbQ").value.trim()||sel("odbA")||sel("odbM")||sel("odbT"));
+      $("odbN").textContent=lista.length?(filtrando?f.length+" de "+lista.length+" ODD":lista.length+(lista.length===1?" ODD guardada":" ODD guardadas")+", la más reciente primero."):"";
+      $("odbL").innerHTML=f.length?f.map(function(o){
+        var extra=[OB.fechaCorta(OB.fechaOdd(o)),TIPOS[o.tipo]||"",o.lugar||"",o.tema||""].filter(Boolean).join(" · ");
+        return '<div class="ant-fila"><button type="button" class="ant-abrir" data-i="'+lista.indexOf(o)+'">ODD '+e2(o.numero||"s/n")+' · '+e2(o.titulo||"Orden del Día")+'<br><small>'+e2(extra)+(o.anulada?' · RETIRADA':'')+(o.pdf?' · PDF':'')+'</small></button></div>';
+      }).join(""):'<p class="sub">'+(lista.length?"Ninguna ODD coincide. Prueba con menos palabras o quita un filtro.":"No hay ODD guardadas.")+'</p>';
     }
-    pintar();$("odbQ").addEventListener("input",pintar);$("odbA").addEventListener("change",pintar);
+    pintar();
+    $("odbQ").addEventListener("input",pintar);["odbA","odbM","odbT"].forEach(function(id){var x=$(id);if(x)x.addEventListener("change",pintar);});
     $("odbC").onclick=function(){ov.remove();};
+    ov.addEventListener("click",function(ev){if(ev.target===ov)ov.remove();});
     $("odbL").addEventListener("click",function(ev){
       var b=ev.target.closest("[data-i]");if(!b)return;var o=lista[+b.dataset.i];
       var d=o.cuando||{};
-      $("odbL").innerHTML='<h3>ODD '+e2(o.numero||"")+' · '+e2(o.titulo||"")+'</h3><p class="sub">'+e2([d.fecha,d.hora,o.lugar].filter(Boolean).join(" · "))+'</p><p style="white-space:pre-wrap">'+e2(o.detalle||o.descripcion||o.texto||"")+'</p><div class="cit-acc">'+(o.pdf?'<button type="button" class="btn small" id="odbP">Ver ODD completa (PDF)</button>':'')+'<button type="button" class="btn small secondary" id="odbV">Volver a la lista</button></div>';
+      var filas=[["Tipo",TIPOS[o.tipo]||""],["Fecha",[OB.fechaCorta(d.fecha),d.hora].filter(Boolean).join(" · ")],["Lugar",o.lugar],["Tema",o.tema],["Vestimenta",o.vestimenta],["Puntualidad",o.puntualidad?"Se exige puntualidad":""],["Excusas",o.excusas]].filter(function(r){return r[1];});
+      $("odbL").innerHTML='<h3>ODD '+e2(o.numero||"")+' · '+e2(o.titulo||"")+(o.anulada?' <small>(RETIRADA)</small>':'')+'</h3>'+
+        (filas.length?'<dl class="odb-det">'+filas.map(function(r){return '<dt>'+e2(r[0])+'</dt><dd>'+e2(r[1])+'</dd>';}).join("")+'</dl>':'')+
+        (o.pdf?'':'<p class="sub">Esta ODD no tiene PDF adjunto.</p>')+
+        '<div class="cit-acc">'+(o.pdf?'<button type="button" class="btn small" id="odbP">Ver ODD completa (PDF)</button>':'')+'<button type="button" class="btn small secondary" id="odbV">Volver a la lista</button></div>';
       var p=$("odbP");if(p)p.onclick=function(){if(typeof abrirPdfAviso==="function")abrirPdfAviso(o.pdf);};
       $("odbV").onclick=pintar;
     });
@@ -203,7 +218,8 @@
   "#odbOv input,#odbOv select{display:block;box-sizing:border-box;width:100%;min-height:48px;padding:10px 14px;border-radius:10px;border:2px solid #d4a82a;background:#0f1215;color:#fff;font:inherit;font-size:16px}"+
   "#odbOv .ant-abrir{display:block;box-sizing:border-box;width:100%;min-height:48px;margin:6px 0;padding:10px 14px;border-radius:10px;border:1px solid #343b40;background:#0f1215;color:#fff;font:inherit;font-weight:700;text-align:left}#odbOv .ant-abrir small{font-weight:400;opacity:.75}"+
   "#odbOv .cit-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}#odbOv .cit-acc .btn{flex:1 1 140px;min-height:48px;border-radius:10px;font:inherit;font-weight:700;text-align:center;color:inherit}"+
-  "#odbOv #odbL{max-height:60vh;overflow:auto}";
+  "#odbOv #odbL{max-height:55vh;overflow:auto}#odbOv input,#odbOv select{margin:0 0 8px}#odbOv .odb-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px}"+
+  "#odbOv .odb-det{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:8px 0;font-size:14px}#odbOv .odb-det dt{opacity:.7}#odbOv .odb-det dd{margin:0;white-space:pre-wrap}";
   var st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
   function ciclo(){montar();render();citPendientes();}
   function iniciar(){ciclo();setInterval(function(){if(!document.hidden)ciclo();},60000);var s=$("miVoluntario");if(s)s.addEventListener("change",function(){setTimeout(ciclo,400);});}
