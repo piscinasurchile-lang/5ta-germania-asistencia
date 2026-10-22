@@ -6,6 +6,8 @@
 "use strict";
 var menu=document.getElementById("mobileMenu"),toggle=document.getElementById("menuToggle");
 if(!menu||!toggle||menu.getAttribute("data-mc"))return;
+var mas=document.getElementById("tabMas");
+if(mas)mas.addEventListener("click",function(){toggle.click();});
 menu.setAttribute("data-mc","1");
 
 var fondo=document.createElement("div");
@@ -23,6 +25,7 @@ function sincronizar(){
   if(!a&&centinela){centinela=false;if(history.state&&history.state.gMenu){try{history.back();}catch(e){}}}
   document.body.classList.toggle("menu-abierto",a);
   toggle.setAttribute("aria-expanded",a?"true":"false");
+  if(mas)mas.setAttribute("aria-expanded",a?"true":"false");
   if(a)menu.scrollTop=0;
 }
 function cerrar(){
