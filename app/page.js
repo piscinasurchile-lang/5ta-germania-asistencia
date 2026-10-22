@@ -2,9 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/* Pantalla de espera: la portada de la Compañía, completa (sin recortar sus textos), con el mensaje
+   de estado encima. Se usa mientras se decide el modo del dispositivo y mientras carga la aplicación. */
+function Portada({ visible = true, children }) {
+  return (
+    <div role="status" aria-live="polite" style={{ position: "absolute", inset: 0, zIndex: 10, background: "#020202", opacity: visible ? 1 : 0, transition: "opacity .4s ease", pointerEvents: visible ? "auto" : "none", fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+        <div style={{ position: "relative", width: "min(100vw, calc(100dvh * 0.6))", aspectRatio: "960 / 1600" }}>
+          <img src="/legacy/portada-germania.webp?v=1" alt="Quinta Compañía Germania · Honor y sacrificio" decoding="async" fetchPriority="high" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }} />
+          {/* El mensaje va en la zona de humo, debajo de los bomberos, sin tapar el lema ni los logos. */}
+          <div style={{ position: "absolute", left: "5%", right: "5%", top: "76%", transform: "translateY(-50%)", display: "flex", justifyContent: "center" }}>
+            <div style={{ maxWidth: 420, padding: "10px 16px", borderRadius: 14, background: "rgba(0,0,0,.62)", color: "#fff", textAlign: "center" }}>{children}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
   const frameRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [portadaViva, setPortadaViva] = useState(true);
   const [slow, setSlow] = useState(false);
   const [failed, setFailed] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
@@ -229,6 +248,13 @@ export default function Page() {
     }, 250);
   };
 
+  // La portada se desvanece al estar lista la app y luego se retira; si se reintenta, vuelve.
+  useEffect(() => {
+    if (!ready) { setPortadaViva(true); return; }
+    const t = setTimeout(() => setPortadaViva(false), 450);
+    return () => clearTimeout(t);
+  }, [ready]);
+
   const retry = () => {
     setReady(false);
     setFailed(false);
@@ -237,7 +263,7 @@ export default function Page() {
   };
 
   if (!inicioB5Comprobado) {
-    return <main role="status" style={{minHeight:"100dvh",background:"#07090b",color:"#d7dce0",display:"grid",placeItems:"center",fontFamily:"system-ui"}}>Abriendo Germania…</main>;
+    return <main style={{ margin: 0, width: "100vw", height: "100dvh", overflow: "hidden", background: "#020202", position: "relative" }}><Portada><div style={{ fontSize: 17, fontWeight: 700 }}>Abriendo Germania…</div></Portada></main>;
   }
 
   return (
@@ -246,15 +272,12 @@ export default function Page() {
         <strong>GERMANIA · B-5</strong>
         <button type="button" onClick={() => window.location.assign("/b5")} style={{minHeight:34,padding:"6px 13px",color:"#fff",background:"#263a4b",border:"1px solid #516579",borderRadius:8,fontWeight:700}}>Volver a B-5</button>
       </div>}
-      {!ready && (
-        <div role="status" aria-live="polite" style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#07090b", color: "#fff", fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: 24, textAlign: "center" }}>
-          <div>
-            <img src="/legacy/germania-icon.svg" alt="Quinta Compañía Germania" width="96" height="96" style={{ objectFit: "contain", marginBottom: 18 }} />
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{updating ? "Actualizando GERMANIA…" : "Estamos cargando tu información…"}</div>
-            <div style={{ marginTop: 8, color: "#c8c8c8", fontSize: 15 }}>{updating ? "Hay una nueva versión. Se aplicará automáticamente." : failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
-            {failed && <button type="button" onClick={retry} style={{ marginTop: 18, padding: "11px 18px", borderRadius: 8, border: "1px solid #ffcc00", background: "#171d22", color: "#fff", fontWeight: 700 }}>Reintentar</button>}
-          </div>
-        </div>
+      {portadaViva && (
+        <Portada visible={!ready}>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{updating ? "Actualizando GERMANIA…" : "Estamos cargando tu información…"}</div>
+          <div style={{ marginTop: 4, color: "#e0e0e0", fontSize: 14 }}>{updating ? "Hay una nueva versión. Se aplicará automáticamente." : failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
+          {failed && <button type="button" onClick={retry} style={{ marginTop: 12, minHeight: 44, padding: "11px 18px", borderRadius: 8, border: "1px solid #ffcc00", background: "#171d22", color: "#fff", fontWeight: 700 }}>Reintentar</button>}
+        </Portada>
       )}
       <iframe
         key={frameKey}
