@@ -95,7 +95,7 @@ self.addEventListener("push",event=>{
   try{mensaje=event.data?.json();}catch{}
   if(!mensaje||mensaje.tipo!=="germania-informacion")return;
   event.waitUntil((async()=>{
-    try{await self.navigator?.setAppBadge?.();}catch{}
+    try{await self.navigator?.setAppBadge?.(1);}catch{}
     const prueba=mensaje.clase==="prueba";
     const title=prueba?"GERMANIA · PRUEBA":mensaje.clase==="odd"?"GERMANIA · Nueva ODD":"GERMANIA · Información";
     await self.registration.showNotification(title,{
@@ -109,6 +109,7 @@ self.addEventListener("notificationclick",event=>{
   if(event.notification?.tag!==GERMANIA_PUSH_TAG)return;
   event.notification.close();
   event.waitUntil((async()=>{
+    try{await self.navigator?.clearAppBadge?.();}catch{}
     const windows=await self.clients.matchAll({type:"window",includeUncontrolled:true});
     const actual=windows.find(w=>{try{return new URL(w.url).origin===self.location.origin;}catch{return false;}});
     if(actual){
