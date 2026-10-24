@@ -1884,7 +1884,9 @@ function renderGnPeriodo(){
  const anular=document.getElementById("gnBorrarSemana");
  if(anular){anular.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);anular.textContent="Anular semana publicada";}
  ["gnCerrarInscripcion","gnSuspenderPeriodo"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);});
- const publicar=document.getElementById("gnConfirmarPeriodo");if(publicar){publicar.disabled=!gnPlanDraft;publicar.textContent=gnPlanDraft&&gnPlanDraft.guardada?"Actualizar plazo de inscripción":"Publicar semana";}
+ const publicar=document.getElementById("gnConfirmarPeriodo");
+ const cerrado=!!(gnPlanDraft&&gnPlanDraft.guardada&&(gnPlanDraft.estado!=="abierta"||!gnPlanDraft.cierre||Date.parse(gnPlanDraft.cierre)<=Date.now()));
+ if(publicar){publicar.disabled=!gnPlanDraft||cerrado;publicar.textContent=cerrado?"🔒 Inscripción cerrada":gnPlanDraft&&gnPlanDraft.guardada?"Actualizar plazo de inscripción":"Publicar semana";publicar.title=cerrado?"Plazo bloqueado. La gestión y acreditación de guardias continúan disponibles.":"";}
  const limpiar=document.getElementById("gnLimpiarSeleccion"); if(limpiar) limpiar.disabled=!gnPlanDraft;
  const cierre=document.getElementById("gnCierrePeriodo"); if(cierre&&!gnPlanDraft&&!cierre.value)cierre.value=gnLocalInput(Date.now()+60*60*1000);
  if(!gnPlanDraft){box.textContent="Toca un miércoles para seleccionar la semana.";return;}
@@ -1931,11 +1933,17 @@ document.querySelectorAll("[data-gn-lugar]").forEach(b=>b.addEventListener("clic
 on("gnActividad","input",e=>{if(gnPlanDraft)gnPlanDraft.actividad=e.target.value;});
 on("gnConfirmarPeriodo","click",async()=>{
  const msg=document.getElementById("gnPlanMsg"); if(!gnPlanDraft){msg.textContent="Selecciona primero un miércoles.";return;}
+ if(gnPlanDraft.guardada){
+   const vigente=await sGet(gnPlanKey(gnPlanDraft.inicio),null);
+   if(!vigente||vigente.estado!=="abierta"||!vigente.cierre||Date.parse(vigente.cierre)<=Date.now()){
+     msg.textContent="🔒 Inscripción cerrada. El plazo no se puede reabrir desde este botón.";await renderGnPlanner();return;
+   }
+ }
  const cv=document.getElementById("gnCierrePeriodo")?.value;
   const cierreMs=cv?instanteChile(cv.slice(0,10),cv.slice(11,16)):instanteChile(gnAdd(gnPlanDraft.inicio,-1),"19:00");   /* por omisión: el martes anterior, 19:00 */
   if(!(cierreMs>Date.now())){ msg.textContent="La fecha de cierre ya pasó ("+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"). Elige una fecha y hora futuras: así los voluntarios pueden elegir sus noches."; return; }
   const cierre=new Date(cierreMs).toISOString();
-  const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:new Date().toISOString(),horaInicio:"22:45",horaFin:"06:00",cierre};
+  const p={...gnPlanDraft,guardada:undefined,estado:"abierta",confirmado:true,creadoEn:gnPlanDraft.creadoEn||new Date().toISOString(),horaInicio:"22:45",horaFin:"06:00",cierre};
  if(!confirm("¿Publicar la semana "+gnFmt(p.inicio)+" al "+gnFmt(gnAdd(p.inicio,6))+"? Los voluntarios podrán elegir noches hasta "+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"."))return;
  await gnSavePlan(p); gnPlanDraft=null; msg.textContent="Período confirmado. Inscripción abierta."; await renderGnPlanner();
 });
