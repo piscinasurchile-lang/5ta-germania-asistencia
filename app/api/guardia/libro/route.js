@@ -1,9 +1,9 @@
 import {neon} from "@neondatabase/serverless";
 import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
-import {firmaDotacion,cumplimientoFinalT3} from "../../../../lib/guardia-acreditacion.js";
+import {firmaDotacion} from "../../../../lib/guardia-acreditacion.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
-import {cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoT3,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
+import {cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const MAX_PHOTO=1600000;
@@ -53,7 +53,7 @@ export async function GET(req){
    return new Response(Buffer.from(rows[0].b64,"base64"),{headers:{"Content-Type":cierre.fotoMime||"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
   }
   const ahora=horaCivilChile(),esAdmin=esAdministradorGuardia(actor);
-  const esT3=cargoT3(actor.cargo),esCapitan=cargoCapitan(actor.cargo),puedeRatificar=cargoAutorizadoGuardia(actor.cargo);
+  const esCapitan=cargoCapitan(actor.cargo),puedeRatificar=cargoAutorizadoGuardia(actor.cargo);
   const esOficial=esOficialGuardia(actor.cargo);
   const historico=u.searchParams.get("historial")==="1";
   const anio=u.searchParams.get("anio")||ahora.slice(0,4);
@@ -80,11 +80,11 @@ export async function GET(req){
     return {fecha:r.fecha,revisionAprobadaEn:r.aprobada_en,dotacion:r.dotacion,
       cierre:r.cierre,acreditacion:r.acreditacion,acreditacionVersion:Number(r.acreditacion_version||0),
       finalizada:nocheFinalizada(r.fecha,ahora),cierreHabilitado:ventanaCierreOBAC(r.fecha,ahora),
-      acreditacionVigente:ratificada,cumplimientoFinal:!!(ratificada&&cumplimientoFinalT3(r.acreditacion)),
+      acreditacionVigente:ratificada,
       vistoCapitan:!!(ratificada&&vistoCapitanValido(r.visto_capitan,r.acreditacion))};
-  }).filter(r=>esAdmin||esT3||puedeRatificar||String(r.dotacion?.obac||"")===String(actor.id)||
+  }).filter(r=>esAdmin||puedeRatificar||String(r.dotacion?.obac||"")===String(actor.id)||
       (esOficial&&r.acreditacionVigente));
-  return Response.json({items,esT3,puedeRatificar,esCapitan,esAdmin,esOficial,
+  return Response.json({items,puedeRatificar,esCapitan,esAdmin,esOficial,
     semanaActual:miercolesSemana(ahora.slice(0,10)),anio:historico?anio:null,historico},
     {headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro GET",e);return error("database_error",500);}
@@ -125,7 +125,7 @@ export async function POST(req){
    if(ya&&ya.obacId===String(actor.id)&&ya.fotoSHA256===hash)return Response.json({ok:true,repetido:true,fecha,obac:ya.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
    return error("cierre_existente_o_conflicto",409);
   }
-  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro entregado por el OBAC · "+fecha+" · pendiente de ratificación",porNombre:meta.obacNombre});
+  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro entregado por el OBAC · "+fecha+" · pendiente de aprobación",porNombre:meta.obacNombre});
   return Response.json({ok:true,fecha,obac:meta.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro POST",e);return error("database_error",500);}
 }

@@ -75,7 +75,7 @@ export default function ActualizarGuardiaFotografia(){
       <section className="cierre">
         <h3>Aplicación de los cambios</h3>
         <p>Germania guardará en una sola transacción las siete guardias, la revisión semanal aprobada, las inscripciones de cada persona y el nombre y RUT de Esthefani Noemí Ojeda Fuentes en su ficha actual. Se conservará el historial anterior.</p>
-        <p>La programación no se contará como asistencia cumplida. La acreditación sigue correspondiendo al Teniente Tercero.</p>
+        <p>La programación no se contará como asistencia cumplida. La asistencia la aprueba un oficial autorizado (Capitán o Tenientes) una vez cerrado el libro.</p>
         {!completa&&<>
          <label><input type="checkbox" checked={aceptoUno} onChange={e=>setAceptoUno(e.target.checked)}/> Confirmo que la distribución de la fotografía es la oficial.</label>
          <label><input type="checkbox" checked={aceptoDos} onChange={e=>setAceptoDos(e.target.checked)}/> Autorizo modificar también los turnos individuales y la ficha de Esthefani.</label>

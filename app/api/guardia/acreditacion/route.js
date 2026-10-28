@@ -3,7 +3,7 @@ import {exigirSesionOficial} from "../../../../lib/guardia-sesion-oficial.js";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
 import {idsEfectivos,evaluarDotacionEfectiva} from "../../../../lib/guardia-asistencia-efectiva.js";
-import {precedenciaOBAC,validarRolesEfectivos,firmaContenido,cumplimientoNoche,cargoTeniente3,cumplimientoFinalT3} from "../../../../lib/guardia-acreditacion.js";
+import {precedenciaOBAC,validarRolesEfectivos,firmaContenido,cumplimientoNoche} from "../../../../lib/guardia-acreditacion.js";
 import {agregarIncidencia} from "../../../../lib/guardia-incidencias.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
 export const runtime = "nodejs";
@@ -78,9 +78,8 @@ export async function POST(req) {
     const firmaNueva=firmaContenido({asistencias:b.asistencias,adicionales,excusas,obac:obacEf,cond:condEf});
     const firmaVieja=anteriorRegistro?firmaContenido({asistencias:anteriorRegistro.asistencias,adicionales:anteriorRegistro.adicionales,excusas:anteriorRegistro.excusas,
       obac:anteriorRegistro.obacEfectivoId??noche.obac,cond:anteriorRegistro.conductorEfectivoId??noche.maq}):null;
-    // Ratificación repetida o reintento tras un corte de internet: mismo contenido = mismo acto. No duplica ni toca el historial.
-    const actorEsT3=cargoTeniente3(roster.find(x=>String(x.id)===actor)?.cargo);
-    if (anteriorRegistro && anteriorRegistro.estado==="acreditada" && firmaVieja===firmaNueva && !(actorEsT3 && !cumplimientoFinalT3(anteriorRegistro)))
+    // Aprobación repetida o reintento tras un corte de internet: mismo contenido = mismo acto. No duplica ni toca el historial.
+    if (anteriorRegistro && anteriorRegistro.estado==="acreditada" && firmaVieja===firmaNueva)
       return Response.json({ok:true,repetida:true,version:anterior.version,acreditadas:anteriorRegistro.asistentes?.length??0,
         acreditadoPorNombre:anteriorRegistro.acreditadoPorNombre||null,acreditadoPorId:anteriorRegistro.acreditadoPorId||null},{headers:{"Cache-Control":"no-store"}});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
@@ -92,8 +91,8 @@ export async function POST(req) {
     const actorFicha=roster.find(x=>String(x.id)===actor);
     const ahoraISO=new Date().toISOString();
     const motivoCorreccion=String(b.motivoCorreccion||"").trim().slice(0,400);
-    const soloAcreditaFinal=!!anteriorRegistro && firmaVieja===firmaNueva;
-    if (anteriorRegistro && !soloAcreditaFinal && !motivoCorreccion)
+    // Con registro previo, llegar aquí significa que el contenido cambió: es una corrección y exige motivo.
+    if (anteriorRegistro && !motivoCorreccion)
       return Response.json({error:"motivo_correccion_requerido"},{status:400});
     const registro={
       fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
@@ -108,10 +107,8 @@ export async function POST(req) {
       precedenciaObac:obacEf!==String(noche.obac)?precedenciaOBAC({noche,asistencias:b.asistencias,obac:obacEf,cond:condEf,roster}):null,
       dotacionEfectiva,cumplimiento,
       acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoPorCargo:String(actorFicha?.cargo||""),acreditadoEn:ahoraISO,
-      motivoCorreccion:soloAcreditaFinal?(anteriorRegistro.motivoCorreccion||""):motivoCorreccion,
-      /* Cumplimiento final: solo el T3 lo acredita. Una ratificación o corrección de otro oficial lo deja pendiente. */
-      cumplimientoFinal:actorEsT3?{estado:"acreditado",porId:actor,porNombre:oficialNombre,porCargo:String(actorFicha?.cargo||""),en:ahoraISO,firma:firmaNueva}:null,
-      /* Trazabilidad: quien ratifica puede haber participado en la guardia (cualquier oficial); queda su rol. */
+      motivoCorreccion,
+      /* Trazabilidad: quien aprueba puede haber participado en la guardia (cualquier oficial); queda su rol. */
       t3Participante:ids.includes(String(actor))?{
         id:String(actor),nombre:oficialNombre,
         rol:String(noche.obac)===String(actor)?"OBAC":String(noche.maq)===String(actor)?"Maquinista":programados.includes(String(actor))?"Voluntario":"Asistente adicional",
@@ -119,8 +116,9 @@ export async function POST(req) {
       }:null,
       informeCapitan:{estado:"disponible_automatico",en:ahoraISO},
       /* Historial: cada modificación guarda quién, cuándo, por qué y los valores anteriores y posteriores. */
-      historial:soloAcreditaFinal?(anteriorRegistro.historial||[]):anteriorRegistro?[...(anteriorRegistro.historial||[]),{
-        cumplimientoFinalAnterior:anteriorRegistro.cumplimientoFinal||null,
+      historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
+        /* Registros anteriores a ADR 0012 pueden traer una acreditación final del T3: se conserva en el historial, no se pierde. */
+        ...(anteriorRegistro.cumplimientoFinal?{cumplimientoFinalAnterior:anteriorRegistro.cumplimientoFinal}:{}),
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
         porNombre:anteriorRegistro.acreditadoPorNombre||null,porCargo:anteriorRegistro.acreditadoPorCargo||null,
         asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes,
@@ -131,11 +129,9 @@ export async function POST(req) {
         despues:{asistentes,ausentes,adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),excusas,obacEfectivoId:obacEf,conductorEfectivoId:condEf}
       }]:[]
     };
-    // T3 acreditando el mismo contenido ya ratificado por otro oficial: se conserva quién ratificó; solo se agrega la acreditación final.
-    const aEscribir=soloAcreditaFinal?{...anteriorRegistro,cumplimientoFinal:registro.cumplimientoFinal}:registro;
-    const guardado=await writeState(sql,"guardia-acreditacion:"+fecha,aEscribir,{ifVersion:b.ifVersion});
+    const guardado=await writeState(sql,"guardia-acreditacion:"+fecha,registro,{ifVersion:b.ifVersion});
     if (guardado.conflict) {
-      // Otro oficial ratificó al mismo tiempo: si dejó el mismo contenido, es el mismo acto; si no, se avisa el conflicto.
+      // Otro oficial aprobó al mismo tiempo: si dejó el mismo contenido, es el mismo acto; si no, se avisa el conflicto.
       const vigente=guardado.value;
       if (vigente && !anteriorRegistro && firmaContenido({asistencias:vigente.asistencias,adicionales:vigente.adicionales,excusas:vigente.excusas,
           obac:vigente.obacEfectivoId??noche.obac,cond:vigente.conductorEfectivoId??noche.maq})===firmaNueva)
@@ -143,15 +139,15 @@ export async function POST(req) {
           acreditadoPorNombre:vigente.acreditadoPorNombre||null,acreditadoPorId:vigente.acreditadoPorId||null},{headers:{"Cache-Control":"no-store"}});
       return Response.json({error:"version_conflict",version:guardado.version},{status:409});
     }
-    // Efectos secundarios (no bloquean la ratificación): incidencias automáticas y avisos a oficiales.
-    const esCorreccion=!!anteriorRegistro&&!soloAcreditaFinal;
+    // Efectos secundarios (no bloquean la aprobación): incidencias automáticas y avisos a oficiales.
+    const esCorreccion=!!anteriorRegistro;
     if (esCorreccion) await agregarIncidencia(sql,fecha,{id:"auto-corr-"+guardado.version,tipo:"correccion_posterior",personaId:null,
       detalle:"Corrección por "+oficialNombre+": "+motivoCorreccion,estado:"resuelta",automatica:true,registradaPorId:actor,registradaPorNombre:oficialNombre,en:ahoraISO});
     if (dotacionEfectiva.voluntarios<2||!dotacionEfectiva.minimoCumplido) await agregarIncidencia(sql,fecha,{id:"auto-dotacion-"+fecha,tipo:"dotacion_insuficiente",personaId:null,
       detalle:"Dotación efectiva bajo el mínimo (1 conductor, 1 OBAC y 2 voluntarios): "+cumplimiento.motivos.join(", "),estado:"abierta",automatica:true,registradaPorId:actor,registradaPorNombre:oficialNombre,en:ahoraISO});
-    await avisarOficiales(sql,{clave:(esCorreccion?"corr:":soloAcreditaFinal?"fin:":"rat:")+fecha+":"+guardado.version,tipo:esCorreccion?"correccion":"ratificada",fecha,
-      titulo:(esCorreccion?"Ratificación corregida · ":soloAcreditaFinal?"Cumplimiento acreditado por T3 · ":"Noche ratificada · ")+fecha+" · "+oficialNombre+(aEscribir.cumplimientoFinal?"":" · pendiente de acreditación del T3"),porNombre:oficialNombre});
-    return Response.json({ok:true,version:guardado.version,acreditadas:asistentes.length,acreditadoPorNombre:oficialNombre,cumplimiento,cumplimientoFinal:!!aEscribir.cumplimientoFinal},{headers:{"Cache-Control":"no-store"}});
+    await avisarOficiales(sql,{clave:(esCorreccion?"corr:":"rat:")+fecha+":"+guardado.version,tipo:esCorreccion?"correccion":"ratificada",fecha,
+      titulo:(esCorreccion?"Aprobación corregida · ":"Guardia aprobada · ")+fecha+" · "+oficialNombre,porNombre:oficialNombre});
+    return Response.json({ok:true,version:guardado.version,acreditadas:asistentes.length,acreditadoPorNombre:oficialNombre,cumplimiento},{headers:{"Cache-Control":"no-store"}});
   } catch(e) { console.error("guardia acreditacion failed",e);
     return Response.json({error:"database_error"},{status:500}); }
 }

@@ -11,7 +11,7 @@ const error=(code,status)=>Response.json({error:code},{status});
 function origen(req){const o=req.headers.get("origin");if(!o)return false;try{return new URL(o).host===req.headers.get("host");}catch{return false;}}
 const nombre=p=>[p?.nombre,p?.apellidoPaterno,p?.apellidoMaterno].filter(Boolean).join(" ").trim();
 /** Cierre excepcional del libro por un oficial autorizado, SIN fotografía (OBAC ausente, fotografía perdida, falla del teléfono).
- *  Queda marcado `sinFoto`: es un registro cerrado, no un cumplimiento acreditado. Reintentos del mismo oficial no duplican. */
+ *  Queda marcado `sinFoto`: es un registro cerrado; aún debe aprobarlo un oficial. Reintentos del mismo oficial no duplican. */
 export async function POST(req){
  if(!origen(req))return error("origen_no_permitido",403);
  const sesion=exigirSesionOficial(req);if(sesion)return sesion;
@@ -48,7 +48,7 @@ export async function POST(req){
   }
   await agregarIncidencia(sql,fecha,{id:"auto-foto-"+fecha,tipo:"foto_faltante",personaId:null,detalle:"Cierre sin fotografía por "+nombre(actor)+": "+motivo,
     estado:"abierta",automatica:true,registradaPorId:actorId,registradaPorNombre:nombre(actor),en:meta.enviadoEn});
-  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro cerrado por "+nombre(actor)+" sin fotografía · "+fecha+" · pendiente de ratificación",porNombre:nombre(actor)});
+  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro cerrado por "+nombre(actor)+" sin fotografía · "+fecha+" · pendiente de aprobación",porNombre:nombre(actor)});
   return Response.json({ok:true,fecha},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("cierre oficial",e);return error("database_error",500);}
 }
