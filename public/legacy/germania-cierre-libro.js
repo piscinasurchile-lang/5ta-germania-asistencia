@@ -344,7 +344,7 @@ function pintarControlAdmin(){
  }
  // Los oficiales consultan solo ratificadas; el administrador y T3 ven pendientes.
  const fuente=historial===null?items:historial;
- const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente)&&semanaVigente48(x.fecha))
+ const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
  const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0,finales:0};
  for(const x of terminadas){
