@@ -899,6 +899,8 @@ async function pintarAcreditacionReal(D,doc){
    la noche NO cuenta para mí y se acredita a quien la cubrió.
    Aviso: guardia-aviso:<fecha>:<id> = {f,id,rol,motivo,en,estado:abierto|cubierto|sin_reemplazo,reemplazoId,...}. */
 var ROL_NOCHE={vol:"Voluntario",maq:"Maquinista",obac:"OBAC"};
+/* Miércoles de inicio de la semana que contiene la noche. */
+function inicioSemanaDe(f){ var d=new Date(f+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+4)%7)); return d.toISOString().slice(0,10); }
 var MN={cache:null,who:"",en:0};
 function avKey(f,id){ return "guardia-aviso:"+f+":"+id; }
 async function misNochesDatos(who,forzar){
