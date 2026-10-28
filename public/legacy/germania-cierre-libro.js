@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
+let semanaBuscada="",actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -295,6 +295,7 @@ async function abrirControlAdmin(fecha){
  if(editando&&!confirm("Tienes cambios de asistencia sin guardar. ¿Salir y descartarlos?"))return;
  if(editando){editando=false;pintarOficial();pintarControlAdmin();}
  const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ if(elegida)semanaBuscada=semanaVigente48(elegida)?"":elegida;
  const anioDestino=elegida?elegida.slice(0,4):anioElegido;
  const cambiaAnio=anioElegido!==anioDestino;
  if(cambiaAnio){anioElegido=anioDestino;historial=null;}
@@ -344,8 +345,10 @@ function pintarControlAdmin(){
  }
  // Los oficiales consultan solo ratificadas; el administrador y T3 ven pendientes.
  const fuente=historial===null?items:historial;
- const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
+ const visibles=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente));
+ const terminadas=visibles.filter(x=>semanaBuscada?semanaDe(x.fecha)===semanaDe(semanaBuscada):semanaVigente48(x.fecha))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const semanasLista=[...new Set(visibles.map(x=>semanaDe(x.fecha)))].filter(Boolean).sort().reverse();
  const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0,finales:0};
  for(const x of terminadas){
   if(x.cierre)resumen.cerradas++;
@@ -375,9 +378,11 @@ function pintarControlAdmin(){
  for(let y=maxAnio;y>=2026;y--)anios.push('<option value="'+y+'"'+(String(y)===anioElegido?" selected":"")+'>'+y+'</option>');
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
-  '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
+  '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+
+  '<div class="field" style="max-width:340px;margin:10px 0"><label for="lgnSemanaControl">Buscar semana de guardia</label><select id="lgnSemanaControl"><option value="">Últimas 48 h</option>'+
+  semanasLista.map(s=>'<option value="'+escHtml(s)+'"'+(semanaDe(semanaBuscada)===s?" selected":"")+'>Semana del '+escHtml(fechaBonita(s))+'</option>').join("")+'</select></div>'+indicadores+
   '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
- if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
+ if(!terminadas.length)html+='<p class="sub">'+(semanaBuscada?"No hay guardias en esa semana.":"No hay guardias recientes. Busca otra semana en el selector.")+'</p>';
  let grupoAnterior="";
  for(const x of terminadas){
   const semana=semanaDe(x.fecha);
@@ -437,7 +442,9 @@ function pintarControlAdmin(){
   '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a mi espacio</button></div>';
  panel.innerHTML=html;
  const anio=$("lgnAnioControl");
- if(anio)anio.onchange=()=>{anioElegido=anio.value;historial=null;cargarHistorial();};
+ if(anio)anio.onchange=()=>{anioElegido=anio.value;semanaBuscada="";historial=null;cargarHistorial();};
+ const selector=$("lgnSemanaControl");
+ if(selector)selector.onchange=()=>{semanaBuscada=selector.value;pintarControlAdmin();};
  const ref=$("lgnAdminActualizar");
  if(ref)ref.onclick=async()=>{
   if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Descartarlos y actualizar el control?"))return;
