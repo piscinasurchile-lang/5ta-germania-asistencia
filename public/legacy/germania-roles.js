@@ -226,7 +226,8 @@ async function planActivo(who){
   /* con varias semanas abiertas: la primera que este voluntario aún no confirmó (igual que el aviso de Inicio) */
   if(who) for(var i=0;i<abiertos.length;i++){ var c=null; try{ c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); }catch(e){} if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
   var esGestion=!!who&&esMando(porId(who));
-  var limite=esGestion?gnAdd(hoy,-90):hoy;
+  /* Historial consultable por oficiales: ventana de 400 días, sin borrar registros. */
+  var limite=esGestion?gnAdd(hoy,-400):hoy;
   var lista=ab.filter(function(x){ return x.fin>=limite; });
   var p=abierto||ab.filter(function(x){ return x.fin>=hoy; })[0]||null;
   if(!p&&esGestion&&lista.length)p=lista[lista.length-1];
