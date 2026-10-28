@@ -11,6 +11,8 @@ const acred = await import("../app/api/guardia/acreditacion/route.js");
 const estadoRoute = await import("../app/api/state/[key]/route.js");
 const { ensureSchema, writeState } = await import("../lib/state-store.js");
 const { neon } = await import("@neondatabase/serverless");
+// Pendiente: adaptar el servidor a un adaptador SQL aislado de pruebas.
+// Nunca conectar esta prueba a la base original de Germania.
 const sql = neon("x");
 await ensureSchema(sql);
 await sql`CREATE TABLE IF NOT EXISTS document_assets(key text PRIMARY KEY, data bytea, active boolean DEFAULT true, source text, effective_year int, updated_at timestamptz DEFAULT now())`;
