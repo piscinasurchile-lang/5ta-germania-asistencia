@@ -273,6 +273,17 @@ function semanaDe(fecha){
 }
 /* Estados de presentación del flujo nuevo de Guardia Nocturna.
    Los datos históricos se conservan para trazabilidad y estadísticas. */
+/* Ventana de consulta reciente: todas las noches de miércoles a martes
+   se retiran juntas el viernes siguiente a las 06:00 de Chile. */
+function semanaVigente48(fecha){
+ const inicio=semanaDe(fecha);
+ if(!inicio)return false;
+ const d=new Date(inicio+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+9);
+ const limite=d.toISOString().slice(0,10)+"T06:00";
+ const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+ const v=k=>(p.find(x=>x.type===k)||{}).value||"";
+ return [v("year"),v("month"),v("day")].join("-")+"T"+v("hour")+":"+v("minute")<limite;
+}
 function clasificarControl(x){
   if(x.acreditacionVigente)return {texto:x.acreditacion&&x.acreditacion.automatica?"Aprobada automáticamente (48 h)":"Acreditada",clase:"ok"};
   if(x.cierre)return {texto:"Pendiente de revisión",clase:"pend"};
@@ -333,7 +344,7 @@ function pintarControlAdmin(){
  }
  // Los oficiales consultan solo ratificadas; el administrador y T3 ven pendientes.
  const fuente=historial===null?items:historial;
- const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
+ const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente)&&semanaVigente48(x.fecha))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
  const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0,finales:0};
  for(const x of terminadas){
