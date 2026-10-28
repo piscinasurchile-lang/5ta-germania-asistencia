@@ -49,6 +49,7 @@ test("control separado cuenta cierres OBAC y guardias acreditadas",()=>{
  assert.match(cierres,/resumen\.cerradas\+\+/);
  assert.match(cierres,/resumen\.acreditadas\+\+/);
  assert.match(cierres,/Cierres OBAC recibidos/);
- assert.match(cierres,/\[resumen\.acreditadas,"Acreditadas"\]/);\n assert.doesNotMatch(cierres,/\[resumen\.finales,"Acreditadas T3"\]/);
+ assert.match(cierres,/\[resumen\.acreditadas,"Acreditadas"\]/);
+ assert.doesNotMatch(cierres,/\[resumen\.finales,"Acreditadas T3"\]/);
  assert.match(cierres,/window\.__mostrarPestana\("control-guardia-diaria"\)/);
 });
