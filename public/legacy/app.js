@@ -2820,12 +2820,12 @@ async function gnHistorialDatos(inicio){
       estadoRevision:revision?.estado||"sin revisión"};
   });
 }
-/* Cumplimiento efectivo = asistencia ratificada de esa noche (solo lectura; no modifica nada). */
+/* Cumplimiento efectivo = asistencia aprobada de esa noche (solo lectura; no modifica nada). */
 function gnHistorialEfectiva(fecha,ac){
   if(Date.now()<instanteChile(gnAdd(fecha,1),"06:00"))return {estado:"espera",corto:"Aún no termina",texto:"La noche aún no termina"};
-  if(!ac||ac.estado!=="acreditada")return {estado:"pend",corto:"Pendiente",texto:"Pendiente de ratificación"};
+  if(!ac||ac.estado!=="acreditada")return {estado:"pend",corto:"Pendiente",texto:"Pendiente de aprobación"};
   const de=ac.dotacionEfectiva;
-  if(!de)return {estado:"pend",corto:"Sin detalle",texto:"Ratificada, sin detalle de dotación"};
+  if(!de)return {estado:"pend",corto:"Sin detalle",texto:"Aprobada, sin detalle de dotación"};
   return de.minimoCumplido
     ?{estado:"ok",corto:"Cumplido",texto:"Mínimo cumplido · "+de.total+" presentes"}
     :{estado:"falta",corto:"Incompleto",texto:"Dotación incompleta · "+de.total+" presentes"};
@@ -2866,7 +2866,7 @@ function gnHistorialRenderDetalle(inicio,filas){
   box.innerHTML='<h3>'+esc(gnHistorialEtiqueta(inicio))+'</h3>'+
     '<p class="sub gh-resumen"><b>Aprobadas completas: '+aprobadas+'/7</b> · <b>Cumplidas: '+efectivas+'/7</b></p>'+
     tabla+tarjetas+
-    '<p class="sub gh-nota">Aprobada = programación de la noche. Efectiva = asistencia ratificada por oficiales. Solo lectura.</p>';
+    '<p class="sub gh-nota">Aprobada = programación de la noche. Efectiva = asistencia aprobada por oficiales. Solo lectura.</p>';
   /* Una tarjeta abierta a la vez. */
   const det=[...box.querySelectorAll(".gh-tarjetas details")];
   det.forEach(d=>d.addEventListener("toggle",()=>{
@@ -3008,7 +3008,7 @@ on("gnPdfSemanal","click",async()=>{
         faltas.length?faltas.join(" | "):"—",
         g.novedades||"Sin novedad"];
     })});
-  // Este informe describe programación y avisos; nunca reemplaza la acreditación T3.
+  // Este informe describe programación y avisos; nunca reemplaza la aprobación del oficial.
   const notaY=doc.lastAutoTable.finalY+7;
   if(notaY<270){doc.setFontSize(8);doc.text("Registro de dotación programada. No certifica asistencia real.",14,notaY);}
   let fy=doc.lastAutoTable.finalY+20;
@@ -3050,13 +3050,13 @@ on("gnPdfEstad","click",async()=>{
   }})).sort((a,b)=>b.q.hechas-a.q.hechas);
   doc.autoTable({startY:doc.lastAutoTable.finalY+6,styles:{fontSize:8},
     headStyles:{fillColor:[100,90,80]},
-    head:[["N°","Clave","Voluntario","Designado","Cumplidas T3","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
+    head:[["N°","Clave","Voluntario","Designado","Cumplidas","No asistió","Cedió","Cubrió","OBAC","Maquinista"]],
     body:filas.map(({p,q})=>[p.n||"",p.clave||"—",nombreCompleto(p),
       String(q.asig),String(q.hechas),String(q.falto),String(q.ced),String(q.cubrio),
       String(q.obac),String(q.maq)])});
   doc.setFontSize(8);
   const y=doc.lastAutoTable.finalY+8;
-  if(y<280)doc.text("Solo una acreditación válida del Teniente Tercero registra una guardia cumplida.",14,y);
+  if(y<280)doc.text("Solo una guardia aprobada por un oficial autorizado registra una guardia cumplida.",14,y);
   await sharePdfDoc(doc,
     'estadistica_guardias_'+(d||"inicio")+'_a_'+(h||"hoy")+'.pdf',
     "Estadística de guardias nocturnas acreditadas");
@@ -3162,29 +3162,29 @@ ${noches.map(n=>`
   <div class="noche">
     <div class="cab">
       <b>${DIAS[n.dia.getDay()]} ${n.dia.getDate()}</b>
-      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Acreditada por T3":"Sin acreditar"}</span>
+      <span>${esc(n.g.horaIng||"")} a ${esc(n.g.horaSal||"")} · ${esc(n.g.fechaIng)} · ${n.acreditado?"Aprobada por oficial":"Sin aprobar"}</span>
     </div>
     <div class="cnt">
-      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ T3</em>${esc(nombrePorId(x.id))}</div>`).join("")}
+      ${n.cuartel.map(x=>`<div class="g"><em class="e-c">ASISTIÓ</em>${esc(nombrePorId(x.id))}</div>`).join("")}
       ${n.programados.map(x=>`<div class="g"><em class="e-h">DESIGNADO</em>${esc(nombrePorId(x.id))}</div>`).join("")}
       
       ${n.faltan.map(x=>`
-        <div class="g"><em class="e-n">NO ASISTIÓ T3</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
+        <div class="g"><em class="e-n">NO ASISTIÓ</em><s>${esc(nombrePorId(x.id))}</s></div>`).join("")}
       <div class="ofi">Oficial a cargo: <b>${n.g.oficial?esc(nombrePorId(n.g.oficial)):"—"}</b></div>
       ${n.g.novedades && !/^sin novedad/i.test(n.g.novedades)?`<div class="nov"><b>Novedad:</b> ${esc(n.g.novedades)}</div>`:""}
     </div>
   </div>`).join("")}
 </div>
 <div class="leyenda">
-  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ T3</em> asistencia acreditada</span>
+  <span><em class="e-c" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">ASISTIÓ</em> asistencia aprobada</span>
   <span><em class="e-h" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">DESIGNADO</em> sin acreditar</span>
   <span><em class="e-r" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">REEMPLAZO</em> solo cuenta al acreditarse</span>
-  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ T3</em> ausencia verificada</span>
+  <span><em class="e-n" style="font-style:normal;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;">NO ASISTIÓ</em> ausencia verificada</span>
 </div>
 </div></div>
 
 <div class="sec"><h3>PARTICIPACIÓN POR VOLUNTARIO</h3><div class="in">
-<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió T3</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC acreditado</th></tr>
+<table><tr><th>N°</th><th>Voluntario</th><th>Designado</th><th>Cumplió</th><th>No asistió</th><th>Cubrió reemplazo</th><th>OBAC</th></tr>
 ${ranking.map(x=>`<tr><td>${x.p.n||""}</td><td><b>${esc(nombreCompleto(x.p))}</b></td>
 <td>${x.d}</td><td>${x.n}</td><td>${x.f}</td><td>${x.r}</td>
 <td><b>${x.obac}</b></td></tr>`).join("")}

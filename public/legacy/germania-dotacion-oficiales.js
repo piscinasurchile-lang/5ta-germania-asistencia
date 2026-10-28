@@ -1,7 +1,7 @@
 /* GERMANIA · Dotación de guardia y estado de cada integrante, para Teniente Primero y Teniente Tercero
    (y el administrador, solo lectura). Muestra la noche en curso o la próxima y la anterior:
    quién está en la dotación, quién confirmó, quién avisó que no puede, quién reemplaza, y —terminada la noche—
-   presente / ausente / excusado según la ratificación del Teniente Tercero.
+   presente / ausente / excusado según la aprobación de un oficial autorizado.
    Solo lee. No modifica ni acredita nada. */
 (function(){
 "use strict";
@@ -29,10 +29,10 @@ function estadoPersona(f,id,ctx){
   var aviso=ctx.aviso[f+":"+id],asiste=ctx.asiste[f+":"+id];
   if(terminada){
     if(ac&&ac.estado==="acreditada"&&ac.asistencias&&ac.asistencias[id]){
-      if(ac.asistencias[id]==="presente")return {t:"Presente (ratificado)",c:"verde"};
-      var ex=ac.excusas&&ac.excusas[id];return ex?{t:"Excusado: "+ex,c:"gris"}:{t:"Ausente (ratificado)",c:"rojo"};
+      if(ac.asistencias[id]==="presente")return {t:"Presente (aprobado)",c:"verde"};
+      var ex=ac.excusas&&ac.excusas[id];return ex?{t:"Excusado: "+ex,c:"gris"}:{t:"Ausente (aprobado)",c:"rojo"};
     }
-    return {t:"Pendiente de ratificación del Teniente Tercero",c:"gris"};
+    return {t:"Pendiente de aprobación de un oficial",c:"gris"};
   }
   if(aviso&&aviso.estado!=="cubierto")return {t:"Avisó que no puede"+(aviso.estado==="sin_reemplazo"?" · sin reemplazo":" · falta reemplazo")+(aviso.motivo?" ("+aviso.motivo+")":""),c:"rojo"};
   if(asiste)return {t:"Confirmó que irá",c:"verde"};
@@ -87,11 +87,11 @@ async function pintar(){
     h+=filaHtml(f,dot.maq,"Maquinista",ctx)+filaHtml(f,dot.obac,"OBAC",ctx);
     (dot.vol||[]).forEach(function(id){h+=filaHtml(f,id,"Voluntario",ctx);});
     var ac=ctx.acred[f];
-    if(term&&ac&&Array.isArray(ac.adicionales)&&ac.adicionales.length)ac.adicionales.forEach(function(a){h+='<div class="gdo-fila"><span class="gdo-nom"><b>'+e2(nombreDe(a.id))+'</b> · Asistente adicional</span><span class="gdo-chip gdo-verde">Presente (ratificado)</span></div>';});
+    if(term&&ac&&Array.isArray(ac.adicionales)&&ac.adicionales.length)ac.adicionales.forEach(function(a){h+='<div class="gdo-fila"><span class="gdo-nom"><b>'+e2(nombreDe(a.id))+'</b> · Asistente adicional</span><span class="gdo-chip gdo-verde">Presente (aprobado)</span></div>';});
     if(term&&ac&&ac.dotacionEfectiva)h+='<p class="sub"><b>Dotación efectiva: '+(ac.dotacionEfectiva.minimoCumplido?'mínimo cumplido':'INCOMPLETA')+'</b> · '+ac.dotacionEfectiva.total+' presentes.</p>';
     h+='</div>';
   });
-  h+='<p class="sub">Solo lectura. Capitán y Tenientes 1°, 2° y 3° pueden ratificar una vez cerrado el libro. La acreditación final corresponde al T3 durante las primeras 48 horas desde las 06:00.</p></details>';
+  h+='<p class="sub">Solo lectura. Capitán y Tenientes 1°, 2° y 3° pueden aprobar la guardia, en un solo paso, una vez cerrado el libro.</p></details>';
   host.innerHTML=h;
 }
 var css=".gdo-noche{margin:10px 0;padding-top:6px;border-top:1px solid #2c3a44}.gdo-noche h3{margin:6px 0;text-transform:capitalize;font-size:1em}.gdo-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;padding:6px 0;border-bottom:1px solid #1d272e}.gdo-nom{flex:1 1 55%;min-width:0}.gdo-chip{flex:0 1 auto;font-size:.82em;padding:3px 9px;border-radius:12px;border:1px solid #56626b;max-width:100%}.gdo-verde{border-color:#2e9e5b;color:#8ee0ae}.gdo-rojo{border-color:#ef4444;color:#ff9a95}.gdo-gris{color:#c3ccd2}";

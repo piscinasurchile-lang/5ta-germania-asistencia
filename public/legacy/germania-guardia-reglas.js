@@ -40,8 +40,8 @@
   }
   function acreditacionVigente(ac,revision,fecha){
     var n=revision&&revision.noches&&revision.noches[fecha];
-    /* Cumplimiento final: lo acredita solo el T3. Registros anteriores al flujo (sin acreditadoPorCargo) los creaba solo el T3. */
-    if(ac&&(ac.cumplimientoFinal?ac.cumplimientoFinal.estado!=="acreditado":ac.acreditadoPorCargo!==undefined))return false;
+    /* Aprobación en un único paso (ADR 0012): el acta vigente aprobada por un oficial autorizado cuenta en estadísticas.
+       Ya no se exige una segunda acreditación del T3; los campos antiguos de ese paso se ignoran. */
     if(!ac||!n||ac.estado!=="acreditada"||revision.estado!=="aprobada"||
        ac.fecha!==fecha||ac.revisionAprobadaEn!==revision.aprobadaEn||
        !ac.dotacionFirma||ac.dotacionFirma!==firmaDotacion(n)||

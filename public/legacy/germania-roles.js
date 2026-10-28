@@ -403,7 +403,7 @@ function panelVol(pn,D){
  h+='<div class="gu-dias"'+(soloAsignados?' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,115px),1fr));gap:10px;width:100%;min-width:0"':'')+'>';
  h+=D.cov.filter(function(c){return aprobada?(asignadas.has(c.f)&&guardiaTurnoPendiente(c.f)):!soloAsignados||pendientes.has(c.f);}).map(function(c){var nn=nombreNoche(c.f),selected=sel.has(c.f),ids=new Set(c.vol.concat(c.maq.map(function(x){return x.id;}),c.obac.map(function(x){return x.id;})));var pendiente=!aprobada&&pendientes.has(c.f),confirmada=aprobada&&asignadas.has(c.f),disponible=editable&&!pendiente&&!selected;return '<button type="button" class="gu-dia'+(selected||confirmada?' elegido':'')+'" data-gr-vol="'+c.f+'" aria-pressed="'+selected+'" '+(!editable?'disabled':'')+' style="'+(confirmada?'background:#991b1b;color:#fff;border:3px solid #ef4444;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':pendiente?'background:#facc15;color:#422006;border:3px solid #ca8a04;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':disponible?'background:#166534;color:#fff;border:3px solid #22c55e;opacity:1;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere;padding:12px 6px;':'')+'"><b>'+E(nn.w)+'</b><span>'+E(nn.d)+'</span><span>'+ids.size+' insc.</span>'+(confirmada?'<small style="display:block;font-weight:800">'+(nochesAprobadas[c.f]&&String(nochesAprobadas[c.f].obac)===String(who)?'ERES OBAC · ':'')+'✓ TU GUARDIA APROBADA</small>':pendiente?'<small style="display:block;font-weight:800">🔒 PENDIENTE T3</small>':'')+'</button>';}).join('')+'</div>';
  if(editable)h+='<div id="giAviso" role="status" aria-live="polite"></div><button type="button" class="btn" id="giConfirmar">'+(soloAsignados?'Actualizar noches elegidas':'Enviar a revisión')+' ('+sel.size+')</button>';
- else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00; la acreditación permanece a cargo del Teniente Tercero.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
+ else h+='<p class="sub">'+(aprobada?'Rojo: tus guardias aprobadas pendientes. Cada tarjeta desaparece al finalizar su turno a las 06:00; la asistencia la aprueba un oficial autorizado.':'Tus días permanecen amarillos mientras esperan revisión del Teniente Tercero.')+'</p>';
  pn.innerHTML=h;
  pn.querySelectorAll('[data-gr-vol]').forEach(function(b){b.onclick=function(){var f=b.dataset.grVol;if(sel.has(f))sel.delete(f);else sel.add(f);panelVol(pn,D);};});
  var b=$("giConfirmar");if(b)b.onclick=function(){gnInsConfirmar(D.p,who);};
@@ -734,7 +734,7 @@ async function panelRev(pn,D){
   h+='<div class="status-msg'+(RV.err?" err":"")+'" id="rvMsg">'+E(RV.msg)+'</div>';
   if(aprobada) h+='<button type="button" class="btn secondary gr-grande" id="rvReabrir">Reabrir revisión</button>';
   else h+='<div class="gr-nota info"><p><b>Último paso del Teniente Tercero:</b> revisa las siete noches y aprueba la dotación. Esta aprobación no acredita asistencia.</p></div><button type="button" class="btn gr-grande" id="rvAprobar">✓ APROBAR GUARDIAS DE LA SEMANA</button><p class="gr-link"><a href="#" id="rvRehacer">Rehacer desde las inscripciones</a></p>';
-  // Acreditación moved to dedicated officer action, not nested in weekly approval.
+  // La aprobación de la asistencia es una acción propia de los oficiales (Control Guardia Diaria), no parte de la aprobación semanal.
   pn.innerHTML=h;
 
   var guardarOp=async function(op){
@@ -832,61 +832,6 @@ async function aprobarRevision(pn,D){
   panelRev(pn,D);
 }
 
-/* Acreditación posterior: el T3 verifica personalmente cada rol y voluntario.
-   No equivale a aprobación de dotación. La API requiere oficialidad y valida el cargo.
-   La identidad individual del T3 necesita revisión de seguridad antes de producción. */
-async function pintarAcreditacionReal(D,doc){
-  var caja=$("rvAcreditacion"); if(!caja) return;
-  var terminadas=Object.keys(doc.noches||{}).sort().filter(function(f){return finNoche(f)<=Date.now();});
-  if(!terminadas.length){
-    caja.innerHTML='<h3 class="gr-t">Acreditación real de guardias</h3><p class="sub">Se habilitará después de terminar cada guardia. No se contabiliza automáticamente.</p>';
-    return;
-  }
-  var leidas=await Promise.all(terminadas.map(function(f){return sGetV("guardia-acreditacion:"+f,null);}));
-  caja=$("rvAcreditacion"); if(!caja)return;
-  var nombreTeniente=[D.m.nombre,D.m.apellidoPaterno,D.m.apellidoMaterno].filter(Boolean).join(" ").trim();
-  var html='<h3 class="gr-t">Acreditación real · Teniente Tercero</h3><p class="sub">Responsable: <b>'+E(nombreTeniente)+'</b> (identificado por nómina). Verifica la asistencia real; las noches sin acreditar no cuentan. Las correcciones conservan historial.</p>';
-  terminadas.forEach(function(f,i){
-    var n=doc.noches[f],r=leidas[i],v=r.value;
-    var personas=[{id:n.maq,rol:"Maquinista"},{id:n.obac,rol:"OBAC"}].concat((n.vol||[]).map(function(id){return{id:id,rol:"Voluntario"};})).filter(function(x){return!!x.id;});
-    var ids=personas.map(function(x){return String(x.id);}), nn=nombreNoche(f);
-    if(new Set(ids).size!==ids.length){
-      html+='<p class="gr-falta">Dotación duplicada el '+E(f)+'. No se puede acreditar.</p>'; return;
-    }
-    var vigente=!!(window.GermaniaGuardiaReglas&&window.GermaniaGuardiaReglas.acreditacionVigente(v,doc,f));
-    html+='<div class="gr-nc"><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(nn.w+" "+nn.d)+'</b><span class="gr-chip '+(vigente?"verde":"rojo")+'">'+(vigente?"Acreditada":"Pendiente")+'</span></div>'+(vigente&&v.acreditadoPorNombre?'<p class="sub">Registró: '+E(v.acreditadoPorNombre)+'</p>':"");
-    personas.forEach(function(p){
-      var id=String(p.id),estado=vigente&&v.asistencias&&v.asistencias[id]||"";
-      html+='<label class="rv-lbl">'+E(nom(id))+' · '+E(p.rol)+'</label>'
-        +'<select class="rv-sel" data-ac-noche="'+E(f)+'" data-ac-id="'+E(id)+'">'
-        +'<option value="">— verificar —</option>'
-        +'<option value="presente"'+(estado==="presente"?" selected":"")+'>Asistió</option>'
-        +'<option value="ausente"'+(estado==="ausente"?" selected":"")+'>No asistió</option></select>';
-    });
-    html+='<button type="button" class="btn gr-grande" data-ac-confirmar="'+E(f)+'">'+(r.value?"Corregir acreditación":"Acreditar esta noche")+'</button></div></div>';
-  });
-  caja.innerHTML=html+'<div class="status-msg" id="acMsg"></div>';
-  caja.querySelectorAll("[data-ac-confirmar]").forEach(function(b){b.onclick=async function(){
-    var f=b.dataset.acConfirmar,i=terminadas.indexOf(f),prev=leidas[i],asistencias={},completa=true;
-    caja.querySelectorAll('[data-ac-noche="'+f+'"]').forEach(function(el){if(!el.value)completa=false;asistencias[el.dataset.acId]=el.value;});
-    var msg=$("acMsg");if(!completa){msg.textContent="Marca asistencia o ausencia de cada integrante.";msg.classList.add("err");return;}
-    var motivo="";
-    if(prev.value){motivo=prompt("Motivo obligatorio para corregir el registro:","");if(!motivo||!motivo.trim())return;}
-    if(!confirm("¿Acreditar la asistencia REAL de la noche "+f+" a nombre de "+nombreTeniente+"? Afectará las estadísticas."))return;
-    b.disabled=true;msg.classList.remove("err");msg.textContent="Guardando…";
-    try{
-      var respuesta=await fetch("/api/guardia/acreditacion",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({fecha:f,actorId:String(D.m.id),asistencias:asistencias,ifVersion:prev.version||0,motivoCorreccion:motivo})
-      });
-      var dat=await respuesta.json();
-      if(!respuesta.ok)throw new Error(dat.error||"No se pudo acreditar");
-      MN.cache=null;
-      await pintarAcreditacionReal(D,doc);
-    }catch(e){b.disabled=false;msg.textContent="No se guardó: "+e.message;msg.classList.add("err");}
-  };});
-}
-
 /* ---------- Mis noches / avisos / reemplazos ----------
    Mis noches = las noches donde quedé en una dotación APROBADA (guardia-revision:<inicio>), hasta que la noche termina.
    Una noche terminada pasa a «cumplidas» (historial en Mi estado). Si avisé que no podía y otro la cubrió,
@@ -910,7 +855,7 @@ async function misNochesDatos(who,forzar){
       if(rol){ vistas[f]=1; var e={f:f,rol:rol,hora:horaNoche(f),aviso:av||null,cubre:cubre,revision:d,cuenta:false}; (finNoche(f)>ahora?prox:cumpl).push(e); }
     });
   });
-  // Asistentes extra ratificados también aparecen en su historial de guardia.
+  // Asistentes extra aprobados también aparecen en su historial de guardia.
   rs[0].forEach(function(it){
     var d=it.value;if(!d||d.estado!=="aprobada"||!d.noches)return;
     Object.keys(d.noches).forEach(function(f){
@@ -926,7 +871,7 @@ async function misNochesDatos(who,forzar){
   /* noches que cedí y ya cubrió otro: ya no estoy en la dotación, pero se muestran como «no cuenta» */
   Object.keys(avisos).forEach(function(k){ var a=avisos[k]; if(String(a.id)!==who||a.estado!=="cubierto"||vistas[a.f]) return; var e={f:a.f,rol:a.rol,hora:horaNoche(a.f),aviso:a,cubre:null}; (finNoche(a.f)>ahora?prox:cumpl).push(e); });
   prox.sort(function(a,b){ return a.f.localeCompare(b.f); }); cumpl.sort(function(a,b){ return b.f.localeCompare(a.f); });
-  /* SOLO cuenta si el T3 acreditó presencialmente, con la última aprobación de dotación. */
+  /* SOLO cuenta si un oficial autorizado aprobó la asistencia, con la última aprobación de dotación. */
   cumpl.forEach(function(e){
     var ac=acreditaciones[e.f], valida=!!(window.GermaniaGuardiaReglas &&
       window.GermaniaGuardiaReglas.acreditacionVigente(ac,e.revision,e.f));
@@ -938,7 +883,7 @@ async function misNochesDatos(who,forzar){
 }
 function tarjetaNoche(e,conBoton){
   var n=nombreNoche(e.f), av=e.aviso, est="";
-  if(e.adicional) est='<span class="gr-chip azul">Asistencia adicional ratificada</span>';
+  if(e.adicional) est='<span class="gr-chip azul">Asistencia adicional aprobada</span>';
   if(e.cubre) est='<span class="gr-chip azul">Cubres a '+E(nom(e.cubre))+'</span>';
   if(av){
     if(av.estado==="cubierto") est='<span class="gr-chip gris">Cubrió '+E(nom(av.reemplazoId))+'</span>';
@@ -1011,9 +956,9 @@ async function misNochesCumplidas(forzar){
   var m=miembro(); if(!m){ box.innerHTML=""; return; }
   var d; try{ d=await misNochesDatos(String(m.id),forzar); }catch(e){ return; }
   var ok=d.cumpl.filter(function(e){ return e.cuenta; }).length;
-  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+' con asistencia real acreditada por el Teniente Tercero.</p>'
+  box.innerHTML='<h2>Noches cumplidas</h2><p class="sub">'+ok+' noche'+(ok===1?"":"s")+' cumplida'+(ok===1?"":"s")+' con asistencia real aprobada por los oficiales.</p>'
    +(d.cumpl.length?'<div class="gr-lista">'+d.cumpl.map(function(e){
-      var n=nombreNoche(e.f), nota=e.cuenta?'<span class="gr-chip verde">Acreditada por T3</span>':e.pendiente?'<span class="gr-chip gris">Pendiente de acreditación</span>':'<span class="gr-chip gris">No cumplida'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
+      var n=nombreNoche(e.f), nota=e.cuenta?'<span class="gr-chip verde">Aprobada por los oficiales</span>':e.pendiente?'<span class="gr-chip gris">Pendiente de aprobación</span>':'<span class="gr-chip gris">No cumplida'+(e.aviso&&e.aviso.estado==="cubierto"?' · la cubrió '+E(nom(e.aviso.reemplazoId)):'')+'</span>';
       return '<div class="gr-nc"><span class="gr-dia"><b>'+E(n.w)+'</b><i>'+E(n.d)+'</i></span><div class="gr-nc-body"><div class="gr-nc-top"><b>'+E(ROL_NOCHE[e.rol]||"Voluntario")+'</b>'+nota+'</div></div></div>';
     }).join("")+'</div>':'<div class="empty">Aún no hay noches cumplidas.</div>');
 }

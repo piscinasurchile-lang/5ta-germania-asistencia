@@ -1,6 +1,6 @@
 /* GERMANIA · Gestión de guardia nocturna en 7 etapas (Capitán y tenientes; el administrador solo consulta).
    Ficha única y plegable en Inicio: creación semanal → inscripción → revisión de dotación y ODD → libro diario y foto →
-   incidencias → ratificación → cierre semanal, estadísticas y PDF.
+   incidencias → aprobación → cierre semanal, estadísticas y PDF.
    No cambia la ODD original ni los datos de otras pantallas. Todo lo que escribe pasa por las rutas /api/guardia/*. */
 (function(){
 "use strict";
@@ -9,7 +9,6 @@ function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){retur
 function ros(){return typeof ROSTER!=="undefined"&&Array.isArray(ROSTER)?ROSTER:[];}
 function yo(){var s=$("miVoluntario"),id=s&&s.value?String(s.value):"";return ros().find(function(x){return String(x.id)===id;})||null;}
 function norm(c){return String(c||"").normalize("NFD").replace(/[̀-ͯ]/g,"").trim().toLowerCase();}
-function esT3(p){return !!p&&/^teniente\s*(tercero|3)/.test(norm(p.cargo));}
 function autorizado(p){var c=norm(p&&p.cargo);return !!p&&(/^capitan(\s|$)/.test(c)||/^teniente\s*(primero|segundo|tercero|1|2|3)/.test(c));}
 function esAdmin(p){return !!p&&String(p.clave||"")==="517";}
 function nom(id){var p=ros().find(function(x){return String(x.id)===String(id);});return p?[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "):"Voluntario "+id;}
@@ -20,8 +19,8 @@ function corta(f){return new Date(f+"T12:00:00Z").toLocaleDateString("es-CL",{ti
 function larga(f){return new Date(f+"T12:00:00Z").toLocaleDateString("es-CL",{timeZone:"UTC",weekday:"long",day:"numeric",month:"long",year:"numeric"});}
 function hora(iso){try{return new Date(iso).toLocaleString("es-CL",{timeZone:"America/Santiago"});}catch(e){return iso||"";}}
 var ESTADOS={
-  en_curso_o_futura:["Aún no termina","gris"],sin_cierre_de_libro:["Falta cerrar el libro","rojo"],registro_cerrado:["Libro cerrado · falta ratificar","amarillo"],
-  ratificada_pendiente_acreditacion:["Ratificada · falta acreditación oficial","naranja"],acreditada_oficial:["Cumplimiento acreditado · oficial","verde"]};
+  en_curso_o_futura:["Aún no termina","gris"],sin_cierre_de_libro:["Falta cerrar el libro","rojo"],registro_cerrado:["Libro cerrado · falta aprobar","amarillo"],
+  aprobada:["Guardia aprobada","verde"]};
 var MOTIVOS={obac_ausente:"OBAC ausente",conductor_ausente:"conductor ausente",voluntarios_insuficientes:"menos de 2 voluntarios",sin_fotografia:"sin fotografía"};
 var TIPOS={no_llega:"Voluntario que no llega",obac_ausente:"OBAC ausente",conductor_ausente:"Conductor ausente",retiro_obac_conductor:"OBAC o conductor se retira",llega_tarde:"Voluntario que llega tarde",
   retiro_anticipado:"Voluntario se retira antes",reemplazo_durante:"Reemplazo durante la guardia",refuerzos:"Solicitud de refuerzos",dotacion_insuficiente:"Dotación bajo el mínimo",
@@ -57,7 +56,7 @@ async function enviar(url,cuerpo){
   }
   return {status:0,d:{error:"sin_conexion"},ultimo:ultimo};
 }
-var ERR={noches_pendientes:"Hay noches sin ratificar o sin acreditar por un oficial autorizado.",solo_teniente_3:"La acreditación requiere un oficial autorizado.",solo_teniente_3_durante_48h:"Durante las primeras 48 horas después de las 06:00, solo el Teniente Tercero puede acreditar.",noche_no_ratificada:"La noche aún no está ratificada.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
+var ERR={noches_pendientes:"Hay noches sin aprobar por un oficial autorizado.",version_conflict:"Otro oficial modificó la noche. Actualiza y revisa de nuevo.",solo_oficiales_autorizados:"Solo el Capitán y los tenientes pueden hacerlo.",sin_conexion:"Sin conexión. Puedes reintentar: no se duplicará.",
   libro_ya_cerrado:"El libro de esa noche ya estaba cerrado.",noche_no_finalizada:"La noche aún no termina (06:00).",motivo_requerido:"Escribe un motivo (mínimo 8 letras).",novedades_requeridas:"Escribe las novedades.",
   detalle_requerido:"Escribe el detalle.",version_conflict:"Otro oficial modificó esto a la vez. Actualiza e inténtalo de nuevo."};
 function err(d){return ERR[d&&d.error]||("No se pudo completar: "+(d&&d.error||"error"));}
@@ -66,9 +65,9 @@ function err(d){return ERR[d&&d.error]||("No se pudo completar: "+(d&&d.error||"
 function chip(n){var e=ESTADOS[n.estado]||[n.estado,"gris"];return '<span class="gf-chip gf-'+e[1]+'">'+esc(e[0])+'</span>';}
 function resumenLinea(){
   var d=S.data;if(!d)return "Sin datos";if(!d.aprobada)return "Semana sin programación aprobada";
-  var rat=d.noches.filter(function(n){return n.estado==="acreditada_oficial";}).length,rt=d.noches.filter(function(n){return !!n.ratificacion;}).length,ab=0;
+  var rat=d.noches.filter(function(n){return n.estado==="aprobada";}).length,ab=0;
   d.noches.forEach(function(n){ab+=n.incidencias.abiertas;});
-  return rat+"/"+d.noches.length+" acreditadas por oficiales ("+rt+" ratificadas)"+(d.cierre?(d.cierreVigente?" · semana cerrada":" · cierre desactualizado"):"")+(ab?" · "+ab+" incidencia(s) abierta(s)":"");
+  return rat+"/"+d.noches.length+" aprobadas por oficiales"+(d.cierre?(d.cierreVigente?" · semana cerrada":" · cierre desactualizado"):"")+(ab?" · "+ab+" incidencia(s) abierta(s)":"");
 }
 function etapa(n,titulo,estado,cuerpo,abiertas){
   return '<details class="gf-et" data-et="'+n+'"'+(abiertas.indexOf(String(n))>=0?" open":"")+'><summary><b>'+n+'.</b> '+esc(titulo)+'<span class="gf-est">'+esc(estado)+'</span></summary><div class="gf-cuerpo">'+cuerpo+'</div></details>';
@@ -94,7 +93,7 @@ function render(){
   h+=etapa(1,"Creación semanal",e1,'<p class="sub">Programación de las siete noches (miércoles a martes, 22:45 a 06:00). La administra el Teniente Tercero.</p><button type="button" class="btn small secondary" data-ir="guardia">Abrir programación</button>',abiertas);
   var ins=noches.map(function(n){var t=n.programada;return '<div class="gf-fila"><span>'+esc(corta(n.fecha))+'</span><span>'+t.total+' en dotación</span></div>';}).join("");
   h+=etapa(2,"Inscripción de voluntarios y conductores",noches.length?noches.length+" noches":"Sin datos",(ins||'<p class="sub">Aún no hay dotación aprobada.</p>')+'<button type="button" class="btn small secondary" data-ir="guardia">Ver inscripciones</button>',abiertas);
-  h+=etapa(3,"Revisión de dotación y ODD",d.aprobada?"Dotación aprobada":"Sin aprobar",'<p class="sub">La ODD original no se modifica: la asistencia real se registra aparte, al ratificar. Mínimo: 4 (1 conductor, 1 OBAC y 2 voluntarios).</p><button type="button" class="btn small secondary" data-ir="guardia">Revisar dotación</button>',abiertas);
+  h+=etapa(3,"Revisión de dotación y ODD",d.aprobada?"Dotación aprobada":"Sin aprobar",'<p class="sub">La ODD original no se modifica: la asistencia real se registra aparte, al aprobar. Mínimo: 4 (1 conductor, 1 OBAC y 2 voluntarios).</p><button type="button" class="btn small secondary" data-ir="guardia">Revisar dotación</button>',abiertas);
   /* 4: libro */
   var f4=noches.map(function(n){
     var l=n.libro,acc="";
@@ -123,28 +122,23 @@ function render(){
   }
   var abTot=noches.reduce(function(a,n){return a+n.incidencias.abiertas;},0);
   h+=etapa(5,"Incidencias",abTot?abTot+" abierta(s)":"Sin abiertas",inc+'<p class="status-msg" data-msg="5" role="status">'+esc(S.msg["5"]||"")+'</p>',abiertas);
-  /* 6: ratificación */
+  /* 6: aprobación (un solo paso) */
   var f6=noches.map(function(n){
-    var btn=puede&&n.libro.cerrado&&n.finalizada?'<button type="button" class="btn small secondary" data-ratif="'+n.fecha+'">'+(n.ratificacion?"Revisar o corregir":"Revisar y ratificar")+'</button>':"";
-    var fin=new Date(n.fecha+"T12:00:00Z");fin.setUTCDate(fin.getUTCDate()+1);var finFecha=fin.toISOString().slice(0,10);var t48=new Date(fin.getTime()+172800000).toISOString().slice(0,10);
-    var partes=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).map(function(x){return [x.type,x.value];}));
-    var ahoraChile=partes.year+"-"+partes.month+"-"+partes.day+"T"+partes.hour+":"+partes.minute;
-    var puedeFinal=esT3(yo())?ahoraChile>=finFecha+"T06:00":autorizado(yo())&&ahoraChile>=t48+"T06:00";
-    var btnF=puedeFinal&&n.ratificacion&&n.estado==="ratificada_pendiente_acreditacion"?'<button type="button" class="btn small" data-final="'+n.fecha+'" data-v="'+(n.ratificacion.version||0)+'">Acreditar cumplimiento</button>':"";
-    var r=n.ratificacion?'<br><span class="sub">Ratificó '+esc(n.ratificacion.porNombre||"")+(n.ratificacion.porCargo?' ('+esc(n.ratificacion.porCargo)+')':'')+' · '+esc(hora(n.ratificacion.en))+(n.ratificacion.cumplimiento&&n.ratificacion.cumplimiento.motivos.length?' · '+esc(n.ratificacion.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):'')+'</span>':"";
-    return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+r+'</span>'+btn+btnF+'</div>';
+    var btn=puede&&n.libro.cerrado&&n.finalizada?'<button type="button" class="btn small secondary" data-ratif="'+n.fecha+'">'+(n.ratificacion?"Revisar o corregir":"Revisar y aprobar")+'</button>':"";
+    var r=n.ratificacion?'<br><span class="sub">Aprobó '+esc(n.ratificacion.porNombre||"")+(n.ratificacion.porCargo?' ('+esc(n.ratificacion.porCargo)+')':'')+' · '+esc(hora(n.ratificacion.en))+(n.ratificacion.cumplimiento&&n.ratificacion.cumplimiento.motivos.length?' · '+esc(n.ratificacion.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):'')+'</span>':"";
+    return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+r+'</span>'+btn+'</div>';
   }).join("");
-  var pend=noches.filter(function(n){return n.estado!=="acreditada_oficial";}).length;
-  h+=etapa(6,"Ratificación y acreditación",pend?pend+" pendiente(s)":"Todas acreditadas",(f6||'<p class="sub">Sin noches.</p>')+'<p class="sub">Paso 1: ratifica cualquiera (Capitán, Teniente 1°, 2° o 3°). Paso 2: el T3 acredita prioritariamente; si queda pendiente, puede acreditar Capitán, T1 o T2; recién ahí la noche cuenta en estadísticas. Queda registrado quién, cuándo y qué cambió.</p>',abiertas);
+  var pend=noches.filter(function(n){return n.estado!=="aprobada";}).length;
+  h+=etapa(6,"Aprobación de la guardia",pend?pend+" pendiente(s)":"Todas aprobadas",(f6||'<p class="sub">Sin noches.</p>')+'<p class="sub">Un solo paso: aprueba cualquiera de los oficiales autorizados (Capitán, Teniente 1°, 2° o 3°) tras revisar asistencias, ausencias y fotografía. La aprobación actualiza las estadísticas. Queda registrado quién, cuándo y qué cambió.</p>',abiertas);
   /* 7: cierre semanal, estadísticas y PDF */
   var tabla=noches.map(function(n){var r=n.ratificacion;return '<div class="gf-fila gf-col"><span><b>'+esc(corta(n.fecha))+'</b> '+chip(n)+'<br><span class="sub">Programados '+n.programada.total+(r?' · Presentes '+r.asistentes.length+' · Ausentes '+r.ausentes.length+' · Reemplazos/adicionales '+r.adicionales.length+' · OBAC '+esc(nom(r.obacEfectivoId))+' · Conductor '+esc(nom(r.conductorEfectivoId)):'')+(n.incidencias.total?' · Incidencias '+n.incidencias.total:'')+'</span></span>'+
     '<span class="gf-pdf"><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="descargar">PDF</button><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="imprimir">Imprimir</button><button type="button" class="btn small secondary" data-pdf="d" data-f="'+n.fecha+'" data-a="whatsapp">WhatsApp</button></span></div>';}).join("");
   var cierre=d.cierre?'<p class="sub"><b>'+(d.cierreVigente?"Semana cerrada":"Cierre desactualizado (hubo correcciones)")+'</b> por '+esc(d.cierre.cerradaPorNombre)+' ('+esc(d.cierre.cerradaPorCargo)+') · '+esc(hora(d.cierre.cerradaEn))+'</p>':'';
-  var btnCierre=puede?'<button type="button" class="btn small" id="gfCerrarSemana"'+(d.puedeCerrar?"":" disabled")+'>'+(d.cierre?"Volver a cerrar la semana":"Cerrar la semana")+'</button>'+(d.pendientes.length?'<p class="sub">No se puede cerrar: faltan '+d.pendientes.length+' noche(s) por terminar, ratificar o acreditar (oficial).</p>':''):'';
+  var btnCierre=puede?'<button type="button" class="btn small" id="gfCerrarSemana"'+(d.puedeCerrar?"":" disabled")+'>'+(d.cierre?"Volver a cerrar la semana":"Cerrar la semana")+'</button>'+(d.pendientes.length?'<p class="sub">No se puede cerrar: faltan '+d.pendientes.length+' noche(s) por terminar o aprobar.</p>':''):'';
   h+=etapa(7,"Cierre semanal, estadísticas y PDF",d.cierre?(d.cierreVigente?"Cerrada":"Reabrir"):(d.pendientes.length?"Faltan "+d.pendientes.length:"Lista para cerrar"),
     cierre+(tabla||'<p class="sub">Sin noches.</p>')+(puede?'<label class="gf-lbl" for="gfObs">Observaciones del cierre (opcional)</label><input id="gfObs" type="text" maxlength="600" class="gf-in">':'')+btnCierre+
     (noches.length?'<div class="gf-pdf" style="margin-top:8px"><button type="button" class="btn small secondary" data-pdf="s" data-a="descargar">PDF semana completa</button><button type="button" class="btn small secondary" data-pdf="s" data-a="imprimir">Imprimir</button><button type="button" class="btn small secondary" data-pdf="s" data-a="whatsapp">WhatsApp</button></div>':'')+
-    '<p class="sub">Las estadísticas individuales se calculan solo con noches ratificadas y acreditadas por un oficial autorizado (vigentes), una vez por noche.</p><p class="status-msg" data-msg="7" role="status">'+esc(S.msg["7"]||"")+'</p>',abiertas);
+    '<p class="sub">Las estadísticas individuales se calculan solo con noches aprobadas por un oficial autorizado (vigentes), una vez por noche.</p><p class="status-msg" data-msg="7" role="status">'+esc(S.msg["7"]||"")+'</p>',abiertas);
   h+='</details>';
   host.innerHTML=h;enlazar(host);
 }
@@ -160,10 +154,6 @@ function enlazar(host){
   q("[data-ratif]",function(b){b.onclick=function(){
     if(typeof window.__mostrarPestana==="function")window.__mostrarPestana("acreditacion-guardia");
     setTimeout(function(){if(window.GermaniaLibro)window.GermaniaLibro.abrirNoche(b.dataset.ratif);},400);};});
-  q("[data-final]",function(b){b.onclick=async function(){
-    if(!confirm("¿Confirmas que revisaste esta noche y acreditas su cumplimiento final? Desde ahora cuenta en las estadísticas."))return;
-    b.disabled=true;msg("6","Guardando…");var r=await enviar("/api/guardia/acreditar-final",{fecha:b.dataset.final,actorId:yo().id,ifVersion:Number(b.dataset.v)||0});
-    if(r.status===200){S.msg["6"]=r.d.repetida?"Ya estaba acreditado.":"Cumplimiento acreditado.";await recargar();}else{b.disabled=false;msg("6",err(r.d));}};});
   q("[data-sinfoto]",function(b){b.onclick=function(){S.noche="sf:"+b.dataset.sinfoto;S.editando=true;render();var d=document.querySelector('#flujoGuardia details[data-et="4"]');if(d)d.open=true;};});
   q("[data-sf-cancel]",function(b){b.onclick=function(){S.noche=null;S.editando=false;render();};});
   q("[data-sf-enviar]",function(b){b.onclick=async function(){
@@ -184,7 +174,7 @@ function enlazar(host){
     b.disabled=true;var r=await enviar("/api/guardia/incidencias",{fecha:b.dataset.f,actorId:yo().id,accion:"resolver",id:b.dataset.resolver,resolucion:t});
     b.disabled=false;if(r.status===200){S.msg["5"]="Incidencia resuelta.";await recargar();}else msg("5",err(r.d));};});
   var cs=$("gfCerrarSemana");if(cs)cs.onclick=async function(){
-    if(!confirm("¿Cerrar la semana del "+S.semana+"? Se guardará el resumen de las noches ratificadas."))return;
+    if(!confirm("¿Cerrar la semana del "+S.semana+"? Se guardará el resumen de las noches aprobadas."))return;
     cs.disabled=true;msg("7","Cerrando…");var r=await enviar("/api/guardia/cierre-semanal",{semana:S.semana,actorId:yo().id,observaciones:($("gfObs")||{}).value||""});
     if(r.status===200){S.msg["7"]=r.d.repetido?"La semana ya estaba cerrada con estos mismos datos.":"Semana cerrada. Los oficiales fueron avisados.";await recargar();}
     else{cs.disabled=false;msg("7",err(r.d));}};
@@ -220,9 +210,8 @@ async function seccionNoche(doc,n,nuevaPagina){
   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(0);doc.text("Noche del "+larga(n.fecha)+" (22:45 a 06:00)",14,nuevaPagina?46:44);
   var r=n.ratificacion,l=n.libro,e=ESTADOS[n.estado]||[n.estado];
   var filas=[["Registro del libro",l.cerrado?(l.sinFoto?"Cerrado SIN fotografía por "+((l.cierrePorOficial&&l.cierrePorOficial.nombre)||"un oficial")+" — "+(l.motivoSinFoto||""):"Cerrado con fotografía por "+(l.obacNombre||nom(n.programada.obac))+" · "+hora(l.enviadoEn)):"Sin cerrar"],
-    ["Guardia ratificada",r?"Sí — "+r.porNombre+" ("+(r.porCargo||"oficial")+", código "+r.porId+") · "+hora(r.en):"No"],
-    ["Cumplimiento reglamentario",r&&r.cumplimiento?(r.cumplimiento.estado==="acreditado"?"Acreditado":"NO acreditado: "+r.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):"Sin evaluar"],
-    ["Cumplimiento final (oficial)",n.cumplimientoFinal?"Acreditado por "+(n.cumplimientoFinal.porNombre||"T3")+" ("+(n.cumplimientoFinal.porCargo||"Teniente 3°")+") · "+(n.cumplimientoFinal.en?hora(n.cumplimientoFinal.en):"registro anterior al flujo"):(r?"PENDIENTE de acreditación oficial":"No aplica")],
+    ["Guardia aprobada",r?"Sí — "+r.porNombre+" ("+(r.porCargo||"oficial")+", código "+r.porId+") · "+hora(r.en):"No"],
+    ["Cumplimiento reglamentario",r&&r.cumplimiento?(r.cumplimiento.estado==="acreditado"?"Cumple":"NO cumple: "+r.cumplimiento.motivos.map(function(m){return MOTIVOS[m]||m;}).join(", ")):"Sin evaluar"],
     ["Estado general",e[0]]];
   doc.autoTable({startY:(nuevaPagina?48:46),body:filas,theme:"grid",styles:{fontSize:8,cellPadding:2},columnStyles:{0:{fontStyle:"bold",cellWidth:46}},margin:{left:14,right:14,top:46,bottom:16}});
   var P=n.programada;
@@ -232,7 +221,7 @@ async function seccionNoche(doc,n,nuevaPagina){
       var pres=r.asistentes.indexOf(id)>=0,ex=r.excusas&&r.excusas[id],ad=(r.adicionales||[]).some(function(a){return String(a.id)===id;});
       var rol=id===String(r.obacEfectivoId)?"OBAC efectivo":id===String(r.conductorEfectivoId)?"Conductor efectivo":ad?"Asistente adicional":"Voluntario";
       return [nom(id),rol,pres?"Presente":(ex?"Excusado: "+ex:"Ausente")];});
-    doc.autoTable({startY:y0(doc),head:[["Asistencia efectiva ratificada","Función","Estado"]],body:cuerpo,styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[179,36,28]},margin:{left:14,right:14,top:46,bottom:16}});
+    doc.autoTable({startY:y0(doc),head:[["Asistencia efectiva aprobada","Función","Estado"]],body:cuerpo,styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[179,36,28]},margin:{left:14,right:14,top:46,bottom:16}});
     var de=r.dotacionEfectiva;if(de){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("Dotación efectiva: "+de.total+" presentes ("+de.voluntarios+" voluntarios; mínimo 1 conductor, 1 OBAC y 2 voluntarios: "+(de.minimoCumplido?"cumplido":"NO cumplido")+").",14,y0(doc,5));doc.lastAutoTable.finalY+=6;}
     if(r.motivoPrecedencia){doc.text("Constancia de precedencia del OBAC: "+r.motivoPrecedencia,14,y0(doc,5));doc.lastAutoTable.finalY+=6;}
   }
@@ -243,7 +232,7 @@ async function seccionNoche(doc,n,nuevaPagina){
   if(r&&r.historial&&r.historial.length)doc.autoTable({startY:y0(doc),head:[["Corrección","Quién y cuándo","Motivo","Antes → después"]],body:r.historial.map(function(h,i){return ["#"+(i+1),(h.modificadoPorNombre||"")+" ("+(h.modificadoPorCargo||"")+") · "+hora(h.modificadoEn),h.motivo||"",
       "Presentes "+(h.asistentes||[]).length+" → "+((h.despues&&h.despues.asistentes)||[]).length+" · Ausentes "+(h.ausentes||[]).length+" → "+((h.despues&&h.despues.ausentes)||[]).length];}),styles:{fontSize:7,cellPadding:2},headStyles:{fillColor:[90,90,90]},margin:{left:14,right:14,top:46,bottom:16}});
   if(r){var hu=await huella({f:n.fecha,por:r.porId,en:r.en,a:r.asistentes,x:r.ausentes,v:r.version});
-    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(60);doc.text("Identificación verificable: ratificó "+r.porNombre+", código de voluntario "+r.porId+", registro Germania v"+r.version+" del "+hora(r.en)+". Huella del registro: "+hu+".",14,y0(doc,6),{maxWidth:182});doc.setTextColor(0);}
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(60);doc.text("Identificación verificable: aprobó "+r.porNombre+", código de voluntario "+r.porId+", registro Germania v"+r.version+" del "+hora(r.en)+". Huella del registro: "+hu+".",14,y0(doc,6),{maxWidth:182});doc.setTextColor(0);}
   /* fotografía en página propia */
   doc.addPage();cabecera(doc,"GUARDIA NOCTURNA · FOTOGRAFÍA DEL LIBRO");doc.setFont("helvetica","bold");doc.setFontSize(9);doc.text("Libro de guardia · "+larga(n.fecha),14,46);
   var ft=l&&l.cerrado&&!l.sinFoto?await fotoJpeg(n.fecha):null;
@@ -260,7 +249,7 @@ async function pdf(tipo,fecha,accion){
     texto="Germania · Guardia nocturna del "+larga(fecha)+": "+(ESTADOS[n.estado]||[n.estado])[0]+".";
   }else{
     cabecera(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Semana del miércoles "+larga(d.semana),105,44,{align:"center"});
-    doc.autoTable({startY:49,head:[["Noche","Prog.","Present.","Ausent.","Adic.","OBAC efectivo","Conductor ef.","Estado","Ratificó"]],
+    doc.autoTable({startY:49,head:[["Noche","Prog.","Present.","Ausent.","Adic.","OBAC efectivo","Conductor ef.","Estado","Aprobó"]],
       body:d.noches.map(function(n){var r=n.ratificacion;return [corta(n.fecha),n.programada.total,r?r.asistentes.length:"-",r?r.ausentes.length:"-",r?r.adicionales.length:"-",r?nom(r.obacEfectivoId):"-",r?nom(r.conductorEfectivoId):"-",(ESTADOS[n.estado]||[n.estado])[0],r?r.porNombre:"-"];}),
       styles:{fontSize:7,cellPadding:1.8,overflow:"linebreak"},headStyles:{fillColor:[179,36,28]},margin:{left:11,right:11,top:46,bottom:16}});
     if(d.cierre){doc.setFontSize(8);doc.text("Semana "+(d.cierreVigente?"cerrada":"con cierre desactualizado")+" por "+d.cierre.cerradaPorNombre+" ("+d.cierre.cerradaPorCargo+", código "+d.cierre.cerradaPorId+") el "+hora(d.cierre.cerradaEn)+(d.cierre.observaciones?". Observaciones: "+d.cierre.observaciones:"")+".",14,y0(doc,6),{maxWidth:182});}

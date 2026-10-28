@@ -58,7 +58,7 @@
     if(st.av&&st.av.estado==="cubierto")h+='<span class="gr-chip gris">Tu noche fue cubierta por otro voluntario</span>';
     else if(st.av&&st.av.estado==="sin_reemplazo")h+='<span class="gr-chip rojo">Avisaste · sin reemplazo todavía (lo ve la oficialidad)</span>';
     else if(st.av)h+='<span class="gr-chip rojo">Avisaste que no puedes · esperando reemplazo</span>';
-    else if(st.ok)h+='<span class="gr-chip verde">Confirmaste que irás ✓ (la asistencia la acredita el Teniente Tercero esa noche)</span>';
+    else if(st.ok)h+='<span class="gr-chip verde">Confirmaste que irás ✓ (la asistencia la aprueba un oficial después de la guardia)</span>';
     else h+='<span class="gr-chip gris">Sin confirmar</span>';
     h+='</div>';
     if(!st.av){
