@@ -939,7 +939,9 @@ async function misNochesDatos(who,forzar){
     e.pendiente=!valida && !(e.aviso&&e.aviso.estado==="cubierto");
     e.cuenta=valida && ac.asistentes.map(String).includes(who) && ac.asistencias[who]==="presente";
   });
-  MN.cache={prox:prox,cumpl:cumpl,avisos:avisos}; MN.who=who; MN.en=Date.now();
+  /* Visibilidad hasta el viernes 06:00 local posterior a la semana miércoles-martes. */
+  var recientes=cumpl.filter(function(e){return ahora<instanteChile(gnAdd(inicioSemanaDe(e.f),9),"06:00");}).sort(function(a,b){return a.f.localeCompare(b.f);});
+  MN.cache={prox:prox,cumpl:cumpl,recientes:recientes,avisos:avisos}; MN.who=who; MN.en=Date.now();
   return MN.cache;
 }
 function tarjetaNoche(e,conBoton){
@@ -961,6 +963,7 @@ async function panelMis(pn,D){
   if(D.abierto&&GR.Dmi&&GR.Dmi.p) h+='<p class="gr-aviso-n">La elección de noches está abierta. <a href="#" id="mnIrInicio">Elegir mis noches en Inicio</a></p>';
   if(!d.prox.length) h+='<div class="empty">No tienes noches pendientes. Cuando la oficialidad apruebe la dotación, tu noche aparecerá aquí.</div>';
   else h+='<p class="sub">Cada noche desaparece de esta lista cuando termina (a las '+E(HORARIOS.fin)+'). Si ya no puedes, avisa para que la oficialidad busque reemplazo.</p><div class="gr-lista">'+d.prox.map(function(e){ return tarjetaNoche(e,true); }).join("")+'</div>';
+  if(d.recientes&&d.recientes.length) h+='<h3 class="gr-t">Terminadas esta semana</h3><p class="sub">Visibles hasta 48 horas después del cierre de la semana; luego permanecen en el historial.</p><div class="gr-lista">'+d.recientes.map(function(e){return tarjetaNoche(e,false);}).join("")+'</div>';
   pn.innerHTML=h;
   pn.querySelectorAll("[data-nopuedo]").forEach(function(b){ b.onclick=function(){ abrirAviso(pn,D,b.dataset.nopuedo); }; });
   var ii=$("mnIrInicio"); if(ii) ii.onclick=function(e){ e.preventDefault(); window.__mostrarPestana("germania"); };
