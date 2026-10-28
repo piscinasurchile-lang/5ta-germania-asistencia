@@ -271,12 +271,13 @@ function semanaDe(fecha){
  d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
  return d.toISOString().slice(0,10);
 }
+/* Estados de presentación del flujo nuevo de Guardia Nocturna.
+   Los datos históricos se conservan para trazabilidad y estadísticas. */
 function clasificarControl(x){
- if(x.acreditacionVigente&&x.cumplimientoFinal)return {texto:"Cumplimiento acreditado · T3",clase:"ok"};
- if(x.acreditacionVigente)return {texto:"Ratificada · falta acreditación T3",clase:"pend"};
- if(x.cierre)return {texto:"Libro cerrado · falta ratificar",clase:"pend"};
- if(x.finalizada)return {texto:"Falta cierre OBAC",clase:"falta"};
- return {texto:"Programada / en curso",clase:""};
+  if(x.acreditacionVigente)return {texto:x.acreditacion&&x.acreditacion.automatica?"Aprobada automáticamente (48 h)":"Acreditada",clase:"ok"};
+  if(x.cierre)return {texto:"Pendiente de revisión",clase:"pend"};
+  if(x.finalizada)return {texto:"Falta cierre OBAC",clase:"falta"};
+  return {texto:"Programada / en curso",clase:""};
 }
 async function abrirControlAdmin(fecha){
  if(!admin&&!oficial)return;
