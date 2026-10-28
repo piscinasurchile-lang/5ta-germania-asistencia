@@ -5,7 +5,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let actual="",items=[],t3=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
+let semanaBuscada="",actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -272,6 +272,25 @@ function semanaDe(fecha){
  d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
  return d.toISOString().slice(0,10);
 }
+/* Estados de presentación del flujo nuevo de Guardia Nocturna.
+   Los datos históricos se conservan para trazabilidad y estadísticas. */
+/* Ventana de consulta reciente: todas las noches de miércoles a martes
+   se retiran juntas el viernes siguiente a las 06:00 de Chile. */
+function etiquetaSemana(inicio){
+ const d=new Date(inicio+"T12:00:00Z");
+ if(Number.isNaN(d.getTime()))return "Semana inválida";
+ d.setUTCDate(d.getUTCDate()+7);
+ return fechaBonita(inicio)+" → "+fechaBonita(d.toISOString().slice(0,10));
+}
+function semanaVigente48(fecha){
+ const inicio=semanaDe(fecha);
+ if(!inicio)return false;
+ const d=new Date(inicio+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+9);
+ const limite=d.toISOString().slice(0,10)+"T06:00";
+ const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+ const v=k=>(p.find(x=>x.type===k)||{}).value||"";
+ return [v("year"),v("month"),v("day")].join("-")+"T"+v("hour")+":"+v("minute")<limite;
+}
 function clasificarControl(x){
  if(x.acreditacionVigente)return {texto:"Guardia aprobada",clase:"ok"};
  if(x.cierre)return {texto:"Libro cerrado · falta aprobar",clase:"pend"};
@@ -283,6 +302,7 @@ async function abrirControlAdmin(fecha){
  if(editando&&!confirm("Tienes cambios de asistencia sin guardar. ¿Salir y descartarlos?"))return;
  if(editando){editando=false;pintarOficial();pintarControlAdmin();}
  const elegida=typeof fecha==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(fecha)?fecha:"";
+ if(elegida)semanaBuscada=semanaVigente48(elegida)?"":elegida;
  const anioDestino=elegida?elegida.slice(0,4):anioElegido;
  const cambiaAnio=anioElegido!==anioDestino;
  if(cambiaAnio){anioElegido=anioDestino;historial=null;}
@@ -332,8 +352,10 @@ function pintarControlAdmin(){
  }
  // Los oficiales consultan solo guardias aprobadas; el administrador y quienes aprueban ven también las pendientes.
  const fuente=historial===null?items:historial;
- const terminadas=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente))
+ const visibles=fuente.filter(x=>x.finalizada&&(admin||t3||x.acreditacionVigente));
+ const terminadas=visibles.filter(x=>semanaBuscada?semanaDe(x.fecha)===semanaDe(semanaBuscada):semanaVigente48(x.fecha))
    .slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const semanasLista=[...new Set(visibles.map(x=>semanaDe(x.fecha)))].filter(Boolean).sort().reverse();
  const resumen={falta:0,cerradas:0,pendiente:0,acreditadas:0};
  for(const x of terminadas){
   if(x.cierre)resumen.cerradas++;
@@ -362,9 +384,11 @@ function pintarControlAdmin(){
  for(let y=maxAnio;y>=2026;y--)anios.push('<option value="'+y+'"'+(String(y)===anioElegido?" selected":"")+'>'+y+'</option>');
  let html=encabezado+
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
-  '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+indicadores+
+  '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+
+  '<div class="field" style="max-width:340px;margin:10px 0"><label for="lgnSemanaControl">Buscar semana de guardia</label><select id="lgnSemanaControl"><option value="">Últimas 48 h</option>'+
+  semanasLista.map(s=>'<option value="'+escHtml(s)+'"'+(semanaDe(semanaBuscada)===s?" selected":"")+'>'+escHtml(etiquetaSemana(s))+'</option>').join("")+'</select></div>'+indicadores+
   '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real aprobada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
- if(!terminadas.length)html+='<p class="sub">No hay guardias disponibles para consulta en este año.</p>';
+ if(!terminadas.length)html+='<p class="sub">'+(semanaBuscada?"No hay guardias en esa semana.":"No hay guardias recientes. Busca otra semana en el selector.")+'</p>';
  let grupoAnterior="";
  for(const x of terminadas){
   const semana=semanaDe(x.fecha);
@@ -421,7 +445,9 @@ function pintarControlAdmin(){
   '<button type="button" class="btn secondary small" id="lgnAdminInicio">Volver a mi espacio</button></div>';
  panel.innerHTML=html;
  const anio=$("lgnAnioControl");
- if(anio)anio.onchange=()=>{anioElegido=anio.value;historial=null;cargarHistorial();};
+ if(anio)anio.onchange=()=>{anioElegido=anio.value;semanaBuscada="";historial=null;cargarHistorial();};
+ const selector=$("lgnSemanaControl");
+ if(selector)selector.onchange=()=>{semanaBuscada=selector.value;pintarControlAdmin();};
  const ref=$("lgnAdminActualizar");
  if(ref)ref.onclick=async()=>{
   if(editando&&!confirm("Hay cambios de asistencia sin guardar. ¿Descartarlos y actualizar el control?"))return;

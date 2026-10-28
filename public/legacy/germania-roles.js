@@ -226,7 +226,8 @@ async function planActivo(who){
   /* con varias semanas abiertas: la primera que este voluntario aún no confirmó (igual que el aviso de Inicio) */
   if(who) for(var i=0;i<abiertos.length;i++){ var c=null; try{ c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); }catch(e){} if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
   var esGestion=!!who&&esMando(porId(who));
-  var limite=esGestion?gnAdd(hoy,-90):hoy;
+  /* Historial consultable por oficiales: ventana de 400 días, sin borrar registros. */
+  var limite=esGestion?gnAdd(hoy,-400):hoy;
   var lista=ab.filter(function(x){ return x.fin>=limite; });
   var p=abierto||ab.filter(function(x){ return x.fin>=hoy; })[0]||null;
   if(!p&&esGestion&&lista.length)p=lista[lista.length-1];
@@ -342,8 +343,13 @@ function estadoCandadoInscripcion(D){
  return '<div role="status" class="gr-nota info" style="margin:10px 0;overflow-wrap:anywhere"><span aria-hidden="true">'+(cerrado?'🔒':'🔓')+'</span><p><b>'+titulo+'</b><br>'+detalle+(aprobada?' La semana está aprobada.':'')+'</p></div>';
 }
 function selectorSemana(D){
-  if(GR.vista!=="gestion"||!D.lista||D.lista.length<2) return "";
-  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+D.lista.map(function(x){ return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+(Date.now()<gnInsCierreMs(x)?" · elección abierta":" · elección cerrada")+'</option>'; }).join("")+'</select>';
+  if(GR.vista!=="gestion") return "";
+  var lista=D.lista||[], ahora=Date.now();
+  var visibles=lista.filter(function(x){return ahora<instanteChile(gnAdd(x.inicio,9),"06:00");});
+  var anteriores=lista.filter(function(x){return !visibles.some(function(v){return v.inicio===x.inicio;});}).sort(function(a,b){return b.inicio.localeCompare(a.inicio);});
+  var buscar='<label class="rv-lbl" for="grBuscar">Buscar otra semana (guardias anteriores)</label><select id="grBuscar" class="rv-sel"><option value="">Elegir una semana…</option>'+anteriores.map(function(x){return '<option value="'+E(x.inicio)+'">'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select><p class="sub" id="grBuscarMsg" role="status"></p>';
+  if(!visibles.length) return '<p class="sub">No hay guardias recientes. Elige una semana anterior.</p>'+buscar;
+  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+visibles.map(function(x){return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select>'+buscar;
 }
 function cabecera(D){
   var m=D.m, p=D.p;
@@ -838,6 +844,8 @@ async function aprobarRevision(pn,D){
    la noche NO cuenta para mí y se acredita a quien la cubrió.
    Aviso: guardia-aviso:<fecha>:<id> = {f,id,rol,motivo,en,estado:abierto|cubierto|sin_reemplazo,reemplazoId,...}. */
 var ROL_NOCHE={vol:"Voluntario",maq:"Maquinista",obac:"OBAC"};
+/* Miércoles de inicio de la semana que contiene la noche. */
+function inicioSemanaDe(f){ var d=new Date(f+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+4)%7)); return d.toISOString().slice(0,10); }
 var MN={cache:null,who:"",en:0};
 function avKey(f,id){ return "guardia-aviso:"+f+":"+id; }
 async function misNochesDatos(who,forzar){
@@ -878,7 +886,9 @@ async function misNochesDatos(who,forzar){
     e.pendiente=!valida && !(e.aviso&&e.aviso.estado==="cubierto");
     e.cuenta=valida && ac.asistentes.map(String).includes(who) && ac.asistencias[who]==="presente";
   });
-  MN.cache={prox:prox,cumpl:cumpl,avisos:avisos}; MN.who=who; MN.en=Date.now();
+  /* Visibilidad hasta el viernes 06:00 local posterior a la semana miércoles-martes. */
+  var recientes=cumpl.filter(function(e){return ahora<instanteChile(gnAdd(inicioSemanaDe(e.f),9),"06:00");}).sort(function(a,b){return a.f.localeCompare(b.f);});
+  MN.cache={prox:prox,cumpl:cumpl,recientes:recientes,avisos:avisos}; MN.who=who; MN.en=Date.now();
   return MN.cache;
 }
 function tarjetaNoche(e,conBoton){
@@ -900,6 +910,7 @@ async function panelMis(pn,D){
   if(D.abierto&&GR.Dmi&&GR.Dmi.p) h+='<p class="gr-aviso-n">La elección de noches está abierta. <a href="#" id="mnIrInicio">Elegir mis noches en Inicio</a></p>';
   if(!d.prox.length) h+='<div class="empty">No tienes noches pendientes. Cuando la oficialidad apruebe la dotación, tu noche aparecerá aquí.</div>';
   else h+='<p class="sub">Cada noche desaparece de esta lista cuando termina (a las '+E(HORARIOS.fin)+'). Si ya no puedes, avisa para que la oficialidad busque reemplazo.</p><div class="gr-lista">'+d.prox.map(function(e){ return tarjetaNoche(e,true); }).join("")+'</div>';
+  if(d.recientes&&d.recientes.length) h+='<h3 class="gr-t">Terminadas esta semana</h3><p class="sub">Visibles hasta 48 horas después del cierre de la semana; luego permanecen en el historial.</p><div class="gr-lista">'+d.recientes.map(function(e){return tarjetaNoche(e,false);}).join("")+'</div>';
   pn.innerHTML=h;
   pn.querySelectorAll("[data-nopuedo]").forEach(function(b){ b.onclick=function(){ abrirAviso(pn,D,b.dataset.nopuedo); }; });
   var ii=$("mnIrInicio"); if(ii) ii.onclick=function(e){ e.preventDefault(); window.__mostrarPestana("germania"); };
@@ -1090,7 +1101,17 @@ document.querySelectorAll(".panel").forEach(function(pn){
   var antes=pn.classList.contains("active");
   new MutationObserver(function(){ var ahora=pn.classList.contains("active"); if(ahora&&!antes) alActivarPanel(pn.id); antes=ahora; }).observe(pn,{attributes:true,attributeFilter:["class"]});
 });
-document.addEventListener("change",function(ev){ if(ev.target&&ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); } });
+document.addEventListener("change",function(ev){
+  if(!ev.target)return;
+  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); }
+  if(ev.target.id==="grBuscar"){
+    var inicio=ev.target.value, lista=(GR.D&&GR.D.lista)||[];
+    if(!inicio)return;
+    var semana=lista.filter(function(x){return x.inicio===inicio;})[0];
+    if(!semana){var msg=document.getElementById("grBuscarMsg");if(msg)msg.textContent="No se encontró esa semana.";return;}
+    GR.semana=semana.inicio; RV.clave=""; grRender(true).catch(function(){});
+  }
+});
 var ultimo="__";
 /* El nombre ya sale arriba: el selector se esconde una vez elegido (se vuelve a abrir con «No soy yo») */
 function ocultarSelector(abrir){
