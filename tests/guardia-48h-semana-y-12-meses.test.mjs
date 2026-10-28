@@ -27,7 +27,7 @@ const trozo = (nombre) => {
   return fuente.slice(i, j > 0 ? j : undefined);
 };
 const { semanaDe, semanaVigente48, etiquetaSemana } = new Function(
-  trozo("semanaDe") + "\n" + trozo("semanaVigente48") + "\n" + trozo("etiquetaSemana") + "\nreturn {semanaDe,semanaVigente48,etiquetaSemana};")();
+  trozo("fechaBonita") + "\n" + trozo("semanaDe") + "\n" + trozo("semanaVigente48") + "\n" + trozo("etiquetaSemana") + "\nreturn {semanaDe,semanaVigente48,etiquetaSemana};")();
 
 const W = "2026-10-28"; // miércoles; la guardia termina el miércoles 4-nov 06:00; visible hasta el viernes 6-nov 06:00
 const noches = Array.from({ length: 7 }, (_, i) => dia(W, i));
