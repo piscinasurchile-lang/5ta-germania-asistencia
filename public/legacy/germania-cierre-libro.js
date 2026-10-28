@@ -358,11 +358,11 @@ function pintarControlAdmin(){
   else resumen.falta++;
  }
  const encabezado='<h2>Control Guardia Diaria</h2>'+
-  '<p class="sub">Consulta cronológica de guardias. Pueden ratificar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente los registros ratificados.</p>';
+  '<p class="sub">Consulta de guardias nocturnas y asistencia. Los oficiales autorizados revisan las noches; el historial se conserva.</p>';
  const indicadores='<div class="lgn-control-totales">'+
   (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
-    [resumen.pendiente,"Pendientes de ratificar"],[resumen.acreditadas,"Ratificadas"],[resumen.finales,"Acreditadas T3"],
-    [resumen.falta,"Sin cierre OBAC"]]:[[resumen.acreditadas,"Guardias ratificadas"]])
+    [resumen.pendiente,"Pendientes de revisión"],[resumen.acreditadas,"Acreditadas"],
+    [resumen.falta,"Sin cierre OBAC"]]:[[resumen.acreditadas,"Guardias acreditadas"]])
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
   if(admin){
