@@ -555,20 +555,6 @@ function pintarResumenMando(){
  host.querySelectorAll("[data-lgn-t3-noche]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnT3Noche));
  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
 }
-async function acreditarFinal(fecha,boton){
- if(!esT3Real||!actual||!boton||boton.disabled)return;
- const it=items.find(x=>x.fecha===fecha);
- if(!confirm("¿Confirmas que revisaste esta noche y acreditas su cumplimiento final? Desde ahora cuenta en las estadísticas."))return;
- boton.disabled=true;const rotulo=boton.textContent;boton.textContent="Guardando…";
- try{
-  const r=await fetch("/api/guardia/acreditar-final",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({fecha,actorId:actual,ifVersion:Number(it?.acreditacionVersion||0)})});
-  const d=await r.json().catch(()=>({}));
-  if(r.status===409){boton.disabled=false;boton.textContent=rotulo;alert(d.error==="version_conflict"?"Otro oficial corrigió la noche mientras la revisabas. Actualiza y vuelve a revisar.":"La noche aún no está ratificada.");return;}
-  if(!r.ok)throw Error(d.error||"No se pudo acreditar.");
-  await cargar(true);
- }catch(e){boton.disabled=false;boton.textContent=rotulo;alert(String(e.message||"No se pudo acreditar. Reintenta."));}
-}
 async function marcarVisto(fecha,boton){
  if(!capitan||!actual||!boton||boton.disabled)return;
  if(!confirm("¿Confirmas que revisaste la asistencia, novedades, reemplazos y fotografía del libro de esta noche antes de dar tu visto bueno?"))return;
