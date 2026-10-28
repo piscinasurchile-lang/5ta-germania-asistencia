@@ -343,8 +343,13 @@ function estadoCandadoInscripcion(D){
  return '<div role="status" class="gr-nota info" style="margin:10px 0;overflow-wrap:anywhere"><span aria-hidden="true">'+(cerrado?'🔒':'🔓')+'</span><p><b>'+titulo+'</b><br>'+detalle+(aprobada?' La semana está aprobada.':'')+'</p></div>';
 }
 function selectorSemana(D){
-  if(GR.vista!=="gestion"||!D.lista||D.lista.length<2) return "";
-  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+D.lista.map(function(x){ return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+(Date.now()<gnInsCierreMs(x)?" · elección abierta":" · elección cerrada")+'</option>'; }).join("")+'</select>';
+  if(GR.vista!=="gestion") return "";
+  var lista=D.lista||[], ahora=Date.now();
+  var visibles=lista.filter(function(x){return ahora<instanteChile(gnAdd(x.inicio,9),"06:00");});
+  var anteriores=lista.filter(function(x){return !visibles.some(function(v){return v.inicio===x.inicio;});}).sort(function(a,b){return b.inicio.localeCompare(a.inicio);});
+  var buscar='<label class="rv-lbl" for="grBuscar">Buscar otra semana (guardias anteriores)</label><select id="grBuscar" class="rv-sel"><option value="">Elegir una semana…</option>'+anteriores.map(function(x){return '<option value="'+E(x.inicio)+'">'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select><p class="sub" id="grBuscarMsg" role="status"></p>';
+  if(!visibles.length) return '<p class="sub">No hay guardias recientes. Elige una semana anterior.</p>'+buscar;
+  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+visibles.map(function(x){return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select>'+buscar;
 }
 function cabecera(D){
   var m=D.m, p=D.p;
@@ -1146,7 +1151,17 @@ document.querySelectorAll(".panel").forEach(function(pn){
   var antes=pn.classList.contains("active");
   new MutationObserver(function(){ var ahora=pn.classList.contains("active"); if(ahora&&!antes) alActivarPanel(pn.id); antes=ahora; }).observe(pn,{attributes:true,attributeFilter:["class"]});
 });
-document.addEventListener("change",function(ev){ if(ev.target&&ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); } });
+document.addEventListener("change",function(ev){
+  if(!ev.target)return;
+  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); }
+  if(ev.target.id==="grBuscar"){
+    var inicio=ev.target.value, lista=(GR.D&&GR.D.lista)||[];
+    if(!inicio)return;
+    var semana=lista.filter(function(x){return x.inicio===inicio;})[0];
+    if(!semana){var msg=document.getElementById("grBuscarMsg");if(msg)msg.textContent="No se encontró esa semana.";return;}
+    GR.semana=semana.inicio; RV.clave=""; grRender(true).catch(function(){});
+  }
+});
 var ultimo="__";
 /* El nombre ya sale arriba: el selector se esconde una vez elegido (se vuelve a abrir con «No soy yo») */
 function ocultarSelector(abrir){
