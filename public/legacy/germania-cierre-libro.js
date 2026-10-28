@@ -386,7 +386,7 @@ function pintarControlAdmin(){
   '<div class="field" style="max-width:230px;margin:10px 0"><label for="lgnAnioControl">Año de las guardias</label>'+
   '<select id="lgnAnioControl">'+anios.join("")+'</select></div>'+
   '<div class="field" style="max-width:340px;margin:10px 0"><label for="lgnSemanaControl">Buscar semana de guardia</label><select id="lgnSemanaControl"><option value="">Últimas 48 h</option>'+
-  semanasLista.map(s=>'<option value="'+escHtml(s)+'"'+(semanaDe(semanaBuscada)===s?" selected":"")+'>Semana del '+escHtml(fechaBonita(s))+'</option>').join("")+'</select></div>'+indicadores+
+  semanasLista.map(s=>'<option value="'+escHtml(s)+'"'+(semanaDe(semanaBuscada)===s?" selected":"")+'>'+escHtml(etiquetaSemana(s))+'</option>').join("")+'</select></div>'+indicadores+
   '<p class="lgn-control-nota">La dotación programada corresponde a la ODD original. La asistencia real ratificada aparece por separado, incluyendo los asistentes adicionales. Pueden corregir el acta el Capitán y los tenientes, con motivo y quedando el historial.</p>';
  if(!terminadas.length)html+='<p class="sub">'+(semanaBuscada?"No hay guardias en esa semana.":"No hay guardias recientes. Busca otra semana en el selector.")+'</p>';
  let grupoAnterior="";
