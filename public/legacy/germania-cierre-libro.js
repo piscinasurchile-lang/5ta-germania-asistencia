@@ -419,9 +419,7 @@ function pintarControlAdmin(){
     const ratificada=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
     html+='<p><strong>Ratificada por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
      (ratificada?' · '+escHtml(ratificada):"")+'</p>';
-    html+=(x.cumplimientoFinal||!x.acreditacionVigente?'':'')+(x.cumplimientoFinal?'<p><strong>Cumplimiento final:</strong> acreditado por el Teniente 3°</p>':
-     '<p class="sub"><strong>Falta la acreditación del cumplimiento final por el Teniente 3°.</strong> La noche ya está ratificada, pero aún no cuenta en estadísticas.</p>'+
-     (esT3Real?'<button type="button" class="btn small" data-lgn-final="'+escHtml(x.fecha)+'">Acreditar cumplimiento · T3</button>':''));
+    // No mostrar acreditación T3 como etapa adicional; conservar datos históricos.
     html+=htmlAsistenciaRatificada(x);
    }else if(x.cierre){
     html+='<p class="sub">Pendiente de ratificación por un oficial autorizado. La programación original no acredita presencia.</p>';
@@ -520,7 +518,7 @@ function pintarResumenMando(){
   host.querySelectorAll("[data-lgn-consultar]").forEach(btn=>btn.onclick=()=>abrirControlAdmin(btn.dataset.lgnConsultar));
   const verTodos=$("lgnMandoIr");if(verTodos)verTodos.onclick=()=>abrirControlAdmin();
   host.querySelectorAll("[data-lgn-visto]").forEach(btn=>btn.onclick=()=>marcarVisto(btn.dataset.lgnVisto,btn));
-  host.querySelectorAll("[data-lgn-final]").forEach(btn=>btn.onclick=()=>acreditarFinal(btn.dataset.lgnFinal,btn));
+  // El nuevo panel no presenta botón de acreditación T3.
   return;
  }
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
