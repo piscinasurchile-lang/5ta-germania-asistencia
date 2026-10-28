@@ -31,15 +31,17 @@ test("estadísticas: solo noches ratificadas y vigentes, una vez por noche, con 
  assert.equal(r.pendientes,2,"noche 2 (acta no vigente) y noche 3 (sin acta) quedan pendientes");
 });
 
-test("estadísticas: una ratificación de otro oficial no cuenta hasta que el T3 acredita el cumplimiento final",()=>{
+test("estadísticas: la aprobación de cualquier oficial cuenta de inmediato (un solo paso, sin acreditación final del T3)",()=>{
  const f="2026-10-14",asis={"4":"presente","3":"presente","5":"presente","6":"presente"};
  const porCapitan=acta(f,asis,{acreditadoPorCargo:"Capitán",cumplimientoFinal:null});
- assert.equal(R.acreditacionVigente(porCapitan,rev(f),f),false);
+ assert.equal(R.acreditacionVigente(porCapitan,rev(f),f),true,"aprobada por el Capitán: cuenta");
  const r0=E.calcularResumen({guardias:[{fechaIng:f}],acreditaciones:{[f]:{revision:rev(f),acta:porCapitan}},rosterIds:ids,ahoraChile:"2026-10-21T10:00"});
- assert.equal(r0.por["5"]?.hechas||0,0);assert.equal(r0.pendientes,1);
+ assert.equal(r0.por["5"].hechas,1);assert.equal(r0.pendientes,0);
+ const sinCampo=acta(f,asis,{acreditadoPorCargo:"Teniente Primero"});
+ assert.equal(R.acreditacionVigente(sinCampo,rev(f),f),true,"aprobada por un T1 sin ningún campo de acreditación final");
  const conT3=acta(f,asis,{acreditadoPorCargo:"Capitán",cumplimientoFinal:{estado:"acreditado",porId:"9"}});
- assert.equal(R.acreditacionVigente(conT3,rev(f),f),true);
- const r1=E.calcularResumen({guardias:[{fechaIng:f}],acreditaciones:{[f]:{revision:rev(f),acta:conT3}},rosterIds:ids,ahoraChile:"2026-10-21T10:00"});
- assert.equal(r1.por["5"].hechas,1);
- const legado=acta(f,asis);assert.equal(R.acreditacionVigente(legado,rev(f),f),true,"registro anterior al flujo creado por el T3");
+ assert.equal(R.acreditacionVigente(conT3,rev(f),f),true,"registro con acreditación final antigua: sigue contando (el campo se ignora)");
+ const legado=acta(f,asis);assert.equal(R.acreditacionVigente(legado,rev(f),f),true,"registro anterior al flujo: sigue contando");
+ const invalido=acta(f,{...asis,"6":""},{acreditadoPorCargo:"Capitán"});
+ assert.equal(R.acreditacionVigente(invalido,rev(f),f),false,"un acta con asistencia incompleta nunca cuenta");
 });

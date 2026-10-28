@@ -45,10 +45,11 @@ test("tabla compacta separada de un único selector individual y PDF",()=>{
  assert.match(app,/GermaniaEstadisticaIndividual\?\.render/);
  assert.doesNotMatch(modulo,/\bfetch\s*\(|localStorage|sessionStorage|method:"POST"/);
 });
-test("control separado cuenta cierres OBAC y ratificaciones T3",()=>{
+test("control separado cuenta cierres OBAC y aprobaciones de oficiales (sin acreditación T3)",()=>{
  assert.match(cierres,/resumen\.cerradas\+\+/);
  assert.match(cierres,/resumen\.acreditadas\+\+/);
  assert.match(cierres,/Cierres OBAC recibidos/);
- assert.match(cierres,/Acreditadas T3/);
+ assert.match(cierres,/"Aprobadas"/);
+ assert.doesNotMatch(cierres,/Acreditadas T3|resumen\.finales/);
  assert.match(cierres,/window\.__mostrarPestana\("control-guardia-diaria"\)/);
 });

@@ -35,7 +35,7 @@ test("semana miércoles a martes; avisos semanales no borran historial",()=>{
  assert.match(js,/semanaDe\(x\.fecha\)===semanaActual/);
  assert.match(js,/historial=1&anio=/);
  assert.match(js,/data-lgn-visto/);
- assert.match(js,/Guardias ratificadas/);
+ assert.match(js,/Guardias aprobadas/);
  assert.match(js,/Dar visto bueno · Capitán/);
  assert.match(js,/lgnAnioControl/);
 });

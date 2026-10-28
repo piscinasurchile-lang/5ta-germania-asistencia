@@ -72,7 +72,7 @@ test("administrador ve todas las noches pero NO puede acreditar",()=>{
    actor:admin.id,roster:[admin]}),"solo_oficiales_autorizados");
 });
 
-test("ratificar noche se abre en pantalla propia y nunca activa la gestión Guardia Nocturna",async()=>{
+test("aprobar noche se abre en pantalla propia y nunca activa la gestión Guardia Nocturna",async()=>{
  const {readFileSync}=await import("node:fs");
  const html=readFileSync(new URL("../public/legacy/index.html",import.meta.url),"utf8");
  const js=readFileSync(new URL("../public/legacy/germania-cierre-libro.js",import.meta.url),"utf8");
@@ -87,7 +87,7 @@ test("ratificar noche se abre en pantalla propia y nunca activa la gestión Guar
  assert.ok(inicio>=0&&fin>inicio);
  assert.match(js.slice(inicio,fin),/__mostrarPestana\("acreditacion-guardia"\)/);
  assert.doesNotMatch(js.slice(inicio,fin),/__mostrarPestana\("guardia"\)/);
- assert.match(js,/Control Guardia Diaria · Ratificar/);
+ assert.match(js,/Control Guardia Diaria · Aprobar/);
  assert.match(js,/lgnVolverInicio/);
  assert.match(js,/ultimaRatificacion=fecha/);
 });

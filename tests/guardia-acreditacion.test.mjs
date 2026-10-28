@@ -11,7 +11,7 @@ test("cuatro personas distintas, estado de asistencia explícito y T3",()=>{
  assert.deepEqual(integrantesNoche(n),["maq","obac","v1","v2"]);
  assert.equal(validarAcreditacion(args),null);
 });
-test("ratifica cualquier oficial autorizado (Capitán, T1-T3); un voluntario no (el cumplimiento final lo acredita solo el T3 en /acreditar-final)",()=>{
+test("aprueba en un solo paso cualquier oficial autorizado (Capitán, T1-T3); un voluntario no (ADR 0012: no hay segunda acreditación)",()=>{
  assert.equal(validarAcreditacion({...args,actor:"cap"}),null);
  assert.equal(validarAcreditacion({...args,actor:"vol",roster:[...roster,{id:"vol",cargo:"Voluntario",activo:true}]}),"solo_oficiales_autorizados");
 });

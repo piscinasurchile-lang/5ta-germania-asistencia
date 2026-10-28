@@ -11,7 +11,7 @@ api=read("../app/api/guardia/acreditacion/route.js");
 test("Control Guardia Diaria muestra nombre del asistente nuevo en asistencia efectiva y la programación aparte",()=>{
  assert.doesNotThrow(()=>new vm.Script(panel));
  assert.match(panel,/htmlAsistenciaRatificada\(x\)/);
- assert.match(panel,/Asistencia real ratificada/);
+ assert.match(panel,/Asistencia real aprobada/);
  assert.match(panel,/Asistente adicional · verificado en libro/);
  assert.match(panel,/Voluntarios programados en la ODD original/);
  assert.match(panel,/participantesEfectivos\(x\)/);
@@ -19,22 +19,23 @@ test("Control Guardia Diaria muestra nombre del asistente nuevo en asistencia ef
  assert.match(panel,/data-lgn-acta-fecha/);
  assert.match(panel,/lgn-acta-adicional/);
 });
-test("T3 accede a corregir la noche exacta desde Control Guardia Diaria, aunque sea histórica",()=>{
+test("un oficial autorizado accede a corregir la noche exacta desde Control Guardia Diaria, aunque sea histórica",()=>{
  assert.match(panel,/data-lgn-corregir/);
  assert.match(panel,/abrirPanelMando\(btn\.dataset\.lgnCorregir\)/);
  assert.match(panel,/data-lgn-dia/);
  assert.match(panel,/historial=1&anio=/);
  assert.match(panel,/if\(t3&&x\.cierre\)/);
- assert.match(panel,/Guardar corrección de acreditación/);
+ assert.match(panel,/Guardar corrección de la aprobación/);
  assert.match(panel,/historial=null;/);
 });
-test("T3 confirma cotejo con foto y recibe resumen antes de ratificar o corregir",()=>{
+test("el oficial confirma cotejo con foto y recibe resumen antes de aprobar o corregir",()=>{
  assert.match(panel,/data-lgn-comprobado/);
  assert.match(panel,/querySelector\("\[data-lgn-comprobado\]"\)\?\.checked/);
  assert.match(panel,/incluidos los no programados/);
  assert.match(panel,/Nuevos asistentes:/);
  assert.match(panel,/motivoCorreccion:motivo/);
- assert.match(api,/if \(anteriorRegistro && !soloAcreditaFinal && !motivoCorreccion\)/);
+ assert.match(api,/if \(anteriorRegistro && !motivoCorreccion\)/);
+ assert.doesNotMatch(api,/soloAcreditaFinal|cumplimientoFinal:actorEsT3|cargoTeniente3/);
  assert.match(api,/readState\(sql,"guardia-libro:"\+fecha\)/);
  assert.match(api,/writeState\(sql,"guardia-acreditacion:"\+fecha/);
  assert.doesNotMatch(api,/writeState\(sql,"guardia-revision:/);
