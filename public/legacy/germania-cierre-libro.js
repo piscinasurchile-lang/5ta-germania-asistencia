@@ -275,7 +275,13 @@ function semanaDe(fecha){
    Los datos históricos se conservan para trazabilidad y estadísticas. */
 /* Ventana de consulta reciente: todas las noches de miércoles a martes
    se retiran juntas el viernes siguiente a las 06:00 de Chile. */
-function etiquetaSemana(inicio){\n const d=new Date(inicio+"T12:00:00Z");\n if(Number.isNaN(d.getTime()))return "Semana inválida";\n d.setUTCDate(d.getUTCDate()+7);\n return fechaBonita(inicio)+" → "+fechaBonita(d.toISOString().slice(0,10));\n}\nfunction semanaVigente48(fecha){
+function etiquetaSemana(inicio){
+ const d=new Date(inicio+"T12:00:00Z");
+ if(Number.isNaN(d.getTime()))return "Semana inválida";
+ d.setUTCDate(d.getUTCDate()+7);
+ return fechaBonita(inicio)+" → "+fechaBonita(d.toISOString().slice(0,10));
+}
+function semanaVigente48(fecha){
  const inicio=semanaDe(fecha);
  if(!inicio)return false;
  const d=new Date(inicio+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+9);
