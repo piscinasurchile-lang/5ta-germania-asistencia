@@ -80,3 +80,11 @@ test("la interfaz: subida solo para el administrador y corrección de noche apro
   assert.match(ui, /No hay cambios respecto de la aprobación vigente/);
   assert.match(ui, /Esta guardia YA ESTÁ APROBADA/);
 });
+
+test("la lista de noches no despliega por defecto una noche ya aprobada y el aviso de corrección se muestra en un solo bloque", () => {
+  const ui = readFileSync(new URL("../public/legacy/germania-cierre-libro.js", import.meta.url), "utf8");
+  assert.doesNotMatch(ui, /\(i===0\?"open":""\)/, "ya no se abre siempre la primera noche");
+  assert.match(ui, /actualizados\.findIndex\(x=>x\.cierre&&!x\.acreditacionVigente\)/);
+  assert.match(ui, /\(i===primeraPendiente\?"open":""\)/);
+  assert.match(ui, /<summary><span><strong>Corregir esta aprobación<\/strong>/);
+});
