@@ -219,6 +219,8 @@ async function leerPrefijo(pref){
   if(!r.ok) throw new Error("lectura");
   var j=await r.json(); return Array.isArray(j.items)?j.items:[];
 }
+/* Regla de visibilidad: una semana se muestra hasta 48 h después de terminar su última guardia (06:00 del día +9). Después solo se ve al buscarla (historial, sin borrar nada). */
+function semanaVigente48(x){ return !!x&&Date.now()<instanteChile(gnAdd(x.inicio,9),"06:00"); }
 async function planActivo(who){
   var planes=await gnPlanes(), ahora=Date.now(), hoy=todayISO();
   var ab=planes.filter(function(x){ return x.estado==="abierta"&&x.confirmado!==false; }).sort(function(a,b){ return a.inicio.localeCompare(b.inicio); });
@@ -230,7 +232,7 @@ async function planActivo(who){
   var limite=esGestion?gnAdd(hoy,-400):hoy;
   var lista=ab.filter(function(x){ return x.fin>=limite; });
   var p=abierto||ab.filter(function(x){ return x.fin>=hoy; })[0]||null;
-  if(!p&&esGestion&&lista.length)p=lista[lista.length-1];
+  if(!p&&esGestion){ var vig=lista.filter(semanaVigente48); if(vig.length)p=vig[vig.length-1]; }  /* ya no cae a una semana pasada oculta */
   return {p:p,abierto:!!abierto,lista:lista,ahora:ahora};
 }
 async function cargarSemana(p){
@@ -304,9 +306,11 @@ async function grRender(forzar){
     var who=String(m.id), pa=await planActivo(who);
     var Dmi=await cargarD(m,pa.p,pa.abierto,pa.lista), D=Dmi;
     if(GR.vista==="gestion"&&pa.lista&&pa.lista.length){
-      var elegida=pa.lista.filter(function(x){ return x.inicio===GR.semana; })[0]||pa.lista.filter(function(x){return pa.p&&x.inicio===pa.p.inicio;})[0]||pa.lista[pa.lista.length-1];
-      GR.semana=elegida.inicio;
-      if(!pa.p||elegida.inicio!==pa.p.inicio) D=await cargarD(m,elegida,Date.now()<gnInsCierreMs(elegida),pa.lista);
+      /* La semana pasada solo se muestra si se buscó expresamente; si no, solo las vigentes (48 h). */
+      var enLista=function(x){ return x.inicio===GR.semana; };
+      var elegida=(GR.buscada&&pa.lista.filter(enLista)[0])||pa.lista.filter(function(x){ return enLista(x)&&semanaVigente48(x); })[0]||pa.lista.filter(function(x){return pa.p&&x.inicio===pa.p.inicio;})[0]||pa.lista.filter(semanaVigente48).pop()||null;
+      GR.semana=elegida?elegida.inicio:"";
+      if(elegida&&(!pa.p||elegida.inicio!==pa.p.inicio)) D=await cargarD(m,elegida,Date.now()<gnInsCierreMs(elegida),pa.lista);
     }
     GR.D=D; GR.Dmi=Dmi;
     var clave=(Dmi.p?Dmi.p.inicio:"")+":"+who;
@@ -345,9 +349,9 @@ function estadoCandadoInscripcion(D){
 function selectorSemana(D){
   if(GR.vista!=="gestion") return "";
   var lista=D.lista||[], ahora=Date.now();
-  var visibles=lista.filter(function(x){return ahora<instanteChile(gnAdd(x.inicio,9),"06:00");});
+  var visibles=lista.filter(semanaVigente48);
   var anteriores=lista.filter(function(x){return !visibles.some(function(v){return v.inicio===x.inicio;});}).sort(function(a,b){return b.inicio.localeCompare(a.inicio);});
-  var buscar='<label class="rv-lbl" for="grBuscar">Buscar otra semana (guardias anteriores)</label><select id="grBuscar" class="rv-sel"><option value="">Elegir una semana…</option>'+anteriores.map(function(x){return '<option value="'+E(x.inicio)+'">'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select><p class="sub" id="grBuscarMsg" role="status"></p>';
+  var buscar='<label class="rv-lbl" for="grBuscar">Buscar otra semana (guardias anteriores)</label><select id="grBuscar" class="rv-sel"><option value="">Elegir una semana…</option>'+anteriores.map(function(x){return '<option value="'+E(x.inicio)+'"'+(GR.buscada&&D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select><p class="sub" id="grBuscarMsg" role="status"></p>';
   if(!visibles.length) return '<p class="sub">No hay guardias recientes. Elige una semana anterior.</p>'+buscar;
   return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+visibles.map(function(x){return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select>'+buscar;
 }
@@ -1103,13 +1107,13 @@ document.querySelectorAll(".panel").forEach(function(pn){
 });
 document.addEventListener("change",function(ev){
   if(!ev.target)return;
-  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; RV.clave=""; grRender(true).catch(function(){}); }
+  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; GR.buscada=false; RV.clave=""; grRender(true).catch(function(){}); }
   if(ev.target.id==="grBuscar"){
     var inicio=ev.target.value, lista=(GR.D&&GR.D.lista)||[];
     if(!inicio)return;
     var semana=lista.filter(function(x){return x.inicio===inicio;})[0];
     if(!semana){var msg=document.getElementById("grBuscarMsg");if(msg)msg.textContent="No se encontró esa semana.";return;}
-    GR.semana=semana.inicio; RV.clave=""; grRender(true).catch(function(){});
+    GR.semana=semana.inicio; GR.buscada=true; RV.clave=""; grRender(true).catch(function(){});
   }
 });
 var ultimo="__";
