@@ -14,7 +14,8 @@ test("ODD PDF se incorpora a Avisos de Oficiales sin quitar el aviso textual",()
  assert.ok(start>=0&&end>start);
  assert.match(card,/id="novedadAgregar"/);
  assert.match(card,/id="oddPdfPublicarBtn"/);
- assert.match(card,/Subir ODD PDF para todos/);
+ assert.match(card,/Publicar ODD en PDF/);
+ assert.match(html,/<details class="card solo-oficiales" id="informacionesPublicarCard">/,"Avisos de Oficiales queda cerrada");
  assert.match(html,/germania-odd-pdf-publicar\.js\?v=20261015oddpdf1/);
  assert.ok(html.indexOf("germania-odd-pdf-publicar.js")>html.indexOf("app.js?v="));
 });

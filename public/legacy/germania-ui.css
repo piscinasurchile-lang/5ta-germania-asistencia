@@ -558,3 +558,12 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 .lgn-comprobacion input{width:22px;height:22px;flex:0 0 22px;accent-color:#fbc515;margin:1px 0 0;}
 .lgn-correccion-ir{margin-top:13px;white-space:normal;text-align:left;}
 @media(max-width:600px){.lgn-acta-efectiva{padding:9px}.lgn-comprobacion{padding:11px}}
+
+/* Oficiales: «Avisos de Oficiales» queda cerrada y se abre al tocarla; «Publicar ODD en PDF» es un solo botón. */
+#informacionesPublicarCard>summary.of-plegable{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none;font:600 20px/1.2 'Oswald',sans-serif;color:var(--g-gold,#ffcc00);}
+#informacionesPublicarCard>summary.of-plegable::-webkit-details-marker{display:none;}
+#informacionesPublicarCard>summary.of-plegable small{font:400 14px/1.2 'Source Sans 3',sans-serif;color:var(--g-muted,#b9c0c6);}
+#informacionesPublicarCard>summary.of-plegable::after{content:"▾";font-size:20px;}
+#informacionesPublicarCard[open]>summary.of-plegable::after{content:"▴";}
+#informacionesPublicarCard[open]>summary.of-plegable small{display:none;}
+.odd-pdf-publicar.odd-pdf-compacto{margin-top:12px;}
