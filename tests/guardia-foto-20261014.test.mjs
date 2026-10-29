@@ -113,5 +113,5 @@ test("la nueva ruta exige confirmación y no usa rutas de asistencia o de acredi
  assert.match(api,/sameOrigin\(request\)/);
  assert.match(page,/Actualizar guardia semanal en Germania/);
  assert.match(page,/window\.confirm/);
- assert.match(menu,/ofActualizarPlanillaFoto/);
+ assert.doesNotMatch(menu,/ofActualizarPlanillaFoto|actualizar-planilla/,"el botón se retiró del menú: la planilla del 14 al 20 ya fue aplicada");
 });
