@@ -90,7 +90,7 @@ test("aprobar noche se abre en pantalla propia y nunca activa la gestión Guardi
  assert.ok(inicio>=0&&fin>inicio);
  assert.match(js.slice(inicio,fin),/__mostrarPestana\("acreditacion-guardia"\)/);
  assert.doesNotMatch(js.slice(inicio,fin),/__mostrarPestana\("guardia"\)/);
- assert.match(js,/Control Guardia Diaria · Aprobar/);
+ assert.match(js,/Aprobar guardias/);
  assert.match(js,/lgnVolverInicio/);
  assert.match(js,/ultimaRatificacion=fecha/);
 });

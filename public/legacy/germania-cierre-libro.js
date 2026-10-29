@@ -350,7 +350,7 @@ async function cargarHistorial(){
  historialCargando=true;
  const actorId=actual,anio=anioElegido,host=$("lgnAdminPanel");
  if(host&&!historial&&!host.querySelector(".lgn-control-dia"))
-  host.innerHTML='<h2>Control Guardia Diaria</h2><p class="sub">Cargando las guardias del año '+escHtml(anio)+'…</p>';
+  host.innerHTML='<h2>Consultar guardias</h2><p class="sub">Cargando las guardias del año '+escHtml(anio)+'…</p>';
  try{
   const r=await fetch("/api/guardia/libro?historial=1&anio="+encodeURIComponent(anio)+"&actorId="+encodeURIComponent(actorId),{cache:"no-store"});
   if(!r.ok)throw Error("No fue posible cargar el historial.");
@@ -360,7 +360,7 @@ async function cargarHistorial(){
   // Una respuesta tardía de otro usuario o año no debe modificar el panel actual.
   if(actual!==actorId||anioElegido!==anio)return;
   if(host&&!host.querySelector(".lgn-control-dia")){
-   host.innerHTML='<h2>Control Guardia Diaria</h2><p role="alert">'+escHtml(e.message||"Error al cargar guardias")+'</p><button type="button" class="btn small secondary" id="lgnReintentar">Reintentar</button>';
+   host.innerHTML='<h2>Consultar guardias</h2><p role="alert">'+escHtml(e.message||"Error al cargar guardias")+'</p><button type="button" class="btn small secondary" id="lgnReintentar">Reintentar</button>';
    const retry=$("lgnReintentar");if(retry)retry.onclick=cargarHistorial;
   }else console.warn("No se actualizó el historial; se conservan las fichas cargadas",e);
  }
@@ -392,7 +392,7 @@ function pintarControlAdmin(){
   else if(x.cierre)resumen.pendiente++;
   else resumen.falta++;
  }
- const encabezado='<h2>Control Guardia Diaria</h2>'+
+ const encabezado='<h2>Consultar guardias</h2>'+
   '<p class="sub">Consulta cronológica de guardias. Pueden aprobar el Capitán, los tenientes 1°, 2° y 3° y el administrador del proyecto. Los demás oficiales ven exclusivamente las guardias aprobadas.</p>';
  const indicadores='<div class="lgn-control-totales">'+
   (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
@@ -401,8 +401,8 @@ function pintarControlAdmin(){
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
   if(admin){
-   home.innerHTML='<section class="card" aria-label="Control Guardia Diaria">'+encabezado+
-    indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir Control Guardia Diaria</button></section>';
+   home.innerHTML='<section class="card" aria-label="Consultar guardias">'+encabezado+
+    indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir consulta de guardias</button></section>';
    const abrir=$("lgnAdminAbrir");if(abrir)abrir.onclick=abrirControlAdmin;
   }else home.innerHTML="";
  }
@@ -556,7 +556,7 @@ function pintarResumenMando(){
  if(!semanaEnCurso&&!pendientes.length&&terminadas.length){
   host.innerHTML='<section class="card" aria-label="Guardias aprobadas">'+
    '<h2>Control de guardia · Oficiales</h2>'+
-   '<p class="sub">No tienes noches pendientes de aprobación. Los informes quedan disponibles en Control Guardia Diaria para consulta y para el Capitán.</p>'+textoVisto+
+   '<p class="sub">No tienes noches pendientes de aprobación. Los informes quedan disponibles en «Consultar guardias» para consulta y para el Capitán.</p>'+textoVisto+
    '<button type="button" class="btn small secondary" id="lgnMandoIr">Ver guardias aprobadas</button></section>';
   const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
   return;
@@ -594,7 +594,7 @@ async function marcarVisto(fecha,boton){
   const d=await r.json().catch(()=>({}));
   if(r.status===409){
    boton.disabled=false;boton.textContent=rotulo;
-   alert("El informe cambió mientras lo revisabas. Actualiza Control Guardia Diaria y confirma la versión vigente antes de dar el visto bueno.");
+   alert("El informe cambió mientras lo revisabas. Actualiza «Consultar guardias» y confirma la versión vigente antes de dar el visto bueno.");
    return;
   }
   if(!r.ok)throw Error(d.error||"No se pudo guardar el Visto.");
@@ -638,7 +638,7 @@ function abrirPanelMando(fecha){
 function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
  const mando=t3||capitan;area.hidden=!mando;
- if(btn){btn.hidden=!mando;btn.textContent=t3?"Control Guardia Diaria · Aprobar":"Control Guardia Diaria · Informes";}
+ if(btn){btn.hidden=!mando;btn.textContent=t3?"Aprobar guardias":"Informes de guardia";}
  if(!mando){area.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
