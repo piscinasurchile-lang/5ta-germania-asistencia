@@ -101,8 +101,10 @@ export async function POST(req){
  try{
   const sql=await db(),roster=(await readState(sql,"roster:v8")).value,actor=actorDe(roster,actorId);
   const g=await guardia(sql,fecha),ahora=horaCivilChile();
-  if(!actor||!g||String(g.noche.obac)!==String(actorId))return error("solo_obac_designado",403);
-  if(!ventanaCierreOBAC(fecha,ahora))return error("fuera_de_ventana_cierre",409);
+  /* ADR 0014: el administrador del proyecto puede subir la fotografía de una noche ya terminada (cierre tardío); solo esa acción, sin ampliar otros permisos. */
+  const porAdmin=!!actor&&esAdministradorGuardia(actor)&&String(g?.noche?.obac)!==String(actorId);
+  if(!actor||!g||(String(g.noche.obac)!==String(actorId)&&!porAdmin))return error("solo_obac_designado",403);
+  if(porAdmin?!nocheFinalizada(fecha,ahora):!ventanaCierreOBAC(fecha,ahora))return error(porAdmin?"noche_no_finalizada":"fuera_de_ventana_cierre",409);
   const firma=firmaDotacion(g.noche);
   if(!firma)return error("dotacion_incompleta",409);
   const fotoClave="guardia_libro_"+fecha,hash=createHash("sha256").update(bytes).digest("hex");
@@ -114,7 +116,8 @@ export async function POST(req){
     novedades,fotoClave,fotoMime:mime,fotoBytes:bytes.length,fotoSHA256:hash,
     revisionAprobadaEn:g.revision.aprobadaEn,dotacionFirma:firma,
     enviadoEn:new Date().toISOString(),destinatarios:["oficiales_autorizados"],
-    informeCapitan:"despues_de_ratificacion"};
+    informeCapitan:"despues_de_ratificacion",
+    ...(porAdmin?{cierrePorAdministrador:true,cerradoPorId:String(actor.id),cerradoPorNombre:nombre(actor),cerradoPorCargo:"Administrador"}:{})};
   const query="WITH foto AS (INSERT INTO document_assets(key,data,active,source,effective_year,updated_at) "+
     "VALUES ($1,decode($2,'base64'),true,'guardia_libro',$3,now()) ON CONFLICT(key) DO NOTHING RETURNING key), "+
     "cierre AS (INSERT INTO app_state(key,value,updated_at,version) SELECT $4,$5::jsonb,now(),1 FROM foto "+
@@ -125,7 +128,7 @@ export async function POST(req){
    if(ya&&ya.obacId===String(actor.id)&&ya.fotoSHA256===hash)return Response.json({ok:true,repetido:true,fecha,obac:ya.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
    return error("cierre_existente_o_conflicto",409);
   }
-  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:"Libro entregado por el OBAC · "+fecha+" · pendiente de aprobación",porNombre:meta.obacNombre});
+  await avisarOficiales(sql,{clave:"libro:"+fecha,tipo:"libro_entregado",fecha,titulo:(porAdmin?"Fotografía del libro subida por el administrador · ":"Libro entregado por el OBAC · ")+fecha+" · pendiente de aprobación",porNombre:meta.obacNombre});
   return Response.json({ok:true,fecha,obac:meta.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro POST",e);return error("database_error",500);}
 }

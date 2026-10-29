@@ -172,6 +172,35 @@ async function comprimir(foto){
   throw Error("La foto aún supera el límite. Acerca la cámara al libro y vuelve a fotografiarlo.");
  }finally{URL.revokeObjectURL(url);}
 }
+/* ADR 0014: el administrador puede subir la fotografía del libro de una noche ya terminada que no tiene cierre. */
+function htmlSubidaAdmin(x){
+ if(!admin||x.cierre||!x.finalizada)return "";
+ return '<div class="lgn-adm-subida" style="margin:8px 0;padding:10px;border:1px dashed #888;border-radius:8px"><p class="sub"><strong>Subir la foto del libro (administrador).</strong> Toma o elige la fotografía del libro de esta noche; queda registrada con tu nombre y luego se puede aprobar.</p>'+
+  '<input type="file" accept="image/*" data-lgn-adm-foto="'+escHtml(x.fecha)+'"> <button type="button" class="btn small" data-lgn-adm-subir="'+escHtml(x.fecha)+'">Subir foto del libro</button>'+
+  '<p class="status-msg" data-lgn-adm-msg="'+escHtml(x.fecha)+'" role="status"></p></div>';
+}
+async function subirFotoAdmin(fecha,boton){
+ const caja=boton.parentElement,input=caja.querySelector("[data-lgn-adm-foto]"),msg=caja.querySelector("[data-lgn-adm-msg]");
+ const file=input&&input.files&&input.files[0];
+ if(!file){msg.textContent="Elige primero la fotografía del libro.";return;}
+ if(!confirm("¿Subir esta fotografía como libro de la guardia del "+fecha+"? Quedará registrada a tu nombre y no se podrá reemplazar."))return;
+ boton.disabled=true;msg.textContent="Preparando fotografía y subiendo…";
+ try{
+  const foto=await comprimir(file);
+  const fd=new FormData();fd.append("fecha",fecha);fd.append("actorId",actual);fd.append("novedades","Fotografía del libro subida por el administrador del proyecto (cierre tardío).");fd.append("foto",foto);
+  const r=await fetch("/api/guardia/libro",{method:"POST",body:fd});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===409){boton.disabled=false;msg.textContent="Esta noche ya tiene un cierre registrado o aún no termina. Actualiza la pantalla.";return;}
+  if(!r.ok)throw Error(d.error||"No se pudo subir.");
+  msg.textContent="Foto subida y archivada. Actualizando…";
+  await cargar(true);historial=null;
+  if(typeof pintarControlAdmin==="function")pintarControlAdmin();
+ }catch(e){boton.disabled=false;msg.textContent="No se confirmó la subida: "+(e.message||"error de conexión")+". Actualiza el expediente antes de reintentar.";}
+}
+document.addEventListener("click",ev=>{
+ const b=ev.target&&ev.target.closest?ev.target.closest("[data-lgn-adm-subir]"):null;
+ if(b)subirFotoAdmin(b.dataset.lgnAdmSubir,b);
+});
 async function enviar(fecha){
  const boton=$("lgnEnviar"),msg=$("lgnMensaje"),file=fotoSeleccionada,nov="Sin novedades";
  if(!file){msg.textContent="Debes adjuntar una fotografía del libro de guardia.";return;}
@@ -414,7 +443,7 @@ function pintarControlAdmin(){
     '<p><strong>Novedades:</strong> '+escHtml(x.cierre.novedades||"No registradas")+'</p>';
    if(foto)html+='<p><a class="btn secondary" href="'+fotoUrl(x.fecha)+
     '" target="_blank" rel="noopener">Ver foto del libro</a></p>';
-  }else html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>';
+  }else html+='<p class="sub">Falta el cierre con fotografía y novedades del OBAC.</p>'+htmlSubidaAdmin(x);
   if(x.acreditacionVigente&&x.acreditacion){
     const aprobadaEn=x.acreditacion.acreditadoEn?new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}):"";
     html+='<p><strong>Aprobada por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
@@ -636,13 +665,14 @@ function pintarOficial(){
    h+='<p><strong>Cierre enviado por OBAC:</strong> '+escHtml(new Date(rec.enviadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>'+
       '<p><strong>Novedades:</strong> '+escHtml(rec.novedades)+'</p>'+
       '<a href="'+fotoUrl(x.fecha)+'" target="_blank" rel="noopener" class="btn secondary" style="display:inline-block;margin-bottom:8px">Ver fotografía del libro</a>';
-  }else h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede aprobar.</p>';
+  }else h+='<p class="sub">El OBAC todavía no ha enviado fotografía y novedades. No se puede aprobar.</p>'+htmlSubidaAdmin(x);
   if(ac && x.acreditacion){
     h+='<p><strong>Aprobado por:</strong> '+escHtml(x.acreditacion.acreditadoPorNombre||"Oficial")+(x.acreditacion.acreditadoPorCargo?' ('+escHtml(x.acreditacion.acreditadoPorCargo)+')':'')+
       ' · '+escHtml(new Date(x.acreditacion.acreditadoEn).toLocaleString("es-CL",{timeZone:"America/Santiago"}))+'</p>';
   }
   if(ac){h+=htmlAsistenciaRatificada(x);} // Los oficiales leen una única acta efectiva.
   if(t3 && rec){
+    if(ac)h+='<details class="lgn-corregir-det" style="margin:10px 0"><summary><strong>Corregir esta aprobación</strong> (solo si hay un error; ya está aprobada)</summary><p class="sub">Esta guardia ya fue aprobada. Cambiar algo aquí reemplaza la aprobación vigente y queda en el historial con tu motivo.</p>';
     h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
     const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
     if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes aprobarla; quedará registrado en el informe que el oficial que aprobó participó en esta guardia.</p>';
@@ -667,7 +697,7 @@ function pintarOficial(){
       (puedeExternos?'<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>':'')+ 
       htmlRolesEfectivos(x)+
       '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
-    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de la aprobación":"Aprobar guardia")+'</button>';
+    h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de la aprobación":"Aprobar guardia")+'</button>'+(ac?'</details>':'');
   }
   h+='<p class="status-msg" data-lgn-estado="'+escHtml(x.fecha)+'" role="status"></p></details>';
  }
@@ -798,6 +828,18 @@ async function fetchReintento(url,opts,intentos=3){
  }
  throw ultimo;
 }
+function diferenciasCorreccion(x,asistencias,excusas,adicionales){
+ const ac=x.acreditacion||{},antes=ac.asistencias||{},ex=ac.excusas||{},out=[];
+ const eti=(a,e)=>e?"Excusado":a==="presente"?"Asistió":a==="ausente"?"No asistió":"—";
+ const ids=new Set([...Object.keys(antes),...Object.keys(asistencias)]);
+ for(const id of ids){
+  const a=eti(antes[id],ex[id]),b=eti(asistencias[id],excusas[id]);
+  if(a!==b||(ex[id]||"")!==(excusas[id]||""))out.push("• "+nombre(id)+": "+a+" → "+b);
+ }
+ const ad0=new Set((ac.adicionales||[]).map(p=>String(p.id))),ad1=new Set(adicionales.map(p=>String(p.id)));
+ for(const id of ad1)if(!ad0.has(id)&&!(id in antes))out.push("• "+nombre(id)+": se agrega como asistente adicional");
+ return out;
+}
 async function ratificar(fecha,boton){
  if(!t3)return;
  const x=items.find(e=>e.fecha===fecha),zona=$("lgnRatif")?.querySelector('[data-lgn-lista="'+fecha+'"]');
@@ -827,8 +869,11 @@ async function ratificar(fecha,boton){
  }
  let motivo="";
  if(x.acreditacion){
-  motivo=prompt("Motivo obligatorio para corregir la aprobación:","")||"";
-  if(!motivo.trim())return;
+  const cambios=diferenciasCorreccion(x,asistencias,excusas,adicionales);
+  if(!cambios.length){msg.textContent="No hay cambios respecto de la aprobación vigente: no se guardó nada.";return;}
+  if(!confirm("Esta guardia YA ESTÁ APROBADA. Vas a reemplazar la aprobación con estos cambios:\n\n"+cambios.join("\n")+"\n\n¿Continuar?"))return;
+  motivo=prompt("Motivo de la corrección (obligatorio). Explica por qué cambia la aprobación:","")||"";
+  if(motivo.trim().length<5){msg.textContent="La corrección necesita un motivo claro (mínimo 5 letras). No se guardó nada.";return;}
  }
  const selO=zona.querySelector("[data-lgn-obac-ef]"),selC=zona.querySelector("[data-lgn-cond-ef]"),prec=zona.querySelector("[data-lgn-precedencia]");
  const obacEf=selO?.value||"",condEf=selC?.value||"";
