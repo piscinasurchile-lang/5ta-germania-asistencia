@@ -1856,7 +1856,7 @@ async function renderGnPlanner(){
  let html="";
  for(let i=0;i<42;i++){ const d=new Date(begin); d.setDate(begin.getDate()+i); const iso=gnISO(d), rec=byDay[iso]; let cls="gn-day"+(d.getMonth()!==m?" other":"");
    let mini="";
-   if(rec){ const p=rec.p; if(p.estado==="suspendida"){cls+=" red";mini="Suspendida";} else if(p.estado==="asignacion"){cls+=" red";mini="Asignación";} else if(p.estado==="abierta"){cls+=" open";mini="Inscripción";} else {cls+=" plan"; if(p.completa) cls+=" complete"; mini="Nocturna";}
+   if(rec){ const p=rec.p; if(p.estado==="suspendida"){cls+=" red";mini="Suspendida";} else if(p.estado==="asignacion"){cls+=" red";mini="Asignación";} else if(p.estado==="abierta"&&Date.now()<gnInsCierreMs(p)){cls+=" open";mini="Inscripción";} else {cls+=" plan"; if(p.completa) cls+=" complete"; mini="Nocturna";}
      if(rec.i===4 && p.domingoDiurno){ cls=cls.replace(/\bplan\b|\bopen\b/g,"")+" mixed"; mini="Nocturna + Diurna"; }
    }
    if(gnPlanDraft && gnWeek(gnPlanDraft.inicio).includes(iso)){cls=cls.replace(/\bopen\b|\bred\b/g,"")+" plan"; if(iso===gnAdd(gnPlanDraft.inicio,4)&&gnPlanDraft.domingoDiurno) cls+=" mixed";}
