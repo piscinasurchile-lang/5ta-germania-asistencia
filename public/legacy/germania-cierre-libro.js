@@ -1,11 +1,11 @@
 /* Germania: cierre del libro por OBAC y aprobación en un único paso por un oficial autorizado (ADR 0012).
    La foto es respaldo documental; la aprobación del oficial es lo que actualiza las estadísticas.
-   Nota: la variable `t3` conserva su nombre histórico; significa «oficial autorizado a aprobar» (Capitán, T1, T2, T3). */
+   Nota: la variable `t3` conserva su nombre histórico; significa «autorizado a aprobar» (Capitán, T1, T2, T3 y administrador del proyecto, ADR 0013). */
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
 const escHtml=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let semanaBuscada="",actual="",items=[],t3=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
+let semanaBuscada="",actual="",items=[],t3=false,puedeExternos=false,esT3Real=false,capitan=false,admin=false,oficial=false,semanaActual="",historial=null,anioElegido=String(new Date().getFullYear()),historialCargando=false,cargando=false,formAbierto=false,editando=false,fotoSeleccionada=null,ultimaCarga=0,ultimaRatificacion="";
 function elegido(){
  const id=$("miVoluntario")?.value;
  return typeof ROSTER!=="undefined"&&id ? ROSTER.find(x=>String(x.id)===String(id)) : null;
@@ -45,7 +45,7 @@ async function cargar(forzar){
   const d=await r.json();
   if(elegido()&&String(elegido().id)===id){
    if(actual!==id){historial=null;anioElegido=String(new Date().getFullYear());}
-   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.puedeRatificar;capitan=!!d.esCapitan;admin=!!d.esAdmin;
+   actual=id;items=Array.isArray(d.items)?d.items:[];t3=!!d.puedeRatificar;puedeExternos=!!d.puedeExternos;capitan=!!d.esCapitan;admin=!!d.esAdmin;
    oficial=!!d.esOficial;semanaActual=d.semanaActual||semanaDe(d.items?.[0]?.fecha||"");
    ultimaCarga=Date.now();pintarOBAC();pintarOficial();pintarControlAdmin();
    return true;
@@ -364,7 +364,7 @@ function pintarControlAdmin(){
   else resumen.falta++;
  }
  const encabezado='<h2>Control Guardia Diaria</h2>'+
-  '<p class="sub">Consulta cronológica de guardias. Pueden aprobar el Capitán y los tenientes 1°, 2° y 3°. Los demás oficiales ven exclusivamente las guardias aprobadas.</p>';
+  '<p class="sub">Consulta cronológica de guardias. Pueden aprobar el Capitán, los tenientes 1°, 2° y 3° y el administrador del proyecto. Los demás oficiales ven exclusivamente las guardias aprobadas.</p>';
  const indicadores='<div class="lgn-control-totales">'+
   (admin||t3?[[terminadas.length,"Noches terminadas"],[resumen.cerradas,"Cierres OBAC recibidos"],
     [resumen.pendiente,"Pendientes de aprobar"],[resumen.acreditadas,"Aprobadas"],
@@ -664,7 +664,7 @@ function pintarOficial(){
       '<div class="lgn-rezagados-lista">'+(x.acreditacion?.adicionales||[]).map(p=>htmlRez(p.id,p.motivo)).join("")+'</div>'+
       '<select class="rv-sel lgn-rezagado-seleccion" aria-label="Seleccionar asistente rezagado">'+seleccionarRez(ocupados)+'</select>'+
       '<button type="button" class="btn secondary small" data-lgn-agregar>+ Agregar rezagado</button></div>'+
-      '<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>'+ 
+      (puedeExternos?'<div class="lgn-externos" data-lgn-externos="'+escHtml(x.fecha)+'"><h3>Reemplazantes externos</h3><p class="sub">Registro documental para T3. No acredita asistencia ni incorpora a la nómina.</p><div data-lgn-externos-lista>Selecciona «Consultar externos» para cargar registros.</div><button type="button" class="btn secondary small" data-lgn-ver-externos>Consultar externos</button> <button type="button" class="btn secondary small" data-lgn-nuevo-externo>+ Registrar externo</button></div>':'')+ 
       htmlRolesEfectivos(x)+
       '<label class="lgn-comprobacion"><input type="checkbox" data-lgn-comprobado> <span>Revisé la foto del libro y comprobé que todas las personas que asistieron figuran en esta lista, incluidos los no programados.</span></label>';
     h+='</div><button type="button" class="btn" data-lgn-ratificar="'+escHtml(x.fecha)+'">'+(ac?"Guardar corrección de la aprobación":"Aprobar guardia")+'</button>';

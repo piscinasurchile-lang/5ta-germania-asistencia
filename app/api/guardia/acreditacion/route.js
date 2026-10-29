@@ -3,7 +3,7 @@ import {exigirSesionOficial} from "../../../../lib/guardia-sesion-oficial.js";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
 import { integrantesNoche, validarAcreditacion, firmaDotacion } from "../../../../lib/guardia-acreditacion.js";
 import {idsEfectivos,evaluarDotacionEfectiva} from "../../../../lib/guardia-asistencia-efectiva.js";
-import {precedenciaOBAC,validarRolesEfectivos,firmaContenido,cumplimientoNoche} from "../../../../lib/guardia-acreditacion.js";
+import {precedenciaOBAC,validarRolesEfectivos,firmaContenido,cumplimientoNoche,administradorProyecto} from "../../../../lib/guardia-acreditacion.js";
 import {agregarIncidencia} from "../../../../lib/guardia-incidencias.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
 export const runtime = "nodejs";
@@ -89,6 +89,7 @@ export async function POST(req) {
     const cumplimiento=cumplimientoNoche({dotacionEfectiva,obacPresente:b.asistencias[obacEf]==="presente",
       conductorPresente:b.asistencias[condEf]==="presente",sinFoto:libro.value.sinFoto===true});
     const actorFicha=roster.find(x=>String(x.id)===actor);
+    const cargoActor=administradorProyecto(roster,actor)?"Administrador":String(actorFicha?.cargo||"");
     const ahoraISO=new Date().toISOString();
     const motivoCorreccion=String(b.motivoCorreccion||"").trim().slice(0,400);
     // Con registro previo, llegar aquí significa que el contenido cambió: es una corrección y exige motivo.
@@ -106,7 +107,7 @@ export async function POST(req) {
       motivoPrecedencia:String(b.motivoPrecedencia||"").trim().slice(0,300)||null,
       precedenciaObac:obacEf!==String(noche.obac)?precedenciaOBAC({noche,asistencias:b.asistencias,obac:obacEf,cond:condEf,roster}):null,
       dotacionEfectiva,cumplimiento,
-      acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoPorCargo:String(actorFicha?.cargo||""),acreditadoEn:ahoraISO,
+      acreditadoPorId:actor,acreditadoPorNombre:oficialNombre,acreditadoPorCargo:cargoActor,acreditadoEn:ahoraISO,
       motivoCorreccion,
       /* Trazabilidad: quien aprueba puede haber participado en la guardia (cualquier oficial); queda su rol. */
       t3Participante:ids.includes(String(actor))?{
@@ -124,7 +125,7 @@ export async function POST(req) {
         asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes,
         adicionales:anteriorRegistro.adicionales||[],excusas:anteriorRegistro.excusas||{},
         obacEfectivoId:anteriorRegistro.obacEfectivoId??String(noche.obac),conductorEfectivoId:anteriorRegistro.conductorEfectivoId??String(noche.maq),
-        modificadoEn:ahoraISO,modificadoPorId:actor,modificadoPorNombre:oficialNombre,modificadoPorCargo:String(actorFicha?.cargo||""),
+        modificadoEn:ahoraISO,modificadoPorId:actor,modificadoPorNombre:oficialNombre,modificadoPorCargo:cargoActor,
         motivo:motivoCorreccion,
         despues:{asistentes,ausentes,adicionales:adicionales.map(p=>({id:String(p.id),motivo:p.motivo.trim()})),excusas,obacEfectivoId:obacEf,conductorEfectivoId:condEf}
       }]:[]

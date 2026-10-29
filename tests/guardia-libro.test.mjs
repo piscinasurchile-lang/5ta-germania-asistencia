@@ -58,7 +58,7 @@ test("El Capitán solo recibe informe después de la ratificación T3 y sin alte
  assert.equal(informeRatificado({acreditacion,revision,noche,cierre:{...cierre,fotoSHA256:"otra-foto"}}),false);
 });
 
-test("administrador ve todas las noches pero NO puede acreditar",()=>{
+test("administrador ve todas las noches y puede aprobar (ADR 0013); un 517 inactivo o con otra clave no",()=>{
  const admin={id:"admin-id",clave:"517",nombre:"Christian",cargo:"Voluntario",activo:true};
  const noche={obac:"fran",maq:"maq",vol:["v1","v2"]};
  assert.equal(esAdministradorGuardia(admin),true);
@@ -69,7 +69,10 @@ test("administrador ve todas las noches pero NO puede acreditar",()=>{
  const rev={estado:"aprobada",aprobadaEn:"2026-10-14T12:00:00Z",noches:{[fecha]:noche}};
  assert.equal(validarAcreditacion({fecha,noche,revision:rev,ahoraLocal:"2026-10-15T06:01",
    asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"presente"},
-   actor:admin.id,roster:[admin]}),"solo_oficiales_autorizados");
+   actor:admin.id,roster:[admin]}),null);
+ const args={fecha,noche,revision:rev,ahoraLocal:"2026-10-15T06:01",asistencias:{maq:"presente",fran:"presente",v1:"presente",v2:"presente"},actor:admin.id};
+ assert.equal(validarAcreditacion({...args,roster:[{...admin,activo:false}]}),"solo_oficiales_autorizados");
+ assert.equal(validarAcreditacion({...args,roster:[{...admin,clave:"518"}]}),"solo_oficiales_autorizados");
 });
 
 test("aprobar noche se abre en pantalla propia y nunca activa la gestión Guardia Nocturna",async()=>{
