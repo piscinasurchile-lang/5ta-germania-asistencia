@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
 import {firmaDotacion} from "../../../../lib/guardia-acreditacion.js";
 import {avisarOficiales} from "../../../../lib/guardia-avisos-oficiales.js";
-import {cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
+import {cargoT3,cargoAutorizadoGuardia,miercolesSemana,horaCivilChile,ventanaCierreOBAC,nocheFinalizada,cargoCapitan,puedeVerLibro,informeRatificado,esAdministradorGuardia,esOficialGuardia,vistoCapitanValido} from "../../../../lib/guardia-libro.js";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const MAX_PHOTO=1600000;
@@ -53,7 +53,7 @@ export async function GET(req){
    return new Response(Buffer.from(rows[0].b64,"base64"),{headers:{"Content-Type":cierre.fotoMime||"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
   }
   const ahora=horaCivilChile(),esAdmin=esAdministradorGuardia(actor);
-  const esCapitan=cargoCapitan(actor.cargo),puedeRatificar=cargoAutorizadoGuardia(actor.cargo);
+  const esCapitan=cargoCapitan(actor.cargo),puedeRatificar=cargoAutorizadoGuardia(actor.cargo)||esAdmin,puedeExternos=cargoT3(actor.cargo)||esCapitan;
   const esOficial=esOficialGuardia(actor.cargo);
   const historico=u.searchParams.get("historial")==="1";
   const anio=u.searchParams.get("anio")||ahora.slice(0,4);
@@ -84,7 +84,7 @@ export async function GET(req){
       vistoCapitan:!!(ratificada&&vistoCapitanValido(r.visto_capitan,r.acreditacion))};
   }).filter(r=>esAdmin||puedeRatificar||String(r.dotacion?.obac||"")===String(actor.id)||
       (esOficial&&r.acreditacionVigente));
-  return Response.json({items,puedeRatificar,esCapitan,esAdmin,esOficial,
+  return Response.json({items,puedeRatificar,puedeExternos,esCapitan,esAdmin,esOficial,
     semanaActual:miercolesSemana(ahora.slice(0,10)),anio:historico?anio:null,historico},
     {headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro GET",e);return error("database_error",500);}
