@@ -1,6 +1,6 @@
 # ADR 0012 · Aprobación de guardia nocturna en un solo paso
 
-**Estado:** Propuesto / rama `integracion/staging-a-produccion-20261028`. Decisión de negocio definitiva del usuario (Christian Vergara, 2026-10-28); implementación pendiente de revisión cruzada y autorización para fusionar. No desplegar sin autorización específica.
+**Estado:** Aceptado el 2026-10-29 por Christian Vergara (517), administrador del proyecto y responsable de seguridad. Implementada y fusionada en main. Decisión de negocio definitiva del usuario (2026-10-28).
 
 ## Contexto
 El flujo vigente tenía dos capas posteriores al cierre del libro: la aprobación de un oficial autorizado y una «acreditación adicional» (cumplimiento final) del Teniente Tercero, que además condicionaba qué noches contaban en estadísticas y en el cierre semanal. El usuario decidió eliminar por completo ese procedimiento.

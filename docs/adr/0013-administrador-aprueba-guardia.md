@@ -1,6 +1,6 @@
 # ADR 0013 · El administrador del proyecto aprueba y corrige guardias
 
-**Estado:** Propuesto / rama `feat/admin-aprueba-guardia`. Encargo explícito del administrador (Christian Vergara, código 517, 2026-10-29). No desplegar sin su autorización específica.
+**Estado:** Aceptado el 2026-10-29 por Christian Vergara (517), administrador del proyecto y responsable de seguridad. Implementado y fusionado en main. Encargo explícito del administrador (2026-10-29).
 
 ## Contexto
 Hasta el ADR 0012 solo Capitán y Tenientes 1°, 2° y 3° aprobaban y corregían guardias; el administrador (517) solo leía. Para revisar o corregir una noche, el administrador debía ingresar como otro voluntario, lo que mezcla identidades y deja la trazabilidad a nombre de otra persona.
