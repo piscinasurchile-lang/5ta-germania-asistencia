@@ -47,7 +47,7 @@ export default function ActualizarGuardiaFotografia(){
     <div><h1>GERMANIA · Guardia nocturna</h1><p>Actualización de planilla semanal</p></div>
   </div>
   <div className="contenedor">
-    <nav><a href="/#oficiales">← Volver a Germania</a></nav>
+    <nav><a href="/#oficiales" onClick={e=>{if(window.history.length>1){e.preventDefault();window.history.back();}}}>← Atrás</a></nav>
     <h2>Semana del 14 al 20 de octubre de 2026</h2>
     <p className="sub">Distribución oficial recibida como fotografía. Se corregirán siete noches, los OBAC, conductores y los turnos de cada voluntario.</p>
     {cargando&&<p role="status" className="estado">Consultando datos actuales de Neon…</p>}

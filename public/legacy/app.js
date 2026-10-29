@@ -1971,10 +1971,11 @@ async function renderGnTablaSemanal(){
     try{
       const mes=gnISO(new Date(gnPlanMes.getFullYear(),gnPlanMes.getMonth(),1)).slice(0,7);
       const planes=(await gnPlanes()).filter(x=>x.inicio.startsWith(mes)), hoy=todayISO();
-      p=planes.filter(x=>x.estado!=="anulada"&&x.fin>=hoy).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0]||planes.slice().sort((a,b)=>b.inicio.localeCompare(a.inicio))[0];
+      /* Regla de 48 h: sin selección explícita, solo se muestra una semana vigente; las anteriores se consultan tocando su miércoles en el calendario. */
+      p=planes.filter(x=>x.estado!=="anulada"&&(x.fin>=hoy||Date.now()<instanteChile(gnAdd(x.inicio,9),"06:00"))).sort((a,b)=>a.inicio.localeCompare(b.inicio))[0];
     }catch(e){}
   }
-  if(!p){gnTablaSemanaVisible="";box.innerHTML='<div class="empty">No hay una semana programada.</div>';return;}
+  if(!p){gnTablaSemanaVisible="";box.innerHTML='<div class="empty">No hay una semana vigente. Toca un miércoles en el calendario para consultar otra.</div>';return;}
   gnTablaSemanaVisible=p.inicio;
   const inicio=p.inicio, dias=gnWeek(inicio), inscritos={};
   // Refrescar nombres de la nómina sin alterar inscripciones ni el estado global.
