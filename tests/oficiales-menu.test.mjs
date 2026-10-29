@@ -66,6 +66,6 @@ test("estilos con cuatro contornos identificables, aislamiento y controles táct
   assert.match(css,/#panel-config #configContenido \.of-grupo-botones \.subtab/);
   assert.match(css,/min-height:48px/);
   assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
-  assert.match(html,/germania-oficiales-menu\.js\?v=20261010a/);
+  assert.match(html,/germania-oficiales-menu\.js\?v=20261029b/);
   assert.match(html,/germania-inicio\.css\?v=20261015pushbienvenida1/);
 });
