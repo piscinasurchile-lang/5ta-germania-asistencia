@@ -246,7 +246,7 @@ test("sin rastro del paso eliminado: ruta, funciones, botones y mensajes", () =>
 test("la interfaz del oficial ofrece un solo botón de aprobación y ningún botón de acreditación final", () => {
   const js = readFileSync(new URL("../public/legacy/germania-cierre-libro.js", import.meta.url), "utf8");
   assert.match(js, /"Aprobar guardia"/); assert.match(js, /Revisar y aprobar esta guardia/); assert.match(js, /"Guardar corrección de la aprobación"/);
-  assert.match(js, /Control Guardia Diaria · Aprobar/);
+  assert.match(js, /Aprobar guardias/);
   assert.equal((js.match(/data-lgn-ratificar=/g) || []).length, 1, "un único botón que guarda la aprobación");
   const flujo = readFileSync(new URL("../public/legacy/germania-guardia-flujo.js", import.meta.url), "utf8");
   assert.match(flujo, /Aprobación de la guardia/); assert.match(flujo, /Un solo paso/);
