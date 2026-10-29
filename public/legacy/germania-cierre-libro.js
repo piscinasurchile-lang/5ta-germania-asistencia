@@ -643,6 +643,8 @@ function pintarOficial(){
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
  const actualizados=(t3?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
+ /* Solo se despliega por defecto la primera noche que espera aprobación; si no hay ninguna, todas quedan cerradas y con el mismo aspecto. */
+ const primeraPendiente=actualizados.findIndex(x=>x.cierre&&!x.acreditacionVigente);
  const diasDisponibles=actualizados.map(x=>x.fecha);
  pintarResumenMando();
  let h='<h2>'+(t3?"Aprobación de guardia nocturna":"Informes de guardias aprobadas")+'</h2>'+
@@ -656,7 +658,7 @@ function pintarOficial(){
  for(const [i,x] of actualizados.entries()){
   const fin=x.finalizada,rec=x.cierre,ac=x.acreditacionVigente;
   const titulo=etiquetaGuardia(x.fecha);
-  h+='<details class="gr-det" data-lgn-dia="'+escHtml(x.fecha)+'" '+(i===0?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
+  h+='<details class="gr-det" data-lgn-dia="'+escHtml(x.fecha)+'" '+(i===primeraPendiente?"open":"")+' style="margin:12px 0;padding:12px;border:1px solid #555;border-radius:8px">'+
     '<summary style="cursor:pointer;font-weight:700">'+escHtml(titulo)+
     ' · '+(ac?"Aprobada":rec?"Cierre recibido / pendiente de aprobación":"Falta cierre OBAC")+'</summary>'+
     '<p><strong>Fecha de la guardia:</strong> '+escHtml(fechaBonita(x.fecha))+' · 22:45 a 06:00 del día siguiente.</p>'+ 
@@ -672,7 +674,7 @@ function pintarOficial(){
   }
   if(ac){h+=htmlAsistenciaRatificada(x);} // Los oficiales leen una única acta efectiva.
   if(t3 && rec){
-    if(ac)h+='<details class="lgn-corregir-det" style="margin:10px 0"><summary><strong>Corregir esta aprobación</strong> (solo si hay un error; ya está aprobada)</summary><p class="sub">Esta guardia ya fue aprobada. Cambiar algo aquí reemplaza la aprobación vigente y queda en el historial con tu motivo.</p>';
+    if(ac)h+='<details class="lgn-corregir-det" style="margin:10px 0"><summary><span><strong>Corregir esta aprobación</strong> (solo si hay un error; ya está aprobada)</span></summary><p class="sub">Esta guardia ya fue aprobada. Cambiar algo aquí reemplaza la aprobación vigente y queda en el historial con tu motivo.</p>';
     h+='<div class="gr-lista" data-lgn-lista="'+escHtml(x.fecha)+'"><p class="sub">Compara todos los nombres con la foto del libro. Si asistió alguien no programado, usa «+ Agregar rezagado». La ODD original no cambia.</p>';
     const propio=participantes(x.dotacion).find(p=>String(p.id)===String(actual));
     if(propio)h+='<p class="sub lgn-aviso-propio" role="note"><strong>Participaste en esta guardia como '+escHtml(propio.rol)+'.</strong> Puedes aprobarla; quedará registrado en el informe que el oficial que aprobó participó en esta guardia.</p>';
