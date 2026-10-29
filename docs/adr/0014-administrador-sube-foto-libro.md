@@ -1,6 +1,6 @@
 # ADR 0014 · El administrador sube la foto del libro de una noche terminada
 
-**Estado:** Propuesto. Solo el administrador del proyecto (Christian Vergara, 517) puede marcarlo «Aceptado». Pendiente de revisión cruzada y de informar al responsable externo de seguridad (`docs/REGISTRO-RIESGOS-SEGURIDAD.md`).
+**Estado:** Aceptado el 2026-10-29 por Christian Vergara (517), administrador del proyecto y responsable de seguridad. Implementado y fusionado en main (PR #241).
 
 ## Contexto
 La foto del libro la sube solo el OBAC designado y solo en su ventana (de las 06:00 del día siguiente a las 06:00 del subsiguiente). Si el OBAC no la subió a tiempo, la noche no se puede aprobar. El administrador consiguió la foto en el cuartel (noche del 18 de octubre) y no tenía cómo subirla.
