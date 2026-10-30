@@ -57,3 +57,6 @@ Ver [docs/adr/](docs/adr/). ADR en estado **Propuesto** no equivalen a autorizac
 ## Archivo ODD — integración autorizada
 El Archivo de ODD y la subida manual se integran por el ADR 0015, sin cambiar ODD Maestras ni la dotación de Guardia. Las rutas `/api/odd-archivo` usan la conexión Neon vigente y tablas aditivas específicas para documentos, PDF, lecturas y resultados de avisos. Se conserva la consulta de documentos legacy y el buscador dentro de sus PDF. Google Drive automático y cron quedan fuera de este despliegue.
 
+
+## Programación de guardia — correcciones autorizadas de auditoría
+Las operaciones relacionadas de planes, guardias, revisión y reemplazos se confirman mediante `/api/guardia/programacion`, con las mismas claves de app_state y transacción interactiva sobre Pool de Neon. ADR0016 documenta versiones de edición, bloqueo de filas y rollback; no añade tablas ni cambia la conexión. GermaniaFechas centraliza fechas civiles nuevas en Santiago, conservando históricos. GermaniaConfig reúne valores de interfaz existentes sin cambiar autoridades del servidor.
