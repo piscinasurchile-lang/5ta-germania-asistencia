@@ -828,12 +828,12 @@ async function aprobarRevision(pn,D){
     for(var i=0;i<cov.length;i++){
       var c=cov[i]; if(c.nada) continue;
       var hIng=horaNoche(c.f), clave=claveGuardia(c.f,hIng);
-      var ex=null; try{ ex=await getGuardia(clave); }catch(e){}
+      var lecturaGuardia=await sGetV("guardia:"+clave,null),ex=lecturaGuardia.value;
       var previos={}; ((ex&&ex.guardianes)||[]).forEach(function(g){ previos[g.id]=g; });
       var d={fechaIng:c.f,horaIng:hIng,fechaSal:gnAdd(c.f,1),horaSal:HORARIOS.fin,oficial:c.n.obac||"",conductor:c.n.maq||"",apoyoExterno:c.n.apoyoExterno||null,
         guardianes:c.n.vol.map(function(id){ return previos[id]||{id:id,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""}; }),
         novedades:(ex&&ex.novedades)||""};
-      await setGuardia(clave,d); n++;
+      await setGuardia(clave,d,lecturaGuardia.version); n++;
     }
     var nuevo=clonar(doc); nuevo.estado="aprobada"; nuevo.aprobadaPorId=String(D.m.id); nuevo.aprobadaPor=corto(D.m); nuevo.aprobadaEn=new Date().toISOString();
     revLog(nuevo,D,D.noches[0],"vol","aprueba");
@@ -1015,12 +1015,12 @@ async function resolverAviso(pn,D,k,repId){
         await sSet(it.key,doc,{ifVersion:Number.isInteger(cur.version)?cur.version:0});
         /* 2) si ya estaba aprobada, la guardia que usan informes y ODD */
         if(doc.estado==="aprobada"){
-          var ck=claveGuardia(f,horaNoche(f)), g=null; try{ g=await getGuardia(ck); }catch(e){}
+          var ck=claveGuardia(f,horaNoche(f)),lecturaGuardia=await sGetV("guardia:"+ck,null),g=lecturaGuardia.value;
           if(g){
             if(rol==="maq") g.conductor=repId; else if(rol==="obac") g.oficial=repId;
             else g.guardianes=(g.guardianes||[]).map(function(x){ return String(x.id)===id?Object.assign({},x,{estado:"no",motivo:av.value.motivo||"Aviso",correo:true,reemplazo:repId,reemplazoRegistradoEn:nuevoAv.resueltoEn}):x; });
             g.reemplazos=(g.reemplazos||[]).concat([{rol:rol,sale:id,entra:repId,en:nuevoAv.resueltoEn,por:corto(D.m)}]);
-            await setGuardia(ck,g);
+            await setGuardia(ck,g,lecturaGuardia.version);
           }
         }
       }
@@ -1143,3 +1143,4 @@ setInterval(function(){
 cargarHorarios().then(function(){ misNochesInicio(false); });
 aplicarRol();
 })();
+
