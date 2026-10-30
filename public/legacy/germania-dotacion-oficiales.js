@@ -58,7 +58,7 @@ async function pintar(){
   if(!autorizado()){if(host)host.remove();return;}
   var ref=$("misNochesInicio");if(!ref||!ref.parentNode)return;
   var semanas={};
-  for(var k=-3;k<=1;k++){var d=new Date(Date.now()+k*864e5).toISOString().slice(0,10);semanas[miercoles(d)]=1;}
+  for(var k=-3;k<=1;k++){var d=window.GermaniaFechas.sumarDias(window.GermaniaFechas.hoyChile(),k);semanas[miercoles(d)]=1;}
   var noches={},fallo=false;
   var revs=await Promise.all(Object.keys(semanas).map(function(w){return leerClave("guardia-revision:"+w);}));
   revs.forEach(function(v){if(v===undefined){fallo=true;return;}if(!v||v.estado!=="aprobada"||!v.noches)return;Object.keys(v.noches).forEach(function(f){noches[f]=v.noches[f];});});
@@ -105,3 +105,4 @@ function programar(){
 window.GermaniaDotacionOficiales={refrescar:pintar};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",programar);else programar();
 })();
+

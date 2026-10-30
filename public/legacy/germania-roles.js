@@ -9,11 +9,19 @@
 "use strict";
 if(typeof ROSTER==="undefined"||typeof sGet!=="function"||typeof gnPlanes!=="function") return;
 
-/* Administradores mientras dura la prueba (claves de voluntario). Se cambia aquí. */
-var ADMINISTRADORES=["517"];
+/* Configuración institucional de interfaz, compartida con app.js. */
+var ADMINISTRADORES=window.GermaniaConfig.administradores;
 var NOV_KEY="novedades:v1";
 
 function $(id){ return document.getElementById(id); }
+function falloGuardia(texto){return function(error){
+ console.warn("Guardia: "+texto,error?.name||"Error");
+ const host=$("gnRolCard");if(!host)return;
+ let aviso=$("grErrorLectura");if(!aviso){aviso=document.createElement("p");aviso.id="grErrorLectura";aviso.className="status-msg err";aviso.setAttribute("role","alert");host.prepend(aviso);}
+ aviso.textContent=texto+" Revisa la conexión y vuelve a abrir esta pantalla. Los datos guardados se conservan.";
+};}
+var avisoAudio=false;
+function falloAudio(){if(!avisoAudio){avisoAudio=true;console.info("Avisos: sonido no disponible en este dispositivo.");}}
 function norm(t){ return String(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase(); }
 function E(s){ return esc(s); }
 
@@ -27,7 +35,7 @@ function esTenienteTercero(m){ return !!m&&/teniente\s*(tercero|3)/.test(cargoDe
 function esAdminGuardia(m){ return !!m&&ADMINISTRADORES.indexOf(String(m.clave))>=0; }
 var PREC=null;
 async function cargarPrec(){
-  var d=null; try{ d=await sGet(PRECEDENCIA_KEY,null); }catch(e){}
+  var d=await sGet(PRECEDENCIA_KEY,null);
   var lista=(d&&Array.isArray(d.lista)&&d.lista.length)?d.lista:PRECEDENCIA_ODD_037.lista.map(function(x,i){ return {n:i+1,cargo:x[0],nombre:x[1]}; });
   PREC={};
   lista.forEach(function(x){ var m=precBuscar(x.nombre); if(m&&PREC[String(m.id)]==null) PREC[String(m.id)]=x.n; });
@@ -40,7 +48,7 @@ async function cargarPrec(){
 var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
 /* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
-var VISTA_PRUEBA=["517"];
+var VISTA_PRUEBA=window.GermaniaConfig.vistaPrueba;
 function vistaPrueba(m,kind){ return !!m&&VISTA_PRUEBA.indexOf(String(m.clave))>=0&&!(kind==="maq"?esMaquinista(m):rangoObac(m)!=null); }
 function rangoPrec(m){ return m&&PREC&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function porPrec(a,b){ var ra=rangoPrec(a), rb=rangoPrec(b); return (ra==null?9999:ra)-(rb==null?9999:rb); }
@@ -94,14 +102,14 @@ function novProgramarVencimiento(lista,privado){
 }
 var novSeen=null, novAudio=null;
 document.addEventListener("pointerdown",function(){
-  try{var AC=window.AudioContext||window.webkitAudioContext;if(AC&&!novAudio) novAudio=new AC();if(novAudio&&novAudio.state==="suspended") novAudio.resume().catch(function(){});}catch(e){}
+  try{var AC=window.AudioContext||window.webkitAudioContext;if(AC&&!novAudio) novAudio=new AC();if(novAudio&&novAudio.state==="suspended") novAudio.resume().catch(falloAudio);}catch(e){falloAudio();}
 });
 function novSound(lista){
   var ids=lista.map(function(n){return n.id;});
   var nuevos=novSeen!==null&&ids.some(function(id){return novSeen.indexOf(id)<0;});
   novSeen=ids;
   if(!nuevos||!novAudio||novAudio.state!=="running"||document.visibilityState!=="visible") return;
-  try{var o=novAudio.createOscillator(),g=novAudio.createGain(),t=novAudio.currentTime;o.frequency.value=660;g.gain.setValueAtTime(0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.connect(g);g.connect(novAudio.destination);o.start(t);o.stop(t+0.3);}catch(e){}
+  try{var o=novAudio.createOscillator(),g=novAudio.createGain(),t=novAudio.currentTime;o.frequency.value=660;g.gain.setValueAtTime(0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.connect(g);g.connect(novAudio.destination);o.start(t);o.stop(t+0.3);}catch(e){falloAudio();}
 }
 function novReadKey(id){ return "novedad-lecturas:"+id; }
 function novVigente(n){
@@ -226,7 +234,7 @@ async function planActivo(who){
   var ab=planes.filter(function(x){ return x.estado==="abierta"&&x.confirmado!==false; }).sort(function(a,b){ return a.inicio.localeCompare(b.inicio); });
   var abiertos=ab.filter(function(x){ return ahora<gnInsCierreMs(x); }), abierto=abiertos[0]||null;
   /* con varias semanas abiertas: la primera que este voluntario aún no confirmó (igual que el aviso de Inicio) */
-  if(who) for(var i=0;i<abiertos.length;i++){ var c=null; try{ c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); }catch(e){} if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
+  if(who) for(var i=0;i<abiertos.length;i++){ var c=await sGet("guardia-confirmacion:"+abiertos[i].inicio+":"+who,null); if(!(c&&(c.cumple||c.justificacion))){ abierto=abiertos[i]; break; } }
   var esGestion=!!who&&esMando(porId(who));
   /* Historial consultable por oficiales: ventana de 400 días, sin borrar registros. */
   var limite=esGestion?gnAdd(hoy,-400):hoy;
@@ -764,7 +772,7 @@ async function panelRev(pn,D){
       }
     });
     try{ await revGuardar(D,nuevo); RV.msg=""; RV.err=false; }
-    catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. Se cargó lo último; repite tu cambio.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){} }
+    catch(e){ RV.msg=e.conflicto?"Otra persona cambió la revisión mientras editabas. El cambio no se guardó; vuelve a abrir la semana para comparar.":"No se pudo guardar el cambio."; RV.err=true; try{ await revCargar(D); }catch(x){RV.msg+=" No se pudo recargar: vuelve a abrir la semana antes de guardar.";} }
     RV.ocupado=false; panelRev(pn,D);
   };
   pn.querySelectorAll('[data-rv-novedad]').forEach(function(b){b.onclick=function(){
@@ -818,12 +826,12 @@ async function panelRev(pn,D){
 }
 async function aprobarRevision(pn,D){
   if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m)))return;
-  var doc=RV.doc, cov=revCov(doc), malas=cov.filter(function(c){ return !c.completa; });
+  var doc=clonar(RV.doc),baseRevision=RV.doc?RV.ver:0,cov=revCov(doc),malas=cov.filter(function(c){ return !c.completa; });
   if(malas.length){RV.msg="Completa las siete noches antes de aprobar (1 OBAC, 1 maquinista y 2 voluntarios).";RV.err=true;panelRev(pn,D);return;}
   var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
   if(!confirm(aviso+"¿Aprobar la dotación? Se actualizarán las guardias de la semana con este resultado (queda historial de lo anterior).")) return;
   var msg=$("rvMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Aprobando…"; }
-  var p=D.p, n=0;
+  var p=D.p, n=0,cambios=[];
   try{
     for(var i=0;i<cov.length;i++){
       var c=cov[i]; if(c.nada) continue;
@@ -833,12 +841,13 @@ async function aprobarRevision(pn,D){
       var d={fechaIng:c.f,horaIng:hIng,fechaSal:gnAdd(c.f,1),horaSal:HORARIOS.fin,oficial:c.n.obac||"",conductor:c.n.maq||"",apoyoExterno:c.n.apoyoExterno||null,
         guardianes:c.n.vol.map(function(id){ return previos[id]||{id:id,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""}; }),
         novedades:(ex&&ex.novedades)||""};
-      await setGuardia(clave,d,lecturaGuardia.version); n++;
+      cambios.push({op:"set",key:"guardia:"+clave,value:d,ifVersion:lecturaGuardia.version},{op:"add",key:GUARDIA_IDX,item:{clave:clave,fecha:d.fechaIng},uniqueBy:"clave"});n++;
     }
     var nuevo=clonar(doc); nuevo.estado="aprobada"; nuevo.aprobadaPorId=String(D.m.id); nuevo.aprobadaPor=corto(D.m); nuevo.aprobadaEn=new Date().toISOString();
     revLog(nuevo,D,D.noches[0],"vol","aprueba");
-    await revGuardar(D,nuevo); RV.msg="Dotación aprobada. Guardias actualizadas: "+n+"."; RV.err=false;
-  }catch(e){ RV.msg=e&&e.conflicto?"Otra persona cambió la revisión. Se cargó lo último.":"No se pudo aprobar. No se cambió la aprobación; inténtalo de nuevo."; RV.err=true; try{ await revCargar(D); }catch(x){} }
+    cambios.push({op:"set",key:revKey(D.p.inicio),value:nuevo,ifVersion:baseRevision});
+    await gnGuardarAtomico(cambios);RV.doc=nuevo;RV.ver=SVER.get(revKey(D.p.inicio));RV.msg="Dotación aprobada. Guardias actualizadas: "+n+".";RV.err=false;
+  }catch(e){ RV.msg=e&&e.conflicto?"Otra persona cambió la revisión. No se guardó ningún cambio.":"No se pudo aprobar. No se cambió la aprobación; inténtalo de nuevo."; RV.err=true; try{ await revCargar(D); }catch(x){RV.msg+=" No se pudo recargar: vuelve a abrir la semana antes de guardar.";} }
   panelRev(pn,D);
 }
 
@@ -1002,30 +1011,33 @@ async function panelRep(pn,D){
 async function resolverAviso(pn,D,k,repId){
   var p=k.split("|"), f=p[0], id=p[1], msg=$("rpMsg"); msg.classList.remove("err"); msg.textContent="Guardando…";
   try{
-    var av=await sGetV(avKey(f,id),null); if(!av.value) throw new Error("aviso");
+    var cambios=[],av=await sGetV(avKey(f,id),null); if(!av.value) throw new Error("aviso");
     var nuevoAv=Object.assign({},av.value,{estado:repId?"cubierto":"sin_reemplazo",reemplazoId:repId||null,resueltoPorId:String(D.m.id),resueltoPor:corto(D.m),resueltoEn:new Date().toISOString()});
     if(repId){
       /* 1) dotación de la semana (revisión) */
       var revs=await leerPrefijo("guardia-revision:"), it=revs.filter(function(x){ return x.value&&x.value.noches&&x.value.noches[f]; })[0];
+      if(!it)throw new Error("No se encontró la revisión de esta guardia.");
       if(it){
         var cur=await sGetV(it.key,null), doc=clonar(cur.value), n=doc.noches[f], rol=av.value.rol;
         revQuitarRoles(n,repId);
         if(rol==="maq"||rol==="obac"){ n[rol]=repId; } else { n.vol=n.vol.filter(function(x){ return x!==id; }); n.vol.push(repId); }
         revLog(doc,{m:D.m},f,rol,"cambia",repId,id);
-        await sSet(it.key,doc,{ifVersion:Number.isInteger(cur.version)?cur.version:0});
+        cambios.push({op:"set",key:it.key,value:doc,ifVersion:cur.version});
         /* 2) si ya estaba aprobada, la guardia que usan informes y ODD */
         if(doc.estado==="aprobada"){
           var ck=claveGuardia(f,horaNoche(f)),lecturaGuardia=await sGetV("guardia:"+ck,null),g=lecturaGuardia.value;
+          if(!g)throw new Error("No se encontró la guardia aprobada; no se cambió el reemplazo.");
           if(g){
             if(rol==="maq") g.conductor=repId; else if(rol==="obac") g.oficial=repId;
             else g.guardianes=(g.guardianes||[]).map(function(x){ return String(x.id)===id?Object.assign({},x,{estado:"no",motivo:av.value.motivo||"Aviso",correo:true,reemplazo:repId,reemplazoRegistradoEn:nuevoAv.resueltoEn}):x; });
             g.reemplazos=(g.reemplazos||[]).concat([{rol:rol,sale:id,entra:repId,en:nuevoAv.resueltoEn,por:corto(D.m)}]);
-            await setGuardia(ck,g,lecturaGuardia.version);
+            cambios.push({op:"set",key:"guardia:"+ck,value:g,ifVersion:lecturaGuardia.version});
           }
         }
       }
     }
-    await sSet(avKey(f,id),nuevoAv,{ifVersion:Number.isInteger(av.version)?av.version:0});
+    cambios.push({op:"set",key:avKey(f,id),value:nuevoAv,ifVersion:av.version});
+    await gnGuardarAtomico(cambios);
     MN.cache=null; if(RV.clave) RV.clave="";
     panelRep(pn,D);
   }catch(e){ msg.textContent=e&&e.conflicto?"Otra persona cambió esto. Se recargó la lista.":"No se pudo guardar. Inténtalo de nuevo."; msg.classList.add("err"); if(e&&e.conflicto) setTimeout(function(){ panelRep(pn,D); },900); }
@@ -1078,14 +1090,14 @@ document.addEventListener("visibilitychange",function(){
 });
 if(typeof window.__mostrarPestana==="function"){
   var base=window.__mostrarPestana;
-  window.__mostrarPestana=function(nombre){ if(nombre==="guardia"&&esMando(miembro()))ponerVista("gestion");var r=base.apply(this,arguments); if(nombre==="guardia"){if(esMando(miembro()))ponerVista("gestion");grRender(true).catch(function(){});} if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="config"){ renderInformacionesOficiales(); } if(nombre==="estado") misNochesCumplidas(true); return r; };
+  window.__mostrarPestana=function(nombre){ if(nombre==="guardia"&&esMando(miembro()))ponerVista("gestion");var r=base.apply(this,arguments); if(nombre==="guardia"){if(esMando(miembro()))ponerVista("gestion");grRender(true).catch(falloGuardia("No se pudo actualizar la guardia."));} if(nombre==="germania"){ renderNovedades(); pintarChipEstado(); misNochesInicio(true); } if(nombre==="config"){ renderInformacionesOficiales(); } if(nombre==="estado") misNochesCumplidas(true); return r; };
 }
 /* ---------- Estado actual en la tarjeta de identidad ---------- */
 async function pintarChipEstado(){
   var c=$("miEstadoChip"); if(!c) return;
   var v=$("miVoluntario"), who=v?v.value:"";
   if(!who){ c.hidden=true; return; }
-  var d={}; try{ d=await getDisponibilidadVigente(); }catch(e){}
+  var d;try{d=await getDisponibilidadVigente();}catch(e){c.hidden=false;c.textContent="Sin conexión: no se pudo consultar tu estado.";return;}
   var e=d&&d[who]&&d[who].estado;
   c.hidden=false;
   c.innerHTML=e?'<span class="dot '+E(e)+'"></span>'+E(DISP_LABELS[e]):'<span class="dot sin"></span>Marca tu estado';
@@ -1097,8 +1109,8 @@ if(typeof window.marcarMiEstado==="function"){
 /* Al entrar a una pantalla (por pestaña, barra inferior o atajo) se refresca lo que muestra: así Inicio y Guardia
    siempre reflejan la semana recién creada, sin esperar al refresco de 60 s. */
 function alActivarPanel(id){
-  if(id==="panel-germania"){ MN.cache=null; renderNovedades(); pintarChipEstado(); grRender(true).catch(function(){}); misNochesInicio(true); }
-  else if(id==="panel-guardia"){ grRender(true).catch(function(){}); }
+  if(id==="panel-germania"){ MN.cache=null; renderNovedades(); pintarChipEstado(); grRender(true).catch(falloGuardia("No se pudo actualizar la guardia.")); misNochesInicio(true); }
+  else if(id==="panel-guardia"){ grRender(true).catch(falloGuardia("No se pudo actualizar la guardia.")); }
   else if(id==="panel-estado"){ misNochesCumplidas(true); }
 }
 document.querySelectorAll(".panel").forEach(function(pn){
@@ -1107,13 +1119,13 @@ document.querySelectorAll(".panel").forEach(function(pn){
 });
 document.addEventListener("change",function(ev){
   if(!ev.target)return;
-  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; GR.buscada=false; RV.clave=""; grRender(true).catch(function(){}); }
+  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; GR.buscada=false; RV.clave=""; grRender(true).catch(falloGuardia("No se pudo actualizar la guardia.")); }
   if(ev.target.id==="grBuscar"){
     var inicio=ev.target.value, lista=(GR.D&&GR.D.lista)||[];
     if(!inicio)return;
     var semana=lista.filter(function(x){return x.inicio===inicio;})[0];
     if(!semana){var msg=document.getElementById("grBuscarMsg");if(msg)msg.textContent="No se encontró esa semana.";return;}
-    GR.semana=semana.inicio; GR.buscada=true; RV.clave=""; grRender(true).catch(function(){});
+    GR.semana=semana.inicio; GR.buscada=true; RV.clave=""; grRender(true).catch(falloGuardia("No se pudo actualizar la guardia."));
   }
 });
 var ultimo="__";
@@ -1129,15 +1141,15 @@ function vigilarIdentidad(){
   if(id===ultimo) return; ultimo=id;
   ocultarSelector(false);
   aplicarRol(); renderNovedades(); renderInformacionesOficiales(); pintarChipEstado(); MN.cache=null; misNochesInicio(true); misNochesCumplidas(true);
-  grRender(true).catch(function(){});
+  grRender(true).catch(falloGuardia("No se pudo actualizar la guardia."));
 }
 setInterval(vigilarIdentidad,700);
 setInterval(function(){
   var inicio=$("panel-germania");
   var enInicio=!!inicio&&inicio.classList.contains("active");
   if((guardiaActiva()||enInicio)&&!GR.cargando&&document.visibilityState==="visible"&&!document.activeElement.matches("input,select,textarea")){
-    grRender(false).catch(function(){});
-    if(enInicio){ misNochesInicio(false).catch(function(){}); renderNovedades(); }
+    grRender(false).catch(falloGuardia("No se pudo actualizar la guardia."));
+    if(enInicio){ misNochesInicio(false).catch(falloGuardia("No se pudo actualizar la guardia.")); renderNovedades(); }
   }
 },60000);
 cargarHorarios().then(function(){ misNochesInicio(false); });

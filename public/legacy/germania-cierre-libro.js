@@ -949,6 +949,6 @@ function init(){
  if(id!==actual){formAbierto=false;fotoSeleccionada=null;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
 }
 init();
-setInterval(()=>{init();const fechaReciente=new Date(Date.now()-3*86400000).toISOString().slice(0,10);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||oficial||soyObacReciente))cargar(false);},5000);
+setInterval(()=>{init();const fechaReciente=window.GermaniaFechas.sumarDias(window.GermaniaFechas.hoyChile(),-3);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||oficial||soyObacReciente))cargar(false);},5000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!editando&&!formAbierto)cargar(true);});
 })();
