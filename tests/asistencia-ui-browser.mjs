@@ -11,14 +11,16 @@ const roster=[{id:'a',n:1,nombre:'Ana',cargo:'Voluntario'},{id:'b',n:2,nombre:'B
 const source=await readFile('public/legacy/app.js','utf8'),html=await readFile('public/legacy/index.html','utf8');
 const form=html.slice(html.indexOf('  <div class="panel" id="panel-lista">'),html.indexOf('  <!-- HOJA DE SERVICIO B-5 -->'));
 const block=source.slice(source.indexOf('let parteBloqueado=false;'),source.indexOf('/* ============ PDF ============ */'));
+const pdf=source.slice(source.indexOf('function pdfHeader('),source.indexOf('/* Entrega de archivos compatible'));
 const entrega=source.slice(source.indexOf('async function entregarParteGuardado('),source.indexOf('/* ============ HOJA DE SERVICIO B-5 ============ */'));
 let guardarCount=0,perderRespuesta=false,delay=false;
-const harness=`<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${html.match(/<style>([\s\S]*?)<\/style>/)[1]} .panel{display:block!important}body{padding:8px} .name-col{overflow-wrap:anywhere}</style></head><body>${form}<script>
+const harness=`<!doctype html><html lang="es"><head><script src="/legacy/jspdf.min.js"></script><script src="/legacy/jspdf-autotable.min.js"></script><meta name="viewport" content="width=device-width,initial-scale=1"><style>${html.match(/<style>([\s\S]*?)<\/style>/)[1]} .panel{display:block!important}body{padding:8px} .name-col{overflow-wrap:anywhere}</style></head><body>${form}<script>
 let ROSTER=${JSON.stringify(roster)},currentRecord={},currentPartClave=null,partesCompartidas=null;const INDEX_KEY='partes:index:v1';
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');const uid=()=>crypto.randomUUID();const slug=s=>s.toLowerCase().replaceAll(' ','-');const on=(id,e,f)=>document.getElementById(id)?.addEventListener(e,f);const sortedRoster=()=>ROSTER;const nombreCompleto=p=>p.nombre;const acronimoCargo=()=>'';const fmtDateLong=d=>d;const parteCuentaAsistencia=p=>true;const switchTab=()=>{};const autenticarOficialidad=async()=>({ok:true});const mensajeOficialidad=()=>'';
 async function sGetV(k){const r=await fetch('/state/'+encodeURIComponent(k));if(!r.ok)throw Error('lectura');return r.json();}async function getParte(k){return (await sGetV('parte:'+k)).value;}async function getIndex(){return (await sGetV(INDEX_KEY)).value||[];}
 function renderTipoSelect(){document.getElementById('tipoSelect').innerHTML='<option>Academia</option>';}
-window.exportaciones=[];function buildParteDoc(...args){return args;}async function downloadPdfDoc(doc,name){window.exportaciones.push({accion:'pdf',doc,name});}async function sharePdfDoc(doc,name,text){window.exportaciones.push({accion:'whatsapp',doc,name,text});return true;}
+const LOGO_B64='';${pdf}
+window.exportaciones=[];async function downloadPdfDoc(doc,name){window.exportaciones.push({accion:'pdf',bytes:doc.output('arraybuffer').byteLength,pdf:doc.output(),name});}async function sharePdfDoc(doc,name,text){window.exportaciones.push({accion:'whatsapp',bytes:doc.output('arraybuffer').byteLength,pdf:doc.output(),name,text});return true;}
 ${block}\n${entrega}\nrenderTipoSelect();document.getElementById('fecha').value='2026-10-30';loadListaForSelection();
 </script><script src="/legacy/germania-resumen-asistencia.js"></script></body></html>`;
 const server=http.createServer(async(req,res)=>{try{
@@ -52,7 +54,7 @@ try{
   assert.equal(guardarCount,1);assert.equal((await readState(sql,'correlativo:parte:2026')).value.actual,1);
   assert.equal(await page.locator('#detalle').isDisabled(),true);
   await page.locator('#guardarBtn').click();await page.locator('#resumenBox').waitFor({state:'visible'});assert.equal(guardarCount,2);assert.equal((await readState(sql,'correlativo:parte:2026')).value.actual,1);
-  await page.locator('#pdfBtn').click();await page.locator('#waBtn').click();const exports=await page.evaluate(()=>window.exportaciones);assert.deepEqual(exports.map(x=>x.accion),['pdf','whatsapp']);assert.equal(exports[0].doc[5],1);
+  await page.locator('#pdfBtn').click();await page.locator('#waBtn').click();const exports=await page.evaluate(()=>window.exportaciones);assert.deepEqual(exports.map(x=>x.accion),['pdf','whatsapp']);assert.ok(exports[0].bytes>1000);assert.match(exports[0].pdf,/Hora: 20:00/);assert.match(exports[0].pdf,/Ana/);assert.doesNotMatch(exports[0].pdf,/Bruno/);
   for(const detalle of ['Segunda actividad','Tercera actividad']){
    await page.locator('#nuevaAsistenciaBtn').click();await page.locator('#horaAsistencia').fill('21:00');await page.locator('#detalle').fill(detalle);await page.locator('#registradoPor').fill('Responsable prueba');await page.locator('#marcarTodosBtn').click();await page.locator('#guardarBtn').click();await page.locator('#confirmarGuardarBtn').click();await page.locator('#resumenBox').waitFor({state:'visible'});await page.waitForFunction(()=>document.getElementById('ultimasAsistencias').textContent.includes(document.getElementById('detalle').value));
   }
