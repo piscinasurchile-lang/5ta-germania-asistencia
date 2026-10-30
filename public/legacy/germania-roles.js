@@ -818,7 +818,7 @@ async function panelRev(pn,D){
 }
 async function aprobarRevision(pn,D){
   if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m)))return;
-  var doc=RV.doc, cov=revCov(doc), malas=cov.filter(function(c){ return !c.completa; });
+  var doc=clonar(RV.doc),baseRevision=RV.doc?RV.ver:0,cov=revCov(doc),malas=cov.filter(function(c){ return !c.completa; });
   if(malas.length){RV.msg="Completa las siete noches antes de aprobar (1 OBAC, 1 maquinista y 2 voluntarios).";RV.err=true;panelRev(pn,D);return;}
   var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
   if(!confirm(aviso+"¿Aprobar la dotación? Se actualizarán las guardias de la semana con este resultado (queda historial de lo anterior).")) return;
@@ -837,7 +837,7 @@ async function aprobarRevision(pn,D){
     }
     var nuevo=clonar(doc); nuevo.estado="aprobada"; nuevo.aprobadaPorId=String(D.m.id); nuevo.aprobadaPor=corto(D.m); nuevo.aprobadaEn=new Date().toISOString();
     revLog(nuevo,D,D.noches[0],"vol","aprueba");
-    cambios.push({op:"set",key:revKey(D.p.inicio),value:nuevo,ifVersion:RV.doc?RV.ver:0});
+    cambios.push({op:"set",key:revKey(D.p.inicio),value:nuevo,ifVersion:baseRevision});
     await gnGuardarAtomico(cambios);RV.doc=nuevo;RV.ver=SVER.get(revKey(D.p.inicio));RV.msg="Dotación aprobada. Guardias actualizadas: "+n+".";RV.err=false;
   }catch(e){ RV.msg=e&&e.conflicto?"Otra persona cambió la revisión. Se cargó lo último.":"No se pudo aprobar. No se cambió la aprobación; inténtalo de nuevo."; RV.err=true; try{ await revCargar(D); }catch(x){} }
   panelRev(pn,D);

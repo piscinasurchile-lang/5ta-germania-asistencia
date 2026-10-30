@@ -16,3 +16,8 @@ test('guardia rechaza un escritor sin versión antes de llamar al almacén',asyn
  vm.createContext(ctx);vm.runInContext(funcion('setGuardia'),ctx);
  await assert.rejects(ctx.setGuardia('noche',{}),/cargar/);assert.equal(llamadas,0);
 });
+test('un refresco durante la aprobación no cambia la versión base del documento abierto',async()=>{
+ const roles=readFileSync(new URL('../public/legacy/germania-roles.js',import.meta.url),'utf8');const start=roles.indexOf('async function aprobarRevision(');const fn=roles.slice(start,roles.indexOf('\n/* ---------- Mis noches',start));
+ let lote;const RV={doc:{estado:'borrador'},ver:1};const ctx={RV,SVER:new Map([['guardia-revision:2026-11-04',3]]),esTenienteTercero:()=>true,esAdminGuardia:()=>false,clonar:o=>JSON.parse(JSON.stringify(o)),revCov:()=>[{f:'2026-11-04',completa:true,n:{vol:['v1','v2'],obac:'o',maq:'m'}}],confirm:()=>true,$:()=>null,horaNoche:()=>'22:45',claveGuardia:f=>f+'__2245',sGetV:async()=>{RV.ver=2;return {value:null,version:0};},gnAdd:f=>f,HORARIOS:{fin:'06:00'},corto:()=>'Oficial',revLog:()=>{},revKey:f=>'guardia-revision:'+f,GUARDIA_IDX:'guardias:index',gnGuardarAtomico:async c=>{lote=c;},panelRev:()=>{},revCargar:async()=>{}};
+ vm.createContext(ctx);vm.runInContext(fn,ctx);await ctx.aprobarRevision(null,{m:{id:'o'},p:{inicio:'2026-11-04'},noches:['2026-11-04']});assert.equal(lote.find(c=>c.key==='guardia-revision:2026-11-04').ifVersion,1);
+});

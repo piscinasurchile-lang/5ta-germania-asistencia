@@ -1916,13 +1916,13 @@ on("gnLimpiarSeleccion","click",()=>{gnLimpiarBorrador();renderGnPlanner();});
 on("gnBorrarSemana","click",async()=>{
  const msg=document.getElementById("gnPlanMsg");
  if(gnPlanDraft&&gnPlanDraft.guardada){
-  const ini=gnPlanDraft.inicio; let n=0; try{ const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+ini+":"),{cache:"no-store"}); n=(await r.json()).items.length; }catch(e){}
+  const ini=gnPlanDraft.inicio,basePlan=gnPlanDraft._version; let n=0; try{ const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+ini+":"),{cache:"no-store"}); n=(await r.json()).items.length; }catch(e){}
   if(!confirm("¿Borrar la semana "+gnFmt(ini)+" → "+gnFmt(gnPlanDraft.fin)+"?"+(n?"\n\nHay "+n+" voluntario(s) con noches elegidas. Dejarán de verse en Inicio y Guardia (la base conserva el historial).":""))) return;
   try{
    const lectura=await sGetV(gnPlanKey(ini),null),plan=lectura.value;
    const indice=await sGetV(GN_PLAN_INDEX,[]);
    if(!plan)throw new Error("No se encontró la semana.");
-   await gnGuardarAtomico([{op:"set",key:gnPlanKey(ini),value:{...plan,estado:"anulada",anuladaEn:new Date().toISOString()},ifVersion:gnPlanDraft._version},{op:"set",key:GN_PLAN_INDEX,value:(Array.isArray(indice.value)?indice.value:[]).filter(x=>x!==ini),ifVersion:indice.version}]);
+   await gnGuardarAtomico([{op:"set",key:gnPlanKey(ini),value:{...plan,estado:"anulada",anuladaEn:new Date().toISOString()},ifVersion:basePlan},{op:"set",key:GN_PLAN_INDEX,value:(Array.isArray(indice.value)?indice.value:[]).filter(x=>x!==ini),ifVersion:indice.version}]);
    gnPlanDraft=null; msg.textContent="Semana borrada."; GN_INS_CACHE=null; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true);
   }catch(e){ msg.textContent=e.conflicto?"Otra persona modificó la semana. Vuelve a seleccionarla para revisar los cambios.":"No se pudo borrar. Inténtalo de nuevo."; }
   return;
