@@ -35,3 +35,10 @@ test("No emite con noches de otra semana",()=>{
  const d=datos();d.semana[3].date="2026-10-25";
  assert.throws(()=>validarODDGuardia(d),/Semana/);
 });
+
+
+test("ODD admite siete noches con2 voluntarios, OBAC y conductor; rechaza1",()=>{
+ const d=datos();d.semana.forEach(n=>n.people=n.people.slice(0,2));
+ assert.deepEqual(validarODDGuardia(d),{inicio:"2026-10-14",fin:"2026-10-20"});
+ d.semana[2].people=d.semana[2].people.slice(0,1);assert.throws(()=>validarODDGuardia(d),/incompleta/);
+});
