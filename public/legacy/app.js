@@ -278,7 +278,7 @@ let ROSTER=[], TIPOS=[], CARGOS=[], currentRecord={}, currentPartClave=null;
 
 /* ============ UTILIDADES ============ */
 function uid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():'id-'+Math.random().toString(36).slice(2)+Date.now(); }
-function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function todayISO(){ return window.GermaniaFechas.hoyChile(); }
 function fmtDateLong(iso){ if(!iso) return ""; const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }
 function slug(s){ return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").toLowerCase(); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -5639,7 +5639,7 @@ function switchTabExtra(name){
   if(name==="guardia"){
     const f=document.getElementById("gnFechaIng");
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
-      const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
+      s.value=window.GermaniaFechas.sumarDias(todayISO(),1); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
     renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error); gnHistorialCargarOpciones().catch(console.error);
   }
