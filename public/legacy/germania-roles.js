@@ -823,7 +823,7 @@ async function aprobarRevision(pn,D){
   var aviso=malas.length?"Hay "+malas.length+" noche(s) incompleta(s):\n"+malas.map(function(c){ var n=nombreNoche(c.f); return "• "+n.w+" "+n.d+": "+faltan({vol:c.n.vol,maq:c.n.maq?[1]:[],obac:c.n.obac?[1]:[]}); }).join("\n")+"\n\n":"";
   if(!confirm(aviso+"¿Aprobar la dotación? Se actualizarán las guardias de la semana con este resultado (queda historial de lo anterior).")) return;
   var msg=$("rvMsg"); if(msg){ msg.classList.remove("err"); msg.textContent="Aprobando…"; }
-  var p=D.p, n=0;
+  var p=D.p, n=0,cambios=[];
   try{
     for(var i=0;i<cov.length;i++){
       var c=cov[i]; if(c.nada) continue;
@@ -833,11 +833,12 @@ async function aprobarRevision(pn,D){
       var d={fechaIng:c.f,horaIng:hIng,fechaSal:gnAdd(c.f,1),horaSal:HORARIOS.fin,oficial:c.n.obac||"",conductor:c.n.maq||"",apoyoExterno:c.n.apoyoExterno||null,
         guardianes:c.n.vol.map(function(id){ return previos[id]||{id:id,estado:"cuartel",motivo:"",correo:false,obs:"",reemplazo:"",reemplazoRegistradoEn:""}; }),
         novedades:(ex&&ex.novedades)||""};
-      await setGuardia(clave,d,lecturaGuardia.version); n++;
+      cambios.push({op:"set",key:"guardia:"+clave,value:d,ifVersion:lecturaGuardia.version},{op:"add",key:GUARDIA_IDX,item:{clave:clave,fecha:d.fechaIng},uniqueBy:"clave"});n++;
     }
     var nuevo=clonar(doc); nuevo.estado="aprobada"; nuevo.aprobadaPorId=String(D.m.id); nuevo.aprobadaPor=corto(D.m); nuevo.aprobadaEn=new Date().toISOString();
     revLog(nuevo,D,D.noches[0],"vol","aprueba");
-    await revGuardar(D,nuevo); RV.msg="Dotación aprobada. Guardias actualizadas: "+n+"."; RV.err=false;
+    cambios.push({op:"set",key:revKey(D.p.inicio),value:nuevo,ifVersion:RV.doc?RV.ver:0});
+    await gnGuardarAtomico(cambios);RV.doc=nuevo;RV.ver=SVER.get(revKey(D.p.inicio));RV.msg="Dotación aprobada. Guardias actualizadas: "+n+".";RV.err=false;
   }catch(e){ RV.msg=e&&e.conflicto?"Otra persona cambió la revisión. Se cargó lo último.":"No se pudo aprobar. No se cambió la aprobación; inténtalo de nuevo."; RV.err=true; try{ await revCargar(D); }catch(x){} }
   panelRev(pn,D);
 }
@@ -1002,7 +1003,7 @@ async function panelRep(pn,D){
 async function resolverAviso(pn,D,k,repId){
   var p=k.split("|"), f=p[0], id=p[1], msg=$("rpMsg"); msg.classList.remove("err"); msg.textContent="Guardando…";
   try{
-    var av=await sGetV(avKey(f,id),null); if(!av.value) throw new Error("aviso");
+    var cambios=[],av=await sGetV(avKey(f,id),null); if(!av.value) throw new Error("aviso");
     var nuevoAv=Object.assign({},av.value,{estado:repId?"cubierto":"sin_reemplazo",reemplazoId:repId||null,resueltoPorId:String(D.m.id),resueltoPor:corto(D.m),resueltoEn:new Date().toISOString()});
     if(repId){
       /* 1) dotación de la semana (revisión) */
@@ -1012,7 +1013,7 @@ async function resolverAviso(pn,D,k,repId){
         revQuitarRoles(n,repId);
         if(rol==="maq"||rol==="obac"){ n[rol]=repId; } else { n.vol=n.vol.filter(function(x){ return x!==id; }); n.vol.push(repId); }
         revLog(doc,{m:D.m},f,rol,"cambia",repId,id);
-        await sSet(it.key,doc,{ifVersion:Number.isInteger(cur.version)?cur.version:0});
+        cambios.push({op:"set",key:it.key,value:doc,ifVersion:cur.version});
         /* 2) si ya estaba aprobada, la guardia que usan informes y ODD */
         if(doc.estado==="aprobada"){
           var ck=claveGuardia(f,horaNoche(f)),lecturaGuardia=await sGetV("guardia:"+ck,null),g=lecturaGuardia.value;
@@ -1020,12 +1021,13 @@ async function resolverAviso(pn,D,k,repId){
             if(rol==="maq") g.conductor=repId; else if(rol==="obac") g.oficial=repId;
             else g.guardianes=(g.guardianes||[]).map(function(x){ return String(x.id)===id?Object.assign({},x,{estado:"no",motivo:av.value.motivo||"Aviso",correo:true,reemplazo:repId,reemplazoRegistradoEn:nuevoAv.resueltoEn}):x; });
             g.reemplazos=(g.reemplazos||[]).concat([{rol:rol,sale:id,entra:repId,en:nuevoAv.resueltoEn,por:corto(D.m)}]);
-            await setGuardia(ck,g,lecturaGuardia.version);
+            cambios.push({op:"set",key:"guardia:"+ck,value:g,ifVersion:lecturaGuardia.version});
           }
         }
       }
     }
-    await sSet(avKey(f,id),nuevoAv,{ifVersion:Number.isInteger(av.version)?av.version:0});
+    cambios.push({op:"set",key:avKey(f,id),value:nuevoAv,ifVersion:av.version});
+    await gnGuardarAtomico(cambios);
     MN.cache=null; if(RV.clave) RV.clave="";
     panelRep(pn,D);
   }catch(e){ msg.textContent=e&&e.conflicto?"Otra persona cambió esto. Se recargó la lista.":"No se pudo guardar. Inténtalo de nuevo."; msg.classList.add("err"); if(e&&e.conflicto) setTimeout(function(){ panelRep(pn,D); },900); }

@@ -1842,11 +1842,18 @@ function gnISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezon
 function gnAdd(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return gnISO(d); }
 function gnPlanKey(ini){ return "guardia-plan:"+ini; }
 async function gnPlanes(){ const idx=await sGet(GN_PLAN_INDEX,[]), out=[]; for(const x of idx){ const p=await sGet(gnPlanKey(x),null); if(p) out.push(p); } return out; }
+async function gnGuardarAtomico(cambios){
+ const actorId=document.getElementById("miVoluntario")?.value||"";
+ const r=await fetch("/api/guardia/programacion",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({actorId,cambios})});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok){const e=new Error(r.status===409?"Otra persona modificó estos datos. No se guardó ningún cambio; vuelve a cargar para comparar.":"No se confirmó el guardado completo. Revisa lo último guardado antes de reintentar.");e.conflicto=r.status===409;throw e;}
+ for(const x of data.resultados||[])SVER.set(x.key,x.version);
+ return data;
+}
 async function gnSavePlan(p){
  const {_version,...doc}=p;
  if(!Number.isInteger(_version))throw new Error("Vuelve a abrir la semana antes de guardar.");
- await sSet(gnPlanKey(p.inicio),doc,{ifVersion:_version});
- await sAddToList(GN_PLAN_INDEX,p.inicio,{sort:"asc"});
+ await gnGuardarAtomico([{op:"set",key:gnPlanKey(p.inicio),value:doc,ifVersion:_version},{op:"add",key:GN_PLAN_INDEX,item:p.inicio,sort:"asc"}]);
 }
 function gnWeek(ini){ return Array.from({length:7},(_,i)=>gnAdd(ini,i)); }
 function gnFmt(iso){ return new Date(iso+"T12:00").toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"}); }
@@ -1912,8 +1919,10 @@ on("gnBorrarSemana","click",async()=>{
   const ini=gnPlanDraft.inicio; let n=0; try{ const r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-inscripcion:"+ini+":"),{cache:"no-store"}); n=(await r.json()).items.length; }catch(e){}
   if(!confirm("¿Borrar la semana "+gnFmt(ini)+" → "+gnFmt(gnPlanDraft.fin)+"?"+(n?"\n\nHay "+n+" voluntario(s) con noches elegidas. Dejarán de verse en Inicio y Guardia (la base conserva el historial).":""))) return;
   try{
-   const lectura=await sGetV(gnPlanKey(ini),null),plan=lectura.value; if(plan) await sSet(gnPlanKey(ini),{...plan,estado:"anulada",anuladaEn:new Date().toISOString()},{ifVersion:gnPlanDraft._version});
-   const indice=await sGetV(GN_PLAN_INDEX,[]); await sSet(GN_PLAN_INDEX,(Array.isArray(indice.value)?indice.value:[]).filter(x=>x!==ini),{ifVersion:indice.version});
+   const lectura=await sGetV(gnPlanKey(ini),null),plan=lectura.value;
+   const indice=await sGetV(GN_PLAN_INDEX,[]);
+   if(!plan)throw new Error("No se encontró la semana.");
+   await gnGuardarAtomico([{op:"set",key:gnPlanKey(ini),value:{...plan,estado:"anulada",anuladaEn:new Date().toISOString()},ifVersion:gnPlanDraft._version},{op:"set",key:GN_PLAN_INDEX,value:(Array.isArray(indice.value)?indice.value:[]).filter(x=>x!==ini),ifVersion:indice.version}]);
    gnPlanDraft=null; msg.textContent="Semana borrada."; GN_INS_CACHE=null; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true);
   }catch(e){ msg.textContent=e.conflicto?"Otra persona modificó la semana. Vuelve a seleccionarla para revisar los cambios.":"No se pudo borrar. Inténtalo de nuevo."; }
   return;
@@ -2245,8 +2254,7 @@ async function idxGuardias(){ return await sGet(GUARDIA_IDX,[]); }
 async function getGuardia(c){ return await sGet("guardia:"+c,null); }
 async function setGuardia(c,d,ifVersion){
   if(!Number.isInteger(ifVersion))throw new Error("Vuelve a cargar la guardia antes de guardar.");
-  await sSet("guardia:"+c,d,Number.isInteger(ifVersion)?{ifVersion}:undefined);
-  await sAddToList(GUARDIA_IDX,{clave:c,fecha:d.fechaIng},{uniqueBy:"clave"});
+  await gnGuardarAtomico([{op:"set",key:"guardia:"+c,value:d,ifVersion},{op:"add",key:GUARDIA_IDX,item:{clave:c,fecha:d.fechaIng},uniqueBy:"clave"}]);
   return SVER.get("guardia:"+c);
 }
 function claveGuardia(f,h){ return f+"__"+(h||"").replace(":",""); }

@@ -34,3 +34,9 @@ export function neon() {
   return sql;
 }
 export const __db = db;
+
+
+export class Pool{
+ async connect(){return {query:(text,params=[])=>db.query(text,params),release(){}};}
+ async end(){}
+}
