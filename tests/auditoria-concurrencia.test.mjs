@@ -21,3 +21,9 @@ test('un refresco durante la aprobación no cambia la versión base del document
  let lote;const RV={doc:{estado:'borrador'},ver:1};const ctx={RV,SVER:new Map([['guardia-revision:2026-11-04',3]]),esTenienteTercero:()=>true,esAdminGuardia:()=>false,clonar:o=>JSON.parse(JSON.stringify(o)),revCov:()=>[{f:'2026-11-04',completa:true,n:{vol:['v1','v2'],obac:'o',maq:'m'}}],confirm:()=>true,$:()=>null,horaNoche:()=>'22:45',claveGuardia:f=>f+'__2245',sGetV:async()=>{RV.ver=2;return {value:null,version:0};},gnAdd:f=>f,HORARIOS:{fin:'06:00'},corto:()=>'Oficial',revLog:()=>{},revKey:f=>'guardia-revision:'+f,GUARDIA_IDX:'guardias:index',gnGuardarAtomico:async c=>{lote=c;},panelRev:()=>{},revCargar:async()=>{}};
  vm.createContext(ctx);vm.runInContext(fn,ctx);await ctx.aprobarRevision(null,{m:{id:'o'},p:{inicio:'2026-11-04'},noches:['2026-11-04']});assert.equal(lote.find(c=>c.key==='guardia-revision:2026-11-04').ifVersion,1);
 });
+test('cerrar una semana conserva clave y versión aunque cambie la selección durante la lectura',async()=>{
+ const plan={inicio:'2026-11-04',_version:1};let lote;
+ const ctx={gnPlanKey:f=>'guardia-plan:'+f,sGetV:async()=>{plan.inicio='2026-11-11';plan._version=99;return {value:{inicio:'2026-11-04',estado:'abierta'},version:2};},gnGuardarAtomico:async c=>{lote=c;return {resultados:[{key:c[0].key,version:3}]};}};
+ vm.createContext(ctx);vm.runInContext(funcion('gnModificarPlan'),ctx);await ctx.gnModificarPlan(plan,{cierre:'2026-11-03T22:00:00Z'});
+ assert.equal(lote[0].key,'guardia-plan:2026-11-04');assert.equal(lote[0].ifVersion,1);
+});

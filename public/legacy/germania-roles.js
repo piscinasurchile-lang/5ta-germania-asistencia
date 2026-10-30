@@ -9,8 +9,8 @@
 "use strict";
 if(typeof ROSTER==="undefined"||typeof sGet!=="function"||typeof gnPlanes!=="function") return;
 
-/* Administradores mientras dura la prueba (claves de voluntario). Se cambia aquí. */
-var ADMINISTRADORES=["517"];
+/* Configuración institucional de interfaz, compartida con app.js. */
+var ADMINISTRADORES=window.GermaniaConfig.administradores;
 var NOV_KEY="novedades:v1";
 
 function $(id){ return document.getElementById(id); }
@@ -48,7 +48,7 @@ async function cargarPrec(){
 var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
 /* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
-var VISTA_PRUEBA=["517"];
+var VISTA_PRUEBA=window.GermaniaConfig.vistaPrueba;
 function vistaPrueba(m,kind){ return !!m&&VISTA_PRUEBA.indexOf(String(m.clave))>=0&&!(kind==="maq"?esMaquinista(m):rangoObac(m)!=null); }
 function rangoPrec(m){ return m&&PREC&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function porPrec(a,b){ var ra=rangoPrec(a), rb=rangoPrec(b); return (ra==null?9999:ra)-(rb==null?9999:rb); }
@@ -1016,6 +1016,7 @@ async function resolverAviso(pn,D,k,repId){
     if(repId){
       /* 1) dotación de la semana (revisión) */
       var revs=await leerPrefijo("guardia-revision:"), it=revs.filter(function(x){ return x.value&&x.value.noches&&x.value.noches[f]; })[0];
+      if(!it)throw new Error("No se encontró la revisión de esta guardia.");
       if(it){
         var cur=await sGetV(it.key,null), doc=clonar(cur.value), n=doc.noches[f], rol=av.value.rol;
         revQuitarRoles(n,repId);
@@ -1025,6 +1026,7 @@ async function resolverAviso(pn,D,k,repId){
         /* 2) si ya estaba aprobada, la guardia que usan informes y ODD */
         if(doc.estado==="aprobada"){
           var ck=claveGuardia(f,horaNoche(f)),lecturaGuardia=await sGetV("guardia:"+ck,null),g=lecturaGuardia.value;
+          if(!g)throw new Error("No se encontró la guardia aprobada; no se cambió el reemplazo.");
           if(g){
             if(rol==="maq") g.conductor=repId; else if(rol==="obac") g.oficial=repId;
             else g.guardianes=(g.guardianes||[]).map(function(x){ return String(x.id)===id?Object.assign({},x,{estado:"no",motivo:av.value.motivo||"Aviso",correo:true,reemplazo:repId,reemplazoRegistradoEn:nuevoAv.resueltoEn}):x; });
