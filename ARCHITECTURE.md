@@ -60,3 +60,7 @@ El Archivo de ODD y la subida manual se integran por el ADR 0015, sin cambiar OD
 
 ## Programación de guardia — correcciones autorizadas de auditoría
 Las operaciones relacionadas de planes, guardias, revisión y reemplazos se confirman mediante `/api/guardia/programacion`, con las mismas claves de app_state y transacción interactiva sobre Pool de Neon. ADR0016 documenta versiones de edición, bloqueo de filas y rollback; no añade tablas ni cambia la conexión. GermaniaFechas centraliza fechas civiles nuevas en Santiago, conservando históricos. GermaniaConfig reúne valores de interfaz existentes sin cambiar autoridades del servidor.
+
+## Asistencia — controles y guardado único autorizados
+
+ADR0017: `/api/asistencia/guardar` confirma el parte manual, su correlativo y su entrada de índice en una sola transacción. Clave y operación estables permiten reintentar una respuesta incierta; la corrección exige versión y conserva número/metadatos. La interfaz valida campos y lista completa, muestra dos registros recientes sin eliminar históricos y comparte solo el parte guardado. No cambia captura B-5, Guardia, ODD ni el buscador pendiente de Oficiales.

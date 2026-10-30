@@ -1227,29 +1227,53 @@ function renderRegistradoPorOptions(){
 }
 let parteBloqueado=false;
 let parteEsNuevo=true, parteNumeroActual=null, parteAnioActual=null;
+let asistenciaGuardando=false, asistenciaPendiente=null, asistenciaVersion=0, asistenciaGuardada=null, asistenciaIds=null, asistenciaCarga=0;
+function contarAsistencia(records,ids){
+ const c={presente:0,justificado:0,ausente:0};
+ (ids||Object.keys(records||{})).forEach(id=>{const estado=records?.[id];if(Object.hasOwn(c,estado))c[estado]++;});return c;
+}
+function rosterAsistencia(){ return asistenciaIds?sortedRoster(true).filter(p=>asistenciaIds.includes(String(p.id))):sortedRoster(false); }
+function bloquearCamposAsistencia(){
+  const bloqueado=parteBloqueado||asistenciaGuardando||!!asistenciaPendiente;
+  ["fecha","horaAsistencia","tipoSelect","detalle","registradoPor","marcarTodosBtn","completarAusentesBtn"].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=bloqueado;});
+  const nueva=document.getElementById("nuevaAsistenciaBtn");if(nueva)nueva.disabled=asistenciaGuardando||!!asistenciaPendiente;
+  const guardar=document.getElementById("guardarBtn");if(guardar){guardar.disabled=parteBloqueado||asistenciaGuardando;guardar.textContent=asistenciaPendiente?"Reintentar mismo guardado":parteEsNuevo?"Revisar y guardar":"Revisar y guardar corrección";}
+}
+function validarFormularioAsistencia(){
+ const campos=[["fecha","fecha"],["horaAsistencia","hora"],["tipoSelect","tipo de actividad"],["detalle","actividad / detalle"],["registradoPor","responsable de pasar lista"]];
+ for(const [id,nombre] of campos)if(!document.getElementById(id).value.trim())return "Completa: "+nombre+".";
+ const personas=rosterAsistencia();
+ if(!personas.length)return "No hay nómina disponible. Vuelve a cargar antes de guardar.";
+ if(personas.some(p=>!["presente","ausente","justificado"].includes(currentRecord[p.id])))return "Hay personas sin marcar. Completa sus estados antes de guardar.";
+ if(!personas.some(p=>currentRecord[p.id]==="presente"))return "Marca al menos un presente. Una actividad no realizada no genera asistencia.";
+ return "";
+}
 function renderListaRows(){
   const body=document.getElementById("listaBody"); body.innerHTML="";
-  sortedRoster(false).forEach(p=>{
-    const st=currentRecord[p.id]||"ausente";
+  rosterAsistencia().forEach(p=>{
+    const st=currentRecord[p.id]||"sin-marcar";
     const ac=acronimoCargo(p);
     const tr=document.createElement("tr");
     tr.innerHTML=`<td class="n-col">${p.n||""}</td>
       <td class="cargo-col">${esc(p.cargo)}</td>
       <td class="name-col">${p.clave?`<span class="clv">${esc(p.clave)}</span> `:""}${ac?`<span class="ac">${esc(ac)}</span> `:""}${p.conductor?`<span class="cnd">MAQ</span> `:""}${esc(nombreCompleto(p))}</td>
-      <td><div class="seg" data-id="${p.id}">
-        <button class="on-presente ${st==='presente'?'active':''}" data-status="presente" ${parteBloqueado?"disabled":""}>Presente</button>
-        <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente" ${parteBloqueado?"disabled":""}>Ausente</button>
-        <button class="on-justificado ${st==='justificado'?'active':''}" data-status="justificado" ${parteBloqueado?"disabled":""}>Justificado</button>
+      <td>${st==='sin-marcar'?'<span class="sub">Sin marcar</span>':''}<div class="seg" data-id="${p.id}">
+        <button class="on-presente ${st==='presente'?'active':''}" data-status="presente" ${parteBloqueado||asistenciaGuardando||asistenciaPendiente?"disabled":""}>Presente</button>
+        <button class="on-ausente ${st==='ausente'?'active':''}" data-status="ausente" ${parteBloqueado||asistenciaGuardando||asistenciaPendiente?"disabled":""}>Ausente</button>
+        <button class="on-justificado ${st==='justificado'?'active':''}" data-status="justificado" ${parteBloqueado||asistenciaGuardando||asistenciaPendiente?"disabled":""}>Justificado</button>
       </div></td>`;
     body.appendChild(tr);
   });
-  if(!parteBloqueado) body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
+  if(!parteBloqueado&&!asistenciaGuardando&&!asistenciaPendiente) body.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
     const seg=b.parentElement; currentRecord[seg.dataset.id]=b.dataset.status;
     seg.querySelectorAll("button").forEach(x=>x.classList.remove("active")); b.classList.add("active");
+    seg.previousElementSibling?.remove();
+    document.getElementById("statusMsg").textContent="";
   }));
   const gb=document.getElementById("guardarBtn"), mt=document.getElementById("marcarTodosBtn");
   if(gb) gb.disabled=parteBloqueado; if(mt) mt.disabled=parteBloqueado;
   renderCandadoParte();
+  bloquearCamposAsistencia();
 }
 function renderCandadoParte(){
   let box=document.getElementById("candadoParte");
@@ -1261,7 +1285,7 @@ function renderCandadoParte(){
   if(!parteBloqueado){ box.innerHTML=""; box.style.display="none"; return; }
   box.style.display="block";
   box.style.cssText="padding:12px;margin-bottom:10px;background:#101216;border:1px solid #3a3d44;border-radius:7px;";
-  box.innerHTML=`<b>Este parte ya fue guardado y no se puede modificar.</b>
+  box.innerHTML=`<b>Parte guardado. Para modificarlo, utiliza la clave de Oficialidad.</b>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <input id="claveDesbloqueoParte" type="password" placeholder="Clave de Oficialidad" style="flex:1;min-width:160px;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">
       <button id="desbloquearParteBtn" class="btn small">Corregir asistencia</button>
@@ -1272,11 +1296,11 @@ function renderCandadoParte(){
     const res=await autenticarOficialidad(inp.value.trim());
     if(res.ok){
       parteBloqueado=false;
+      document.getElementById("resumenBox").style.display="none";
       renderListaRows();
       const gb=document.getElementById("guardarBtn");
       if(gb) gb.textContent="Guardar corrección";
-      m.textContent="Asistencia desbloqueada. Corrige y guarda nuevamente; se mantiene el mismo N° de parte.";
-      m.classList.remove("err");
+      document.getElementById("statusMsg").textContent="Asistencia desbloqueada. Corrige y guarda; se mantiene el mismo número de parte.";
     }
     else { m.textContent=mensajeOficialidad(res.motivo); m.classList.add("err"); }
   };
@@ -1293,36 +1317,46 @@ async function claveNueva(d,t){
   return base+"--"+Date.now();
 }
 
-async function loadListaForSelection(){
+async function loadListaForSelection(claveExacta){
+  if(asistenciaGuardando||asistenciaPendiente)return;
+  const carga=++asistenciaCarga;
   const d=document.getElementById("fecha").value, t=document.getElementById("tipoSelect").value;
-  if(!d||!t) return;
-  currentPartClave=claveFor(d,t);
-  const ex=await getParte(currentPartClave);
-  const msg=document.getElementById("statusMsg");
-  currentRecord={};
-  document.getElementById("resumenBox").style.display="none";
-  if(ex&&ex.records){
-    currentRecord={...ex.records};
-    document.getElementById("detalle").value=ex.detalle||"";
-    document.getElementById("registradoPor").value=ex.registradoPor||"";
-    msg.textContent="Ya existe un parte guardado para esta fecha y tipo."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");
-    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=ex.numero||null; parteAnioActual=ex.anio||null;
-  } else {
-    sortedRoster(false).forEach(p=>currentRecord[p.id]="ausente");
-    document.getElementById("detalle").value="";
-    document.getElementById("registradoPor").value="";
-    msg.textContent="";
-    parteBloqueado=false; parteEsNuevo=true; parteNumeroActual=null; parteAnioActual=null;
-  }
-  msg.classList.remove("err");
-  const gb=document.getElementById("guardarBtn");
-  if(gb) gb.textContent="Guardar parte";
-  renderListaRows();
+  if(!d||!t)return;
+  const clave=typeof claveExacta==="string"?claveExacta:claveFor(d,t),msg=document.getElementById("statusMsg");
+  parteBloqueado=true;bloquearCamposAsistencia();
+  try{
+   const lectura=await sGetV("parte:"+clave,null);if(carga!==asistenciaCarga)return;
+   const ex=lectura.value;
+   currentRecord={};asistenciaVersion=lectura.version||0;asistenciaGuardada=ex;asistenciaIds=ex?(ex.eligibleIds||Object.keys(ex.records||{})).map(String):null;
+   currentPartClave=ex?clave:d+"__asistencia--"+uid();
+   document.getElementById("resumenBox").style.display="none";
+   for(const [id,k] of [["detalle","detalle"],["registradoPor","registradoPor"],["horaAsistencia","hora"]])document.getElementById(id).value=ex?.[k]||"";
+   if(ex&&ex.records){
+    currentRecord={...ex.records};parteBloqueado=true;parteEsNuevo=false;parteNumeroActual=ex.numero||null;parteAnioActual=ex.anio||null;
+    msg.textContent="Parte guardado."+(ex.numero?` N° ${String(ex.numero).padStart(3,"0")}/${ex.anio}.`:"");renderResumen(contarAsistencia(currentRecord));
+   }else{parteBloqueado=false;parteEsNuevo=true;parteNumeroActual=null;parteAnioActual=null;msg.textContent="Nueva asistencia: la lista comienza sin marcar.";}
+   msg.classList.remove("err");renderListaRows();
+   renderUltimasAsistencias();
+  }catch(error){if(carga!==asistenciaCarga)return;msg.textContent="No se pudo abrir el parte. Reintenta seleccionando la fecha y el tipo; no se permite guardar sin verificar los datos.";msg.classList.add("err");["fecha","tipoSelect"].forEach(id=>document.getElementById(id).disabled=false);}
 }
-on("fecha","change",loadListaForSelection);
-on("tipoSelect","change",loadListaForSelection);
+["horaAsistencia","detalle","registradoPor"].forEach(id=>on(id,"input",()=>{if(!asistenciaGuardando&&!asistenciaPendiente)document.getElementById("statusMsg").textContent="";}));
+on("fecha","change",()=>loadListaForSelection());
+on("tipoSelect","change",()=>loadListaForSelection());
 on("marcarTodosBtn","click",()=>{
-  sortedRoster(false).forEach(p=>currentRecord[p.id]="presente"); renderListaRows();
+ if(parteBloqueado||asistenciaGuardando||asistenciaPendiente)return;
+ rosterAsistencia().forEach(p=>currentRecord[p.id]="presente");renderListaRows();
+});
+on("completarAusentesBtn","click",()=>{
+ if(parteBloqueado||asistenciaGuardando||asistenciaPendiente)return;
+ rosterAsistencia().forEach(p=>{if(!currentRecord[p.id])currentRecord[p.id]="ausente";});renderListaRows();
+});
+on("nuevaAsistenciaBtn","click",()=>{
+ if(asistenciaGuardando||asistenciaPendiente)return;
+ if(!parteBloqueado&&Object.keys(currentRecord).length&&!confirm("¿Comenzar otra actividad? Los cambios sin guardar se perderán."))return;
+ asistenciaCarga++;currentRecord={};asistenciaIds=null;asistenciaGuardada=null;asistenciaVersion=0;parteEsNuevo=true;parteBloqueado=false;parteNumeroActual=null;parteAnioActual=null;
+ currentPartClave=document.getElementById("fecha").value+"__asistencia--"+uid();
+ ["detalle","horaAsistencia","registradoPor"].forEach(id=>document.getElementById(id).value="");
+ document.getElementById("resumenBox").style.display="none";document.getElementById("statusMsg").textContent="Nueva actividad: completa todos los campos y la lista.";renderListaRows();
 });
 
 function countStatuses(rec){
@@ -1341,40 +1375,61 @@ function renderResumen(c){
 }
 
 on("guardarBtn","click",()=>{
-  if(parteBloqueado) return;
-  const date=document.getElementById("fecha").value, tipo=document.getElementById("tipoSelect").value;
-  const msg=document.getElementById("statusMsg");
-  if(!date||!tipo){ msg.textContent="Selecciona fecha y tipo de citación."; msg.classList.add("err"); return; }
-  mostrarConfirmarParte(date,tipo);
+ if(parteBloqueado||asistenciaGuardando)return;
+ if(asistenciaPendiente){guardarAsistenciaConfirmada();return;}
+ const error=validarFormularioAsistencia(),msg=document.getElementById("statusMsg");
+ if(error){msg.textContent=error;msg.classList.add("err");return;}
+ mostrarConfirmarParte(document.getElementById("fecha").value,document.getElementById("tipoSelect").value);
 });
 function mostrarConfirmarParte(date,tipo){
-  const c=countStatuses(currentRecord);
-  const msg=document.getElementById("statusMsg");
-  msg.classList.remove("err");
-  msg.innerHTML=`<div style="padding:12px;background:#101216;border:1px solid #3a3d44;border-radius:7px;">
-      <b>Revisa antes de guardar:</b> ${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes.<br/>
-      <small>Una vez guardado, este parte no podrá modificarse sin la clave de Oficialidad. ¿Está correcto o quiere revisar de nuevo?</small>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-        <button id="confirmarGuardarBtn" class="btn small">Sí, está correcto — Guardar</button>
-        <button id="revisarDeNuevoBtn" class="btn small secondary">Revisar de nuevo</button>
-      </div></div>`;
-  document.getElementById("revisarDeNuevoBtn").onclick=()=>{ msg.innerHTML=""; };
-  document.getElementById("confirmarGuardarBtn").onclick=async()=>{
-    const tl=String(tipo||"").toLowerCase();
-    const origen=tl.includes("comandancia")?"comandancia_citacion":(tl.includes("anb")||tl.includes("curso"))?"curso_anb_citacion":"citacion_manual";
-    const data={date,tipo,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:currentRecord,origenAsistencia:origen,generaAsistencia:true};
-    if(parteEsNuevo){ data.anio=anioDe(date); data.numero=await siguienteCorrelativo("parte",data.anio); }
-    else { data.numero=parteNumeroActual; data.anio=parteAnioActual; }
-    currentPartClave=claveFor(date,tipo);
-    const ok=await setParte(currentPartClave,data);
-    if(!ok){ msg.textContent="No se pudo guardar."; msg.classList.add("err"); return; }
-    parteBloqueado=!MODO_PRUEBA_ABIERTO; parteEsNuevo=false; parteNumeroActual=data.numero; parteAnioActual=data.anio;
-    const gb=document.getElementById("guardarBtn");
-    if(gb) gb.textContent="Guardar parte";
-    msg.textContent=`Parte guardado. N° ${String(data.numero).padStart(3,"0")}/${data.anio}.`+(MODO_PRUEBA_ABIERTO?" Modo de prueba: edición abierta.":" Ya no se puede modificar sin la clave de Oficialidad.");
-    renderResumen(countStatuses(currentRecord));
-    renderListaRows();
-  };
+ const c=contarAsistencia(currentRecord),msg=document.getElementById("statusMsg");msg.classList.remove("err");
+ msg.innerHTML=`<div style="padding:12px;border:1px solid #3a3d44;border-radius:7px;"><b>Revisa antes de guardar</b><br>${esc(tipo)} · ${esc(date)} · ${esc(document.getElementById("horaAsistencia").value)}<br>${esc(document.getElementById("detalle").value)}<br>Responsable: ${esc(document.getElementById("registradoPor").value)}<br>${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes.<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"><button id="confirmarGuardarBtn" class="btn">Confirmar y guardar</button><button id="revisarDeNuevoBtn" class="btn secondary">Volver a revisar</button></div></div>`;
+ document.getElementById("revisarDeNuevoBtn").onclick=()=>{msg.textContent="";};
+ document.getElementById("confirmarGuardarBtn").onclick=guardarAsistenciaConfirmada;
+}
+async function guardarAsistenciaConfirmada(){
+ if(asistenciaGuardando||parteBloqueado)return;
+ const msg=document.getElementById("statusMsg");
+ if(!asistenciaPendiente){
+  const error=validarFormularioAsistencia();if(error){msg.textContent=error;msg.classList.add("err");return;}
+  const date=document.getElementById("fecha").value;
+  asistenciaPendiente={clave:currentPartClave,version:asistenciaVersion,operacion:uid(),datos:{date,tipo:document.getElementById("tipoSelect").value,hora:document.getElementById("horaAsistencia").value,detalle:document.getElementById("detalle").value.trim(),registradoPor:document.getElementById("registradoPor").value.trim(),records:{...currentRecord},eligibleIds:rosterAsistencia().map(p=>String(p.id))}};
+ }
+ asistenciaGuardando=true;renderListaRows();msg.textContent="Guardando…";msg.classList.remove("err");
+ try{
+  const r=await fetch("/api/asistencia/guardar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(asistenciaPendiente)});
+  const j=await r.json();
+  if(!r.ok){
+   if(r.status===409){asistenciaPendiente=null;parteBloqueado=true;throw Error("Otra persona modificó este parte. Abre nuevamente el registro antes de corregirlo; tus cambios no sobrescribieron los suyos.");}
+   if(r.status===400){asistenciaPendiente=null;throw Error("No se guardó: revisa los campos y la nómina ("+j.error+").");}
+   throw Error("No se pudo confirmar el guardado. Toca «Reintentar mismo guardado»; conservará el mismo parte y número.");
+  }
+  asistenciaGuardada=j.value;asistenciaVersion=j.version;asistenciaPendiente=null;partesCompartidas=null;
+  currentRecord={...j.value.records};asistenciaIds=j.value.eligibleIds;parteNumeroActual=j.value.numero;parteAnioActual=j.value.anio;parteEsNuevo=false;parteBloqueado=true;
+  msg.textContent="Parte guardado. N° "+(j.value.numero?String(j.value.numero).padStart(3,"0")+"/"+j.value.anio:"histórico")+". Puedes modificarlo con la clave de Oficialidad o enviarlo por WhatsApp.";
+  renderResumen(contarAsistencia(currentRecord));renderUltimasAsistencias();
+ }catch(error){msg.textContent=asistenciaPendiente?"No se pudo confirmar el guardado. Toca «Reintentar mismo guardado»; conservará el mismo parte y número.":error.message||"No se pudo confirmar el guardado.";msg.classList.add("err");}
+ finally{asistenciaGuardando=false;renderListaRows();}
+}
+async function abrirAsistenciaExacta(clave){
+ if(asistenciaGuardando||asistenciaPendiente)return;
+ const p=await getParte(clave);if(!p)return;
+ if(p.origenAsistencia==="emergencia_b5"){alert("Este parte proviene de Emergencia B-5. Corrígelo desde su módulo de origen.");return;}
+ document.getElementById("fecha").value=p.date;renderTipoSelect();
+ const sel=document.getElementById("tipoSelect");if(![...sel.options].some(o=>o.value===p.tipo))sel.add(new Option(p.tipo,p.tipo));sel.value=p.tipo;
+ await loadListaForSelection(clave);switchTab("lista");
+}
+async function renderUltimasAsistencias(){
+ const box=document.getElementById("ultimasAsistencias");if(!box)return;
+ try{
+  const idx=await getIndex();
+  const orden=idx.map((it,i)=>({...it,orden:i})).sort((a,b)=>String(b.creadoEn||b.date).localeCompare(String(a.creadoEn||a.date))||b.orden-a.orden);
+  const ultimas=[];
+  for(let i=0;i<orden.length&&ultimas.length<2;i+=8){const lote=orden.slice(i,i+8),ps=await Promise.all(lote.map(it=>getParte(it.clave)));ps.forEach((p,j)=>{if(p&&!p.anulado&&p.origenAsistencia!=="emergencia_b5"&&parteCuentaAsistencia(p)&&ultimas.length<2)ultimas.push({p,it:lote[j]});});}
+  box.innerHTML=ultimas.length?ultimas.map(({p,it})=>{const c=contarAsistencia(p.records);return `<div class="hist-item"><div><b>${esc(p.date)} ${esc(p.hora||"")}</b> · ${esc(p.tipo)}${p.numero?" · N° "+esc(String(p.numero).padStart(3,"0")+"/"+p.anio):""}<p>${esc(p.detalle||"Sin detalle histórico")}</p><p>${c.presente} presentes · ${c.justificado} justificados · ${c.ausente} ausentes</p><button class="btn secondary" data-asistencia-open="${esc(it.clave)}">Ver / Modificar</button> <button class="btn gold" data-asistencia-pdf="${esc(it.clave)}">PDF</button> <button class="btn secondary" data-asistencia-wa="${esc(it.clave)}">Enviar por WhatsApp</button></div></div>`;}).join(""):'<p class="sub">Aún no hay asistencias registradas.</p>';
+  box.querySelectorAll("[data-asistencia-open]").forEach(b=>b.onclick=()=>abrirAsistenciaExacta(b.dataset.asistenciaOpen).catch(()=>alert("No se pudo abrir el parte. Reintenta.")));
+  for(const accion of ["pdf","wa"])box.querySelectorAll("[data-asistencia-"+accion+"]").forEach(b=>b.onclick=async()=>{try{const p=await getParte(b.getAttribute("data-asistencia-"+accion));if(p)await entregarParteGuardado(p,accion==="wa");}catch{alert("No se pudo preparar el PDF. Reintenta.");}});
+ }catch{box.textContent="No se pudieron consultar las últimas asistencias. Los registros siguen guardados.";}
 }
 
 /* ============ PDF ============ */
@@ -1388,21 +1443,21 @@ function pdfHeader(doc,titulo){
   doc.text("Fundada como Brigada el 21 de junio de 2023 · Compañía desde el 5 de noviembre de 2025",35,28.5);
   doc.setFontSize(10);
 }
-function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio){
+function buildParteDoc(date,tipo,detalle,records,registradoPor,numero,anio,hora,eligibleIds){
   const {jsPDF}=window.jspdf; const doc=new jsPDF();
   pdfHeader(doc,"PARTE DE ASISTENCIA"+(numero?` N° ${String(numero).padStart(3,"0")}/${anio}`:""));
-  doc.text(`Fecha: ${fmtDateLong(date)}`,14,36);
+  doc.text(`Fecha: ${fmtDateLong(date)}${hora?" · Hora: "+hora:""}`,14,36);
   doc.text(`Tipo de citación: ${tipo}`,14,42);
   let y=48;
   if(detalle){ doc.text(`Detalle: ${detalle}`,14,y); y+=6; }
   if(registradoPor){ doc.text(`Pasó lista: ${registradoPor}`,14,y); y+=6; }
   // El PDF oficial incluye exclusivamente a quienes estuvieron PRESENTES.
   // Justificados y ausentes se conservan internamente para estadísticas, pero no se imprimen.
-  const rows=sortedRoster(false)
-    .filter(p=>(records[p.id]||"ausente")==="presente")
+  const rows=sortedRoster(!!eligibleIds)
+    .filter(p=>(!eligibleIds||eligibleIds.includes(String(p.id)))&&(records[p.id]||"ausente")==="presente")
     .map(p=>[p.n||"",p.clave||"—",p.cargo,nombreCompleto(p),"Presente"]);
   doc.autoTable({head:[["N°","Clave","Cargo","Nombre","Asistencia"]],body:rows,startY:y,styles:{fontSize:9},headStyles:{fillColor:[179,36,28]}});
-  const c=countStatuses(records), fy=doc.lastAutoTable.finalY+10;
+  const c=eligibleIds?contarAsistencia(records,eligibleIds):countStatuses(records), fy=doc.lastAutoTable.finalY+10;
   doc.setFont("helvetica","bold");
   doc.text(`Total presentes: ${c.presente}`,14,fy);
   doc.setFont("helvetica","normal"); doc.setFontSize(9);
@@ -1510,17 +1565,16 @@ async function sharePdfDoc(doc,filename,shareText){
   const blob=doc.output("blob");
   return await entregarArchivo(blob,filename,shareText,"Documento PDF generado");
 }
-on("pdfBtn","click",async()=>{
-  const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
-  await downloadPdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,document.getElementById("registradoPor").value.trim(),parteNumeroActual,parteAnioActual),`Asistencia_${d}_${slug(t)}${parteNumeroActual?"_N"+String(parteNumeroActual).padStart(3,"0"):""}.pdf`);
-});
-on("waBtn","click",async()=>{
-  const d=document.getElementById("fecha").value,t=document.getElementById("tipoSelect").value;
-  const rp=document.getElementById("registradoPor").value.trim(), c=countStatuses(currentRecord);
-  const text=`Parte de asistencia - Quinta Compañía "Germania"\n${t} - ${fmtDateLong(d)}${rp?"\nPasó lista: "+rp:""}\nPresentes: ${c.presente} · Justificados: ${c.justificado} · Ausentes: ${c.ausente}`;
-  const shared=await sharePdfDoc(buildParteDoc(d,t,document.getElementById("detalle").value.trim(),currentRecord,rp,parteNumeroActual,parteAnioActual),`parte_${d}_${slug(t)}.pdf`,text);
-  if(!shared) window.open("https://wa.me/?text="+encodeURIComponent(text+"\n(PDF adjunto por separado)"),"_blank");
-});
+async function entregarParteGuardado(p,whatsapp){
+ const doc=buildParteDoc(p.date,p.tipo,p.detalle||"",p.records,p.registradoPor||"",p.numero,p.anio,p.hora,p.eligibleIds||Object.keys(p.records||{}));
+ const filename=`Asistencia_${p.date}_${slug(p.tipo)}${p.numero?"_N"+String(p.numero).padStart(3,"0"):""}.pdf`;
+ if(!whatsapp)return downloadPdfDoc(doc,filename);
+ const c=contarAsistencia(p.records),text=`Parte de asistencia - Quinta Compañía Germania\n${p.tipo} · ${fmtDateLong(p.date)} ${p.hora||""}\nResponsable: ${p.registradoPor||""}\nPresentes: ${c.presente} · Justificados: ${c.justificado} · Ausentes: ${c.ausente}`;
+ const shared=await sharePdfDoc(doc,filename,text);
+ if(!shared)window.open("https://wa.me/?text="+encodeURIComponent(text+"\n(PDF adjunto por separado)"),"_blank","noopener");
+}
+on("pdfBtn","click",async()=>{if(asistenciaGuardada&&parteBloqueado)await entregarParteGuardado(asistenciaGuardada,false);});
+on("waBtn","click",async()=>{if(asistenciaGuardada&&parteBloqueado)await entregarParteGuardado(asistenciaGuardada,true);});
 
 /* ============ HOJA DE SERVICIO B-5 ============ */
 const SV_CAMPOS=["svFecha","svTipoAct","svHoraSalida","svHoraLlegada","svHoraControl","svKmSalida","svKmLlegada",
@@ -3298,14 +3352,7 @@ async function renderHistorial(){
       </div>`;
     list.appendChild(div);
   }
-  list.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",async()=>{
-    const p=await getParte(b.dataset.open); if(!p) return;
-    document.getElementById("fecha").value=p.date;
-    renderTipoSelect(); document.getElementById("tipoSelect").value=p.tipo;
-    await loadListaForSelection();
-    document.getElementById("registradoPor").value=p.registradoPor||"";
-    switchTab("lista");
-  }));
+  list.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>abrirAsistenciaExacta(b.dataset.open).catch(()=>alert("No se pudo abrir el parte. Reintenta."))));
   list.querySelectorAll("[data-pdf]").forEach(b=>b.addEventListener("click",async()=>{
     const p=await getParte(b.dataset.pdf); if(!p) return;
     await sharePdfDoc(buildParteDoc(p.date,p.tipo,p.detalle||"",p.records,p.registradoPor||"",p.numero,p.anio),`parte_${p.date}_${slug(p.tipo)}.pdf`);
@@ -5637,6 +5684,7 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
 
 /* ============ TABS ============ */
 function switchTabExtra(name){
+  if(name==="lista") renderUltimasAsistencias();
   if(name==="germania") renderDisponibilidad();
   if(name==="historial"){ if(window.__abrirHistorialPersonal) window.__abrirHistorialPersonal(); else renderHistorial(); }
   if(name==="servicio"){

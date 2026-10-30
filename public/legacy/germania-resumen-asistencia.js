@@ -6,14 +6,15 @@
   "use strict";
 
   function contar(roster, estados){
-    var c={total:0,presente:0,ausente:0,justificado:0,noPresentes:0,porcentaje:0};
+    var c={total:0,presente:0,ausente:0,justificado:0,sinMarcar:0,noPresentes:0,porcentaje:0};
     (Array.isArray(roster)?roster:[]).forEach(function(p){
       if(!p||p.activo===false)return;
       c.total++;
       var estado=estados&&estados[p.id];
       if(estado==="presente")c.presente++;
       else if(estado==="justificado")c.justificado++;
-      else c.ausente++;
+      else if(estado==="ausente")c.ausente++;
+      else c.sinMarcar++;
     });
     c.noPresentes=c.ausente+c.justificado;
     c.porcentaje=c.total?Math.round(c.presente/c.total*100):0;
@@ -37,8 +38,8 @@
       '#asistenciaResumenVivo .ar-item{padding:9px 5px;text-align:center;'+
       'border:1px solid #3b454c;border-radius:8px;background:#17232c;min-width:0;}'+
       '#asistenciaResumenVivo .ar-valor{font-size:23px;font-weight:800;line-height:1.2;color:#ffcc00;}'+
-      '#asistenciaResumenVivo .ar-label{font-size:12px;color:#e0e5e8;margin-top:3px;}'+
-      '#asistenciaResumenVivo .ar-note{margin:9px 0 0;font-size:12px;color:#b8c4ca;}'+
+      '#asistenciaResumenVivo .ar-label{font-size:13px;color:#e0e5e8;margin-top:3px;}'+
+      '#asistenciaResumenVivo .ar-note{margin:9px 0 0;font-size:13px;color:#b8c4ca;}'+
       '@media(max-width:640px){#asistenciaResumenVivo .ar-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}';
     document.head.appendChild(estilo);
 
@@ -46,7 +47,7 @@
     seccion.id="asistenciaResumenVivo";
     seccion.setAttribute("aria-label","Resumen actualizado de asistencia");
     seccion.innerHTML='<h2>Resumen de asistencia</h2><div class="ar-grid" id="arValores" aria-live="polite"></div>'+
-      '<p class="ar-note">No presentes = ausentes + justificados. Total según nómina activa.</p>';
+      '<p class="ar-note">No presentes = ausentes + justificados. Sin marcar no equivale a ausente.</p>';
     tabla.insertAdjacentElement("afterend",seccion);
     function item(numero,texto){
       return '<div class="ar-item"><div class="ar-valor">'+numero+
@@ -62,7 +63,7 @@
           item(c.presente,"Presentes")+
           item(c.ausente,"Ausentes")+
           item(c.justificado,"Justificados")+
-          item(c.noPresentes,"No presentes")+
+          item(c.sinMarcar,"Sin marcar")+
           item(c.porcentaje+"%","Asistencia");
       }catch(error){
         console.error("No se pudo mostrar resumen de asistencia",error);
