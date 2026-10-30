@@ -9,8 +9,8 @@
 "use strict";
 if(typeof ROSTER==="undefined"||typeof sGet!=="function"||typeof gnPlanes!=="function") return;
 
-/* Administradores mientras dura la prueba (claves de voluntario). Se cambia aquí. */
-var ADMINISTRADORES=["517"];
+/* Configuración institucional de interfaz, compartida con app.js. */
+var ADMINISTRADORES=window.GermaniaConfig.administradores;
 var NOV_KEY="novedades:v1";
 
 function $(id){ return document.getElementById(id); }
@@ -48,7 +48,7 @@ async function cargarPrec(){
 var OBAC=null, OBAC_TOTAL=7; /* uno por noche: 7 noches = 7 OBAC */
 /* Mientras se prueban las tarjetas: estas claves ven las tarjetas Maquinista y OBAC aunque no les
    correspondan, SOLO para mirarlas (no inscriben nada). Quitar la clave al terminar la prueba. */
-var VISTA_PRUEBA=["517"];
+var VISTA_PRUEBA=window.GermaniaConfig.vistaPrueba;
 function vistaPrueba(m,kind){ return !!m&&VISTA_PRUEBA.indexOf(String(m.clave))>=0&&!(kind==="maq"?esMaquinista(m):rangoObac(m)!=null); }
 function rangoPrec(m){ return m&&PREC&&PREC[String(m.id)]!=null?PREC[String(m.id)]:null; }
 function porPrec(a,b){ var ra=rangoPrec(a), rb=rangoPrec(b); return (ra==null?9999:ra)-(rb==null?9999:rb); }

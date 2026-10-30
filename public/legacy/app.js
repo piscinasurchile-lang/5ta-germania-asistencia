@@ -5282,7 +5282,7 @@ const avisoN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").to
 function avisoCargoHabilitado(cargo){ const c=avisoN(cargo); return AVISO_CARGOS.some(x=>avisoN(x)===c); }
 /* Administrador del sistema: puede hacer las mismas tareas de administración que el Ayudante, el Secretario o el Capitán
    (informar ODD, actualizar la precedencia, retirar guardias de prueba). Se identifica por su código de voluntario. */
-const ADMIN_CLAVES=["517"];
+const ADMIN_CLAVES=window.GermaniaConfig.administradores;
 const puedeAdministrar=m=>!!m&&(avisoCargoHabilitado(m.cargo)||ADMIN_CLAVES.includes(String(m.clave)));
 
 /* Hora de Chile -> instante absoluto (considera el horario de verano). */
