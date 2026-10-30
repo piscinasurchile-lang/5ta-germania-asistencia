@@ -18,6 +18,7 @@ function aviso(txt){
 }
 /* Cierra la ventana superpuesta que esté arriba. Devuelve true si cerró algo. */
 function cerrarSuperpuesto(){
+  if(window.GermaniaEstadisticasNavegacion?.estaAbierto()){window.GermaniaEstadisticasNavegacion.volver();return true;}
   var sel=document.querySelector(".svb-fondo");
   if(sel&&visible(sel)){document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));if(sel.isConnected)sel.remove();document.body.classList.remove("svb-abierto");return true;}
   var ay=document.getElementById("ayudaSheet");
@@ -74,3 +75,4 @@ function iniciar(){
 window.GermaniaAtras={_alAtras:alAtras,_sucios:sucios,puedeSalir:function(){if(!hayCambios())return true;if(!window.confirm("Tienes datos escritos sin guardar. ¿Salir de esta pantalla?"))return false;delete sucios["panel-"+panelActivo()];return true;}};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",iniciar);else iniciar();
 })();
+
