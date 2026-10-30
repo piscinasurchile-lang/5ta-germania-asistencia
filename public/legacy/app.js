@@ -278,7 +278,7 @@ let ROSTER=[], TIPOS=[], CARGOS=[], currentRecord={}, currentPartClave=null;
 
 /* ============ UTILIDADES ============ */
 function uid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():'id-'+Math.random().toString(36).slice(2)+Date.now(); }
-function todayISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function todayISO(){ return window.GermaniaFechas.hoyChile(); }
 function fmtDateLong(iso){ if(!iso) return ""; const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }
 function slug(s){ return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").toLowerCase(); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -1850,6 +1850,13 @@ async function gnGuardarAtomico(cambios){
  for(const x of data.resultados||[])SVER.set(x.key,x.version);
  return data;
 }
+async function gnModificarPlan(plan,cambios){
+ const key=gnPlanKey(plan.inicio),version=plan._version;
+ if(!Number.isInteger(version))throw new Error("Vuelve a abrir la semana antes de guardar.");
+ const lectura=await sGetV(key,null);if(!lectura.value)throw new Error("No se encontró la semana.");
+ const r=await gnGuardarAtomico([{op:"set",key,value:{...lectura.value,...cambios},ifVersion:version}]);
+ plan._version=r.resultados.find(x=>x.key===key).version;
+}
 async function gnSavePlan(p){
  const {_version,...doc}=p;
  if(!Number.isInteger(_version))throw new Error("Vuelve a abrir la semana antes de guardar.");
@@ -1933,13 +1940,15 @@ on("gnCerrarInscripcion","click",async()=>{
  const msg=document.getElementById("gnPlanMsg");
  if(!gnPlanDraft||!gnPlanDraft.guardada){ msg.textContent="Primero toca el miércoles de una semana ya programada."; return; }
  if(!confirm("¿Cerrar la inscripción de la semana "+gnFmt(gnPlanDraft.inicio)+" ahora? Los voluntarios ya no podrán elegir noches.")) return;
- try{ const plan=await sGet(gnPlanKey(gnPlanDraft.inicio),null); await sSet(gnPlanKey(gnPlanDraft.inicio),{...plan,cierre:new Date().toISOString()},{ifVersion:gnPlanDraft._version}); gnPlanDraft._version=SVER.get(gnPlanKey(gnPlanDraft.inicio)); gnPlanDraft.cierre=new Date().toISOString(); GN_INS_CACHE=null; msg.textContent="Inscripción cerrada."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){ msg.textContent="No se pudo cerrar."; }
+ const seleccion=gnPlanDraft,cierre=new Date().toISOString();
+ try{ await gnModificarPlan(seleccion,{cierre});seleccion.cierre=cierre; GN_INS_CACHE=null; msg.textContent="Inscripción cerrada."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){msg.textContent=e.conflicto?"Otra persona modificó la semana; vuelve a abrirla para comparar. Tu selección se conserva.":"No se confirmó el cierre. Revisa lo último guardado antes de reintentar.";}
 });
 on("gnSuspenderPeriodo","click",async()=>{
  const msg=document.getElementById("gnPlanMsg");
  if(!gnPlanDraft||!gnPlanDraft.guardada){ msg.textContent="Primero toca el miércoles de una semana ya programada."; return; }
  const motivo=prompt("Motivo de la suspensión (se mostrará en el calendario):","Suspendida por Comandancia"); if(motivo===null) return;
- try{ const plan=await sGet(gnPlanKey(gnPlanDraft.inicio),null); await sSet(gnPlanKey(gnPlanDraft.inicio),{...plan,estado:"suspendida",nota:motivo},{ifVersion:gnPlanDraft._version}); gnPlanDraft=null; GN_INS_CACHE=null; msg.textContent="Semana suspendida."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){ msg.textContent="No se pudo suspender."; }
+ const seleccion=gnPlanDraft;
+ try{ await gnModificarPlan(seleccion,{estado:"suspendida",nota:motivo});if(gnPlanDraft===seleccion)gnPlanDraft=null; GN_INS_CACHE=null; msg.textContent="Semana suspendida."; await renderGnPlanner(); if(typeof renderGnInscripcionCard==="function") renderGnInscripcionCard(true); }catch(e){msg.textContent=e.conflicto?"Otra persona modificó la semana; vuelve a abrirla para comparar. Tu selección se conserva.":"No se confirmó la suspensión. Revisa lo último guardado antes de reintentar.";}
 });
 on("gnDomingoDiurno","change",e=>{if(!gnPlanDraft){e.target.checked=false;return;}gnPlanDraft.domingoDiurno=e.target.checked;document.getElementById("gnDomingoOpciones").style.display=e.target.checked?"block":"none";renderGnPlanner();});
 document.querySelectorAll("[data-gn-lugar]").forEach(b=>b.addEventListener("click",()=>{if(!gnPlanDraft)return;gnPlanDraft.lugarDomingo=b.dataset.gnLugar;document.querySelectorAll("[data-gn-lugar]").forEach(x=>x.classList.toggle("active",x===b));document.getElementById("gnActividadWrap").style.display=b.dataset.gnLugar==="cuartel"?"block":"none";}));
@@ -5282,7 +5291,7 @@ const avisoN=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").to
 function avisoCargoHabilitado(cargo){ const c=avisoN(cargo); return AVISO_CARGOS.some(x=>avisoN(x)===c); }
 /* Administrador del sistema: puede hacer las mismas tareas de administración que el Ayudante, el Secretario o el Capitán
    (informar ODD, actualizar la precedencia, retirar guardias de prueba). Se identifica por su código de voluntario. */
-const ADMIN_CLAVES=["517"];
+const ADMIN_CLAVES=window.GermaniaConfig.administradores;
 const puedeAdministrar=m=>!!m&&(avisoCargoHabilitado(m.cargo)||ADMIN_CLAVES.includes(String(m.clave)));
 
 /* Hora de Chile -> instante absoluto (considera el horario de verano). */
@@ -5639,7 +5648,7 @@ function switchTabExtra(name){
   if(name==="guardia"){
     const f=document.getElementById("gnFechaIng");
     if(f && !f.value){ f.value=todayISO(); const s=document.getElementById("gnFechaSal");
-      const d=new Date(); d.setDate(d.getDate()+1); s.value=d.toISOString().slice(0,10); }
+      s.value=window.GermaniaFechas.sumarDias(todayISO(),1); }
     if(!document.getElementById("gnDesde").value) document.getElementById("gnSemana").click();
     renderGnOficial(); cargarGuardia(); renderGnLista(); renderGnPlanner().catch(console.error); gnHistorialCargarOpciones().catch(console.error);
   }
