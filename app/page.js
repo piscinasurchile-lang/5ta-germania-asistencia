@@ -36,7 +36,7 @@ export default function Page() {
   // El badge se limpia al abrir o regresar a la PWA, sin acuses de lectura.
   useEffect(() => {
     const limpiar = async () => {
-      try { await navigator.clearAppBadge?.(); } catch {}
+      // El módulo ODD recalcula su contador al cargar y confirmar lecturas.
       if (!("serviceWorker" in navigator)) return;
       try {
         const reg = await navigator.serviceWorker.getRegistration("/");
@@ -290,3 +290,4 @@ export default function Page() {
     </main>
   );
 }
+

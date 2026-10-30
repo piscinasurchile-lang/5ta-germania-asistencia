@@ -5286,6 +5286,8 @@ async function cargarAvisosOdd(forzar){
 function avisoVigente(a,ahora){
   ahora=ahora||Date.now();
   if(!a||a.anulada||!Array.isArray(a.destinatarios)||!a.destinatarios.includes("voluntarios")) return false;
+  const estadoArchivo=window.GermaniaODD&&window.GermaniaODD.estado(a.numero);
+  if(estadoArchivo&&estadoArchivo.sinEfectoPor.length)return false;
   const desde=a.visibleDesde?Date.parse(a.visibleDesde):0, hasta=a.visibleHasta?Date.parse(a.visibleHasta):Infinity;
   if(Number.isNaN(desde)||Number.isNaN(hasta)) return false;
   return ahora>=desde&&ahora<hasta;
@@ -5426,97 +5428,15 @@ function descargarIcs(a){
 
 /* ---- «Ayudante informa ODD» ---- */
 function infoAvisoQuienSoy(){ const id=(document.getElementById("miVoluntario")||{}).value; return ROSTER.find(p=>String(p.id)===String(id))||null; }
-async function abrirFormularioAviso(editarId){
-  const yo=infoAvisoQuienSoy();
-  if(!yo||!puedeAdministrar(yo)){
-    const titulares=ROSTER.filter(p=>p.activo!==false&&avisoCargoHabilitado(p.cargo)).map(p=>`${p.cargo}: ${nombreCompleto(p)}`);
-    modalOdd(`<h2 style="margin:0 0 8px;">Ayudante informa ODD</h2><p>Solo el Ayudante, el Secretario, el Capitán o el administrador pueden informar una ODD. ${yo?`Hoy tu cargo es «${esc(yo.cargo||"Voluntario")}».`:"Selecciona tu nombre en «Voluntario que está usando este dispositivo» (pantalla principal)."}</p>${titulares.length?`<p style="color:#9aa0a8;font-size:13px;">Titulares actuales: ${esc(titulares.join(" · "))}</p>`:""}<div style="margin-top:12px;"><button type="button" class="btn small secondary" id="oddCerrarBtn">Cerrar</button></div>`).querySelector("#oddCerrarBtn").onclick=cerrarModalOdd;
-    return;
-  }
-  const lista=await cargarAvisosOdd(true);
-  const ed=editarId?lista.find(x=>x.id===editarId):null;
-  const anio=String(new Date().getFullYear()), nums=lista.filter(x=>String(x.numero||"").endsWith("/"+anio)).map(x=>parseInt(x.numero,10)).filter(Number.isFinite);
-  const sugerido=nums.length?String(Math.max(...nums)+1).padStart(3,"0")+"/"+anio:"";
-  const v=(k,def)=>esc(ed&&ed[k]!==undefined?ed[k]:(def||""));
-  const cu=ed&&ed.cuando?ed.cuando:{};
-  const campo=(id,etq,html)=>`<div style="margin:8px 0;"><label for="${id}" style="display:block;font-size:13px;color:#c9ccd1;margin-bottom:3px;">${etq}</label>${html}</div>`;
-  const inp=(id,val,extra)=>`<input id="${id}" value="${val}" ${extra||""} style="width:100%;box-sizing:border-box;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">`;
-  const recientes=lista.slice().sort((x,y)=>String(y.publicadaEn||"").localeCompare(String(x.publicadaEn||""))).slice(0,8);
-  const c=modalOdd(`
-    <h2 style="margin:0 0 4px;">Ayudante informa ODD</h2>
-    <p style="margin:0 0 8px;color:#9aa0a8;font-size:13px;">Lo básico para que los voluntarios la vean en su pantalla. ${ed?"Estás editando la ODD "+esc(ed.numero)+".":""}</p>
-    ${campo("avTipo","Tipo",`<select id="avTipo" style="width:100%;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">${Object.entries(AVISO_TIPOS).map(([k,t])=>`<option value="${k}"${(ed?ed.tipo:"citacion")===k?" selected":""}>${t}</option>`).join("")}</select>`)}
-    ${campo("avNumero","N.º de la ODD (ej. 063/"+anio+")",inp("avNumero",v("numero",sugerido),'placeholder="063/'+anio+'" inputmode="numeric"'))}
-    ${campo("avTitulo","Título corto (qué es)",inp("avTitulo",v("titulo"),'placeholder="Academia de Extricación I"'))}
-    <div style="display:flex;gap:8px;">${campo("avFecha","Fecha de la actividad",inp("avFecha",esc(cu.fecha||""),'type="date"'))}${campo("avHora","Hora",inp("avHora",esc(cu.hora||""),'type="time"'))}</div>
-    ${campo("avLugar","Lugar",inp("avLugar",v("lugar"),'placeholder="Cuartel General, Valentín Letelier #630"'))}
-    ${campo("avTema","Tema (opcional)",inp("avTema",v("tema")))}
-    ${campo("avVestimenta","Vestimenta (opcional)",inp("avVestimenta",v("vestimenta"),'placeholder="Uniforme de trabajo"'))}
-    ${campo("avHasta","Mostrar hasta (solo si no tiene fecha de actividad)",inp("avHasta",esc(ed&&!cu.fecha&&ed.visibleHasta?ed.visibleHasta.slice(0,10):""),'type="date"'))}
-    ${campo("avExcusas","Excusas al correo",inp("avExcusas",v("excusas","germaniacbv@gmail.com")))}
-    <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="avPuntual"${ed?(ed.puntualidad?" checked":""):" checked"}> Se exige puntualidad</label>
-    ${campo("avPdf","PDF de la ODD (opcional, máx. 1,5 MB)",'<input type="file" id="avPdf" accept="application/pdf">')}
-    ${MODO_PRUEBA_ABIERTO?"":campo("avClave","Clave de Oficialidad",'<input type="password" id="avClave" style="width:100%;box-sizing:border-box;padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;">')}
-    <div id="avMsg" style="min-height:20px;margin:8px 0;font-size:13.5px;color:#ff8a80;"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn" id="avPublicar">${ed?"Guardar cambios":"Publicar a los voluntarios"}</button><button type="button" class="btn secondary" id="avCancelar">Cancelar</button></div>
-    ${recientes.length?`<h3 style="margin:18px 0 6px;">Publicadas</h3>${recientes.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid #3a3d44;padding:8px 0;"><span style="font-size:13.5px;">${esc(x.numero||"")} · ${esc(x.titulo||"")}${x.anulada?' <small style="color:#ffb74d;">(retirada)</small>':""}</span><span style="display:flex;gap:6px;"><button type="button" class="btn small secondary" data-av-editar="${esc(x.id)}">Editar</button>${x.anulada?"":`<button type="button" class="btn small secondary" data-av-retirar="${esc(x.id)}">Retirar</button>`}</span></div>`).join("")}`:""}`);
-  c.querySelector("#avCancelar").onclick=cerrarModalOdd;
-  c.querySelectorAll("[data-av-editar]").forEach(b=>b.onclick=()=>abrirFormularioAviso(b.dataset.avEditar));
-  c.querySelectorAll("[data-av-retirar]").forEach(b=>b.onclick=async()=>{
-    if(!confirm("¿Retirar esta ODD de la pantalla de los voluntarios? Queda guardada en el archivo.")) return;
-    try{ await retirarAvisoOdd(b.dataset.avRetirar); abrirFormularioAviso(); }catch(e){ c.querySelector("#avMsg").textContent="No se pudo retirar: "+((e&&e.message)||e); }
-  });
-  c.querySelector("#avPublicar").onclick=async()=>{
-    const msg=c.querySelector("#avMsg"), btn=c.querySelector("#avPublicar"); msg.style.color="#ff8a80"; msg.textContent="";
-    btn.disabled=true;
-    try{
-      await publicarAvisoOdd({editarId:ed?ed.id:null,tipo:c.querySelector("#avTipo").value,numero:c.querySelector("#avNumero").value.trim(),titulo:c.querySelector("#avTitulo").value.trim(),
-        fecha:c.querySelector("#avFecha").value,hora:c.querySelector("#avHora").value,lugar:c.querySelector("#avLugar").value.trim(),tema:c.querySelector("#avTema").value.trim(),
-        vestimenta:c.querySelector("#avVestimenta").value.trim(),hasta:c.querySelector("#avHasta").value,excusas:c.querySelector("#avExcusas").value.trim(),
-        puntualidad:c.querySelector("#avPuntual").checked,archivo:(c.querySelector("#avPdf").files||[])[0]||null,clave:(c.querySelector("#avClave")||{}).value||""});
-      cerrarModalOdd();
-      alert("ODD informada. Los voluntarios ya la ven en su pantalla.");
-    }catch(e){ msg.textContent=(e&&e.message)||"No se pudo publicar."; btn.disabled=false; }
-  };
+async function abrirFormularioAviso(){
+  if(window.GermaniaODD)return window.GermaniaODD.abrirPublicar({citacion:true});
+  alert("No se pudo cargar el Archivo de ODD. Recarga la aplicación.");
 }
-async function publicarAvisoOdd(f){
-  const num=String(f.numero||"");
-  if(!/^\d{1,3}\/\d{4}$/.test(num)) throw new Error("Escribe el número de la ODD con este formato: 063/2026.");
-  if(!f.titulo) throw new Error("Escribe el título corto: qué es la ODD.");
-  if(f.fecha&&!/^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) throw new Error("La fecha de la actividad no es válida.");
-  if(f.hora&&!f.fecha) throw new Error("Indica también la fecha de la actividad.");
-  if(!f.fecha&&!f.hasta) throw new Error("Indica la fecha de la actividad, o hasta qué día se muestra la ODD.");
-  const yo=infoAvisoQuienSoy(); if(!yo||!puedeAdministrar(yo)) throw new Error("Solo el Ayudante, el Secretario, el Capitán o el administrador pueden informar una ODD.");
-  if(!MODO_PRUEBA_ABIERTO){ const r=await autenticarOficialidad(String(f.clave||"").trim()); if(!r.ok) throw new Error(mensajeOficialidad(r.motivo)); }
-  const [anioODD,nroODD]=[num.split("/")[1],num.split("/")[0].padStart(3,"0")];
-  const id=f.editarId||("odd-"+anioODD+"-"+nroODD);
-  const ahora=new Date().toISOString();
-  const visibleHasta=f.fecha?new Date(instanteChile(f.fecha,f.hora||"23:59")).toISOString():new Date(instanteChile(f.hasta,"23:59")).toISOString();
-  let pdfClave=null;
-  if(f.archivo){
-    if(f.archivo.type!=="application/pdf") throw new Error("El archivo debe ser un PDF.");
-    if(f.archivo.size>AVISO_PDF_MAX) throw new Error("El PDF pesa más de 1,5 MB. Publica la ODD sin PDF o reduce el archivo.");
-    const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error("No se pudo leer el PDF.")); r.readAsDataURL(f.archivo); });
-    pdfClave="odd-pdf:"+id.replace(/^odd-/,"");
-    if(!(await sSet(pdfClave,{mime:"application/pdf",nombre:f.archivo.name,dataUrl,guardadoEn:ahora}))) throw new Error("No se pudo guardar el PDF.");
-  }
-  const lista=(await cargarAvisosOdd(true)).map(x=>Object.assign({},x));
-  const previo=lista.find(x=>x.id===id), idx=lista.findIndex(x=>x.id===id);
-  const reg=Object.assign({},previo||{},{id,numero:num,tipo:f.tipo,titulo:f.titulo,destinatarios:["voluntarios"],
-    cuando:f.fecha?{fecha:f.fecha,hora:f.hora||""}:null,lugar:f.lugar,tema:f.tema,vestimenta:f.vestimenta,excusas:f.excusas,puntualidad:!!f.puntualidad,
-    visibleDesde:(previo&&previo.visibleDesde)||ahora,visibleHasta,informadaPor:yo.id,publicadaEn:(previo&&previo.publicadaEn)||ahora,
-    modificadaEn:previo?ahora:undefined,version:((previo&&previo.version)||0)+1,anulada:false});
-  if(pdfClave) reg.pdf=pdfClave;
-  if(idx>=0) lista[idx]=reg; else lista.push(reg);
-  if(!(await sSet(AVISOS_ODD_KEY,lista))) throw new Error("No se pudo guardar la ODD. Inténtalo de nuevo.");
-  AVISOS_ODD=lista; AVISOS_ODD_HASTA=Date.now()+60000;
-  await renderAvisosOdd(true);
+async function publicarAvisoOdd(){
+  throw new Error("Publica una nueva ODD desde Subir ODD. Los originales no se modifican.");
 }
-async function retirarAvisoOdd(id){
-  const lista=(await cargarAvisosOdd(true)).map(x=>x.id===id?Object.assign({},x,{anulada:true,retiradaEn:new Date().toISOString()}):x);
-  if(!(await sSet(AVISOS_ODD_KEY,lista))) throw new Error("No se pudo guardar el cambio.");
-  AVISOS_ODD=lista; AVISOS_ODD_HASTA=Date.now()+60000;
-  await renderAvisosOdd(true);
+async function retirarAvisoOdd(){
+  throw new Error("Para dejar sin efecto una ODD, publica una nueva que lo disponga.");
 }
 on("oddInformarBtn","click",()=>abrirFormularioAviso());
 setInterval(()=>{ renderAvisosOdd(false).catch(()=>{}); },60000);
@@ -5786,4 +5706,5 @@ document.addEventListener("click",function(e){const b=e.target.closest("button,.
 
 /* Guardia integral: arranque no intrusivo */
 document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} });
+
 

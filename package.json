@@ -14,9 +14,11 @@
     "next": "^16.4.2",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "unpdf": "^2.0.1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.0"
+    "@electric-sql/pglite": "^0.3.0",
+    "playwright": "^1.62.1"
   }
 }

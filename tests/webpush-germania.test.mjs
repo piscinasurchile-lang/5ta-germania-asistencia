@@ -98,7 +98,7 @@ test("sin activación explícita no se envía push general a voluntarios",async(
   }
 });
 
-test("service worker recibe sólo tipo Germania, muestra icono y limpia al abrir",()=>{
+test("service worker recibe tipo Germania y conserva contador de ODD al abrir",()=>{
   const sw=readFileSync(new URL("../public/sw.js",import.meta.url),"utf8");
   const page=readFileSync(new URL("../app/page.js",import.meta.url),"utf8");
   const avisos=readFileSync(new URL("../app/avisos/page.js",import.meta.url),"utf8");
@@ -109,7 +109,10 @@ test("service worker recibe sólo tipo Germania, muestra icono y limpia al abrir
   assert.match(sw,/showNotification/);
   assert.match(sw,/GERMANIA_PUSH_TAG/);
   assert.match(sw,/setAppBadge/);
-  assert.match(page,/clearAppBadge/);
+  assert.doesNotMatch(page,/navigator.clearAppBadge/);
+  const archivo=readFileSync(new URL("../public/legacy/germania-odd-archivo.js",import.meta.url),"utf8");
+  assert.match(archivo,/nav.clearAppBadge/);
+  assert.match(archivo,/n.data.clase!=='odd'/);
   assert.match(page,/getNotifications/);
   assert.match(avisos,/Notification.requestPermission/);
   assert.match(avisos,/pushManager.subscribe/);
@@ -118,3 +121,4 @@ test("service worker recibe sólo tipo Germania, muestra icono y limpia al abrir
   assert.match(general,/key === "odd-avisos:v1" && esEnvioGeneralActivo/);
   assert.match(normal,/difundir\(\{tipo:"informacion"/);
 });
+
