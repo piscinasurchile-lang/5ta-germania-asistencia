@@ -101,7 +101,7 @@ self.addEventListener("push",event=>{
     await self.registration.showNotification(title,{
       body:String(mensaje.titulo||"Abre Germania para revisar las informaciones.").slice(0,160),
       icon:"/legacy/germania-192.png",badge:"/legacy/favicon-64.png",
-      tag:GERMANIA_PUSH_TAG,data:{url:"/"}
+      tag:GERMANIA_PUSH_TAG,data:{clase:mensaje.clase,url:typeof mensaje.url==="string"&&/^\/\?odd=/.test(mensaje.url)?mensaje.url:"/"}
     });
   })());
 });
@@ -110,12 +110,14 @@ self.addEventListener("notificationclick",event=>{
   event.notification.close();
   event.waitUntil((async()=>{
     try{await self.navigator?.clearAppBadge?.();}catch{}
+    const destino=typeof event.notification.data?.url==="string"&&/^\/\?odd=/.test(event.notification.data.url)?event.notification.data.url:"/";
     const windows=await self.clients.matchAll({type:"window",includeUncontrolled:true});
     const actual=windows.find(w=>{try{return new URL(w.url).origin===self.location.origin;}catch{return false;}});
     if(actual){
-      try{if(typeof actual.navigate==="function")await actual.navigate("/");}catch{}
+      try{if(typeof actual.navigate==="function")await actual.navigate(destino);}catch{}
       return actual.focus();
     }
-    return self.clients.openWindow("/");
+    return self.clients.openWindow(destino);
   })());
 });
+

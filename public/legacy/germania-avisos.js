@@ -144,7 +144,8 @@
     lista();
   }
   /* ---------- Archivo de ODD (consulta de todas, también las vencidas) ---------- */
-  async function abrirArchivoOdd(){
+  async function abrirArchivoOdd(legacy){
+    if(legacy!==true&&window.GermaniaODD)return window.GermaniaODD.abrirArchivo();
     var lista=await sGet("odd-avisos:v1",[]);lista=Array.isArray(lista)?lista:[];
     var ofi=oficial();
     lista=lista.filter(function(o){return o&&(ofi||(!o.anulada&&Array.isArray(o.destinatarios)&&o.destinatarios.indexOf("voluntarios")>=0));})
@@ -266,5 +267,7 @@
   function ciclo(){montar();render();citPendientes();}
   function iniciar(){ciclo();setInterval(function(){if(!document.hidden)ciclo();},60000);var s=$("miVoluntario");if(s)s.addEventListener("change",function(){setTimeout(ciclo,400);});}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",function(){setTimeout(iniciar,500);});else setTimeout(iniciar,500);
+  window.GermaniaArchivoOddLegacy=function(){return abrirArchivoOdd(true);};
   window.GermaniaNovedadesOfi={publicar:publicar,render:render};
 })();
+

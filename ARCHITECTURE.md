@@ -53,3 +53,7 @@ Rama por trabajo → PR → pruebas `npm test` y `npm run build` → revisión i
 
 ## Decisiones arquitectónicas
 Ver [docs/adr/](docs/adr/). ADR en estado **Propuesto** no equivalen a autorización. Actualizar esta arquitectura en el PR que cambie su comportamiento.
+
+## Archivo ODD — integración autorizada
+El Archivo de ODD y la subida manual se integran por el ADR 0015, sin cambiar ODD Maestras ni la dotación de Guardia. Las rutas `/api/odd-archivo` usan la conexión Neon vigente y tablas aditivas específicas para documentos, PDF, lecturas y resultados de avisos. Se conserva la consulta de documentos legacy y el buscador dentro de sus PDF. Google Drive automático y cron quedan fuera de este despliegue.
+

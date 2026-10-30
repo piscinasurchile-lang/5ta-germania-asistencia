@@ -51,6 +51,7 @@ function sameOrigin(request) {
 export async function PUT(request, { params }) {
   if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
   const { key } = await params;
+  if (key === "odd-avisos:v1" || key.startsWith("odd-pdf:")) return Response.json({error:"odd_original_inalterable_usar_archivo"},{status:409});
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
   if (key === "informaciones-prueba:v1" || key.startsWith("informaciones-prueba-lecturas:")) return Response.json({ error: "forbidden_key" }, { status: 403 });
@@ -119,6 +120,7 @@ export async function PUT(request, { params }) {
 export async function PATCH(request, { params }) {
   if (!sameOrigin(request)) return Response.json({ error: "forbidden_origin" }, { status: 403 });
   const { key } = await params;
+  if (key === "odd-avisos:v1" || key.startsWith("odd-pdf:")) return Response.json({error:"odd_original_inalterable_usar_archivo"},{status:409});
   if (!valid(key)) return Response.json({ error: "invalid_key" }, { status: 400 });
   if (reserved(key)) return Response.json({ error: "forbidden_key" }, { status: 403 });
   if (key === "informaciones-prueba:v1" || key.startsWith("informaciones-prueba-lecturas:")) return Response.json({ error: "forbidden_key" }, { status: 403 });
@@ -150,3 +152,4 @@ export async function PATCH(request, { params }) {
     return Response.json({ error: error?.message === "invalid_unique_by" ? "invalid_unique_by" : "database_error" }, { status: error?.message === "invalid_unique_by" ? 400 : 500 });
   }
 }
+
