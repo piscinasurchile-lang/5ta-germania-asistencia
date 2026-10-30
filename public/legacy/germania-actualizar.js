@@ -70,7 +70,7 @@
 (function(){
   if(!document.getElementById("panel-lista"))return;
   var script=document.createElement("script");
-  script.src="/legacy/germania-resumen-asistencia.js?v=20261014a";
+  script.src="/legacy/germania-resumen-asistencia.js?v=20261030a";
   script.onerror=function(){console.error("No se pudo cargar el resumen de asistencia.");};
   document.body.appendChild(script);
 })();

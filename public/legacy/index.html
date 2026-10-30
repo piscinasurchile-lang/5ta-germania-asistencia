@@ -424,6 +424,12 @@
 @media(max-width:380px){.g-sticky-shell #indConductores{gap:4px!important;padding:3px 6px!important}.g-sticky-shell #indConductores em{font-size:11px}.g-sticky-shell #indConductores .mq-ico{width:18px;height:18px;flex-basis:18px}.g-sticky-shell #indConductores .mq-pill{font-size:9px!important;padding:3px 6px;white-space:nowrap}.g-sticky-shell #indConductores b{font-size:14px!important}}
 .de-flag{display:inline-block;width:20px;height:13px;margin-left:6px;vertical-align:-1px;border-radius:2px;background:linear-gradient(#000 0 33%,#d00 33% 66%,#ffce00 66%)}
 .svb-fondo{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center}.svb-hoja{width:100%;max-width:560px;max-height:88vh;max-height:88dvh;display:flex;flex-direction:column;background:#11171c;border:1px solid #f2c230;border-bottom:0;border-radius:18px 18px 0 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.6)}.svb-cab{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:17px;color:#fff}.svb-x{background:#1d252c;border:1px solid #3a3d44;color:#fff;border-radius:10px;width:40px;height:40px;font-size:16px}.svb-buscar{width:100%;box-sizing:border-box;min-height:48px;font-size:16px;padding:10px 14px;border-radius:12px;border:1px solid #f2c230;background:#0b1116;color:#fff;margin-bottom:10px}.svb-lista{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:6px;padding-bottom:4px}.svb-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:52px;padding:8px 12px;border-radius:12px;border:1px solid #2a3540;background:#161e25;color:#fff;font-size:16px}.svb-item:active{background:#22303a}.svb-cod{flex:0 0 auto;min-width:44px;text-align:center;font-weight:800;font-size:14px;color:#f2c230;background:#0b1116;border:1px solid #3a3d44;border-radius:8px;padding:4px 6px}.svb-nom{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.2}.svb-sel{border-color:#f2c230;background:#241f0c}.svb-ck{color:#f2c230;font-weight:900}.svb-vacio{color:#9aa0aa;text-align:center;padding:16px 0;margin:0}.svb-cod:empty{display:none}body.svb-abierto{overflow:hidden}
+
+#panel-lista button,#panel-lista input,#panel-lista select{min-height:44px;}
+#panel-lista .seg{flex-wrap:wrap;}
+#panel-lista .seg button{font-size:13px;}
+#panel-lista table{width:100%;}
+@media(max-width:600px){#panel-lista .seg{display:flex;flex-direction:column;}#panel-lista .seg button{width:100%;margin:2px 0;}#panel-lista .cargo-col{display:none;}}
 </style>
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#b91c1c">
@@ -604,14 +610,15 @@
   <div class="panel" id="panel-lista">
     <div class="card">
       <div class="field-row">
-        <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
+        <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha" required></div>
+        <div class="field"><label for="horaAsistencia">Hora *</label><input type="time" id="horaAsistencia" required></div>
         <div class="field"><label for="tipoSelect">Tipo de citación</label><select id="tipoSelect"></select></div>
-        <div class="field" style="flex:2 1 220px;"><label for="detalle">Detalle (opcional)</label><input type="text" id="detalle" placeholder="Ej: dirección de la emergencia, tema tratado"></div>
+        <div class="field" style="flex:2 1 220px;"><label for="detalle">Actividad / detalle *</label><input type="text" id="detalle" required maxlength="1000" placeholder="Ej: dirección de la emergencia, tema tratado"></div>
       </div>
       <div class="field-row">
         <div class="field" style="flex:1 1 260px;">
           <label for="registradoPor">Pasó lista (Ayudante, oficial u otro asignado)</label>
-          <input type="text" id="registradoPor" list="registradoPorOptions" placeholder="Nombre de quien pasa la lista">
+          <input type="text" id="registradoPor" required maxlength="1000" list="registradoPorOptions" placeholder="Nombre de quien pasa la lista">
           <datalist id="registradoPorOptions"></datalist>
         </div>
       </div>
@@ -623,10 +630,13 @@
         <tbody id="listaBody"></tbody>
       </table>
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn" id="guardarBtn">Guardar parte</button>
+        <button class="btn" id="guardarBtn">Revisar y guardar</button>
+        <button class="btn secondary" id="completarAusentesBtn">Completar sin marcar como ausentes</button>
+        <button class="btn secondary" id="nuevaAsistenciaBtn">Nueva actividad</button>
         <button class="btn secondary" id="marcarTodosBtn">Marcar todos presentes</button>
       </div>
-      <div class="status-msg" id="statusMsg"></div>
+      <p class="sub">Todos los campos son obligatorios. Marca cada asistencia; se requiere al menos un presente.</p>
+      <div class="status-msg" id="statusMsg" role="status" aria-live="polite"></div>
 
       <div id="resumenBox" style="display:none;margin-top:18px;">
         <div class="divider"></div>
@@ -634,11 +644,12 @@
         <div class="summary-row" id="resumenRow"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn gold" id="pdfBtn">Generar PDF</button>
-          <button class="btn secondary" id="waBtn">Compartir por WhatsApp</button>
+          <button class="btn secondary" id="waBtn">Enviar por WhatsApp</button>
         </div>
         <div class="foot-note">En celular se abre el panel para compartir el PDF directo a WhatsApp. Si el navegador no lo permite, el PDF se descarga y lo adjuntas manualmente.</div>
       </div>
     </div>
+    <div class="card"><h2>Últimas 2 asistencias</h2><div id="ultimasAsistencias" aria-live="polite"></div></div>
   </div>
 
   <!-- HOJA DE SERVICIO B-5 -->
@@ -1662,7 +1673,7 @@
 <script src="./germania-estadistica-individual.js?v=20261015a"></script>
 <script src="./germania-config.js?v=20261030a"></script>
 <script src="./germania-fechas.js?v=20261030a"></script>
-<script src="./app.js?v=20261030audit7"></script>
+<script src="./app.js?v=20261030asistencia1"></script>
 <script src="./germania-historial-personal.js?v=20261020hp1"></script>
 <script src="./germania-odd-pdf-publicar.js?v=20261015oddpdf1"></script>
 
@@ -1691,7 +1702,7 @@
 <script src="./germania-asistente.js?v=20261020a2"></script>
 <script src="./germania-selector-voluntario.js?v=20261018sv1"></script>
 <script src="./germania-oficiales-menu.js?v=20261029b"></script>
-<script src="./germania-actualizar.js?v=20261009a"></script>
+<script src="./germania-actualizar.js?v=20261030asistencia1"></script>
 <script src="./germania-importador-asistencia.js?v=20261015a"></script>
 <script src="./germania-push-bienvenida.js?v=20261015a"></script>
 <script id="g-header-b-compacto">

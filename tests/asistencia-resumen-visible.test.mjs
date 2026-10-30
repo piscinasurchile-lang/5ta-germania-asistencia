@@ -32,11 +32,12 @@ test("sin lista la asistencia es 0 %, no NaN",()=>{
   assert.equal(c.total,0);
   assert.equal(c.porcentaje,0);
 });
-test("sin marcar se cuenta ausente, igual que el formulario actual",()=>{
+test("sin marcar se muestra separado y no se convierte en ausente",()=>{
   const c=modulo().contar([{id:"a"},{id:"b"},{id:"c"}],{a:"presente"});
   assert.equal(c.total,3);
-  assert.equal(c.ausente,2);
-  assert.equal(c.noPresentes,2);
+  assert.equal(c.ausente,0);
+  assert.equal(c.sinMarcar,2);
+  assert.equal(c.noPresentes,0);
   assert.equal(c.porcentaje,33);
 });
 test("el resumen se actualiza por clicks, cambios de fecha y carga de datos",()=>{
@@ -44,7 +45,7 @@ test("el resumen se actualiza por clicks, cambios de fecha y carga de datos",()=
   assert.match(source,/marcarTodosBtn/);
   assert.match(source,/MutationObserver\(actualizar\)/);
   assert.match(source,/tabla\.insertAdjacentElement\("afterend",seccion\)/);
-  assert.match(loader,/germania-resumen-asistencia\.js\?v=20261014a/);
+  assert.match(loader,/germania-resumen-asistencia\.js\?v=20261030a/);
 });
 test("no duplica resumen al guardar ni modifica datos operativos",()=>{
   assert.match(source,/resumenAnterior\.hidden=true/);
