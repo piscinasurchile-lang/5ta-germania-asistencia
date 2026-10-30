@@ -1,0 +1,52 @@
+/* Estadísticas usa los mismos controles y colores que la interfaz operativa. */
+body.estadisticas{font-family:'Source Sans 3',system-ui,sans-serif;background:var(--g-bg);color:var(--g-text);font-size:16px;line-height:1.45;}
+.estadisticas [hidden]{display:none!important;}
+.estadisticas .wrap{max-width:1100px;padding:16px 16px 32px;}
+.estadisticas .gbar{position:static;background:linear-gradient(135deg,#080a0c 0%,#12161a 62%,#4b0808 100%);border:1px solid var(--g-line-soft);border-bottom:3px solid var(--g-gold);border-radius:var(--g-radius);padding:12px;gap:12px;}
+.estadisticas .gbar>div{min-width:0;}
+.estadisticas .gbar b{font-family:'Oswald',system-ui,sans-serif;font-size:17px;line-height:1.25;}
+.estadisticas .gbar span{font-size:13px;}
+.estadisticas .gbar button{flex:0 0 48px;border:1px solid var(--g-line);border-radius:var(--g-radius-sm);background:var(--g-card-2);}
+.estadisticas-nav{display:flex;gap:8px;margin:16px 0;}
+.estadisticas-titulo{font-family:'Oswald',system-ui,sans-serif;color:var(--g-gold);font-size:24px;margin:16px 0;}
+.estadisticas .filters{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+.estadisticas .filters select{min-height:48px;max-width:100%;min-width:0;background:#0b0f13;border:1.5px solid var(--g-line);border-radius:var(--g-radius-sm);color:var(--g-text);font-size:16px;padding:12px;}
+.estadisticas .filters .btn,.estadisticas-nav .btn{min-height:48px;padding:12px 16px;font-size:16px;border-radius:var(--g-radius-sm);}
+.estadisticas .filters .btn:not(.secondary){background:var(--g-red);border:1px solid var(--g-red);color:#fff;}
+.estadisticas .filters .btn.secondary{background:var(--g-card-2);border:1px solid var(--g-line);color:#fff;}
+.estadisticas .filters .btn:disabled{opacity:.6;cursor:wait;}
+.estadisticas .muted,.estadisticas .gbar span{color:var(--g-muted);font-size:14px;}
+.estadisticas .status{padding:12px 16px;border-radius:var(--g-radius-sm);background:var(--g-card);font-size:15px;}
+.estadisticas .section{background:var(--g-card);border:1px solid var(--g-line);border-radius:var(--g-radius);padding:16px;overflow:hidden;}
+.estadisticas .section h2{border-left:4px solid var(--g-red);padding-left:12px;font-family:'Oswald',system-ui,sans-serif;font-size:20px;}
+.estadisticas .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.estadisticas .k{background:var(--g-card);border:1px solid var(--g-line);border-top:3px solid var(--g-gold);border-radius:var(--g-radius-sm);padding:16px;min-width:0;}
+.estadisticas .k b{font-size:28px;color:var(--g-gold);}
+.estadisticas .k span{font-size:14px;color:var(--g-muted);}
+.estadisticas table{font-size:14px;}
+.estadisticas th{color:var(--g-text);background:var(--g-red-deep);font-size:14px;}
+.estadisticas td,.estadisticas th{padding:12px 8px;border-color:var(--g-line);}
+.estadisticas #vols{overflow-x:auto;}
+.estadisticas #vols table{min-width:460px;}
+.estadisticas .legend-row{font-size:15px;}
+.estadisticas .gmenu a{font-size:16px;min-height:48px;}
+/* La infografía en pantalla comparte el tema; PDF y papel conservan su legibilidad. */
+@media screen{
+ .estadisticas .inf{background:var(--g-card-2);color:var(--g-text);border:1px solid var(--g-line);border-radius:var(--g-radius);}
+ .estadisticas .inf .sub,.estadisticas .inf .hero span,.estadisticas .inf .row small,.estadisticas .inf .meses div,.estadisticas .inf .pie-n,.estadisticas .inf .gd div span{color:var(--g-muted);font-size:13px;}
+ .estadisticas .inf .hero b{color:var(--g-gold);}
+ .estadisticas .inf .trk{background:#303840;}
+ .estadisticas .inf .meses i{background:var(--g-gold);}
+}
+@media(max-width:640px){
+ .estadisticas .wrap{padding:12px 12px 32px;}
+ .estadisticas .section{padding:16px 12px;}
+ .estadisticas .kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+ .estadisticas .gbar{gap:8px;}
+ .estadisticas .gbar b{font-size:15px;}
+ .estadisticas .filters select{flex:1 1 140px;}
+ .estadisticas .chart-grid{grid-template-columns:1fr;gap:16px;}
+}
+@media print{
+ .estadisticas .gbar,.estadisticas .gmenu,.estadisticas-nav,.estadisticas-titulo{display:none!important;}
+}
