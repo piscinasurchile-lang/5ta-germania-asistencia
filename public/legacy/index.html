@@ -655,8 +655,6 @@
   <!-- HOJA DE SERVICIO B-5 -->
   <div class="panel" id="panel-servicio">
     <div class="card">
-      <h2>Hoja de servicio · Unidad B-5</h2>
-      <p class="sub">Se llena solo cuando el carro sale del cuartel: emergencia, acto de servicio, traslado o carga de combustible. Las instrucciones, cursos y capacitaciones se registran en "Pasar lista".</p>
       <div class="field-row">
         <div class="field"><label for="svFecha">Fecha</label><input type="date" id="svFecha"></div>
         <div class="field"><label for="svTipoAct">Tipo de actividad</label>
@@ -666,9 +664,7 @@
             <button type="button" class="btn small secondary" id="svTipoActAgregarBtn">Agregar</button>
           </div>
         </div>
-        <div class="field"><label for="svHoraSalida">Hora salida</label><input type="time" id="svHoraSalida"></div>
-        <div class="field"><label for="svHoraLlegada">Hora llegada</label><input type="time" id="svHoraLlegada"></div>
-        <div class="field"><label for="svHoraControl">Hora control</label><input type="time" id="svHoraControl"></div>
+        <div class="field"><label for="svHoraSalida">Hora</label><input type="time" id="svHoraSalida"></div>
       </div>
       <div class="field-row" id="svFichaCombustible" style="display:none;">
         <h3 style="flex-basis:100%;">Ficha de carga de combustible</h3>
@@ -680,10 +676,14 @@
         <div class="field"><label for="svCombLitros">Cantidad de petróleo cargado (L)</label><input type="text" id="svCombLitros"></div>
         <div class="field"><label for="svCombValor">Valor del petróleo ($)</label><input type="text" id="svCombValor"></div>
       </div>
-      <div class="field-row">
-        <div class="field"><label for="svKmSalida">Kilometraje salida</label><input type="text" id="svKmSalida"></div>
-        <div class="field"><label for="svKmLlegada">Kilometraje llegada</label><input type="text" id="svKmLlegada"></div>
-        <div class="field"><label for="svHorometro">Horómetro</label><input type="text" id="svHorometro"></div>
+      <!-- Campos retirados de la pantalla (1-nov-2026). Siguen en el documento porque app.js los lee al guardar, cargar y generar el PDF;
+           los registros antiguos conservan sus valores. No mostrar sin revisar SV_CAMPOS y el PDF de la hoja. -->
+      <div class="field-row" hidden aria-hidden="true" style="display:none;">
+        <div class="field"><label for="svHoraLlegada">Hora llegada</label><input type="time" id="svHoraLlegada" tabindex="-1"></div>
+        <div class="field"><label for="svHoraControl">Hora control</label><input type="time" id="svHoraControl" tabindex="-1"></div>
+        <div class="field"><label for="svKmSalida">Kilometraje salida</label><input type="text" id="svKmSalida" tabindex="-1"></div>
+        <div class="field"><label for="svKmLlegada">Kilometraje llegada</label><input type="text" id="svKmLlegada" tabindex="-1"></div>
+        <div class="field"><label for="svHorometro">Horómetro</label><input type="text" id="svHorometro" tabindex="-1"></div>
       </div>
     </div>
 
