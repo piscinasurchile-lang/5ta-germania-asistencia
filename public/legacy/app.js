@@ -1819,8 +1819,8 @@ function buildServicioPdf(){
   doc.text(`Fecha: ${g("svFecha")}    Tipo: ${g("svTipoAct")}`,14,y); y+=2;
 
   doc.autoTable({startY:y+2,styles:{fontSize:8},headStyles:{fillColor:[179,36,28]},
-    head:[["Hora salida","Hora llegada","Hora control","Km salida","Km llegada","Horómetro"]],
-    body:[[g("svHoraSalida"),g("svHoraLlegada"),g("svHoraControl"),g("svKmSalida"),g("svKmLlegada"),g("svHorometro")]]});
+    head:[["Hora"]],
+    body:[[g("svHoraSalida")]]});
 
   doc.autoTable({startY:doc.lastAutoTable.finalY+4,styles:{fontSize:8},headStyles:{fillColor:[100,90,80]},
     head:[["Lugar del servicio",""]],
