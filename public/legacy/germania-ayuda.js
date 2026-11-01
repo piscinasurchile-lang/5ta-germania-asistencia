@@ -31,7 +31,6 @@ var AY={
  "#pdfBtn":"Genera el PDF del parte para imprimir o enviar.",
  "#waBtn":"Prepara el resumen para compartirlo por WhatsApp.",
  "#svTipoActAgregarBtn":"Agrega un tipo de actividad a la lista de opciones.",
- "#svLimpiarBtn":"Marca a todos como «no concurre» para partir de cero.",
  "#svGuardarBtn":"Guarda la hoja de servicio. Una vez guardada solo se corrige desbloqueándola.",
  "#svPdfBtn":"Genera el PDF de la hoja de servicio.",
  "#svWaBtn":"Prepara el resumen de la hoja para WhatsApp.",
