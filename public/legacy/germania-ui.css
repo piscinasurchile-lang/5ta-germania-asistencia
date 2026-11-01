@@ -567,3 +567,11 @@ body.ayuda-on .ayuda-q{display:block;position:absolute;top:2px;right:2px;width:2
 #informacionesPublicarCard[open]>summary.of-plegable::after{content:"▴";}
 #informacionesPublicarCard[open]>summary.of-plegable small{display:none;}
 .odd-pdf-publicar.odd-pdf-compacto{margin-top:12px;}
+
+/* Hoja de servicio desplegable (mismo aspecto que Lugar del servicio, Mando y Datos de la emergencia) */
+.sv-desplegable>summary{list-style:none;cursor:pointer;display:block;}
+.sv-desplegable>summary::-webkit-details-marker{display:none;}
+.sv-desplegable>summary h2{margin-bottom:0;}
+.sv-desplegable>summary::after{content:"▾";float:right;margin-top:-26px;color:#c9a227;font:600 20px/1 'Oswald',sans-serif;}
+.sv-desplegable:not([open])>summary::after{content:"▸ tocar para abrir";font-size:16px;}
+.sv-desplegable[open]>summary h2{margin-bottom:var(--sp-3);}
