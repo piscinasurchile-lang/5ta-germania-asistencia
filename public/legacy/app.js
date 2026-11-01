@@ -1740,11 +1740,35 @@ on("svTipoAct","change",()=>{
   actualizarFichaCombustible();
 });
 
+/* Fecha, tipo de actividad y hora son obligatorios para guardar la hoja de servicio. */
+const SV_OBLIGATORIOS=[["svFecha","la fecha"],["svTipoAct","el tipo de actividad"],["svHoraSalida","la hora"]];
+(function marcarObligatoriosSv(){
+  SV_OBLIGATORIOS.forEach(([id])=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.required=true; el.setAttribute("aria-required","true");
+    const lb=document.querySelector(`label[for="${id}"]`);
+    if(lb&&!/\*\s*$/.test(lb.textContent)) lb.textContent=lb.textContent.trim()+" *";
+    ["input","change"].forEach(ev=>el.addEventListener(ev,()=>el.removeAttribute("aria-invalid")));
+  });
+})();
+function svFaltantes(){
+  return SV_OBLIGATORIOS.filter(([id])=>!String(document.getElementById(id)?.value||"").trim());
+}
+function svExigirObligatorios(){
+  const faltan=svFaltantes(); if(!faltan.length) return true;
+  const msg=document.getElementById("svMsg");
+  const nombres=faltan.map(x=>x[1]);
+  msg.textContent="Falta completar "+(nombres.length>1?nombres.slice(0,-1).join(", ")+" y "+nombres[nombres.length-1]:nombres[0])+" para guardar la hoja de servicio.";
+  msg.classList.add("err");
+  faltan.forEach(([id])=>document.getElementById(id).setAttribute("aria-invalid","true"));
+  const primero=document.getElementById(faltan[0][0]);
+  const det=primero.closest("details"); if(det) det.open=true;
+  primero.scrollIntoView({block:"center"}); primero.focus();
+  return false;
+}
 on("svGuardarBtn","click",()=>{
   if(svBloqueado) return;
-  const msg=document.getElementById("svMsg");
-  const fecha=document.getElementById("svFecha").value;
-  if(!fecha){ msg.textContent="Indica la fecha del servicio."; msg.classList.add("err"); return; }
+  if(!svExigirObligatorios()) return;
   mostrarConfirmarSv();
 });
 function mostrarConfirmarSv(){
@@ -1759,6 +1783,7 @@ function mostrarConfirmarSv(){
       </div></div>`;
   document.getElementById("revisarDeNuevoSvBtn").onclick=()=>{ msg.innerHTML=""; };
   document.getElementById("confirmarGuardarSvBtn").onclick=async()=>{
+    if(!svExigirObligatorios()) return;
     const fecha=document.getElementById("svFecha").value;
     if(svEsNuevo){ svAnioActual=anioDe(fecha); svNumeroActual=await siguienteCorrelativo("servicio",svAnioActual); }
     const datos=svDatos();
