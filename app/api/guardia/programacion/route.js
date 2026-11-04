@@ -2,6 +2,14 @@ import {neon,Pool} from '@neondatabase/serverless';
 import {ensureSchema,readState} from '../../../../lib/state-store.js';
 import {exigirSesionOficial} from '../../../../lib/guardia-sesion-oficial.js';
 import {puedeAprobarGuardia} from '../../../../lib/guardia-acreditacion.js';
+function puedeGestionarProgramacion(roster, actorId){
+  if(puedeAprobarGuardia(roster,actorId))return true;
+  return Array.isArray(roster)&&roster.some(p=>{
+    if(String(p.id)!==String(actorId)||p.activo===false)return false;
+    const cargo=String(p.cargo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+    return /^ayudante(?:\s+de\s+capitan)?(?:\s|$)/.test(cargo);
+  });
+}
 import {guardarCambiosAtomicos,validarCambios} from '../../../../lib/guardia-transaccion.mjs';
 export const runtime='nodejs';
 export const maxDuration=60;
@@ -18,7 +26,7 @@ export async function POST(req){
  try{
   const sql=neon(process.env.DATABASE_URL);await ensureSchema(sql);
   const roster=await readState(sql,'roster:v8');
-  if(!puedeAprobarGuardia(roster.value,String(body.actorId||'')))return Response.json({error:'oficial_requerido'},{status:403,headers});
+  if(!puedeGestionarProgramacion(roster.value,String(body.actorId||'')))return Response.json({error:'oficial_requerido'},{status:403,headers});
   pool=new Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:10000});client=await pool.connect();
   const resultados=await guardarCambiosAtomicos(client,body.cambios);
   return Response.json({ok:true,resultados},{headers});
