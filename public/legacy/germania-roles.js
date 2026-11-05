@@ -627,6 +627,13 @@ function propuesta(D){
 }
 function clonar(o){ return JSON.parse(JSON.stringify(o)); }
 function nom(id){ var m=porId(id); return m?corto(m):"(sin nombre)"; }
+window.gnPuedePrepararAsignacion=function(inicio){var m=miembro();var hoy=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());return !!m&&(esTenienteTercero(m)||esAdminGuardia(m))&&String(inicio||"")>=hoy;};
+window.gnBaseAsignacion=async function(inicio){
+ await cargarPrec();await cargarHorarios();
+ var datos=await cargarSemana({inicio:inicio});
+ return propuesta({cov:cobertura({vol:datos[0],maq:datos[1],obac:datos[2]},gnWeek(inicio))});
+};
+window.gnHorarioAsignacion=function(fecha){return {entrada:horaNoche(fecha),salida:HORARIOS.fin};};
 async function revCargar(D){
   var r=await sGetV(revKey(D.p.inicio),null);
   RV.clave=D.p.inicio; RV.doc=r.value&&r.value.noches?r.value:null; RV.ver=Number.isInteger(r.version)?r.version:0;
@@ -702,6 +709,7 @@ function textoCambio(c){
 }
 async function panelRev(pn,D){
   if(!(esTenienteTercero(D.m)||esAdminGuardia(D.m))){pn.innerHTML="<p>Revisión exclusiva del Teniente Tercero y administrador.</p>";return;}
+  if(D.p&&D.p.inicio&&!D.abierto&&window.gnPuedePrepararAsignacion(D.p.inicio)&&typeof window.gnAbrirAsignacion==="function"){window.gnAbrirAsignacion(D.p.inicio);return;}
   if(RV.clave!==D.p.inicio||(RV.doc===null&&!RV.ocupado)){ pn.innerHTML='<p class="sub">Cargando…</p>'; try{ await revCargar(D); }catch(e){ pn.innerHTML='<div class="empty">No se pudo leer la revisión. <button type="button" class="btn small secondary" id="rvReint">Reintentar</button></div>'; var r=$("rvReint"); if(r) r.onclick=function(){ RV.clave=""; panelRev(pn,D); }; return; } }
   if(D.abierto){pn.innerHTML="<p>Cierra las inscripciones de esta semana antes de revisarla y aprobarla.</p>";return;}
   var doc=RV.doc, DOT=GN_DOTACION_MIN;
@@ -1155,4 +1163,5 @@ setInterval(function(){
 cargarHorarios().then(function(){ misNochesInicio(false); });
 aplicarRol();
 })();
+
 
