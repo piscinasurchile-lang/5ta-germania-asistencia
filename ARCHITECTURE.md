@@ -64,3 +64,10 @@ Las operaciones relacionadas de planes, guardias, revisión y reemplazos se conf
 ## Asistencia — controles y guardado único autorizados
 
 ADR0017: `/api/asistencia/guardar` confirma el parte manual, su correlativo y su entrada de índice en una sola transacción. Clave y operación estables permiten reintentar una respuesta incierta; la corrección exige versión y conserva número/metadatos. La interfaz valida campos y lista completa, muestra dos registros recientes sin eliminar históricos y comparte solo el parte guardado. No cambia captura B-5, Guardia, ODD ni el buscador pendiente de Oficiales.
+
+
+## Preparación de guardia — interfaz aprobada, noviembre de 2026
+
+La preparación de semanas futuras se presenta en el desplegable institucional de Oficiales, tomando la semana del calendario. La pantalla aprobada usa un adaptador cliente que reutiliza `sGetV`, el cálculo vigente de OBAC/precedencia y `gnGuardarAtomico` sobre `/api/guardia/programacion`. No se incorpora la API de gestión de Staging ni un modelo de datos paralelo.
+
+Guardar conserva un borrador de la noche en la revisión existente; publicar actualiza revisión, registros e índice en la misma transacción vigente. Se conservan campos adicionales, versiones, fotos y estados de los integrantes. El apoyo de David Briones procede de `GermaniaApoyoGuardia`, no de la nómina. Las semanas iniciadas continúan en la revisión heredada para conservar los vínculos de libro/aprobación. No cambia autenticación ni permisos.
