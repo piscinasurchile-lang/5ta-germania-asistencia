@@ -18,18 +18,18 @@ root.GermaniaAsignacionCrear=function(dep){
   const fechas=semana(inicio);if(inicio<(dep.hoy?dep.hoy():hoy()))throw Error('Las semanas iniciadas se mantienen en la revisión vigente de Germania');
   const [rev,nomina,base,plan]=await Promise.all([dep.leer('guardia-revision:'+inicio,null),dep.leer('roster:v8',[]),dep.base(inicio),dep.leer('guardia-plan:'+inicio,null)]);
   if(!plan.value)throw Error('Programa la semana en el calendario de Germania');
-  if(dep.abierta?dep.abierta(plan.value):plan.value.estado==='abierta')throw Error('Cierra las inscripciones antes de preparar la dotación');
+  const inscripcionAbierta=dep.abierta?dep.abierta(plan.value):plan.value.estado==='abierta';
   if(!Array.isArray(nomina.value)||!Number.isInteger(rev.version))throw Error('No se pudo verificar la nómina o la versión de la semana');
   const revision=rev.value?copiar(rev.value):null;
   const apoyo=dep.apoyo?dep.apoyo():null,actor=dep.actor(nomina.value);
   const personas=apoyo?[...nomina.value,apoyo]:nomina.value;
   if(revision&&!Array.isArray(revision.guardadas))revision.guardadas=fechas.filter(f=>revision.noches?.[f]&&(()=>{try{validar(normal(revision.noches[f]),personas);return true;}catch{return false;}})());
-  return {inicio,revision,version:rev.version,borrador:base,roster:personas.filter(p=>p.activo!==false).map(p=>({id:String(p.id),nombre:[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(' '),conductor:p.conductor===true,externo:p.externo===true,agregable:p.externo!==true||/teniente\s*(tercero|3)/i.test(actor?.cargo||'')})),_roster:nomina.value,_personas:personas};
+  return {inicio,revision,version:rev.version,borrador:base,inscripcionAbierta,roster:personas.filter(p=>p.activo!==false).map(p=>({id:String(p.id),nombre:[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(' '),conductor:p.conductor===true,externo:p.externo===true,agregable:p.externo!==true||/teniente\s*(tercero|3)/i.test(actor?.cargo||'')})),_roster:nomina.value,_personas:personas};
  }
  async function guardar(body){
   const actorIdInicial=dep.actorId?String(dep.actorId()||''):null;
   const inicio=body?.inicio,fechas=semana(inicio);if(!['guardar','aprobar'].includes(body?.accion)||!Number.isInteger(body.version))throw Error('Solicitud inválida');
-  const d=await cargar(inicio);if(d.version!==body.version)throw Error('Otra persona modificó la semana. Recarga antes de guardar');
+  const d=await cargar(inicio);if(d.inscripcionAbierta)throw Error('Cierra las inscripciones antes de preparar la dotación');if(d.version!==body.version)throw Error('Otra persona modificó la semana. Recarga antes de guardar');
   const actorInicial=dep.actor(d._roster);if(actorIdInicial!==null&&String(actorInicial?.id||'')!==actorIdInicial)throw Error('Cambió el integrante que opera Germania. Vuelve a cargar la semana');if(!actorInicial?.id)throw Error('Selecciona tu nombre en Germania antes de guardar');
   const prev=d.revision||{};if(prev.cerrada||prev.estado==='cerrada')throw Error('La semana está cerrada');
   const entradas=body.noches;if(!entradas||typeof entradas!=='object'||Array.isArray(entradas)||!Object.keys(entradas).length||Object.keys(entradas).some(f=>!fechas.includes(f)))throw Error('Noches inválidas');
