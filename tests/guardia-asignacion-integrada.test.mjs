@@ -50,7 +50,8 @@ test('la API institucional mantiene el rechazo al actor no autorizado',async()=>
 test('no sustituye la revisión vigente de semanas iniciadas ni prepara con inscripción abierta',async()=>{
  await assert.rejects(puente.cargar('2026-11-04'),/iniciadas/);
  await writeState(sql,'guardia-plan:2099-11-11',{inicio:'2099-11-11',estado:'abierta'});
- await assert.rejects(puente.cargar('2099-11-11'),/Cierra las inscripciones/);
+ const abierta=await puente.cargar('2099-11-11');assert.equal(abierta.inscripcionAbierta,true);assert.deepEqual(abierta.borrador['2099-11-11'],n());
+ await assert.rejects(puente.guardar({inicio:'2099-11-11',version:0,accion:'guardar',fecha:'2099-11-11',noches:{'2099-11-11':n()}}),/Cierra las inscripciones/);
  assert.equal((await readState(sql,'guardia-revision:2099-11-11')).version,0);
 });
 test('si cambia el actor durante las lecturas no se envía ninguna escritura',async()=>{

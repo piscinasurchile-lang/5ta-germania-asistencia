@@ -29,3 +29,13 @@ Se realiza además una revisión independiente de código. No se presentan estas
 ## Coordinación
 
 PR #264 sigue pendiente y trata los permisos de programación del Ayudante. Este pase no lo fusiona ni modifica esos permisos; conserva el comportamiento actual de main. Los riesgos R1–R6 del registro de seguridad siguen pendientes del responsable y no se dan por solucionados.
+
+## Corrección tras revisión en teléfono — 6 de noviembre
+
+Las capturas de Christian mostraron la tabla con inscritos y la preparación vacía. El adaptador rechazaba la lectura al estar abierta la inscripción; el cliente la mostraba como siete noches vacías. La ruta además conservaba el selector de Mi espacio de prueba y el restablecimiento del laboratorio.
+
+La lectura ahora presenta los inscritos vigentes mientras el plazo está abierto. El mensaje explica la espera y guardar sigue bloqueado hasta el cierre. El prototipo original se conserva; su ruta operativa excluye solamente los controles del laboratorio. Se mantienen las siete noches, orden OBAC/maquinista/voluntarios, diseño y controles de asignación. La actualización de la tabla refresca la misma semana y conserva cambios pendientes. Ante conflicto, cerrar y volver a abrir carga la versión guardada, sin un botón nuevo.
+
+Regresiones: lectura de inscripción abierta con inscritos y cero escrituras, rechazo de guardado abierto, ruta sin controles de laboratorio y prueba DOM con adaptador, API institucional y PostgreSQL aislado. No se cierran inscripciones ni se cambian guardias reales para probar esta corrección.
+
+Validación de la corrección: 438/438 pruebas generales y build correctos; prueba DOM + API + PostgreSQL aislado aprobada; revisión independiente sin bloqueos, incluida recuperación ante conflicto. La comprobación publicada se realiza en lectura, sin cambiar el plazo de inscripción real.
