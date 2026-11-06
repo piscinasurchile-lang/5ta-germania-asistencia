@@ -39,3 +39,7 @@ La lectura ahora presenta los inscritos vigentes mientras el plazo está abierto
 Regresiones: lectura de inscripción abierta con inscritos y cero escrituras, rechazo de guardado abierto, ruta sin controles de laboratorio y prueba DOM con adaptador, API institucional y PostgreSQL aislado. No se cierran inscripciones ni se cambian guardias reales para probar esta corrección.
 
 Validación de la corrección: 438/438 pruebas generales y build correctos; prueba DOM + API + PostgreSQL aislado aprobada; revisión independiente sin bloqueos, incluida recuperación ante conflicto. La comprobación publicada se realiza en lectura, sin cambiar el plazo de inscripción real.
+
+## Simplificación de textos — 6 de noviembre
+
+Por petición de Christian se retiran los párrafos explicativos de programación, tabla, revisión e historial y se abrevia el estado de inscripción del prototipo. Se conservan etiquetas, horarios, cifras, alertas de dotación, confirmaciones y errores. No cambia diseño, botones, permisos, persistencia ni fotografías.

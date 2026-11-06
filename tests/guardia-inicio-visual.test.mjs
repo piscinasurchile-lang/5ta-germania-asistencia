@@ -15,7 +15,7 @@ test("pantalla aprobada conserva nombre, foto y estado del voluntario",()=>{
 test("selecciones permanecen visibles mientras esperan revisión",()=>{
   assert.match(roles,/function pintarInicioRoles\(\)/);
   assert.match(roles,/panelVol\(\$\("gnInicioVol"\),D\)/);
-  assert.match(roles,/Tus días permanecen amarillos/);
+  assert.match(roles,/Mis noches · Pendientes de revisión/);
 });
 
 test("franja usa guardias aprobadas, fecha local y cargo real; no inventa asistentes",()=>{
@@ -104,3 +104,4 @@ test("tarjetas de Inicio ajustan títulos largos sin pisar la flecha en móviles
   assert.ok(bloque.includes("@media (max-width:700px)"));
   assert.ok(bloque.includes("@media (max-width:360px)"));
 });
+
