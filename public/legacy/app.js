@@ -2147,12 +2147,11 @@ async function renderGnTablaSemanal(){
       +'<td><b>'+estado+'</b>'+(detalles?'<br><small>'+esc(detalles)+'</small>':'')+'</td></tr>';
   }).join("");
   const nota=aprobada
-    ? '<div class="gn-period-box" style="margin-bottom:12px;"><b>Dotación semanal aprobada.</b> Los nombres y cargos provienen de la revisión guardada. No acredita guardia cumplida.</div>'
+    ? '<div class="gn-period-box" style="margin-bottom:12px;"><b>Dotación semanal aprobada</b></div>'
     : inscripcionCerrada
-      ? '<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada. Para revisar y corregir la dotación, utiliza la sección Revisión de Guardia Nocturna de Oficiales.</div>'
+      ? '<div class="gn-period-box" style="margin-bottom:12px;">Inscripción cerrada</div>'
       : "";
-  box.innerHTML=nota+'<p class="sub">Los voluntarios de cada noche están ordenados por precedencia oficial. Los cargos administrativos no implican mando operativo.</p><div class="minute-table-wrap gn-dotacion-responsive"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>'
-    +'<p class="sub" style="margin-top:8px;">Mínimo: 2 voluntarios + 1 maquinista + 1 OBAC (cuatro personas distintas). Tabla informativa; no modifica la dotación.</p>';
+  box.innerHTML=nota+'<div class="minute-table-wrap gn-dotacion-responsive"><table><thead><tr><th>Noche</th><th>Voluntarios</th><th>Maquinista</th><th>OBAC</th><th>Estado</th></tr></thead><tbody>'+filas+'</tbody></table></div>';
 }
 on("gnTablaActualizar","click",()=>renderGnTablaSemanal());
 
@@ -5803,5 +5802,6 @@ document.addEventListener("click",function(e){const b=e.target.closest("button,.
 
 /* Guardia integral: arranque no intrusivo */
 document.addEventListener("DOMContentLoaded",()=>{ const av=document.getElementById("miFoto"); if(av){av.classList.add("loading"); av.addEventListener("load",()=>av.classList.remove("loading")); av.addEventListener("error",()=>{av.classList.add("loading"); if(!av.src.endsWith("/legacy/germania-icon.png")) av.src="/legacy/germania-icon.png";});} });
+
 
 
