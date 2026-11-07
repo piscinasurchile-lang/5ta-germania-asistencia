@@ -1,4 +1,4 @@
-/* GERMANIA · Gestión de guardia nocturna en 7 etapas (Capitán y tenientes; el administrador solo consulta).
+/* GERMANIA · Gestión de guardia nocturna en 7 etapas (desplegable exclusivo del Administrador).
    Ficha única y plegable en Inicio: creación semanal → inscripción → revisión de dotación y ODD → libro diario y foto →
    incidencias → aprobación → cierre semanal, estadísticas y PDF.
    No cambia la ODD original ni los datos de otras pantallas. Todo lo que escribe pasa por las rutas /api/guardia/*. */
@@ -10,7 +10,7 @@ function ros(){return typeof ROSTER!=="undefined"&&Array.isArray(ROSTER)?ROSTER:
 function yo(){var s=$("miVoluntario"),id=s&&s.value?String(s.value):"";return ros().find(function(x){return String(x.id)===id;})||null;}
 function norm(c){return String(c||"").normalize("NFD").replace(/[̀-ͯ]/g,"").trim().toLowerCase();}
 function autorizado(p){var c=norm(p&&p.cargo);return !!p&&(/^capitan(\s|$)/.test(c)||/^teniente\s*(primero|segundo|tercero|1|2|3)/.test(c));}
-function esAdmin(p){return !!p&&String(p.clave||"")==="517";}
+function esAdmin(p){return !!p&&p.activo!==false&&String(p.clave||"")==="517";}
 function nom(id){var p=ros().find(function(x){return String(x.id)===String(id);});return p?[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(" "):"Voluntario "+id;}
 function hoyChile(){var p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(function(x){return [x.type,x.value];}));return p.year+"-"+p.month+"-"+p.day;}
 function miercolesDe(f){var d=new Date(f+"T12:00:00Z");d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);return d.toISOString().slice(0,10);}
@@ -31,7 +31,7 @@ function semanasDisponibles(){var base=miercolesDe(hoyChile()),r=[];for(var i=0;
 
 /* ------------------------------ datos ------------------------------ */
 async function cargar(){
-  var p=yo();if(!p||!(autorizado(p)||esAdmin(p))){S.data=null;return false;}
+  var p=yo();if(!p||!esAdmin(p)){S.data=null;return false;}
   var mi=++S.tok;
   var pedir=async function(w){var r=await fetch("/api/guardia/cierre-semanal?actorId="+encodeURIComponent(p.id)+"&semana="+encodeURIComponent(w),{cache:"no-store"});if(!r.ok)throw Error("http "+r.status);return r.json();};
   try{
@@ -74,7 +74,7 @@ function etapa(n,titulo,estado,cuerpo,abiertas){
 }
 function render(){
   var p=yo(),ref=$("misNochesInicio"),host=$("flujoGuardia");
-  if(!p||!(autorizado(p)||esAdmin(p))){if(host)host.remove();return;}
+  if(!p||!esAdmin(p)){if(host)host.remove();return;}
   if(!ref||!ref.parentNode)return;
   if(!host){host=document.createElement("section");host.id="flujoGuardia";host.className="card";host.style.cssText="grid-column:1 / -1;min-width:0";
     var dot=$("dotacionOficiales");(dot&&dot.parentNode?dot.nextSibling:ref)&&ref.parentNode.insertBefore(host,dot&&dot.parentNode?dot.nextSibling:ref);}
@@ -277,7 +277,7 @@ var css=".gf-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:8p
 var st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 
 function programar(){
-  var ciclo=function(){if(document.visibilityState==="visible"&&!S.editando){var p=yo();if(p&&(autorizado(p)||esAdmin(p)))recargar();}};
+  var ciclo=function(){if(document.visibilityState==="visible"&&!S.editando){var p=yo();if(esAdmin(p))recargar();}};
   setInterval(ciclo,60000);document.addEventListener("visibilitychange",ciclo);
   window.addEventListener("online",ciclo);
   var sv=$("miVoluntario");if(sv)sv.addEventListener("change",function(){var h=$("flujoGuardia");if(h)h.remove();S.data=null;S.semana=null;S.noche=null;S.editando=false;setTimeout(recargar,900);});
@@ -285,3 +285,4 @@ function programar(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",programar);else programar();
 })();
+
