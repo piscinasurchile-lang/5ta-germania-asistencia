@@ -15,26 +15,31 @@ function validar(n,roster){
 }
 root.GermaniaAsignacionCrear=function(dep){
  async function cargar(inicio){
-  const fechas=semana(inicio);if(inicio<(dep.hoy?dep.hoy():hoy()))throw Error('Las semanas iniciadas se mantienen en la revisión vigente de Germania');
+  const fechas=semana(inicio);
   const [rev,nomina,base,plan]=await Promise.all([dep.leer('guardia-revision:'+inicio,null),dep.leer('roster:v8',[]),dep.base(inicio),dep.leer('guardia-plan:'+inicio,null)]);
-  if(!plan.value)throw Error('Programa la semana en el calendario de Germania');
-  const inscripcionAbierta=dep.abierta?dep.abierta(plan.value):plan.value.estado==='abierta';
+  if(!plan.value&&rev.value?.estado!=='aprobada')throw Error(inicio<(dep.hoy?dep.hoy():hoy())?'La semana iniciada no tiene una dotación aprobada':'Programa la semana en el calendario de Germania');
+  const inscripcionAbierta=dep.abierta?dep.abierta(plan.value||{}):plan.value?.estado==='abierta';
   if(!Array.isArray(nomina.value)||!Number.isInteger(rev.version))throw Error('No se pudo verificar la nómina o la versión de la semana');
   const revision=rev.value?copiar(rev.value):null;
+  const iniciada=inicio<(dep.hoy?dep.hoy():hoy());
+  if(iniciada&&revision?.estado!=='aprobada')throw Error('La semana iniciada no tiene una dotación aprobada');
   const apoyo=dep.apoyo?dep.apoyo():null,actor=dep.actor(nomina.value);
   const personas=apoyo?[...nomina.value,apoyo]:nomina.value;
   if(revision&&!Array.isArray(revision.guardadas))revision.guardadas=fechas.filter(f=>revision.noches?.[f]&&(()=>{try{validar(normal(revision.noches[f]),personas);return true;}catch{return false;}})());
-  return {inicio,revision,version:rev.version,borrador:base,inscripcionAbierta,roster:personas.filter(p=>p.activo!==false).map(p=>({id:String(p.id),nombre:[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(' '),conductor:p.conductor===true,externo:p.externo===true,agregable:p.externo!==true||/teniente\s*(tercero|3)/i.test(actor?.cargo||'')})),_roster:nomina.value,_personas:personas};
+  const revisionDatos=dep.revision?await dep.revision(inicio):{};
+  return {inicio,revision,version:rev.version,borrador:base,inscripcionAbierta,soloLectura:inscripcionAbierta||iniciada,...revisionDatos,roster:personas.filter(p=>p.activo!==false).map(p=>({id:String(p.id),nombre:[p.nombre,p.apellidoPaterno,p.apellidoMaterno].filter(Boolean).join(' '),conductor:p.conductor===true,externo:p.externo===true,agregable:p.externo!==true||/teniente\s*(tercero|3)/i.test(actor?.cargo||'')})),_roster:nomina.value,_personas:personas};
  }
  async function guardar(body){
   const actorIdInicial=dep.actorId?String(dep.actorId()||''):null;
   const inicio=body?.inicio,fechas=semana(inicio);if(!['guardar','aprobar'].includes(body?.accion)||!Number.isInteger(body.version))throw Error('Solicitud inválida');
   const d=await cargar(inicio);if(d.inscripcionAbierta)throw Error('Cierra las inscripciones antes de preparar la dotación');if(d.version!==body.version)throw Error('Otra persona modificó la semana. Recarga antes de guardar');
+  
   const actorInicial=dep.actor(d._roster);if(actorIdInicial!==null&&String(actorInicial?.id||'')!==actorIdInicial)throw Error('Cambió el integrante que opera Germania. Vuelve a cargar la semana');if(!actorInicial?.id)throw Error('Selecciona tu nombre en Germania antes de guardar');
+  if(d.puedeAprobar===false){if(body.accion!=='guardar')throw Error('La aprobación corresponde a los oficiales');if(!dep.revisar)throw Error('Preparación no disponible');return dep.revisar({...body,accion:'preparar',noche:body.noches?.[body.fecha]});}
   const prev=d.revision||{};if(prev.cerrada||prev.estado==='cerrada')throw Error('La semana está cerrada');
   const entradas=body.noches;if(!entradas||typeof entradas!=='object'||Array.isArray(entradas)||!Object.keys(entradas).length||Object.keys(entradas).some(f=>!fechas.includes(f)))throw Error('Noches inválidas');
   if(body.accion==='guardar'&&(!body.fecha||Object.keys(entradas).length!==1||!entradas[body.fecha]))throw Error('Guarda una noche a la vez');
-  const base=prev.borradorNoches||prev.noches||d.borrador;const noches=Object.fromEntries(fechas.map(f=>[f,{...base?.[f],...normal(base?.[f])}]));
+  const base={...d.borrador,...prev.noches,...prev.borradorNoches};const noches=Object.fromEntries(fechas.map(f=>[f,{...base?.[f],...normal(base?.[f])}]));
   const guardadas=new Set(prev.guardadas||[]),modificadas=[];
   for(const [f,n] of Object.entries(entradas)){if(f<(dep.hoy?dep.hoy():hoy()))throw Error('Las noches históricas están protegidas');validar(n,d._personas);const apoyo=dep.apoyo?dep.apoyo():null;if(apoyo&&n.maq===String(apoyo.id)&&noches[f].maq!==String(apoyo.id)&&!/teniente\s*(tercero|3)/i.test(actorInicial.cargo||''))throw Error('Solo el Teniente Tercero puede programar al cuartelero');if(!igual(noches[f],n))modificadas.push(f);noches[f]={...noches[f],...normal(n)};if(apoyo&&n.maq===String(apoyo.id)&&dep.metadataApoyo)noches[f].apoyoExterno=dep.metadataApoyo();else delete noches[f].apoyoExterno;if(body.accion==='guardar')guardadas.add(f);}
   if(body.accion==='aprobar'){if(!d.revision||modificadas.length)throw Error('Guarda los cambios antes de publicar');for(const f of fechas){validar(noches[f],d._personas);if(!guardadas.has(f))throw Error('Falta guardar una noche de la semana');}}
@@ -56,9 +61,15 @@ root.GermaniaAsignacionCrear=function(dep){
   if(!Number.isInteger(version))throw Error('No se confirmó la versión guardada. Recarga antes de continuar');
   return {ok:true,version,estado:value.estado};
  }
- return {cargar,guardar};
+ return {cargar,guardar,revisar:async body=>{if(!dep.revisar)throw Error('Revisión no disponible');return dep.revisar(body);},foto:fecha=>dep.foto?dep.foto(fecha):''};
 };
+async function revisionApi(inicio,body){
+ const actorId=String(document.getElementById('miVoluntario')?.value||'');
+ const r=await fetch('/api/guardia/revision-semanal'+(body?'':'?inicio='+encodeURIComponent(inicio)+'&actorId='+encodeURIComponent(actorId)),{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},...(body?{body:JSON.stringify({...body,actorId})}:{})});
+ const j=await r.json();if(String(document.getElementById('miVoluntario')?.value||'')!==actorId)throw Error('Cambió el integrante que opera Germania');if(!r.ok)throw Error(j.error);return j;
+}
 if(typeof document!=='undefined'&&typeof sGetV==='function'&&typeof gnGuardarAtomico==='function')root.GermaniaAsignacion=root.GermaniaAsignacionCrear({
+ revision:inicio=>revisionApi(inicio),revisar:body=>revisionApi(body.inicio,body),foto:fecha=>'/api/guardia/libro?foto=1&revisionSemanal=1&fecha='+encodeURIComponent(fecha)+'&actorId='+encodeURIComponent(document.getElementById('miVoluntario')?.value||''),
  actorId:()=>document.getElementById('miVoluntario')?.value||'',leer:(key,f)=>sGetV(key,f),base:inicio=>root.gnBaseAsignacion(inicio),horario:f=>root.gnHorarioAsignacion(f),abierta:p=>p.estado==='abierta'&&Date.now()<gnInsCierreMs(p),apoyo:()=>root.GermaniaApoyoGuardia?.david||null,metadataApoyo:()=>root.GermaniaApoyoGuardia.asignar({maq:null}).apoyoExterno,guardar:c=>gnGuardarAtomico(c),actor:roster=>roster.find(p=>String(p.id)===String(document.getElementById('miVoluntario')?.value)&&p.activo!==false)
 });
 })(typeof window!=='undefined'?window:globalThis);

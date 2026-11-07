@@ -40,7 +40,7 @@ test('reemplazo del sábado conserva otras seis noches y la publicación vigente
 test('rechaza versiones obsoletas, fechas históricas y maquinista sin habilitación',async()=>{
  const d=await puente.cargar(inicio);await assert.rejects(puente.guardar({inicio,version:0,accion:'guardar',fecha:dias[0],noches:{[dias[0]]:n()}}),/Otra persona/);
  await assert.rejects(puente.guardar({inicio,version:d.version,accion:'guardar',fecha:dias[0],noches:{[dias[0]]:{obac:'o',maq:'v3',vol:['v1','v2']}}}),/habilitado/);
- await assert.rejects(puente.guardar({inicio:'2026-10-14',version:0,accion:'guardar',fecha:'2026-10-14',noches:{'2026-10-14':n()}}),/iniciadas/);
+ await assert.rejects(puente.guardar({inicio:'2026-10-14',version:0,accion:'guardar',fecha:'2026-10-14',noches:{'2026-10-14':n()}}),/iniciada/);
 });
 test('la API institucional mantiene el rechazo al actor no autorizado',async()=>{
  actor='v1';const d=await puente.cargar(inicio);
@@ -48,7 +48,7 @@ test('la API institucional mantiene el rechazo al actor no autorizado',async()=>
  assert.equal((await puente.cargar(inicio)).version,d.version);
 });
 test('no sustituye la revisión vigente de semanas iniciadas ni prepara con inscripción abierta',async()=>{
- await assert.rejects(puente.cargar('2026-11-04'),/iniciadas/);
+ await assert.rejects(puente.cargar('2026-11-04'),/iniciada/);
  await writeState(sql,'guardia-plan:2099-11-11',{inicio:'2099-11-11',estado:'abierta'});
  const abierta=await puente.cargar('2099-11-11');assert.equal(abierta.inscripcionAbierta,true);assert.deepEqual(abierta.borrador['2099-11-11'],n());
  await assert.rejects(puente.guardar({inicio:'2099-11-11',version:0,accion:'guardar',fecha:'2099-11-11',noches:{'2099-11-11':n()}}),/Cierra las inscripciones/);

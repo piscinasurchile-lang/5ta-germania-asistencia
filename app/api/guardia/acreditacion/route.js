@@ -1,3 +1,4 @@
+import {prepararActaRevision} from '../../../../lib/guardia-revision-semanal.mjs';
 import { neon } from "@neondatabase/serverless";
 import {exigirSesionOficial} from "../../../../lib/guardia-sesion-oficial.js";
 import { ensureSchema, readState, writeState } from "../../../../lib/state-store.js";
@@ -74,12 +75,18 @@ export async function POST(req) {
     const {obac:obacEf,cond:condEf,ids}=datosPayload(b,noche,programados);
     const errRoles=validarRolesEfectivos({noche,asistencias:b.asistencias,obacEfectivo:obacEf,conductorEfectivo:condEf,roster,motivoPrecedencia:b.motivoPrecedencia});
     if (errRoles) return Response.json({error:errRoles},{status:409});
+    let revisionSemanal;
+    if(b.revisionSemanal!==undefined){
+      let normalizada;try{normalizada=prepararActaRevision({noche,integrantes:b.revisionSemanal?.integrantes,motivos:b.revisionSemanal?.motivos,roster});}catch(e){return Response.json({error:e.codigo||"revision_invalida"},{status:409});}
+      if(firmaContenido({asistencias:normalizada.asistencias,adicionales:normalizada.adicionales,excusas:normalizada.excusas,obac:normalizada.obacEfectivoId,cond:normalizada.conductorEfectivoId})!==firmaContenido({asistencias:b.asistencias,adicionales,excusas,obac:obacEf,cond:condEf}))return Response.json({error:"revision_inconsistente"},{status:409});
+      revisionSemanal=normalizada.detalle;
+    }
     const anteriorRegistro=anterior.value && typeof anterior.value==="object"?anterior.value:null;
     const firmaNueva=firmaContenido({asistencias:b.asistencias,adicionales,excusas,obac:obacEf,cond:condEf});
     const firmaVieja=anteriorRegistro?firmaContenido({asistencias:anteriorRegistro.asistencias,adicionales:anteriorRegistro.adicionales,excusas:anteriorRegistro.excusas,
       obac:anteriorRegistro.obacEfectivoId??noche.obac,cond:anteriorRegistro.conductorEfectivoId??noche.maq}):null;
     // Aprobación repetida o reintento tras un corte de internet: mismo contenido = mismo acto. No duplica ni toca el historial.
-    if (anteriorRegistro && anteriorRegistro.estado==="acreditada" && firmaVieja===firmaNueva)
+    if (anteriorRegistro && anteriorRegistro.estado==="acreditada" && firmaVieja===firmaNueva&&(!revisionSemanal||JSON.stringify(anteriorRegistro.revisionSemanal)===JSON.stringify(revisionSemanal)))
       return Response.json({ok:true,repetida:true,version:anterior.version,acreditadas:anteriorRegistro.asistentes?.length??0,
         acreditadoPorNombre:anteriorRegistro.acreditadoPorNombre||null,acreditadoPorId:anteriorRegistro.acreditadoPorId||null},{headers:{"Cache-Control":"no-store"}});
     if (anterior.version!==b.ifVersion) return Response.json({error:"version_conflict",version:anterior.version},{status:409});
@@ -97,6 +104,7 @@ export async function POST(req) {
       return Response.json({error:"motivo_correccion_requerido"},{status:400});
     const registro={
       fecha,estado:"acreditada",revisionAprobadaEn:revision.aprobadaEn,
+      ...(revisionSemanal?{revisionSemanal}:{}),
       dotacionFirma:firmaDotacion(noche),
       cierreLibroFotoSHA256:libro.value.fotoSHA256??null,cierreLibroEn:libro.value.enviadoEn,
       asistencias:Object.fromEntries(ids.map(id=>[id,b.asistencias[id]])),
@@ -120,6 +128,7 @@ export async function POST(req) {
       historial:anteriorRegistro?[...(anteriorRegistro.historial||[]),{
         /* Registros anteriores a ADR 0012 pueden traer una acreditación final del T3: se conserva en el historial, no se pierde. */
         ...(anteriorRegistro.cumplimientoFinal?{cumplimientoFinalAnterior:anteriorRegistro.cumplimientoFinal}:{}),
+        revisionSemanal:anteriorRegistro.revisionSemanal||null,
         fecha:anteriorRegistro.acreditadoEn,por:anteriorRegistro.acreditadoPorId,
         porNombre:anteriorRegistro.acreditadoPorNombre||null,porCargo:anteriorRegistro.acreditadoPorCargo||null,
         asistentes:anteriorRegistro.asistentes,ausentes:anteriorRegistro.ausentes,
@@ -135,7 +144,7 @@ export async function POST(req) {
       // Otro oficial aprobó al mismo tiempo: si dejó el mismo contenido, es el mismo acto; si no, se avisa el conflicto.
       const vigente=guardado.value;
       if (vigente && !anteriorRegistro && firmaContenido({asistencias:vigente.asistencias,adicionales:vigente.adicionales,excusas:vigente.excusas,
-          obac:vigente.obacEfectivoId??noche.obac,cond:vigente.conductorEfectivoId??noche.maq})===firmaNueva)
+          obac:vigente.obacEfectivoId??noche.obac,cond:vigente.conductorEfectivoId??noche.maq})===firmaNueva&&(!revisionSemanal||JSON.stringify(vigente.revisionSemanal)===JSON.stringify(revisionSemanal)))
         return Response.json({ok:true,repetida:true,version:guardado.version,acreditadas:vigente.asistentes?.length??0,
           acreditadoPorNombre:vigente.acreditadoPorNombre||null,acreditadoPorId:vigente.acreditadoPorId||null},{headers:{"Cache-Control":"no-store"}});
       return Response.json({error:"version_conflict",version:guardado.version},{status:409});
@@ -152,3 +161,4 @@ export async function POST(req) {
   } catch(e) { console.error("guardia acreditacion failed",e);
     return Response.json({error:"database_error"},{status:500}); }
 }
+

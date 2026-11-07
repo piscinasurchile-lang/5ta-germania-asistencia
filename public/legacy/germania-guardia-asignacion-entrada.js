@@ -21,7 +21,9 @@
  const tabla=document.getElementById('gnTablaSemanal');
  if(tabla)new MutationObserver(()=>{if(panel.open)cargar(seleccion(),true);else panel.style.display=typeof window.gnPuedePrepararAsignacion==='function'&&!window.gnPuedePrepararAsignacion(seleccion())?'none':'';}).observe(tabla,{childList:true,subtree:true});
  window.addEventListener('message',e=>{
-  if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.tipo!=='germania-asignacion-altura')return;
+  if(e.origin!==location.origin||e.source!==frame.contentWindow)return;
+  if(e.data?.tipo==='germania-reemplazo-centrar'){const rect=frame.getBoundingClientRect();frame.contentWindow.postMessage({tipo:'germania-reemplazo-viewport',centro:innerHeight/2-rect.top,alto:innerHeight},location.origin);return;}
+  if(e.data?.tipo!=='germania-asignacion-altura')return;
   const h=Number(e.data.altura);if(Number.isFinite(h)&&h>0)frame.style.height=Math.min(Math.max(Math.ceil(h),300),24000)+'px';
   if(e.data.publicada&&typeof renderGnTablaSemanal==='function')renderGnTablaSemanal();
  });

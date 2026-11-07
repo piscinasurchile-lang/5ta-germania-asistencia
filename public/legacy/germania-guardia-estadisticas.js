@@ -57,6 +57,7 @@
         reemplazos.set(antes,quien);
         if(asignados.indexOf(antes)<0){asignados.push(antes);suma(antes,"asig",f);resultado.asign++;}
       });
+      if(ac) (ac.revisionSemanal?.reemplazos||[]).forEach(function(p){if(ac.asistencias?.[p.antesId]==="ausente"&&ac.asistencias?.[p.personaId]==="presente")reemplazos.set(String(p.antesId),String(p.personaId));});
       resultado.reemp+=reemplazos.size;
       var cedidos=new Set(reemplazos.keys());
       cedidos.forEach(function(id){suma(id,"ced",f);});
@@ -80,3 +81,4 @@
   }
   root.GermaniaGuardiaEstadisticas={calcularResumen:calcularResumen};
 })(typeof window!=="undefined"?window:globalThis);
+
