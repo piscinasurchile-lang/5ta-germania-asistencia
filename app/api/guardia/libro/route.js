@@ -1,3 +1,4 @@
+import {esAyudante,semanaTerminada} from '../../../../lib/guardia-revision-semanal.mjs';
 import {neon} from "@neondatabase/serverless";
 import {createHash} from "node:crypto";
 import {ensureSchema,readState} from "../../../../lib/state-store.js";
@@ -46,7 +47,7 @@ export async function GET(req){
    ]);
    const cierre=cl.value;
    const ratificada=informeRatificado({acreditacion:ac.value,revision:g.revision,noche:g.noche,cierre});
-   if(!puedeVerLibro(actor,g.noche,ratificada))return error("no_autorizado",403);
+   if(!puedeVerLibro(actor,g.noche,ratificada)&&!(u.searchParams.get("revisionSemanal")==="1"&&esAyudante(actor)&&semanaTerminada(miercolesSemana(fecha))))return error("no_autorizado",403);
    if(!cierre?.fotoClave)return error("foto_no_disponible",404);
    const rows=await sql.query("SELECT encode(data,'base64') AS b64 FROM document_assets WHERE key=$1 AND active=true LIMIT 1",[cierre.fotoClave]);
    if(!rows.length)return error("foto_no_disponible",404);
@@ -132,3 +133,4 @@ export async function POST(req){
   return Response.json({ok:true,fecha,obac:meta.obacNombre,hash},{headers:{"Cache-Control":"no-store"}});
  }catch(e){console.error("guardia libro POST",e);return error("database_error",500);}
 }
+

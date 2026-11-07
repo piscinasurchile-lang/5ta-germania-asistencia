@@ -624,7 +624,7 @@ function propuesta(D){
 }
 function clonar(o){ return JSON.parse(JSON.stringify(o)); }
 function nom(id){ var m=porId(id); return m?corto(m):"(sin nombre)"; }
-window.gnPuedePrepararAsignacion=function(inicio){var m=miembro();var hoy=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());return !!m&&(esTenienteTercero(m)||esAdminGuardia(m))&&String(inicio||"")>=hoy;};
+window.gnPuedePrepararAsignacion=function(){var m=miembro();return !!m&&(esAdminGuardia(m)||/^(capitan|teniente(?:\s|$)|ayudante(?:\s|$))/i.test(String(m.cargo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')));};
 window.gnBaseAsignacion=async function(inicio){
  await cargarPrec();await cargarHorarios();
  var datos=await cargarSemana({inicio:inicio});

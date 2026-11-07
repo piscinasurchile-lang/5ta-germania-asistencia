@@ -73,3 +73,7 @@ La preparación de semanas futuras se presenta en el desplegable institucional d
 Guardar conserva un borrador de la noche en la revisión existente; publicar actualiza revisión, registros e índice en la misma transacción vigente. Se conservan campos adicionales, versiones, fotos y estados de los integrantes. El apoyo de David Briones procede de `GermaniaApoyoGuardia`, no de la nómina. Las semanas iniciadas continúan en la revisión heredada para conservar los vínculos de libro/aprobación. No cambia autenticación ni permisos.
 
 La preparación consulta las inscripciones vigentes también mientras el plazo está abierto, en modo de lectura. El guardado conserva el cierre previo obligatorio. El HTML servido excluye los controles exclusivos del laboratorio; el archivo de referencia aprobado permanece intacto. Las actualizaciones de la tabla refrescan la lectura sin descartar borradores locales. Tras un error, la reapertura explícita permite recuperar la versión central.
+
+## Guardia · integración aprobada del 7 de noviembre de 2026
+
+El cliente de asignación aprobado usa la nómina y programación existentes mediante `germania-guardia-asignacion-datos.js`. La ruta `guardia/revision-semanal` guarda borradores del Ayudante y prepara la solicitud a acreditación; la aprobación efectiva conserva `guardia/acreditacion` como única escritura canónica. Los borradores se anclan a las versiones del acta y de la programación. El libro mantiene su almacenamiento y carga; se permite su consulta al Ayudante en la revisión de una semana terminada. Ver ADR 0017.
