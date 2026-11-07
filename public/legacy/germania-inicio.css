@@ -662,3 +662,19 @@ body:not([data-mando="1"]) .solo-mando{display:none!important;}
   #panel-germania .g-push-campana{width:34px;height:34px;flex-basis:34px;font-size:20px;}
   #panel-germania #g-push-titulo{font-size:18px;}
 }
+
+
+/* Mis noches compacto · propuesta aprobada por Christian, 7/nov/2026. */
+#panel-germania .home-grid>.home-hero{order:-40;}
+#panel-germania .home-grid>.home-drivers{order:-39;}
+#panel-germania .home-grid>#inicioRoles{order:-38;}
+#panel-germania .home-grid>#misNochesInicio{order:-37;}
+#panel-germania #inicioRoles .gn-inicio-inscripcion{padding:12px!important;}
+#panel-germania #inicioRoles .gr-t{font-size:clamp(16px,4.1vw,20px);line-height:1.2;margin:0 0 7px;}
+#panel-germania #inicioRoles .sub{margin:0 0 9px;font-size:13px;}
+#panel-germania #inicioRoles .gu-revision-estado{padding:6px 8px!important;margin:8px 0!important;font-size:13px;line-height:1.25;}
+#panel-germania #inicioRoles .gu-dias-compactos{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;margin:9px 0;}
+#panel-germania #inicioRoles .gu-dias-compactos .gu-dia{min-height:82px;padding:8px 3px!important;gap:5px;font-size:13px;line-height:1.15;box-sizing:border-box;border-radius:10px;}
+#panel-germania #inicioRoles .gu-fecha{display:flex;align-items:center;justify-content:center;gap:4px;font-size:15px;font-weight:700;}
+#panel-germania #inicioRoles .gu-dia small{font-size:13px;line-height:1.15;}
+#panel-germania #inicioRoles #giConfirmar{width:100%;min-height:44px;padding:9px 8px;margin-top:3px;font-size:16px;line-height:1.2;}

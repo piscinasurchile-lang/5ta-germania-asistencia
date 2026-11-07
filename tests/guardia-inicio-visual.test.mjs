@@ -48,7 +48,7 @@ test("cinco tarjetas de inicio tienen sus rutas y el bloque Novedades conserva s
 });
 
 test("estilos visuales solo se aplican a Inicio o a barra inferior",()=>{
-  assert.match(html,/germania-inicio\.css\?v=20261015pushbienvenida1/);
+  assert.match(html,/germania-inicio\.css\?v=20261107-nochescompactas1/);
   assert.match(html,/germania-guardia-franja\.js\?v=20261010a/);
   assert.match(css,/#panel-germania \.home-tiles/);
   assert.match(css,/#panel-germania \.gn-franja/);
