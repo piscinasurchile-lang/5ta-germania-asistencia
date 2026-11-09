@@ -27,8 +27,7 @@ export default function Page() {
   const [slow, setSlow] = useState(false);
   const [failed, setFailed] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
-  const [updating, setUpdating] = useState(false);
-  const versionRef = useRef(null);
+  const frameWatchRef = useRef(null);
   const reintentoAuto = useRef(false);
   const [inicioB5Comprobado, setInicioB5Comprobado] = useState(false);
   const [destinoB5, setDestinoB5] = useState("");
@@ -96,32 +95,15 @@ export default function Page() {
     return () => clearTimeout(timer);
   }, [frameKey]);
 
-  useEffect(() => {
-    const checkVersion = async () => {
-      if (document.visibilityState !== "visible" || updating) return;
-      try {
-        const res = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!versionRef.current) { versionRef.current = data.version; return; }
-        if (data.version !== versionRef.current) {
-          const doc = frameRef.current?.contentDocument;
-          const editing = !!doc?.querySelector("input:focus,textarea:focus,select:focus");
-          if (editing) return;
-          versionRef.current = data.version;
-          setUpdating(true);
-          setReady(false);
-          setTimeout(() => { setFrameKey(k => k + 1); setUpdating(false); }, 900);
-        }
-      } catch {}
-    };
-    const timer = setInterval(checkVersion, 15000);
-    document.addEventListener("visibilitychange", checkVersion);
-    checkVersion();
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", checkVersion); };
-  }, [updating]);
+  // El actualizador interno coordina las versiones. El contenedor solo vigila el arranque.
+  useEffect(() => () => {
+    clearInterval(frameWatchRef.current);
+    frameWatchRef.current = null;
+  }, []);
 
   const onFrameLoad = () => {
+    clearInterval(frameWatchRef.current);
+    frameWatchRef.current = null;
     const frame = frameRef.current;
     if (!frame) return;
     let doc, win;
@@ -131,6 +113,14 @@ export default function Page() {
       if (!doc || !win) throw new Error("iframe no disponible");
     } catch {
       setReady(true);
+      return;
+    }
+
+    // ODD y otros módulos propios pueden navegar dentro del iframe. Su documento
+    // no contiene el cargador legacy y no debe provocar un regreso forzado al inicio.
+    if (["http:", "https:"].includes(doc.location?.protocol) && doc.location.pathname !== "/legacy/index.html") {
+      setReady(true);
+      setFailed(false);
       return;
     }
 
@@ -192,7 +182,7 @@ export default function Page() {
     const loading = () => doc.getElementById("appLoading");
     const isLoaded = () => {
       const el = loading();
-      return !el || el.classList.contains("hidden") || win.getComputedStyle(el).display === "none";
+      return !!el && (el.classList.contains("hidden") || win.getComputedStyle(el).display === "none");
     };
 
     // La aplicación «arrancó» cuando su primer paso ya pintó el escudo. Si el archivo principal
@@ -207,10 +197,14 @@ export default function Page() {
     // Usar tiempo real: algunas tablets Android reducen la frecuencia de
     // setInterval y un contador por "ticks" puede tardar 4x o más.
     const startedAt = Date.now();
-    let recoveryStarted = false;
     const interval = setInterval(() => {
+      // Una navegación o reintento invalida la vigilancia del documento anterior.
+      if (frameRef.current !== frame || frame.contentDocument !== doc) {
+        clearInterval(interval);
+        return;
+      }
       const elapsed = Date.now() - startedAt;
-      if (isLoaded()) {
+      if (iniciada() && isLoaded()) {
         clearInterval(interval);
         reintentoAuto.current = false;
         abrirModuloB5();
@@ -219,9 +213,8 @@ export default function Page() {
         return;
       }
 
-      // A los 6 s liberamos primero la interfaz. La recuperación secundaria
-      // corre después y nunca puede dejar el cargador esperando una petición.
-      if (elapsed >= 9000 && !recoveryStarted && !iniciada() && !reintentoAuto.current) {
+      // Si el script principal no llegó a iniciar, reintentar una sola vez.
+      if (elapsed >= 9000 && !iniciada() && !reintentoAuto.current) {
         reintentoAuto.current = true;
         clearInterval(interval);
         setSlow(false);
@@ -229,23 +222,11 @@ export default function Page() {
         return;
       }
 
-      if (elapsed >= 6000 && !recoveryStarted && iniciada()) {
-        recoveryStarted = true;
-        loading()?.classList.add("hidden");
-        abrirModuloB5();
-        setReady(true);
-        setFailed(false);
-        // El inicio de legacy/app.js ya realiza estas cargas. No repetirlas
-        // desde el contenedor: en conexiones lentas duplicaban lecturas y
-        // renderizados mientras la inicialización original seguía en curso.
-        // La recuperación aquí solo libera la máscara visual; no escribe datos.
-      }
-
-      if (elapsed >= 12000) {
-        clearInterval(interval);
-        if (!recoveryStarted && !isLoaded()) setFailed(true);
-      }
+      // Una conexión lenta conserva la portada; no mostrar una interfaz a medio cargar.
+      // Si el inicio termina después del aviso, la vigilancia permite entrar sin reiniciar.
+      if (elapsed >= 12000) setFailed(true);
     }, 250);
+    frameWatchRef.current = interval;
   };
 
   // La portada se desvanece al estar lista la app y luego se retira; si se reintenta, vuelve.
@@ -256,6 +237,8 @@ export default function Page() {
   }, [ready]);
 
   const retry = () => {
+    clearInterval(frameWatchRef.current);
+    frameWatchRef.current = null;
     setReady(false);
     setFailed(false);
     setSlow(false);
@@ -274,8 +257,8 @@ export default function Page() {
       </div>}
       {portadaViva && (
         <Portada visible={!ready}>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>{updating ? "Actualizando GERMANIA…" : "Estamos cargando tu información…"}</div>
-          <div style={{ marginTop: 4, color: "#e0e0e0", fontSize: 14 }}>{updating ? "Hay una nueva versión. Se aplicará automáticamente." : failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{"Estamos cargando tu información…"}</div>
+          <div style={{ marginTop: 4, color: "#e0e0e0", fontSize: 14 }}>{failed ? "No pudimos completar la carga." : slow ? "La conexión está tardando. Dame unos segundos." : "Dame unos segundos."}</div>
           {failed && <button type="button" onClick={retry} style={{ marginTop: 12, minHeight: 44, padding: "11px 18px", borderRadius: 8, border: "1px solid #ffcc00", background: "#171d22", color: "#fff", fontWeight: 700 }}>Reintentar</button>}
         </Portada>
       )}
@@ -290,4 +273,5 @@ export default function Page() {
     </main>
   );
 }
+
 

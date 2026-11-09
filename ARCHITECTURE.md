@@ -81,3 +81,9 @@ El cliente de asignación aprobado usa la nómina y programación existentes med
 ## Propuesta de dotación · OBAC y maquinista
 
 Desde ADR 0018, el cálculo compartido conserva como OBAC al inscrito de mayor precedencia cuando existe otro habilitado para conducir. Cuando es el único habilitado, conduce y OBAC pasa al siguiente. La preparación usa exactamente un maquinista de la propuesta; la revisión aprobada conserva prioridad y no se recalcula.
+
+## Arranque y retorno a la aplicación · 9 de noviembre de 2026
+
+`germania-actualizar.js` coordina la detección de versiones durante una sesión. La primera respuesta válida establece la versión de referencia sin recargar el documento recién descargado, aunque el marcador local sea anterior o la primera consulta haya fallado. El contenedor no mantiene un segundo actualizador que compita por recrear el iframe. Volver con la misma versión conserva la pantalla y los módulos mantienen sus consultas de datos existentes.
+
+El contenedor espera la finalización del cargador legacy antes de retirar la portada, limpia la vigilancia de documentos anteriores y conserva las navegaciones internas a otros módulos. La política del service worker y las escrituras de datos no cambian.
