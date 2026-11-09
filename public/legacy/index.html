@@ -835,9 +835,10 @@
       <div id="gnTablaSemanal"><div class="empty">Selecciona o programa una semana para ver su dotación.</div></div>
       <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
         <button type="button" class="btn small secondary" id="gnTablaActualizar">Actualizar</button>
-        <button type="button" class="btn small secondary" id="gnTablaPdf">PDF semanal</button>
+        <button type="button" class="btn small secondary" id="gnTablaPdf">Imprimir nómina</button>
         <button type="button" class="btn small secondary" id="gnOddMaestras">Generar ODD</button>
       </div>
+      <p id="gnTablaPdfMsg" class="sub" role="status" aria-live="polite"></p>
     </div>
 
     <details class="card solo-oficiales" id="gnAsignacionPanel">
@@ -870,7 +871,7 @@
       <div class="field-row"><div class="field" style="flex:1 1 260px"><label for="gnHistorialSelect">Semanas registradas</label><select id="gnHistorialSelect"><option value="">Consultando semanas…</option></select></div></div>
       <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         <button class="btn small secondary" type="button" id="gnHistorialVer">Ver detalle</button>
-        <button class="btn small secondary" type="button" id="gnHistorialPdf">Descargar PDF</button>
+        <button class="btn small secondary" type="button" id="gnHistorialPdf">Descargar nómina</button>
         <button class="btn small secondary" type="button" id="gnHistorialOdd">Generar ODD</button>
       </div>
       <div class="status-msg" id="gnHistorialMsg" role="status" aria-live="polite"></div>
@@ -1678,7 +1679,8 @@
 <script src="./germania-estadistica-individual.js?v=20261015a"></script>
 <script src="./germania-config.js?v=20261030a"></script>
 <script src="./germania-fechas.js?v=20261030a"></script>
-<script src="./app.js?v=20261109-maquinista1"></script>
+<script src="./germania-guardia-nomina-pdf.js?v=20261109-nomina1"></script>
+<script src="./app.js?v=20261109-nomina1"></script>
 <script src="./germania-historial-personal.js?v=20261020hp1"></script>
 <script src="./germania-odd-pdf-publicar.js?v=20261015oddpdf1"></script>
 

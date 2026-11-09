@@ -2048,12 +2048,13 @@ function gnNombreId(id){
   const p=ROSTER.find(x=>String(x.id)===String(id));
   return p?nombreCompleto(p):String(id||"—");
 }
-async function gnTablaRolSemana(prefijo,inicio){
+async function gnTablaRolSemana(prefijo,inicio,estricto=false){
   const out={},porFecha={};
   try{
     const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo+inicio+":"),{cache:"no-store"});
-    if(!r.ok) return out;
+    if(!r.ok){if(estricto)throw Error("No se pudo consultar la inscripción de maquinistas");return out;}
     const j=await r.json();
+    if(estricto&&!Array.isArray(j.items))throw Error("Respuesta de maquinistas inválida");
     for(const item of (j.items||[])){
       const id=String(item.key||"").slice((prefijo+inicio+":").length);
       const vals=Array.isArray(item.value)?item.value:[];
@@ -2066,7 +2067,7 @@ async function gnTablaRolSemana(prefijo,inicio){
       });
     }
     for(const [f,lista] of Object.entries(porFecha))out[f]=lista.sort((a,b)=>a.t.localeCompare(b.t)||a.id.localeCompare(b.id)).map(x=>x.id);
-  }catch(e){}
+  }catch(e){if(estricto)throw e;}
   return out;
 }
 let gnTablaSemanaVisible="";
@@ -2873,13 +2874,13 @@ function gnHistorialNombre(id,nomina){
     (window.GermaniaApoyoGuardia?window.GermaniaApoyoGuardia.buscar(id):null);
   return p?nombreCompleto(p):"Sin identificar";
 }
-async function gnHistorialDatos(inicio){
+async function gnHistorialDatos(inicio,estricto=false){
   if(!inicio||gnHistorialSemana(inicio)!==inicio)throw new Error("Selecciona un miércoles válido.");
   const dias=gnWeek(inicio),prefijo="guardia-inscripcion:"+inicio+":";
   const [revision,inscripciones,maqs,precedencia,nomina]=await Promise.all([
     sGet("guardia-revision:"+inicio,null),
     gnHistorialLeerPrefijo(prefijo),
-    gnTablaRolSemana("guardia-maq:",inicio),
+    gnTablaRolSemana("guardia-maq:",inicio,estricto),
     sGet("precedencia:v1",null),
     sGet(ROSTER_KEY,null)
   ]);
@@ -2894,8 +2895,9 @@ async function gnHistorialDatos(inicio){
     }
   }
   const acreds=await Promise.all(dias.map(f=>sGet("guardia-acreditacion:"+f,null).catch(()=>null)));
+  const usarRevision=!estricto||(revision?.estado==="aprobada"&&dias.every(f=>Array.isArray(revision.noches?.[f]?.vol)));
   return dias.map(fecha=>{
-    const r=revision?.noches?.[fecha];
+    const r=usarRevision?revision?.noches?.[fecha]:null;
     let vol=[],maq=[],obac=[],fuente="Inscripción";
     if(r&&Array.isArray(r.vol)){
       vol=[...new Set(r.vol.map(String))];
@@ -2919,11 +2921,11 @@ async function gnHistorialDatos(inicio){
     const apoyo=(id)=>revision?.noches?.[fecha]?.apoyoExterno?.id===id?
       String(revision.noches[fecha].apoyoExterno.nombre||"Sin identificar"):nombre(id);
     const falta=valid?.razones||[];
-    return {fecha,vol:vol.map(nombre),maq:maq.map(apoyo),obac:obac.map(nombre),
+    return {fecha,integrantesIds:[...new Set([...obac,...maq,...vol])],vol:vol.map(nombre),maq:maq.map(apoyo),obac:obac.map(nombre),
       efectiva:gnHistorialEfectiva(fecha,acreds[dias.indexOf(fecha)]),
       completa:valid?.completa===true,fuente,
       motivo:valid?falta.join(" · "):"Dotación pendiente de verificar",
-      estadoRevision:revision?.estado||"sin revisión"};
+      estadoRevision:usarRevision?(revision?.estado||"sin revisión"):"sin revisión"};
   });
 }
 /* Cumplimiento efectivo = asistencia aprobada de esa noche (solo lectura; no modifica nada). */
@@ -3006,30 +3008,30 @@ function gnHistorialPdfHeader(doc,titulo){
   doc.text("Fundada el 5 de noviembre de 2025",centro,31,{align:"center"});
   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(titulo,centro,38,{align:"center"});
 }
-async function gnHistorialDescargar(inicio){
-  const msg=document.getElementById("gnHistorialMsg");
+// La nómina no certifica asistencia efectiva ni acreditación; imprimir es una consulta.
+async function gnHistorialDescargar(inicio,imprimir=false){
+  const msg=document.getElementById("gnHistorialMsg"),tablaMsg=document.getElementById("gnTablaPdfMsg");
+  const avisar=texto=>{if(msg)msg.textContent=texto;if(tablaMsg)tablaMsg.textContent=texto;};
+  const botones=["gnTablaPdf","gnHistorialPdf"].map(id=>document.getElementById(id)).filter(Boolean);
+  // Reservar la pestaña dentro del gesto táctil: Android/iPhone bloquean window.open tras await.
+  let visor=null,url=null;
+  if(imprimir){visor=window.open("about:blank","_blank");if(visor)visor.document.title="Preparando nómina de Germania…";}
+  botones.forEach(b=>b.disabled=true);avisar("Preparando nómina actualizada…");
   try{
-    const filas=(gnHistorialInicioMostrado===inicio&&gnHistorialFilas)||await gnHistorialDatos(inicio);
-    if(!window.jspdf?.jsPDF)throw new Error("Generador PDF no disponible.");
-    const doc=new window.jspdf.jsPDF();
-    gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");
-    doc.setFont("helvetica","normal");doc.setFontSize(9);
-    doc.text(gnHistorialEtiqueta(inicio),105,44,{align:"center"});
-    if(!doc.autoTable)throw new Error("No se pudo cargar el módulo de tablas PDF.");
-    doc.autoTable({startY:51,margin:{top:49,bottom:18,left:11,right:11},
-      styles:{fontSize:7,cellPadding:2,overflow:"linebreak"},headStyles:{fillColor:[179,36,28]},
-      didDrawPage:({pageNumber})=>{if(pageNumber>1)gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");},
-      head:[["Fecha","Voluntarios","Maquinista","OBAC","Estado"]],
-      body:filas.map(g=>[g.fecha,g.vol.join("\n")||"Sin asignar",
-        g.maq.join("\n")||"Sin asignar",g.obac.join("\n")||"Sin asignar",
-        (g.completa?"Completa":"Incompleta")+"\n"+g.fuente])});
-    let y=doc.lastAutoTable.finalY+8;
-    if(y>272){doc.addPage();y=51;gnHistorialPdfHeader(doc,"GUARDIA NOCTURNA · SEMANA COMPLETA");}
-    doc.setFontSize(8);doc.setFont("helvetica","normal");
-    doc.text("Programación informativa. No certifica asistencia efectiva ni acreditación del Teniente Tercero.",12,y,{maxWidth:185});
-    doc.save("guardia_semana_"+inicio+"_a_"+gnAdd(inicio,6)+".pdf");
-    if(msg)msg.textContent="PDF semanal descargado. Incluye los siete días.";
-  }catch(e){if(msg)msg.textContent=e?.message||"No se pudo descargar PDF."}
+    const filas=await gnHistorialDatos(inicio,true);
+    if(!window.jspdf?.jsPDF||!window.GermaniaGuardiaNominaPdf)throw new Error("Generador PDF no disponible.");
+    const doc=window.GermaniaGuardiaNominaPdf.crear({jsPDF:window.jspdf.jsPDF,inicio,filas,logo:LOGO_B64});
+    const archivo="guardia_semana_"+inicio+"_a_"+gnAdd(inicio,6)+".pdf";
+    if(imprimir&&visor&&!visor.closed){
+      doc.autoPrint();url=URL.createObjectURL(doc.output("blob"));visor.location.replace(url);
+      // El visor conserva su copia; dar tiempo suficiente al diálogo de impresión móvil.
+      setTimeout(()=>URL.revokeObjectURL(url),300000);
+      avisar("Nómina lista para imprimir. También puedes guardarla desde el visor PDF.");
+    }else{
+      doc.save(archivo);avisar(imprimir?"PDF descargado. Ábrelo y selecciona Imprimir.":"Nómina semanal descargada. Incluye los siete días.");
+    }
+  }catch(e){if(visor&&!visor.closed)visor.close();if(url)URL.revokeObjectURL(url);avisar(e?.message||"No se pudo preparar la nómina.");}
+  finally{botones.forEach(b=>b.disabled=false);}
 }
 function gnHistorialAbrirOdd(inicio){
   if(!inicio){const msg=document.getElementById("gnHistorialMsg");if(msg)msg.textContent="Selecciona una semana.";return}
@@ -3042,7 +3044,7 @@ on("gnHistorialSelect","change",()=>{
 on("gnHistorialVer","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialMostrar(ini);});
 on("gnHistorialPdf","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialDescargar(ini);});
 on("gnHistorialOdd","click",()=>gnHistorialAbrirOdd(document.getElementById("gnHistorialSelect")?.value));
-on("gnTablaPdf","click",()=>{if(gnTablaSemanaVisible)gnHistorialDescargar(gnTablaSemanaVisible);else alert("Primero carga una semana de guardia.");});
+on("gnTablaPdf","click",()=>{if(gnTablaSemanaVisible)gnHistorialDescargar(gnTablaSemanaVisible,true);else alert("Primero carga una semana de guardia.");});
 on("gnOddMaestras","click",()=>gnHistorialAbrirOdd(gnTablaSemanaVisible));
 
 async function renderGnLista(){
