@@ -1,11 +1,11 @@
 /* GERMANIA · actualización automática total.
    Esta pantalla interna siempre se descarga fresca de la red, así que ella misma
-   fuerza la recarga completa de la app (cáscara incluida) cuando hay versión nueva,
+   registra su versión al arrancar y recarga la app completa solo si cambia durante el uso,
    incluso en dispositivos cuya cáscara externa quedó antigua. No toca datos operativos. */
 (function(){
   "use strict";
   var CLAVE="germania:version-aplicada";
-  var cargada=null, recargando=false;
+  var cargada=null, recargando=false, comprobando=false;
 
   function leerVersion(){
     return fetch("/version.json?t="+Date.now(),{cache:"no-store"})
@@ -38,27 +38,23 @@
     });
   }
 
-  function iniciar(){
-    leerVersion().then(function(v){
-      if(!v) return;
-      cargada=v;
-      var aplicada=null, almacenamientoOk=true;
-      try{ aplicada=localStorage.getItem(CLAVE); }catch(e){ almacenamientoOk=false; }
-      if(almacenamientoOk && aplicada!==v){
-        // Primera carga con esta versión: se registra antes de recargar para no entrar en bucle.
-        try{ localStorage.setItem(CLAVE,v); }catch(e){ return; }
-        recargarTodo();
-      }
-    });
-  }
+  function iniciar(){ revisar(); }
 
   function revisar(){
-    if(recargando || document.visibilityState!=="visible" || !cargada) return;
+    if(recargando || comprobando || document.visibilityState!=="visible") return;
+    comprobando=true;
     leerVersion().then(function(v){
-      if(!v || v===cargada || editando()) return;
+      if(!v) return;
+      if(!cargada){
+        // La primera respuesta válida es la base de esta sesión, incluso después de un fallo de red.
+        cargada=v;
+        try{ localStorage.setItem(CLAVE,v); }catch(e){}
+        return;
+      }
+      if(v===cargada || editando()) return;
       try{ localStorage.setItem(CLAVE,v); }catch(e){}
       recargarTodo();
-    });
+    }).finally(function(){comprobando=false;});
   }
 
   iniciar();
@@ -83,3 +79,4 @@
   script.onerror=function(){console.error("No se pudo cargar el selector de Tablet B-5.");};
   document.body.appendChild(script);
 })();
+
