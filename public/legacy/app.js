@@ -2049,7 +2049,7 @@ function gnNombreId(id){
   return p?nombreCompleto(p):String(id||"—");
 }
 async function gnTablaRolSemana(prefijo,inicio){
-  const out={};
+  const out={},porFecha={};
   try{
     const r=await fetch("/api/state?prefix="+encodeURIComponent(prefijo+inicio+":"),{cache:"no-store"});
     if(!r.ok) return out;
@@ -2058,11 +2058,14 @@ async function gnTablaRolSemana(prefijo,inicio){
       const id=String(item.key||"").slice((prefijo+inicio+":").length);
       const vals=Array.isArray(item.value)?item.value:[];
       vals.forEach(v=>{
-        const f=typeof v==="string"?v:(v&&v.f);
-        if(f) out[f]=out[f]||[];
-        if(f&&!out[f].includes(id)) out[f].push(id);
+        const f=typeof v==="string"?v:(v&&v.f),t=typeof v==="string"?"":String(v&&v.t||"");
+        if(f){
+          const lista=porFecha[f]||(porFecha[f]=[]);
+          if(!lista.some(x=>x.id===id))lista.push({id,t});
+        }
       });
     }
+    for(const [f,lista] of Object.entries(porFecha))out[f]=lista.sort((a,b)=>a.t.localeCompare(b.t)||a.id.localeCompare(b.id)).map(x=>x.id);
   }catch(e){}
   return out;
 }

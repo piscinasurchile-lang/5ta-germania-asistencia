@@ -77,3 +77,7 @@ La preparación consulta las inscripciones vigentes también mientras el plazo e
 ## Guardia · integración aprobada del 7 de noviembre de 2026
 
 El cliente de asignación aprobado usa la nómina y programación existentes mediante `germania-guardia-asignacion-datos.js`. La ruta `guardia/revision-semanal` guarda borradores del Ayudante y prepara la solicitud a acreditación; la aprobación efectiva conserva `guardia/acreditacion` como única escritura canónica. Los borradores se anclan a las versiones del acta y de la programación. El libro mantiene su almacenamiento y carga; se permite su consulta al Ayudante en la revisión de una semana terminada. Ver ADR 0017.
+
+## Propuesta de dotación · OBAC y maquinista
+
+Desde ADR 0018, el cálculo compartido conserva como OBAC al inscrito de mayor precedencia cuando existe otro habilitado para conducir. Cuando es el único habilitado, conduce y OBAC pasa al siguiente. La preparación usa exactamente un maquinista de la propuesta; la revisión aprobada conserva prioridad y no se recalcula.
