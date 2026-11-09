@@ -251,21 +251,21 @@ async function cargarSemana(p){
 /* un registro puede ser "2026-10-14" o {f,t} */
 function regs(v){ return (Array.isArray(v)?v:[]).map(function(x){ return typeof x==="string"?{f:x,t:""}:x; }).filter(function(x){ return x&&x.f; }); }
 function tiene(v,f){ return regs(v).some(function(x){ return x.f===f; }); }
-/* OBAC automático (ADR 0009): ya no hay ficha de OBAC. Cada noche, el OBAC es el inscrito de mayor precedencia
-   (germania-obac.js). Si no hay maquinista inscrito, el inscrito habilitado de mayor precedencia (hoy el Capitán)
-   pasa a maquinista y el OBAC es el siguiente. Los registros antiguos guardia-obac:* no se usan ni se borran. */
+/* Propuesta automática: un solo maquinista; el mayor por precedencia conserva
+   OBAC si hay otro habilitado. Si es el único que puede conducir, pasa a máquina.
+   Las asignaciones aprobadas no se recalculan con esta propuesta. */
 function ordenPrec(){ return PREC?Object.keys(PREC).sort(function(a,b){ return PREC[a]-PREC[b]; }):[]; }
 function cobertura(S,noches){
   var DOT=GN_DOTACION_MIN, orden=ordenPrec();
   return noches.map(function(f){
     var maq=[],obac=[],vol=[],maqIds={};
     Object.keys(S.maq).forEach(function(id){ var r=regs(S.maq[id]).filter(function(x){ return x.f===f; })[0]; if(r){ maq.push({id:id,t:r.t||""}); maqIds[id]=1; } });
-    maq.sort(function(a,b){ return a.t.localeCompare(b.t); });
-    var candidatosMaquina=Object.keys(S.vol).filter(function(id){return tiene(S.vol[id],f)&&esMaquinista(porId(id));});
+    maq.sort(function(a,b){ return String(a.t).localeCompare(String(b.t))||a.id.localeCompare(b.id); });
     var inscritos=maq.map(function(x){ return {id:x.id,maquinista:true}; });
-    Object.keys(S.vol).forEach(function(id){ if(!maqIds[id]&&tiene(S.vol[id],f)){ var m=porId(id); if(m&&m.activo!==false) inscritos.push({id:id,habilitadoMaquinista:esMaquinista(m)&&candidatosMaquina.length===1}); } });
+    Object.keys(S.vol).forEach(function(id){ if(!maqIds[id]&&tiene(S.vol[id],f)){ var m=porId(id); if(m&&m.activo!==false) inscritos.push({id:id,habilitadoMaquinista:esMaquinista(m)}); } });
     var r=window.GermaniaObac?window.GermaniaObac.obacDeNoche({inscritos:inscritos,orden:orden}):{obac:null,voluntarios:[],maquinistaPorRespaldo:null,empateSinPosicion:false};
-    if(r.maquinistaPorRespaldo&&!maq.length) maq.push({id:r.maquinistaPorRespaldo,t:"",respaldo:true});
+    var titulares=maq;
+    maq=(r.maquinistas||[]).map(function(id){return titulares.find(function(x){return x.id===id;})||{id:id,t:"",respaldo:true};});
     if(r.obac) obac.push({id:r.obac,t:"",n:PREC&&PREC[r.obac]!=null?PREC[r.obac]:9999});
     vol=r.voluntarios.slice();
     var refuerzos=Math.max(0,vol.length-DOT.voluntarios);
