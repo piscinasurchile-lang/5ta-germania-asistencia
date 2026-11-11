@@ -6,7 +6,7 @@ const source=readFileSync('public/legacy/germania-cierre-libro.js','utf8');
 const inicio=source.slice(source.indexOf('const $=id=>'),source.indexOf('function claveBorradorObac'));
 const oficial=source.slice(source.indexOf('function pintarOficial(){'),source.indexOf(' const terminadas=items.filter',source.indexOf('function pintarOficial(){')))+'\n}';
 function fixture(){
- const nodos=Object.fromEntries(['lgnMandoHome','lgnObacHome','lgnAdminHome','lgnAdminPanel','lgnRatif','btnAdminGuardia','btnOficialesAcreditar'].map(id=>[id,{innerHTML:'contenido de oficial anterior',hidden:false,querySelector:()=>null}]));nodos.miVoluntario={value:'oficial'};
+ const nodos=Object.fromEntries(['lgnMandoHome','lgnObacHome','lgnAdminHome','lgnAdminPanel','lgnRatif','btnAdminGuardia','btnOficialesAcreditar'].map(id=>[id,{innerHTML:'contenido de oficial anterior',hidden:false,querySelector:()=>null,querySelectorAll:()=>[]}]));nodos.miVoluntario={value:'oficial'};
  const ctx={document:{getElementById:id=>nodos[id]||null},ROSTER:[{id:'oficial',cargo:'Teniente Tercero'},{id:'voluntario',cargo:'Voluntario'}],console:{warn(){}},Date,Intl,fetch:async()=>{throw Error('Sin conexión');},window:{}};
  vm.createContext(ctx);vm.runInContext(inicio,ctx);
  vm.runInContext('function pintarOBAC(){};function pintarOficial(){};function pintarControlAdmin(){};function semanaDe(){return "2026-11-11"};actual="oficial";t3=true;oficial=true;items=[{fecha:"2026-10-18"}];',ctx);
@@ -31,4 +31,24 @@ test('cambiar identidad sale de la edición anterior; actualizar la misma identi
 });
 test('pintar un resultado sin mando limpia también el resumen previo de Inicio',()=>{
  const c=fixture();let llamadas=0;c.ctx.pintarResumenMando=()=>{llamadas++;c.nodos.lgnMandoHome.innerHTML='';};c.run('t3=false;capitan=false;');c.run(oficial);c.run('pintarOficial()');assert.equal(llamadas,1);assert.equal(c.nodos.lgnMandoHome.innerHTML,'');assert.equal(c.nodos.lgnRatif.hidden,true);
+});
+const helpers=source.slice(source.indexOf('function coordinaGuardiaInicio('),source.indexOf('function pintarResumenMando('));
+const resumen=source.slice(source.indexOf('function pintarResumenMando('),source.indexOf('async function marcarVisto('));
+test('el control de Inicio solo corresponde a T3 y Ayudante activos',()=>{
+ const c=fixture();c.run(helpers);
+ for(const cargo of ['Teniente Tercero','Teniente 3','Ayudante','Ayudante de Capitán']){c.ctx.persona={cargo,activo:true};assert.equal(c.run('coordinaGuardiaInicio(persona)'),true,cargo);}
+ for(const cargo of ['Voluntario','Voluntaria','Capitán','Teniente Primero','Teniente Segundo','Director','Secretario']){c.ctx.persona={cargo,activo:true};assert.equal(c.run('coordinaGuardiaInicio(persona)'),false,cargo);}
+ c.ctx.persona={cargo:'Teniente Tercero',activo:false};assert.equal(c.run('coordinaGuardiaInicio(persona)'),false);
+});
+test('el Ayudante consulta sin recibir botones de aprobación en el resumen',()=>{
+ const c=fixture();c.ctx.ROSTER[0].cargo='Ayudante de Capitán';c.run(helpers);c.run(resumen);c.run('t3=false;oficial=true;items=[{acreditacionVigente:true}];pintarResumenMando();');
+ assert.match(c.nodos.lgnMandoHome.innerHTML,/Consultar guardias/);assert.doesNotMatch(c.nodos.lgnMandoHome.innerHTML,/Revisar y aprobar|data-lgn-t3-noche/);
+});
+test('el T3 conserva las tareas operativas dentro del control',()=>{
+ const c=fixture();c.run(helpers);c.run(resumen);c.run('items=[{fecha:"2026-10-18",finalizada:true,cierre:{},acreditacionVigente:false}];pintarResumenMando();');assert.match(c.nodos.lgnMandoHome.innerHTML,/Revisar y aprobar/);
+});
+test('el desplegable inicia cerrado, conserva su apertura y mantiene el botón original con su acción',()=>{
+ function nodo(tag){return {tag,dataset:{},style:{},children:[],open:false,get firstChild(){return this.children[0]||null;},appendChild(x){if(x.parent)x.parent.children.splice(x.parent.children.indexOf(x),1);this.children.push(x);x.parent=this;},querySelectorAll:()=>[]};}
+ const c=fixture();c.ctx.document.createElement=nodo;c.run(helpers);
+ for(const abierto of [false,true]){const host=nodo('host'),boton=nodo('button');let acciones=0;boton.onclick=()=>acciones++;host.appendChild(boton);c.ctx.hostPrueba=host;c.ctx.abiertoPrueba=abierto;c.run('plegarResumenMando(hostPrueba,abiertoPrueba)');const details=host.firstChild;assert.equal(details.tag,'details');assert.equal(details.open,abierto);assert.equal(details.children[0].tag,'summary');assert.equal(details.children[1].firstChild,boton);details.children[1].firstChild.onclick();assert.equal(acciones,1);}
 });

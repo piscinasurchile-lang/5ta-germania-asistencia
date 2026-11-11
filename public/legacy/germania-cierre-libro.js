@@ -524,9 +524,30 @@ function pintarControlAdmin(){
  panel.querySelectorAll("[data-lgn-corregir]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnCorregir));
 }
 
+function coordinaGuardiaInicio(m){
+ const cargo=String(m?.cargo||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+ return !!m&&m.activo!==false&&(/^(?:teniente\s*(?:tercero|3))(?:\s|$)/.test(cargo)||/^ayudante(?:\s|$)/.test(cargo));
+}
+function plegarResumenMando(host,abierto){
+ if(!host.firstChild)return;
+ const desplegable=document.createElement("details");desplegable.className="card gr-det";desplegable.dataset.lgnControlInicio="1";desplegable.open=abierto;
+ const boton=document.createElement("summary");boton.textContent="Control de guardia · Oficiales";boton.style.cssText="min-height:48px;display:list-item;box-sizing:border-box;padding:12px 0;cursor:pointer;font-weight:700";
+ const contenido=document.createElement("div");
+ while(host.firstChild)contenido.appendChild(host.firstChild);
+ contenido.querySelectorAll("h2").forEach(titulo=>{if(titulo.textContent==="Control de guardia · Oficiales")titulo.remove();});
+ desplegable.appendChild(boton);desplegable.appendChild(contenido);host.appendChild(desplegable);
+}
 function pintarResumenMando(){
  const host=$("lgnMandoHome");if(!host)return;
- if(!elegido()||String(elegido().id)!==actual||!t3&&!capitan){host.innerHTML="";return;}
+ if(!elegido()||String(elegido().id)!==actual||!coordinaGuardiaInicio(elegido())){host.innerHTML="";return;}
+ const abierto=host.querySelector("details[data-lgn-control-inicio]")?.open===true;
+ try{
+ if(!t3){
+  const aprobadas=items.filter(x=>x.acreditacionVigente).length;
+  host.innerHTML='<section><p class="sub">'+aprobadas+' guardia(s) aprobada(s) disponible(s) para consulta.</p><button type="button" class="btn secondary small" id="lgnMandoIr">Consultar guardias</button></section>';
+  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirControlAdmin();
+  return;
+ }
  const terminadas=items.filter(x=>x.finalizada);
  const actuales=terminadas.filter(x=>semanaDe(x.fecha)===semanaActual);
  if(capitan&&!t3){
@@ -589,6 +610,7 @@ function pintarResumenMando(){
    '<button type="button" class="btn secondary small" id="lgnMandoIr">Ver todas las guardias</button></section>';
  host.querySelectorAll("[data-lgn-t3-noche]").forEach(btn=>btn.onclick=()=>abrirPanelMando(btn.dataset.lgnT3Noche));
  const ir=$("lgnMandoIr");if(ir)ir.onclick=()=>abrirPanelMando();
+ }finally{plegarResumenMando(host,abierto);}
 }
 async function marcarVisto(fecha,boton){
  if(!capitan||!actual||!boton||boton.disabled)return;
