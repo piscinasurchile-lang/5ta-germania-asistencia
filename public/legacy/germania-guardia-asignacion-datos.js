@@ -59,6 +59,7 @@ root.GermaniaAsignacionCrear=function(dep){
   if((actorIdInicial!==null&&String(dep.actorId()||'')!==actorIdInicial)||String(dep.actor(d._roster)?.id)!==String(actor.id))throw Error('Cambió el integrante que opera Germania. Vuelve a cargar la semana');
   const resultado=await dep.guardar(cambios);const version=resultado.resultados?.find(x=>x.key==='guardia-revision:'+inicio)?.version;
   if(!Number.isInteger(version))throw Error('No se confirmó la versión guardada. Recarga antes de continuar');
+  if(aprobar&&typeof root.dispatchEvent==='function'&&typeof root.Event==='function')root.dispatchEvent(new root.Event('germania-avisos-dotacion-actualizada'));
   return {ok:true,version,estado:value.estado};
  }
  return {cargar,guardar,revisar:async body=>{if(!dep.revisar)throw Error('Revisión no disponible');return dep.revisar(body);},foto:fecha=>dep.foto?dep.foto(fecha):''};

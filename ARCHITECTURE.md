@@ -87,3 +87,7 @@ Desde ADR 0018, el cálculo compartido conserva como OBAC al inscrito de mayor p
 `germania-actualizar.js` coordina la detección de versiones durante una sesión. La primera respuesta válida establece la versión de referencia sin recargar el documento recién descargado, aunque el marcador local sea anterior o la primera consulta haya fallado. El contenedor no mantiene un segundo actualizador que compita por recrear el iframe. Volver con la misma versión conserva la pantalla y los módulos mantienen sus consultas de datos existentes.
 
 El contenedor espera la finalización del cargador legacy antes de retirar la portada, limpia la vigilancia de documentos anteriores y conserva las navegaciones internas a otros módulos. La política del service worker y las escrituras de datos no cambian.
+
+## Avisos de Guardia y dotación publicada
+
+ADR 0020: `/api/guardia/avisos` contrasta cada aviso con el historial de sustituciones de la revisión aprobada. Mi espacio y Oficialidad consumen el mismo estado efectivo; el original queda intacto. La publicación refresca los avisos exteriores mediante un evento sin recrear la edición diaria. Ayudante consulta los pendientes con sus atribuciones existentes; un reemplazante no recibe el motivo privado del titular.

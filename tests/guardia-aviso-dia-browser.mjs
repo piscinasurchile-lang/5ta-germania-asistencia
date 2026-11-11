@@ -12,7 +12,7 @@ const server=createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost');
  if(url.pathname==='/guardia/asignacion'){const r=await GET(new Request(url));res.setHeader('content-type','text/html');res.end(await r.text());return;}
  if(url.pathname.startsWith('/legacy/')){res.setHeader('content-type',url.pathname.endsWith('.css')?'text/css':'text/javascript');res.end(await readFile('public'+url.pathname));return;}
- if(url.pathname==='/api/state'){res.setHeader('content-type','application/json');res.end(JSON.stringify({items:avisos.map(value=>({value}))}));return;}
+ if(url.pathname==='/api/state'||url.pathname==='/api/guardia/avisos'){res.setHeader('content-type','application/json');res.end(JSON.stringify({items:avisos.map(value=>({value}))}));return;}
  res.setHeader('content-type','text/html');res.end('<body data-mando="1"><select id="miVoluntario"><option value="a">Admin</option></select><div id="misNochesInicio"></div><details id="gnAsignacionPanel"><summary>Guardia</summary><p id="gnGestionEstado"></p><iframe id="gnAsignacionFrame"></iframe></details><div id="gnTablaSemanal"></div></body>');
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
