@@ -1073,6 +1073,23 @@ window.renderGnInscripcionCard=async function(forzar){
 };
 
 /* ---------- Eventos ---------- */
+var abriendoDiaGuardia=false;
+window.gnAbrirDiaGuardia=async function(fecha){
+  var d=new Date(fecha+'T12:00:00Z');
+  if(abriendoDiaGuardia||!/^\d{4}-\d{2}-\d{2}$/.test(fecha||'')||!Number.isFinite(+d)||d.toISOString().slice(0,10)!==fecha||!window.gnPuedePrepararAsignacion()||typeof window.gnAbrirAsignacion!=='function')return false;
+  d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+4)%7);
+  var inicio=d.toISOString().slice(0,10);
+  abriendoDiaGuardia=true;
+  try{
+    if(typeof gnElegirSemana!=='function')return false;
+    await gnElegirSemana(inicio);
+    if(!gnPlanDraft||gnPlanDraft.inicio!==inicio)return false;
+    GR.semana=inicio;GR.buscada=true;gnTablaSemanaVisible=inicio;
+    if(typeof window.__mostrarPestana==='function')window.__mostrarPestana('guardia');
+    window.gnAbrirAsignacion(inicio,fecha);return true;
+  }catch(e){falloGuardia('No se pudo abrir el día del aviso.')(e);return false;}
+  finally{abriendoDiaGuardia=false;}
+};
 var botonGestion=$("btnOficialesGuardia");
 if(botonGestion) botonGestion.addEventListener("click",function(){
   if(!esMando(miembro())) return;

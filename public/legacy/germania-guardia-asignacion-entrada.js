@@ -2,9 +2,25 @@
  'use strict';
  const panel=document.getElementById('gnAsignacionPanel'),frame=document.getElementById('gnAsignacionFrame'),message=document.getElementById('gnGestionEstado');
  if(!panel||!frame)return;
- let actual='';
+ let actual='',fechaPendiente='',observadorDia=null;
  const valido=f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'')&&new Date(f+'T12:00:00Z').getUTCDay()===3;
  function seleccion(){return typeof gnTablaSemanaVisible!=='undefined'&&valido(gnTablaSemanaVisible)?gnTablaSemanaVisible:typeof gnPlanDraft!=='undefined'&&valido(gnPlanDraft?.inicio)?gnPlanDraft.inicio:'';}
+ function seleccionarDia(){
+  if(!fechaPendiente)return;
+  const d=frame.contentDocument;
+  if(!d||new URLSearchParams(d.defaultView.location.search).get('inicio')!==actual||!d.getElementById('state')||d.getElementById('state').textContent.includes('Cargando'))return;
+  const indice=Math.round((Date.parse(fechaPendiente+'T12:00:00Z')-Date.parse(actual+'T12:00:00Z'))/86400000);
+  const boton=d.querySelector('[data-day="'+indice+'"]');
+  if(!boton)return;
+  boton.click();
+  if(boton.classList.contains('active')||d.querySelector('[data-day="'+indice+'"].active'))fechaPendiente='';
+ }
+ frame.addEventListener('load',()=>{
+  if(observadorDia)observadorDia.disconnect();
+  const d=frame.contentDocument;if(!d)return;
+  observadorDia=new MutationObserver(seleccionarDia);
+  observadorDia.observe(d.body,{childList:true,subtree:true});seleccionarDia();
+ });
  function cargar(inicio,refrescar=false,solicitado=false){
   if(typeof window.gnPuedePrepararAsignacion==='function'&&!window.gnPuedePrepararAsignacion(inicio)){panel.style.display='none';frame.hidden=true;actual='';frame.removeAttribute('src');return;}
   panel.style.display='';
@@ -17,7 +33,11 @@
  const identidad=document.getElementById('miVoluntario');if(identidad)identidad.addEventListener('change',()=>{actual='';cargar(seleccion());});
  cargar(seleccion());
  panel.addEventListener('toggle',()=>{if(panel.open)cargar(seleccion(),true,true);});
- window.gnAbrirAsignacion=inicio=>{panel.open=true;cargar(valido(inicio)?inicio:seleccion());panel.scrollIntoView({behavior:'smooth',block:'start'});};
+ window.gnAbrirAsignacion=(inicio,fecha)=>{
+  const semana=valido(inicio)?inicio:seleccion(),indice=(Date.parse(fecha+'T12:00:00Z')-Date.parse(semana+'T12:00:00Z'))/86400000;
+  fechaPendiente=Number.isInteger(indice)&&indice>=0&&indice<7?fecha:'';
+  panel.open=true;cargar(semana);seleccionarDia();panel.scrollIntoView({behavior:'smooth',block:'start'});
+ };
  const tabla=document.getElementById('gnTablaSemanal');
  if(tabla)new MutationObserver(()=>{if(panel.open)cargar(seleccion(),true);else panel.style.display=typeof window.gnPuedePrepararAsignacion==='function'&&!window.gnPuedePrepararAsignacion(seleccion())?'none':'';}).observe(tabla,{childList:true,subtree:true});
  window.addEventListener('message',e=>{
