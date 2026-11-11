@@ -283,11 +283,11 @@ function faltan(c){
 
 /* ---------- Estado de la tarjeta ---------- */
 var GR={semana:"",vista:"mi",tab:"mis",D:null,sel:{maq:null,obac:null},selClave:"",eligiendo:false,eleccionClave:"",cargando:false};
-var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["Tabla semanal","📋"],rev:["Revisión y aprobación","🛠"],rep:["Reemplazos","🔁"]};
+var GR_TABS={mis:["Mis noches","🌙"],vol:["Voluntario","🙋"],maq:["Maquinista","🚒"],obac:["OBAC","🎧"],info:["Inscripciones","📋"],rep:["Avisos de reemplazo","🔁"]};
 /* Mi guardia: mis noches, y las tarjetas de elegir noche solo mientras la elección está abierta.
    Gestión de guardia (Capitán, Teniente 3° y administrador): pasos 2, 3 y 4 (el 1 es el calendario). */
 function tabsPermitidas(m,abierto){
-  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rev","rep"]:esAdminGuardia(m)?["info","rev","rep"]:esMando(m)?["info"]:[];
+  if(GR.vista==="gestion") return esTenienteTercero(m)?["info","rep"]:esAdminGuardia(m)?["info","rep"]:esMando(m)?["info"]:[];
   return ["mis"];   /* elegir noches se hace en las tarjetas de Inicio */
 }
 function guardiaActiva(){ var p=$("panel-guardia"); return !!p&&p.classList.contains("active"); }
@@ -354,17 +354,13 @@ function estadoCandadoInscripcion(D){
  return '<div role="status" class="gr-nota info" style="margin:10px 0;overflow-wrap:anywhere"><span aria-hidden="true">'+(cerrado?'🔒':'🔓')+'</span><p><b>'+titulo+'</b>'+(aprobada?' · Aprobada':'')+'</p></div>';
 }
 function selectorSemana(D){
-  if(GR.vista!=="gestion") return "";
-  var lista=D.lista||[], ahora=Date.now();
-  var visibles=lista.filter(semanaVigente48);
-  var anteriores=lista.filter(function(x){return !visibles.some(function(v){return v.inicio===x.inicio;});}).sort(function(a,b){return b.inicio.localeCompare(a.inicio);});
-  var buscar='<label class="rv-lbl" for="grBuscar">Buscar otra semana (guardias anteriores)</label><select id="grBuscar" class="rv-sel"><option value="">Elegir una semana…</option>'+anteriores.map(function(x){return '<option value="'+E(x.inicio)+'"'+(GR.buscada&&D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select><p class="sub" id="grBuscarMsg" role="status"></p>';
-  if(!visibles.length) return '<p class="sub">No hay guardias recientes. Elige una semana anterior.</p>'+buscar;
-  return '<label class="rv-lbl" for="grSemana">Semana que gestionas</label><select id="grSemana" class="rv-sel">'+visibles.map(function(x){return '<option value="'+E(x.inicio)+'"'+(D.p&&x.inicio===D.p.inicio?" selected":"")+'>'+E(gnFmt(x.inicio))+' → '+E(gnFmt(gnAdd(x.inicio,7)))+'</option>';}).join("")+'</select>'+buscar;
+ if(GR.vista!=="gestion")return "";
+ return '<label class="rv-lbl" for="grSemana">Semana que consultas</label><select id="grSemana" class="rv-sel">'+(D.lista||[]).slice().sort(function(a,b){return b.inicio.localeCompare(a.inicio);}).map(function(p){return '<option value="'+E(p.inicio)+'"'+(D.p&&p.inicio===D.p.inicio?' selected':'')+'>'+E(gnFmt(p.inicio))+' → '+E(gnFmt(gnAdd(p.inicio,6)))+'</option>';}).join('')+'</select>';
 }
+
 function cabecera(D){
   var m=D.m, p=D.p;
-  var sem=p?('Semana '+E(gnFmt(p.inicio))+' → '+E(gnFmt(gnAdd(p.inicio,7)))+' · '+HORARIOS.def+' (domingo '+HORARIOS.dom+') a '+HORARIOS.fin):'';
+  var sem=p?('Semana '+E(gnFmt(p.inicio))+' → '+E(gnFmt(gnAdd(p.inicio,6)))+' · '+HORARIOS.def+' (domingo '+HORARIOS.dom+') a '+HORARIOS.fin):'';
   return '<div class="gr-quien"><img class="gr-foto" src="'+E(fotoVoluntario(m))+'" alt=""><div><strong>'+E(nombreCompleto(m))+'</strong><span>'+E(sem||"Sin semana abierta")+' · solo presencial</span></div></div>'+selectorSemana(D);
 }
 function pintarTarjeta(){
@@ -372,12 +368,13 @@ function pintarTarjeta(){
   var box=$("gnRolCard"), D=GR.D; if(!box||!D) return;
   if(GR.vista!=="gestion"){box.innerHTML="";return;}
   var tabs=tabsPermitidas(D.m,D.abierto); if(tabs.indexOf(GR.tab)<0) GR.tab=tabs[0]||"mis";
-  var html='<h2>'+(GR.vista==="gestion"?"Gestión de guardia":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
+  var html='<h2>'+(GR.vista==="gestion"?"Información de inscripción":"Mi guardia nocturna")+'</h2>'+(GR.vista==='gestion'?selectorSemana(D):cabecera(D));
   if(GR.vista==='gestion')html+=estadoCandadoInscripcion(D);
   if(!tabs.length) html+='<div class="empty">Esta parte la gestionan el Capitán, el Teniente 3° y el administrador.</div>';
   if(tabs.length>1) html+='<div class="gr-tabs" role="tablist">'+tabs.map(function(t){ return '<button type="button" role="tab" class="gr-tab'+(t===GR.tab?" on":"")+'" data-gr-tab="'+t+'" aria-selected="'+(t===GR.tab)+'"><span aria-hidden="true">'+GR_TABS[t][1]+'</span>'+GR_TABS[t][0]+'</button>'; }).join("")+'</div>';
   if(tabs.length) html+='<div id="grPanel"></div>';
-  box.innerHTML=html;
+  var informacionAbierta=!!box.querySelector('details[open]');
+  box.innerHTML='<details'+(informacionAbierta?' open':'')+'><summary style="cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:800">Inscripciones y avisos</summary>'+html+'</details>';
   pintarPanel();
 }
 function pintarPanel(){
@@ -385,7 +382,7 @@ function pintarPanel(){
   if(GR.tab==="mis"){ panelMis(pn,D); return; }
   if(!D.p){ pn.innerHTML='<div class="empty">No hay una semana publicada. Selecciona un miércoles en el calendario para prepararla.</div>'; return; }
   if(D.error||!D.S){ pn.innerHTML='<div class="empty">No se pudo leer la semana. <button type="button" class="btn small secondary" id="grReintentar">Reintentar</button></div>'; var r=$("grReintentar"); if(r) r.onclick=function(){ grRender(true); }; return; }
-  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rev") panelRev(pn,D); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
+  if(GR.tab==="vol") panelVol(pn,D); else if(GR.tab==="info") panelInfo(pn,D); else if(GR.tab==="rep") panelRep(pn,D); else panelRol(pn,D,GR.tab);
 }
 
 /* ---------- Voluntario ---------- */
@@ -586,7 +583,7 @@ function panelInfo(pn,D){
   var h='<h3 class="gr-t">Cobertura de la semana</h3><p><b>'+completas+' de '+D.cov.length+' noches completas</b></p>';
   // Tarjetas de cobertura por noche retiradas de esta vista informativa: la programación sigue en Gestión de guardias.
   h+='<details class="gr-det"><summary>No se inscribieron: '+sinConf.length+' voluntario'+(sinConf.length===1?"":"s")+'</summary><div class="gr-lista">'+(sinConf.length?sinConf.map(function(x){var nombre=[x.nombre,x.apellidoPaterno,x.apellidoMaterno].filter(Boolean).join(" ");return '<div class="gr-nc-fila" style="display:flex;align-items:center;gap:10px;min-width:0"><img src="'+E(fotoVoluntario(x))+'" alt="" loading="lazy" style="width:36px;height:36px;min-width:36px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="min-width:0"><b>'+E(nombre||corto(x))+'</b><small class="sub" style="display:block">Sin inscripción registrada esta semana</small></span></div>';}).join(""):'<p>Todos registraron inscripción esta semana.</p>')+'</div></details>';
-  h+='<div class="gr-nota info"><p><b>Estadística de inscripción:</b> '+(activos.length-sinConf.length)+' de '+activos.length+' voluntarios activos se inscribieron ('+(activos.length?Math.round(100*(activos.length-sinConf.length)/activos.length):0)+'%). '+sinConf.length+' no se inscribieron.</p></div>';
+  h+='<div class="gr-nota info"><p><b>Estadística de inscripción:</b> '+(activos.length-sinConf.length)+' de '+activos.length+' voluntarios activos se inscribieron ('+(activos.length?Math.round(100*(activos.length-sinConf.length)/activos.length):0)+'%). '+sinConf.length+' no se inscribieron.'+(D.revision?.estado==='aprobada'?' Designados: '+new Set(Object.values(D.revision.noches||{}).flatMap(function(n){return [n.obac,n.maq].concat(n.vol||[]);}).filter(Boolean)).size+'.':'')+'</p></div>';
   h+='<button type="button" class="btn secondary" id="grHistIns">Consultar historial de inscripciones</button><div id="grHistInsRes" aria-live="polite"></div>';
   h+='<details class="gr-det" id="hrDet"><summary>Horario de las noches</summary><p>Por defecto: '+HORARIOS.def+' (domingo '+HORARIOS.dom+') hasta '+HORARIOS.fin+'.</p><div class="gr-lista">'+D.noches.map(function(f){ var n=nombreNoche(f); return '<label class="hr-fila"><span><b>'+E(n.w)+'</b> '+E(n.d)+'</span><input type="time" data-hr="'+f+'" value="'+E(horaNoche(f))+'"></label>'; }).join("")+'</div><label class="hr-perm"><input type="checkbox" id="hrPerm"> Dejar estas horas como habituales (domingo y resto) para las semanas siguientes</label><button type="button" class="btn gr-grande" id="hrGuardar">Guardar horario</button><div class="status-msg" id="hrMsg"></div></details>';
   pn.innerHTML=h;
@@ -606,7 +603,7 @@ async function guardarHorario(D){
       var c2=await sGetV("guardia-horarios:v1",null); await sSet("guardia-horarios:v1",nv,{ifVersion:Number.isInteger(c2.version)?c2.version:0});
     }
     await cargarHorarios(); MN.cache=null;
-    var ap=RV.doc&&RV.doc.estado==="aprobada";
+    var ap=D.revision&&D.revision.estado==="aprobada";
     msg.textContent="Horario guardado."+(ap?" La dotación ya estaba aprobada: reábrela y vuelve a aprobar para que la guardia use la hora nueva.":" Rige al aprobar la dotación.");
   }catch(e){ msg.textContent=e&&e.conflicto?"Otra persona cambió el horario. Recarga e inténtalo de nuevo.":"No se pudo guardar."; msg.classList.add("err"); }
 }
@@ -1124,7 +1121,7 @@ document.querySelectorAll(".panel").forEach(function(pn){
 });
 document.addEventListener("change",function(ev){
   if(!ev.target)return;
-  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; GR.buscada=false; RV.clave=""; grRender(true).catch(falloGuardia("No se pudo actualizar la guardia.")); }
+  if(ev.target.id==="grSemana"){ GR.semana=ev.target.value; GR.buscada=true; if(typeof gnElegirSemana==="function")gnElegirSemana(GR.semana); RV.clave=""; grRender(true).catch(falloGuardia("No se pudo actualizar la guardia.")); }
   if(ev.target.id==="grBuscar"){
     var inicio=ev.target.value, lista=(GR.D&&GR.D.lista)||[];
     if(!inicio)return;

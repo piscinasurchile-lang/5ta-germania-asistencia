@@ -41,6 +41,11 @@ function datosPayload(b,noche,programados){
   return {adicionales,excusas,obac,cond,ids:idsEfectivos(programados,adicionales)};
 }
 export async function POST(req) {
+  return acreditarConConexion(req);
+}
+// La aprobación semanal reutiliza exactamente las validaciones de la aprobación diaria.
+// La conexión solo la suministra el servidor; nunca procede del cuerpo de la solicitud.
+export async function acreditarConConexion(req, conexion = null, efectos = true) {
   if (!origen(req)) return Response.json({error:"origen_no_permitido"},{status:403});
   const sesion=exigirSesionOficial(req); if(sesion) return sesion;
   let b; try { b=await req.json(); } catch { return Response.json({error:"datos_invalidos"},{status:400}); }
@@ -54,7 +59,7 @@ export async function POST(req) {
   const miercoles=new Date(semana); miercoles.setUTCDate(miercoles.getUTCDate()-(miercoles.getUTCDay()+4)%7);
   const inicio=miercoles.toISOString().slice(0,10);
   if (!process.env.DATABASE_URL) return Response.json({error:"database_not_configured"},{status:503});
-  const sql=neon(process.env.DATABASE_URL);
+  const sql=conexion||neon(process.env.DATABASE_URL);
   try {
     await ensureSchema(sql);
     const [rr, rev, hr, anterior, libro]=await Promise.all([
@@ -151,12 +156,14 @@ export async function POST(req) {
     }
     // Efectos secundarios (no bloquean la aprobación): incidencias automáticas y avisos a oficiales.
     const esCorreccion=!!anteriorRegistro;
+    if(efectos){
     if (esCorreccion) await agregarIncidencia(sql,fecha,{id:"auto-corr-"+guardado.version,tipo:"correccion_posterior",personaId:null,
       detalle:"Corrección por "+oficialNombre+": "+motivoCorreccion,estado:"resuelta",automatica:true,registradaPorId:actor,registradaPorNombre:oficialNombre,en:ahoraISO});
     if (dotacionEfectiva.voluntarios<2||!dotacionEfectiva.minimoCumplido) await agregarIncidencia(sql,fecha,{id:"auto-dotacion-"+fecha,tipo:"dotacion_insuficiente",personaId:null,
       detalle:"Dotación efectiva bajo el mínimo (1 conductor, 1 OBAC y 2 voluntarios): "+cumplimiento.motivos.join(", "),estado:"abierta",automatica:true,registradaPorId:actor,registradaPorNombre:oficialNombre,en:ahoraISO});
     await avisarOficiales(sql,{clave:(esCorreccion?"corr:":"rat:")+fecha+":"+guardado.version,tipo:esCorreccion?"correccion":"ratificada",fecha,
       titulo:(esCorreccion?"Aprobación corregida · ":"Guardia aprobada · ")+fecha+" · "+oficialNombre,porNombre:oficialNombre});
+    }
     return Response.json({ok:true,version:guardado.version,acreditadas:asistentes.length,acreditadoPorNombre:oficialNombre,cumplimiento},{headers:{"Cache-Control":"no-store"}});
   } catch(e) { console.error("guardia acreditacion failed",e);
     return Response.json({error:"database_error"},{status:500}); }

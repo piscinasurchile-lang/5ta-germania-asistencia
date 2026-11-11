@@ -87,3 +87,7 @@ Desde ADR 0018, el cálculo compartido conserva como OBAC al inscrito de mayor p
 `germania-actualizar.js` coordina la detección de versiones durante una sesión. La primera respuesta válida establece la versión de referencia sin recargar el documento recién descargado, aunque el marcador local sea anterior o la primera consulta haya fallado. El contenedor no mantiene un segundo actualizador que compita por recrear el iframe. Volver con la misma versión conserva la pantalla y los módulos mantienen sus consultas de datos existentes.
 
 El contenedor espera la finalización del cargador legacy antes de retirar la portada, limpia la vigilancia de documentos anteriores y conserva las navegaciones internas a otros módulos. La política del service worker y las escrituras de datos no cambian.
+
+## Simplicidad de Guardia y aprobación semanal · noviembre de 2026
+
+ADR 0019 conserva sin modificaciones el cliente de edición diaria y concentra sus accesos. `guardia/aprobar-semana` reutiliza la acreditación canónica sobre una conexión transaccional, con confirmación explícita, cotejo de libros, versiones y rollback completo. La acción se presenta fuera del iframe diario; no reemplaza la aprobación por día ni el cierre semanal. El anexo ODD usa cuadros por noche y conserva las páginas institucionales originales, admitiendo los originales 071 y 063 verificados por SHA256.

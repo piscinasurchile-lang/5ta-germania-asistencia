@@ -34,6 +34,6 @@ test("el código ya no cae a «la última semana» ni la muestra sin búsqueda e
   assert.match(roles, /if\(!p&&esGestion\)\{ var vig=lista\.filter\(semanaVigente48\)/);
   assert.match(roles, /\(GR\.buscada&&pa\.lista\.filter\(enLista\)\[0\]\)/);
   assert.match(roles, /GR\.semana=semana\.inicio; GR\.buscada=true;/);
-  assert.match(roles, /if\(ev\.target\.id==="grSemana"\)\{ GR\.semana=ev\.target\.value; GR\.buscada=false;/);
-  assert.match(roles, /var visibles=lista\.filter\(semanaVigente48\);/);
+  assert.match(roles, /if\(ev\.target\.id==="grSemana"\)\{ GR\.semana=ev\.target\.value; GR\.buscada=true;/);
+  assert.match(roles, /lista\.filter\(semanaVigente48\)/,'las semanas pasadas solo aparecen por selección explícita');
 });

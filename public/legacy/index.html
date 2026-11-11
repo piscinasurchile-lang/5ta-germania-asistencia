@@ -812,17 +812,20 @@
         </section>
         <section class="gn-config">
           <h3>Configuración del período</h3>
-          <div class="seg" id="gnModoPeriodo"><button type="button" data-gn-modo="normal" class="active">Semana normal</button><button type="button" data-gn-modo="extraordinaria">Guardia extraordinaria</button></div>
-          <div id="gnExtraWrap" style="display:none;margin:12px 0"><label for="gnExtraNombre">Motivo / actividad</label><input id="gnExtraNombre" placeholder="Ej: Feria Aérea, Navidad, Año Nuevo"></div>
           <div id="gnPeriodoResumen" class="gn-period-box">Toca un miércoles para seleccionar la semana.</div>
-          <label class="gn-switch"><input type="checkbox" id="gnDomingoDiurno"> <span>Guardia diurna domingo</span></label>
-          <div id="gnDomingoOpciones" style="display:none">
-            <label>Modalidad</label>
-            <div class="seg"><button type="button" data-gn-lugar="domicilio" class="active">Domicilio</button><button type="button" data-gn-lugar="cuartel">Cuartel</button></div>
-            <div id="gnActividadWrap" style="display:none;margin-top:10px"><label for="gnActividad">Actividad en cuartel</label><input id="gnActividad" placeholder="Mantención B-5, revisión de equipos, marcado de herramientas…"></div>
+          <div class="gn-actions">
+            <button class="btn secondary" id="gnCerrarInscripcion" type="button">Cerrar inscripción</button>
+            <div id="gnPlazoInscripcion"><label for="gnCierrePeriodo">Inscripciones abiertas hasta</label><input type="datetime-local" id="gnCierrePeriodo"><button class="btn" id="gnConfirmarPeriodo" type="button">Publicar semana</button></div>
           </div>
-          <div class="gn-actions"><button class="btn secondary" id="gnLimpiarSeleccion" type="button">Limpiar selección</button><button class="btn secondary" id="gnBorrarSemana">Anular semana publicada</button><button class="btn secondary" id="gnCerrarInscripcion">Cerrar inscripción / Asignación</button><button class="btn secondary" id="gnSuspenderPeriodo">Suspender por Comandancia</button><label for="gnCierrePeriodo" style="display:block;margin:10px 0 4px;font-size:13px;">Inscripciones abiertas hasta</label><input type="datetime-local" id="gnCierrePeriodo" style="padding:9px;background:#0d0e11;border:1px solid #3a3d44;border-radius:6px;color:#fff;margin-bottom:10px;">
-        <button class="btn" id="gnConfirmarPeriodo">Confirmar período</button></div>
+          <details id="gnOpcionesSemana" style="margin-top:12px">
+            <summary style="cursor:pointer;min-height:44px;display:flex;align-items:center">Opciones de la semana</summary>
+            <label class="gn-switch"><input type="checkbox" id="gnDomingoDiurno"> <span>Guardia diurna domingo</span></label>
+            <div id="gnDomingoOpciones" style="display:none">
+              <label>Modalidad</label><div class="seg"><button type="button" data-gn-lugar="domicilio">Domicilio</button><button type="button" data-gn-lugar="cuartel">Cuartel</button></div>
+              <div id="gnActividadWrap" style="display:none;margin-top:10px"><label for="gnActividad">Actividad en cuartel</label><input id="gnActividad" placeholder="Actividad del domingo"></div>
+            </div>
+            <div class="gn-actions"><button class="btn secondary" id="gnLimpiarSeleccion" type="button">Limpiar selección</button><button class="btn secondary" id="gnSuspenderPeriodo" type="button">Suspender por Comandancia</button><button class="btn secondary" id="gnBorrarSemana" type="button">Anular semana publicada</button></div>
+          </details>
           <div class="status-msg" id="gnPlanMsg"></div>
         </section>
       </div>
@@ -845,6 +848,7 @@
       <summary style="cursor:pointer;min-height:48px;display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px;border-left:4px solid var(--g-red,#e30613);padding-left:12px">Modificar y aprobar dotación <span aria-hidden="true" style="margin-left:auto;color:var(--g-gold,#ffcc00)">⌄</span></summary>
       <p id="gnGestionEstado" class="sub" role="status" aria-live="polite"></p>
       <iframe id="gnAsignacionFrame" title="Asignación de guardia nocturna de la semana seleccionada" hidden style="width:100%;border:0;min-height:300px;background:#10151a" loading="lazy"></iframe>
+      <div id="gnAprobacionSemana" hidden></div>
     </details>
     <div class="card" id="gnRolCard" aria-live="polite"></div>
     <div class="card solo-oficiales solo-gestion" id="gnRegistroManual" hidden style="display:none!important">
@@ -865,14 +869,13 @@
       <div class="status-msg" id="gnMsg"></div>
     </div>
 
-    <div class="card solo-oficiales solo-gestion" id="gnHistorialCard">
-      <h2>Historial de guardias</h2>
+    <details class="card solo-oficiales solo-gestion" id="gnHistorialCard">
+      <summary style="cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:800">Historial de guardias</summary>
       
       <div class="field-row"><div class="field" style="flex:1 1 260px"><label for="gnHistorialSelect">Semanas registradas</label><select id="gnHistorialSelect"><option value="">Consultando semanas…</option></select></div></div>
       <div class="gn-actions" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">
         <button class="btn small secondary" type="button" id="gnHistorialVer">Ver detalle</button>
         <button class="btn small secondary" type="button" id="gnHistorialPdf">Descargar nómina</button>
-        <button class="btn small secondary" type="button" id="gnHistorialOdd">Generar ODD</button>
       </div>
       <div class="status-msg" id="gnHistorialMsg" role="status" aria-live="polite"></div>
       <div id="gnHistorialDetalle" hidden style="margin-top:12px"></div>
@@ -882,7 +885,7 @@
         <div class="gn-actions"><button class="btn small secondary" id="gnPdfSemanal">Informe del período</button><button class="btn small secondary" id="gnPdfEstad">Informe estadístico</button><button class="btn small secondary" id="gnInfo">Infografía de guardias</button></div>
         <div class="summary-row" id="gnResumen" style="margin-top:16px"></div><div id="gnLista"></div>
       </details>
-    </div>
+    </details>
   </div>
 
   <!-- HISTORIAL -->
@@ -1747,6 +1750,7 @@
 <script src="./germania-odd-archivo.js?v=20261030produccion1"></script>
 <script src="./germania-guardia-asignacion-datos.js?v=20261107-integracion1"></script>
 <script src="./germania-guardia-asignacion-entrada.js?v=20261107-integracion1"></script>
+<script src="./germania-guardia-aprobar-semana.js?v=20261110a" defer></script>
 </body>
 </html>
 
