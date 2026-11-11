@@ -34,7 +34,12 @@ function esMando(m){return /teniente\s*(tercero|3)/i.test(rol(m))||/^\s*capit[a√
 function fotoUrl(f){return "/api/guardia/libro?foto=1&fecha="+encodeURIComponent(f)+"&actorId="+encodeURIComponent(actual);}
 async function cargar(forzar){
  const m=elegido(),id=m?String(m.id):"";
- if(!id){actual="";items=[];admin=false;oficial=false;historial=null;limpiar();return;}
+ if(id!==actual){
+  actual=id;items=[];t3=false;puedeExternos=false;esT3Real=false;capitan=false;admin=false;oficial=false;
+  semanaActual="";semanaBuscada="";historial=null;ultimaCarga=0;ultimaRatificacion="";editando=false;
+  limpiar();
+ }
+ if(!id){limpiar();return;}
  // No reconstruir el formulario del oficial mientras edita asistencia sin guardar.
  if(editando&&actual===id)return;
  if(cargando||(!forzar&&Date.now()-ultimaCarga<12000&&actual===id))return;
@@ -60,7 +65,10 @@ async function cargar(forzar){
    area.innerHTML='<p class="sub" role="alert">No fue posible sincronizar los cierres. Intenta actualizar cuando vuelva la conexi√≥n.</p>';
   return false;
  }
- finally{cargando=false;}
+ finally{
+  cargando=false;
+  if(String(elegido()?.id||"")!==id)cargar(true);
+ }
 }
 function limpiar(){
  fotoSeleccionada=null;formAbierto=false;
@@ -518,7 +526,7 @@ function pintarControlAdmin(){
 
 function pintarResumenMando(){
  const host=$("lgnMandoHome");if(!host)return;
- if(!t3&&!capitan){host.innerHTML="";return;}
+ if(!elegido()||String(elegido().id)!==actual||!t3&&!capitan){host.innerHTML="";return;}
  const terminadas=items.filter(x=>x.finalizada);
  const actuales=terminadas.filter(x=>semanaDe(x.fecha)===semanaActual);
  if(capitan&&!t3){
@@ -639,7 +647,7 @@ function pintarOficial(){
  const area=$("lgnRatif"),btn=$("btnOficialesAcreditar");if(!area)return;
  const mando=t3||capitan;area.hidden=!mando;
  if(btn){btn.hidden=!mando;btn.textContent=t3?"Aprobar guardias":"Informes de guardia";}
- if(!mando){area.innerHTML="";return;}
+ if(!mando){area.innerHTML="";pintarResumenMando();return;}
  const terminadas=items.filter(x=>x.finalizada);
  const pendientes=terminadas.filter(x=>!x.acreditacionVigente);
  const actualizados=(t3?terminadas:terminadas.filter(x=>x.acreditacionVigente)).slice(0,35);
@@ -948,6 +956,7 @@ function init(){
  const m=elegido(),id=m?String(m.id):"";
  if(id!==actual){formAbierto=false;fotoSeleccionada=null;ultimaRatificacion="";ultimaCarga=0;cargar(true);}
 }
+$("miVoluntario")?.addEventListener("change",()=>cargar(true));
 init();
 setInterval(()=>{init();const fechaReciente=window.GermaniaFechas.sumarDias(window.GermaniaFechas.hoyChile(),-3);const soyObacReciente=items.some(x=>String(x.dotacion?.obac)===actual&&x.fecha>=fechaReciente);if(document.visibilityState==="visible"&&!formAbierto&&!editando&&elegido()&&(esMando(elegido())||admin||oficial||soyObacReciente))cargar(false);},5000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!editando&&!formAbierto)cargar(true);});
