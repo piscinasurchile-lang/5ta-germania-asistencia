@@ -36,7 +36,11 @@
   async function estado(f){
     var who=yo();if(!who)return {};
     var av=null,ok=null;
-    try{av=await sGet("guardia-aviso:"+f+":"+who,null);}catch(e){}
+    try{
+      var r=await fetch("/api/guardia/avisos?actorId="+encodeURIComponent(who),{cache:"no-store"});
+      if(!r.ok)throw Error("No se pudieron consultar los avisos");
+      var j=await r.json();av=(j.items||[]).map(function(x){return x.value;}).find(function(x){return x&&x.f===f&&String(x.id)===who;})||null;
+    }catch(e){throw e;}
     try{ok=await sGet("guardia-asiste:"+f+":"+who,null);}catch(e){}
     return {av:av,ok:ok};
   }
@@ -50,7 +54,11 @@
     sec.querySelectorAll("[data-gn-noche]").forEach(function(b){b.classList.toggle("gn-sel",!!sel&&sel.f===b.getAttribute("data-gn-noche"));b.setAttribute("aria-expanded",String(!!sel&&sel.f===b.getAttribute("data-gn-noche")));});
     var old=sec.querySelector(".gn-aviso-panel");if(old)old.remove();
     if(!sel)return;
-    var f=sel.f,st=await estado(f);
+    var f=sel.f,st;
+    try{st=await estado(f);}catch(e){
+      if(mi===tok&&sel&&sel.f===f){sec.insertAdjacentHTML("beforeend",'<p class="gn-aviso-panel" role="alert">No se pudo consultar el estado de tu aviso. Vuelve a tocar tu noche para reintentar.</p>');}
+      return;
+    }
     if(mi!==tok||!sel||sel.f!==f)return;
     sec.querySelectorAll('.gn-aviso-panel').forEach(function(x){x.remove();});
     var d=new Date(f+"T12:00"),tit=d.toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"});
@@ -100,12 +108,12 @@
      «Reemplazos»; el Capitán solo mira (la reasignación la hace el T3). */
   var tokA=0;
   async function alertaOficiales(){
-    var mi=++tokA,host=$("avisosAusenciaOfi");
-    if(document.body.getAttribute("data-mando")!=="1"){if(host)host.remove();return;}
+    var mi=++tokA,host=$("avisosAusenciaOfi"),actor=yo(),ayudante=/^ayudante(?:\s|$)/.test(cargo(persona()));
+    if(document.body.getAttribute("data-mando")!=="1"&&!ayudante){if(host)host.remove();return;}
     var lista=[];
-    try{var r=await fetch("/api/state?prefix="+encodeURIComponent("guardia-aviso:"),{cache:"no-store"});if(!r.ok)throw 0;var j=await r.json();lista=(Array.isArray(j.items)?j.items:[]).map(function(x){return x.value;}).filter(Boolean);}
+    try{var r=await fetch("/api/guardia/avisos?actorId="+encodeURIComponent(actor),{cache:"no-store"});if(!r.ok)throw 0;var j=await r.json();lista=(Array.isArray(j.items)?j.items:[]).map(function(x){return x.value;}).filter(Boolean);}
     catch(e){return;}
-    if(mi!==tokA)return;
+    if(mi!==tokA||actor!==yo())return;
     var pend=lista.filter(function(a){return a.f&&a.estado!=="cubierto"&&!nocheTerminada(a.f);}).sort(function(a,b){return String(a.f).localeCompare(String(b.f))||String(a.en).localeCompare(String(b.en));});
     if(!pend.length){if(host)host.remove();return;}
     var ref=$("misNochesInicio");if(!ref||!ref.parentNode)return;
@@ -116,8 +124,8 @@
       var d=new Date(a.f+"T12:00"),dia=d.toLocaleDateString("es-CL",{weekday:"short",day:"numeric",month:"short"});
       var p=(typeof ROSTER!=="undefined"?ROSTER:[]).find(function(x){return String(x.id)===String(a.id);});
       var nom=a.por||corto(p)||"Voluntario";
-      return '<div style="padding:8px 0;border-top:1px solid #4a2a2a"><b>'+e2(nom)+'</b> · '+e2(dia)+' · '+e2(ROLTXT[a.rol]||"")+(esUrgente(a.f)?' <span class="gr-chip rojo">URGENTE</span>':'')+(a.estado==="sin_reemplazo"?' <span class="gr-chip rojo">sin reemplazo</span>':' <span class="gr-chip gris">falta reemplazo</span>')+(a.motivo?'<div style="opacity:.85">'+e2(a.motivo)+'</div>':'')+(puedeReemplazar?'<button type="button" class="btn" data-gn-aus-fecha="'+e2(a.f)+'" style="min-height:48px;margin-top:8px">Asignar reemplazo</button>':'')+'</div>';
-    }).join("")+'</div>'+(puedeReemplazar?'':'<p class="sub" style="margin:8px 0 0">El Teniente Tercero asigna el reemplazo.</p>');
+      return '<div style="padding:8px 0;border-top:1px solid #4a2a2a"><b>'+e2(nom)+'</b> · '+e2(dia)+' · '+e2(ROLTXT[a.rol]||"")+(esUrgente(a.f)?' <span class="gr-chip rojo">URGENTE</span>':'')+(a.estado==="sin_reemplazo"?' <span class="gr-chip rojo">sin reemplazo</span>':' <span class="gr-chip gris">falta reemplazo</span>')+(a.motivo?'<div style="opacity:.85">'+e2(a.motivo)+'</div>':'')+(puedeReemplazar||ayudante?'<button type="button" class="btn" data-gn-aus-fecha="'+e2(a.f)+'" style="min-height:48px;margin-top:8px">'+(puedeReemplazar?'Asignar reemplazo':'Revisar día')+'</button>':'')+'</div>';
+    }).join("")+'</div>'+(puedeReemplazar||ayudante?'':'<p class="sub" style="margin:8px 0 0">El Teniente Tercero asigna el reemplazo.</p>');
     if(host._contenidoAvisos!==html){host.innerHTML=html;host._contenidoAvisos=html;}
     host.querySelectorAll('[data-gn-aus-fecha]').forEach(function(ir){ir.onclick=function(){
       if(typeof window.gnAbrirDiaGuardia==='function')window.gnAbrirDiaGuardia(ir.dataset.gnAusFecha);
@@ -128,6 +136,7 @@
   var sv=$("miVoluntario");if(sv)sv.addEventListener("change",function(){setTimeout(alertaOficiales,800);});
   setTimeout(alertaOficiales,2500);
   window.GermaniaAvisoAusencia={refrescar:alertaOficiales};
+  window.addEventListener("germania-avisos-dotacion-actualizada",function(){alertaOficiales();if(sel)pintar();});
 
   /* roles.js vuelve a dibujar la franja cada cierto tiempo: se vuelve a poner el panel y el texto fijo */
   function observar(){

@@ -223,6 +223,13 @@ if($("novedadesLista")) $("novedadesLista").addEventListener("click",function(ev
 
 /* ---------- Datos de la semana ---------- */
 async function leerPrefijo(pref){
+  if(pref==="guardia-aviso:"){
+    const actor=String($("miVoluntario")?.value||"");
+    const r=await fetch("/api/guardia/avisos?actorId="+encodeURIComponent(actor),{cache:"no-store"});
+    if(!r.ok)throw Error("No se pudieron contrastar los avisos de guardia");
+    const d=await r.json();if(String($("miVoluntario")?.value||"")!==actor)throw Error("Cambió el integrante");
+    return d.items||[];
+  }
   var r=await fetch("/api/state?prefix="+encodeURIComponent(pref),{cache:"no-store"});
   if(!r.ok) throw new Error("lectura");
   var j=await r.json(); return Array.isArray(j.items)?j.items:[];
@@ -865,6 +872,7 @@ var ROL_NOCHE={vol:"Voluntario",maq:"Maquinista",obac:"OBAC"};
 /* Miércoles de inicio de la semana que contiene la noche. */
 function inicioSemanaDe(f){ var d=new Date(f+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+4)%7)); return d.toISOString().slice(0,10); }
 var MN={cache:null,who:"",en:0};
+window.addEventListener("germania-avisos-dotacion-actualizada",function(){MN.cache=null;misNochesInicio(true);misNochesCumplidas(true);});
 function avKey(f,id){ return "guardia-aviso:"+f+":"+id; }
 async function misNochesDatos(who,forzar){
   if(!forzar&&MN.cache&&MN.who===who&&Date.now()-MN.en<15000) return MN.cache;
@@ -1044,6 +1052,7 @@ async function resolverAviso(pn,D,k,repId){
     cambios.push({op:"set",key:avKey(f,id),value:nuevoAv,ifVersion:av.version});
     await gnGuardarAtomico(cambios);
     MN.cache=null; if(RV.clave) RV.clave="";
+    window.dispatchEvent(new Event("germania-avisos-dotacion-actualizada"));
     panelRep(pn,D);
   }catch(e){ msg.textContent=e&&e.conflicto?"Otra persona cambió esto. Se recargó la lista.":"No se pudo guardar. Inténtalo de nuevo."; msg.classList.add("err"); if(e&&e.conflicto) setTimeout(function(){ panelRep(pn,D); },900); }
 }
