@@ -26,11 +26,12 @@ test("no inventa fechas ni mezcla semanas al cruzar mes y año",()=>{
 });
 test("pantalla conserva tabla, oficiales, estadísticas y añade selector y botones compactos",()=>{
  for(const id of ["gnTablaSemanal","gnTablaActualizar","gnTablaPdf","gnOddMaestras",
- "gnHistorialSelect","gnHistorialVer","gnHistorialPdf","gnHistorialOdd",
+ "gnHistorialSelect","gnHistorialVer","gnHistorialPdf",
  "gnHistorialDetalle","gnResumen","gnLista","gnPdfEstad","gnInfo","btnOficialesGuardia"])
  assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(html,/Informes adicionales y estadísticas/);
  assert.match(html,/class="btn small secondary" type="button" id="gnHistorialPdf"/);
+ assert.ok(!html.includes('id="gnHistorialOdd"'),'la emisión de ODD tiene un único acceso en la tabla seleccionada');
 });
 test("historial de siete noches es solo lectura y PDF no acredita asistencia",()=>{
  const inicio=js.indexOf("async function gnHistorialDatos("),fin=js.indexOf("on(\"gnOddMaestras\",",inicio);

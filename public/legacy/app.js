@@ -1915,7 +1915,7 @@ on("svWaBtn","click",async()=>{
 
 /* ============ PLANIFICACIÓN INTEGRAL DE GUARDIA ============ */
 const GN_PLAN_INDEX="guardia-plan:index";
-let gnPlanMes=new Date(), gnPlanDraft=null, gnVolSel=new Set();
+let gnPlanMes=new Date(), gnPlanDraft=null, gnVolSel=new Set(), gnPlanLectura=0;
 
 function gnISO(d){ const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,10); }
 function gnAdd(iso,n){ const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n); return gnISO(d); }
@@ -1937,7 +1937,7 @@ async function gnModificarPlan(plan,cambios){
  plan._version=r.resultados.find(x=>x.key===key).version;
 }
 async function gnSavePlan(p){
- const {_version,...doc}=p;
+ const {_version,_aprobada,...doc}=p;
  if(!Number.isInteger(_version))throw new Error("Vuelve a abrir la semana antes de guardar.");
  await gnGuardarAtomico([{op:"set",key:gnPlanKey(p.inicio),value:doc,ifVersion:_version},{op:"add",key:GN_PLAN_INDEX,item:p.inicio,sort:"asc"}]);
 }
@@ -1967,15 +1967,18 @@ async function renderGnPlanner(){
 /* hora de Chile como valor de <input type="datetime-local"> */
 function gnLocalInput(ms){ return new Date(ms).toLocaleString("sv-SE",{timeZone:"America/Santiago"}).replace(" ","T").slice(0,16); }
 async function gnElegirSemana(iso){
+ const solicitud=++gnPlanLectura;
  const msg=document.getElementById("gnPlanMsg");
  const d=new Date(iso+"T12:00"); if(d.getDay()!==3){ msg.textContent="La semana normal comienza un miércoles. Toca el miércoles correspondiente."; return; }
  /* si la semana ya está guardada, se abre esa (para cerrar, suspender o borrar); si no, es una nueva */
  let lectura;try{lectura=await sGetV(gnPlanKey(iso),null);}catch(e){msg.textContent="No se pudo consultar la semana. No se abrió un borrador; vuelve a intentarlo.";return;}
+ let revision;try{revision=await sGet("guardia-revision:"+iso,null);}catch{msg.textContent="No se pudo verificar la aprobación de la semana.";return;}
+ if(solicitud!==gnPlanLectura)return;
  const guardada=lectura.value;
- if(guardada&&guardada.estado!=="anulada"){ gnPlanDraft={...guardada,guardada:true,_version:lectura.version}; msg.textContent="Semana ya programada ("+({abierta:"inscripción abierta",suspendida:"suspendida",asignacion:"en asignación"}[guardada.estado]||guardada.estado)+")."; }
+ if(guardada&&guardada.estado!=="anulada"){ gnPlanDraft={...guardada,guardada:true,_version:lectura.version,_aprobada:revision?.estado==="aprobada"}; msg.textContent=revision?.estado==="aprobada"?"Programación aprobada · inscripción cerrada.":guardada.estado==="suspendida"?"Semana suspendida.":Date.now()>=gnInsCierreMs(guardada)?"Inscripción cerrada · pendiente de asignación.":"Inscripción abierta."; }
  else { gnPlanDraft={inicio:iso,fin:gnAdd(iso,7),_version:lectura.version,domingoDiurno:false,lugarDomingo:"domicilio",actividad:"",estado:"planificacion",confirmado:false}; msg.textContent=""; }
  const cv=document.getElementById("gnCierrePeriodo");
- if(cv){ const ms=gnPlanDraft.cierre?Date.parse(gnPlanDraft.cierre):instanteChile(gnAdd(iso,-1),"19:00"); cv.value=gnLocalInput(Math.max(ms,Date.now()+60*60*1000)); }
+ if(cv){ const ms=gnPlanDraft.cierre?Date.parse(gnPlanDraft.cierre):instanteChile(gnAdd(iso,-1),"19:00"); cv.value=gnLocalInput(guardada?ms:Math.max(ms,Date.now()+60*60*1000)); }
  document.getElementById("gnDomingoDiurno").checked=!!gnPlanDraft.domingoDiurno; document.getElementById("gnDomingoOpciones").style.display=gnPlanDraft.domingoDiurno?"block":"none"; renderGnPlanner();
 }
 function renderGnPeriodo(){
@@ -1983,7 +1986,10 @@ function renderGnPeriodo(){
  const anular=document.getElementById("gnBorrarSemana");
  if(anular){anular.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);anular.textContent="Anular semana publicada";}
  ["gnCerrarInscripcion","gnSuspenderPeriodo"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!(gnPlanDraft&&gnPlanDraft.guardada);});
- const publicar=document.getElementById("gnConfirmarPeriodo");if(publicar){publicar.disabled=!gnPlanDraft;publicar.textContent=gnPlanDraft&&gnPlanDraft.guardada?"Actualizar plazo de inscripción":"Publicar semana";}
+ const aprobada=!!gnPlanDraft?._aprobada,cerrada=gnPlanDraft?.guardada&&Date.now()>=gnInsCierreMs(gnPlanDraft);
+ const publicar=document.getElementById("gnConfirmarPeriodo");if(publicar){publicar.disabled=!gnPlanDraft||aprobada;publicar.textContent=gnPlanDraft?.guardada?(cerrada?"Reabrir inscripción":"Actualizar plazo de inscripción"):"Publicar semana";}
+ const plazo=document.getElementById("gnPlazoInscripcion");if(plazo)plazo.hidden=aprobada;
+ const cerrar=document.getElementById("gnCerrarInscripcion");if(cerrar)cerrar.hidden=!gnPlanDraft?.guardada||cerrada||aprobada;
  const limpiar=document.getElementById("gnLimpiarSeleccion"); if(limpiar) limpiar.disabled=!gnPlanDraft;
  const cierre=document.getElementById("gnCierrePeriodo"); if(cierre&&!gnPlanDraft&&!cierre.value)cierre.value=gnLocalInput(Date.now()+60*60*1000);
  if(!gnPlanDraft){box.textContent="Toca un miércoles para seleccionar la semana.";return;}
@@ -2034,6 +2040,9 @@ document.querySelectorAll("[data-gn-lugar]").forEach(b=>b.addEventListener("clic
 on("gnActividad","input",e=>{if(gnPlanDraft)gnPlanDraft.actividad=e.target.value;});
 on("gnConfirmarPeriodo","click",async()=>{
  const msg=document.getElementById("gnPlanMsg"); if(!gnPlanDraft){msg.textContent="Selecciona primero un miércoles.";return;}
+ const revision=await sGet("guardia-revision:"+gnPlanDraft.inicio,null).catch(()=>undefined);
+ if(revision===undefined){msg.textContent="No se pudo verificar la aprobación. Intenta nuevamente.";return;}
+ if(revision?.estado==="aprobada"){msg.textContent="La programación ya está aprobada. Modifica la dotación desde la pantalla de asignación.";return;}
  const cv=document.getElementById("gnCierrePeriodo")?.value;
   const cierreMs=cv?instanteChile(cv.slice(0,10),cv.slice(11,16)):instanteChile(gnAdd(gnPlanDraft.inicio,-1),"19:00");   /* por omisión: el martes anterior, 19:00 */
   if(!(cierreMs>Date.now())){ msg.textContent="La fecha de cierre ya pasó ("+new Date(cierreMs).toLocaleString("es-CL",{timeZone:"America/Santiago"})+"). Elige una fecha y hora futuras: así los voluntarios pueden elegir sus noches."; return; }
@@ -3043,7 +3052,6 @@ on("gnHistorialSelect","change",()=>{
 });
 on("gnHistorialVer","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialMostrar(ini);});
 on("gnHistorialPdf","click",()=>{const ini=document.getElementById("gnHistorialSelect")?.value;if(ini)gnHistorialDescargar(ini);});
-on("gnHistorialOdd","click",()=>gnHistorialAbrirOdd(document.getElementById("gnHistorialSelect")?.value));
 on("gnTablaPdf","click",()=>{if(gnTablaSemanaVisible)gnHistorialDescargar(gnTablaSemanaVisible,true);else alert("Primero carga una semana de guardia.");});
 on("gnOddMaestras","click",()=>gnHistorialAbrirOdd(gnTablaSemanaVisible));
 

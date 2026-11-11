@@ -38,19 +38,21 @@ export default function Page(){
  const subirOriginal=async(event)=>{
    const file=event.target.files?.[0];event.target.value="";
    if(!file)return;
-   setSubiendoOriginal(true);setStatus("Verificando original ODD 063/2026…");
+   setSubiendoOriginal(true);setStatus("Verificando documento original de Guardia Nocturna…");
    try{
-     if(file.size>2_000_000||file.type!=="application/pdf")throw Error("Selecciona el PDF original ODD 063/2026");
+     if(file.size>2_000_000||file.type!=="application/pdf")throw Error("Selecciona el PDF original ODD 071/2026 o 063/2026");
      const bytes=new Uint8Array(await file.arrayBuffer());let binary="";
+     const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');
+     const numero=sha==='7765fe3ac9fb672eaa28ac1a78d178675ce1d35ade923d5f880ace0e338c97b2'?'071':'063';
      for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.subarray(i,i+16384));
      const response=await fetch("/api/odd-maestras/plantilla-guardia",{
        method:"POST",headers:{"Content-Type":"application/json"},
-       body:JSON.stringify({confirmacion:"GUARDAR_ORIGINAL_ODD_063_2026",base64:btoa(binary)})
+       body:JSON.stringify({confirmacion:"GUARDAR_ORIGINAL_ODD_"+numero+"_2026",base64:btoa(binary)})
      });
      const out=await response.json();
      if(!response.ok||!out.ok)throw Error(out.error||"No fue posible guardar el original");
      setOriginalDisponible(true);
-     setStatus("Documento 063/2026 verificado y archivado para futuras guardias.");
+     setStatus("Documento "+numero+"/2026 verificado y archivado para futuras guardias.");
    }catch(e){setStatus(e.message||"Error al guardar original ODD");}
    finally{setSubiendoOriginal(false);}
  };
@@ -132,7 +134,7 @@ export default function Page(){
      if(!respuesta.ok)throw Error("No se pudo cargar el original ODD 063/2026.");
      const original=new Uint8Array(await respuesta.arrayBuffer());
      const {generarGuardiaDesdeOriginal}=await import("../../lib/odd-guardia-063-pdf.mjs");
-     return generarGuardiaDesdeOriginal({original,semana:guardWeek,year:f.year,
+     return generarGuardiaDesdeOriginal({original,plantilla:respuesta.headers.get('X-Germania-Plantilla')||'063/2026',semana:guardWeek,year:f.year,
        number:f.number,issueDate:f.issueDate,oddAnterior:f.oddAnterior});
    }
    const {jsPDF}=await import("jspdf"); const d=new jsPDF({unit:"mm",format:"a4"}); let y=18;
