@@ -15,3 +15,7 @@ Pruebas: cambio de oficial a voluntario sin conexión, lectura antigua que termi
 El acceso de Inicio se muestra únicamente al Teniente Tercero y al Ayudante de Capitán activos, dentro de un desplegable nativo cerrado inicialmente. Una actualización conserva si estaba abierto; un cambio de identidad lo cierra y limpia. Los botones conservan sus acciones al plegarse. Los demás roles conservan sus accesos existentes fuera de esta tarjeta.
 
 T3 conserva las tareas de revisión existentes. Ayudante consulta las guardias que su acceso actual permite leer, sin botones de acreditación nuevos ni ampliación de lectura de pendientes o fotos. No cambia ningún permiso de servidor.
+
+## Administrador · ajuste solicitado el 12 de noviembre
+
+Christian conserva su tarjeta administrativa de consulta, ahora dentro del mismo desplegable cerrado al entrar. Se reutiliza `plegarResumenMando` y se conserva la apertura al actualizar. No se agrega una segunda tarjeta de mando ni se cambian los permisos o las acciones administrativas. Dos regresiones verifican la presentación inicial y la conservación de apertura.
