@@ -52,3 +52,15 @@ test('el desplegable inicia cerrado, conserva su apertura y mantiene el botón o
  const c=fixture();c.ctx.document.createElement=nodo;c.run(helpers);
  for(const abierto of [false,true]){const host=nodo('host'),boton=nodo('button');let acciones=0;boton.onclick=()=>acciones++;host.appendChild(boton);c.ctx.hostPrueba=host;c.ctx.abiertoPrueba=abierto;c.run('plegarResumenMando(hostPrueba,abiertoPrueba)');const details=host.firstChild;assert.equal(details.tag,'details');assert.equal(details.open,abierto);assert.equal(details.children[0].tag,'summary');assert.equal(details.children[1].firstChild,boton);details.children[1].firstChild.onclick();assert.equal(acciones,1);}
 });
+
+const controlAdmin=source.slice(source.indexOf('function pintarControlAdmin(){'),source.indexOf(' if(!panel)return;',source.indexOf('function pintarControlAdmin(){')))+'\n}';
+test('el administrador usa su control existente plegado, sin una segunda tarjeta de mando',()=>{
+ const c=fixture();c.ctx.ROSTER[0].cargo='Voluntario';c.ctx.ROSTER[0].clave='517';c.run(helpers);c.run(resumen);c.run(controlAdmin);let llamadas=0,abierto;
+ c.ctx.plegarResumenMando=(host,estado)=>{llamadas++;abierto=estado;assert.equal(host,c.nodos.lgnAdminHome);};c.ctx.semanaVigente48=()=>true;
+ c.run('admin=true;items=[];pintarResumenMando();pintarControlAdmin();');
+ assert.equal(c.nodos.lgnMandoHome.innerHTML,'');assert.equal(llamadas,1);assert.equal(abierto,false);assert.match(c.nodos.lgnAdminHome.innerHTML,/Abrir consulta de guardias/);
+});
+test('el control del administrador conserva su apertura en actualizaciones',()=>{
+ const c=fixture();c.run(controlAdmin);c.ctx.semanaVigente48=()=>true;c.nodos.lgnAdminHome.querySelector=()=>({open:true});let abierto;
+ c.ctx.plegarResumenMando=(host,estado)=>{abierto=estado;};c.run('admin=true;items=[];pintarControlAdmin();');assert.equal(abierto,true);
+});

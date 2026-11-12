@@ -409,9 +409,11 @@ function pintarControlAdmin(){
   .map(([valor,titulo])=>'<div class="lgn-control-cifra"><b>'+valor+'</b><span>'+titulo+'</span></div>').join("")+'</div>';
  if(home){
   if(admin){
+   const abierto=home.querySelector("details[data-lgn-control-inicio]")?.open===true;
    home.innerHTML='<section class="card" aria-label="Consultar guardias">'+encabezado+
     indicadores+'<button class="btn secondary" type="button" id="lgnAdminAbrir">Abrir consulta de guardias</button></section>';
    const abrir=$("lgnAdminAbrir");if(abrir)abrir.onclick=abrirControlAdmin;
+   plegarResumenMando(home,abierto);
   }else home.innerHTML="";
  }
  if(!panel)return;
